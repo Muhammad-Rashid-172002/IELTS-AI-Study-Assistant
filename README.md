@@ -1,16 +1,34 @@
-# fyproject
+IELTS AI Study Assistant
 
-A new Flutter project.
+A smart and modern Flutter-based IELTS preparation app powered by AI.
+It helps users practice Speaking, Reading, Writing, and Listening with intelligent suggestions and real-time evaluations.
 
-## Getting Started
+🚀 Features
 
-This project is a starting point for a Flutter application.
+🎤 AI Speaking Evaluation
 
-A few resources to get you started if this is your first Flutter project:
+✍️ Grammar Correction & Writing Feedback
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+🧠 MCQ Generation for Reading Practice
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+🔍 OCR-Based Text Extraction
+
+🤖 AI Chat Assistant (IELTS-focused)
+
+📄 Reading Summaries
+
+🔐 Firebase Authentication
+
+📊 Progress Tracking
+
+🎨 Clean & Modern UI/UX
+
+📦 Tech Stack
+
+Flutter
+
+Firebase (Auth, Firestore, Storage)
+
+OpenAI API
+
+Google ML Kit (OCR)
