@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "600359875882",
+    "project_id": "ielts-ai-study-assistant",
+    "storage_bucket": "ielts-ai-study-assistant.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:600359875882:android:b107819122a8c4c250da53",
+        "android_client_info": {
+          "package_name": "com.example.fyproject"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBTpDEPASh9LqEn5HiD4XK4ncRY0qcumMQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
