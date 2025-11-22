@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:fyproject/view/onboarding/onboarding_screen.dart';
 import 'package:fyproject/view/splash/plash_view.dart';
 
 void main() {
