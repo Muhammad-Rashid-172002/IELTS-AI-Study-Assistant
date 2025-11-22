@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fyproject/model/onboarding_model.dart';
 
-
 class OnboardingController {
   PageController pageController = PageController();
   int currentPage = 0;
@@ -34,7 +33,7 @@ class OnboardingController {
       );
     } else {
       // Navigate to Login Screen
-   //  Navigator.push(context, MaterialPageRoute(builder: (context) => LoginView()));
+      //  Navigator.push(context, MaterialPageRoute(builder: (context) => LoginView()));
     }
   }
 }
