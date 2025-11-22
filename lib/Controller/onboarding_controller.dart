@@ -34,7 +34,7 @@ class OnboardingController {
       );
     } else {
       // Navigate to Login Screen
-      Navigator.pushReplacementNamed(context, '/login');
+   //  Navigator.push(context, MaterialPageRoute(builder: (context) => LoginView()));
     }
   }
 }
