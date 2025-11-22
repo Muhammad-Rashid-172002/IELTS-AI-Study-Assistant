@@ -78,7 +78,7 @@ class _OnboardingViewState extends State<OnboardingView> {
             padding: const EdgeInsets.all(20.0),
             child: ElevatedButton(
               onPressed: () {
-                controller.nextPage(context, controller.pages.length);
+            //   Navigator.push(context, route)
               },
               child: Text(
                   controller.currentPage == controller.pages.length - 1
