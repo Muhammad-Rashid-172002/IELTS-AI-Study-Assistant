@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fyproject/model/onboarding_model.dart';
+import 'package:fyproject/view/auth/login_view.dart';
 
 class OnboardingController {
   PageController pageController = PageController();
@@ -32,8 +33,8 @@ class OnboardingController {
         curve: Curves.easeInOut,
       );
     } else {
-      // Navigate to Login Screen
-      //  Navigator.push(context, MaterialPageRoute(builder: (context) => LoginView()));
+     // Navigate to Login Screen
+       Navigator.push(context, MaterialPageRoute(builder: (context) => LoginView()));
     }
   }
 }

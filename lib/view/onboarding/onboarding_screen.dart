@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fyproject/Controller/onboarding_controller.dart';
 import 'package:fyproject/utils/app_colors.dart';
+import 'package:fyproject/view/auth/login_view.dart';
 
 class OnboardingView extends StatefulWidget {
   const OnboardingView({super.key});
@@ -122,6 +123,7 @@ class _OnboardingViewState extends State<OnboardingView>
                     if (controller.currentPage ==
                         controller.pages.length - 1) {
                       // TODO: Navigate to next screen
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => LoginView()));
                     } else {
                       controller.pageController.nextPage(
                         duration: Duration(milliseconds: 500),
