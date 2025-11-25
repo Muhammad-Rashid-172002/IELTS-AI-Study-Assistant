@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:fyproject/Controller/onboarding_controller.dart';
 import 'package:fyproject/utils/app_colors.dart';
 
-
 class OnboardingView extends StatefulWidget {
   const OnboardingView({super.key});
 
@@ -10,87 +9,151 @@ class OnboardingView extends StatefulWidget {
   State<OnboardingView> createState() => _OnboardingViewState();
 }
 
-class _OnboardingViewState extends State<OnboardingView> {
+class _OnboardingViewState extends State<OnboardingView>
+    with SingleTickerProviderStateMixin {
+      
   final OnboardingController controller = OnboardingController();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Column(
-        children: [
-          Expanded(
-            child: PageView.builder(
-              controller: controller.pageController,
-              itemCount: controller.pages.length,
-              onPageChanged: (index) {
-                setState(() {
-                  controller.currentPage = index;
-                });
-              },
-              itemBuilder: (context, index) {
-                final page = controller.pages[index];
-                return Padding(
-                  padding: const EdgeInsets.all(30.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Image.asset(page.image, height: 250),
-                      SizedBox(height: 40),
-                      Text(
-                        page.title,
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      SizedBox(height: 20),
-                      Text(
-                        page.description,
-                        style: TextStyle(fontSize: 16),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              AppColors.primaryColor,
+              AppColors.primaryColor.withOpacity(0.7),
+              Colors.black87,
+            ],
           ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-              controller.pages.length,
-              (index) => Container(
-                margin: EdgeInsets.symmetric(horizontal: 5),
-                width: controller.currentPage == index ? 20 : 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: controller.currentPage == index
-                      ? AppColors.primaryColor
-                      : Colors.grey,
-                  borderRadius: BorderRadius.circular(5),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: PageView.builder(
+                  controller: controller.pageController,
+                  itemCount: controller.pages.length,
+                  onPageChanged: (index) {
+                    setState(() => controller.currentPage = index);
+                  },
+                  itemBuilder: (context, index) {
+                    final page = controller.pages[index];
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 30, vertical: 20),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // Image with soft fade animation effect
+                          AnimatedContainer(
+                            duration: Duration(milliseconds: 600),
+                            curve: Curves.easeOutBack,
+                            child: Image.asset(
+                              page.image,
+                              height: 260,
+                            ),
+                          ),
+
+                          SizedBox(height: 50),
+
+                          // Title
+                          Text(
+                            page.title,
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              height: 1.3,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+
+                          SizedBox(height: 20),
+
+                          Text(
+                            page.description,
+                            style: TextStyle(
+                              fontSize: 17,
+                              color: Colors.white70,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
               ),
-            ),
-          ),
-          SizedBox(height: 20),
-          Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: ElevatedButton(
-              onPressed: () {
-            //   Navigator.push(context, route)
-              },
-              child: Text(
-                  controller.currentPage == controller.pages.length - 1
-                      ? "Get Started"
-                      : "Next"),
-              style: ElevatedButton.styleFrom(
-                minimumSize: Size(double.infinity, 50),
-                backgroundColor: AppColors.primaryColor,
+
+              // Modern Smooth Indicator
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  controller.pages.length,
+                  (index) {
+                    bool active = controller.currentPage == index;
+                    return AnimatedContainer(
+                      duration: Duration(milliseconds: 300),
+                      margin: EdgeInsets.symmetric(horizontal: 5),
+                      width: active ? 26 : 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: active
+                            ? Colors.white
+                            : Colors.white.withOpacity(0.4),
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
-          )
-        ],
+
+              SizedBox(height: 30),
+
+              // Premium Button
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 25, vertical: 10),
+                child: ElevatedButton(
+                  onPressed: () {
+                    if (controller.currentPage ==
+                        controller.pages.length - 1) {
+                      // TODO: Navigate to next screen
+                    } else {
+                      controller.pageController.nextPage(
+                        duration: Duration(milliseconds: 500),
+                        curve: Curves.easeInOut,
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    minimumSize: Size(double.infinity, 55),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 6,
+                  ),
+                  child: Text(
+                    controller.currentPage == controller.pages.length - 1
+                        ? "Get Started"
+                        : "Next",
+                    style: TextStyle(
+                      color: AppColors.primaryColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+              ),
+
+              SizedBox(height: 20),
+            ],
+          ),
+        ),
       ),
     );
   }
