@@ -11,7 +11,6 @@ class GoogleButton extends StatefulWidget {
 
 class _GoogleButtonState extends State<GoogleButton>
     with SingleTickerProviderStateMixin {
-  
   double _scale = 1.0;
 
   void _onTapDown(TapDownDetails details) {
@@ -38,7 +37,10 @@ class _GoogleButtonState extends State<GoogleButton>
           decoration: BoxDecoration(
             color: Colors.white, // background white
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.3),
+              width: 1.5,
+            ),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.2),
