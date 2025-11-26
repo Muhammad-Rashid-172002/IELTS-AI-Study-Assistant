@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../controller/auth_controller.dart';
-import '../../widgets/app_input_field.dart';
-import '../../widgets/app_button.dart';
+import 'package:fyproject/Controller/auth_controller.dart';
+import 'package:fyproject/view/auth/signup_view.dart';
+import 'package:fyproject/widgets/app_button.dart';
+import 'package:fyproject/widgets/app_input_field.dart';
+
 
 class LoginView extends StatefulWidget {
   const LoginView({super.key});
@@ -134,7 +136,7 @@ class _LoginViewState extends State<LoginView>
 
                     GestureDetector(
                       onTap: () {
-                        Navigator.pushNamed(context, '/signup');
+                        Navigator.push(context, MaterialPageRoute(builder: (context)=> SignupView()));
                       },
                       child: Text(
                         "Don't have an account? Sign up",
