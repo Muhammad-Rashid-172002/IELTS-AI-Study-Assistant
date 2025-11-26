@@ -12,7 +12,20 @@
           "package_name": "com.example.fyproject"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "600359875882-r9ivn3tc6vmdmhckl6pi1kg5jorvjlgr.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.fyproject",
+            "certificate_hash": "37c45d190ec6c8a212eae0d7483d7a564f7695cb"
+          }
+        },
+        {
+          "client_id": "600359875882-1infdhbghc9dqfl4un77j9bmse1l4h2k.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBTpDEPASh9LqEn5HiD4XK4ncRY0qcumMQ"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "600359875882-1infdhbghc9dqfl4un77j9bmse1l4h2k.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "600359875882-7m4al83uq8fhj3jmbisjdot09vn1db6v.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.fyproject"
+              }
+            }
+          ]
         }
       }
     }
