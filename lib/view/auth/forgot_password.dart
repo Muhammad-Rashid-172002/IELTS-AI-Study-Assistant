@@ -12,7 +12,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        
+        title: Text("FOrgot Password" ),
       ),
       body: Center(
         child: Text('Forgot Password Screen'),
