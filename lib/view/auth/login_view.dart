@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fyproject/Controller/auth_controller.dart';
+import 'package:fyproject/view/auth/forgot_password.dart';
 import 'package:fyproject/view/auth/signup_view.dart';
 import 'package:fyproject/view/home/home_Screen.dart';
 import 'package:fyproject/widgets/app_button.dart';
@@ -155,6 +156,21 @@ class _LoginViewState extends State<LoginView>
                     // Password field with validation
                     passwordField,
                     SizedBox(height: 30),
+                    SizedBox(height: 20),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ForgotPassword(),
+                          ),
+                        );
+                      },
+                      child: Text(
+                        "Forgot Password?",
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
 
                     // Login button
                     controller.isLoading
