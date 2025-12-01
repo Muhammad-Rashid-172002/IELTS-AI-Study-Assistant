@@ -1,8 +1,7 @@
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:google_fonts/google_fonts.dart';
-
 
 class ForgotPassword extends StatefulWidget {
   const ForgotPassword({super.key});
@@ -36,7 +35,8 @@ class _ForgotPasswordState extends State<ForgotPassword> {
       showDialog(
         context: context,
         builder: (context) => const AlertDialog(
-          content: Text("✅ Password reset link sent! Check your email."),
+          title: Text("Email Sent Successfully"),
+          content: Text("A password reset link has been sent to your email."),
         ),
       );
     } catch (e) {
@@ -44,7 +44,8 @@ class _ForgotPasswordState extends State<ForgotPassword> {
       showDialog(
         context: context,
         builder: (context) => const AlertDialog(
-          content: Text("❌ Something went wrong. Try again later."),
+          title: Text("Error"),
+          content: Text("Unable to send reset link. Please try again."),
         ),
       );
     }
@@ -60,23 +61,31 @@ class _ForgotPasswordState extends State<ForgotPassword> {
         iconTheme: const IconThemeData(color: Colors.white),
         centerTitle: true,
         title: Text(
-          'Reset Password',
+          'IELTS Study Assistant',
           style: GoogleFonts.poppins(
             color: Colors.white,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w600,
             fontSize: 20,
           ),
         ),
       ),
+
       body: Container(
-         decoration: const BoxDecoration(gradient: kPrimaryGradient),   
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF004AAD), Color(0xFF5DE0E6)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+
         child: Center(
           child: SingleChildScrollView(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 28.0),
               child: Column(
                 children: [
-                  // 🔐 Header Icon
+                  // 🔐 IELTS Lock Icon
                   Container(
                     height: 90,
                     width: 90,
@@ -86,34 +95,38 @@ class _ForgotPasswordState extends State<ForgotPassword> {
                       border: Border.all(color: Colors.white30, width: 2),
                     ),
                     child: const Icon(
-                      Icons.lock_reset_rounded,
+                      Icons.lock_outline,
                       color: Colors.white,
                       size: 50,
                     ),
                   ),
+
                   const SizedBox(height: 20),
 
-                  // 🧾 Title and description
+                  // TITLE
                   Text(
-                    "Forgot your password?",
+                    "Forgot Your Password?",
                     style: GoogleFonts.poppins(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
                   ),
+
                   const SizedBox(height: 8),
+
                   Text(
-                    "Enter your registered email address to receive a password reset link.",
+                    "Enter your registered email to receive a password reset link.\nThis will help you access your IELTS Study Assistant account again.",
                     textAlign: TextAlign.center,
                     style: GoogleFonts.poppins(
                       color: Colors.white70,
                       fontSize: 14,
                     ),
                   ),
+
                   const SizedBox(height: 40),
 
-                  // 🪟 Glass card
+                  // WHITE CARD
                   Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 20, vertical: 30),
@@ -129,18 +142,19 @@ class _ForgotPasswordState extends State<ForgotPassword> {
                         ),
                       ],
                     ),
+
                     child: Form(
                       key: _formKey,
                       child: Column(
                         children: [
-                          customTextField(
+                          _textField(
                             label: "Email",
                             controller: emailController,
                             icon: Icons.email_outlined,
                             inputType: TextInputType.emailAddress,
                             validator: (value) {
                               if (value == null || value.isEmpty) {
-                                return "Enter your email";
+                                return "Email is required";
                               }
                               if (!RegExp(r'\S+@\S+\.\S+').hasMatch(value)) {
                                 return "Enter a valid email";
@@ -148,9 +162,10 @@ class _ForgotPasswordState extends State<ForgotPassword> {
                               return null;
                             },
                           ),
+
                           const SizedBox(height: 30),
 
-                          // 🚀 Reset button
+                          // Reset Button
                           GestureDetector(
                             onTap: _isLoading ? null : passwordReset,
                             child: Container(
@@ -158,19 +173,23 @@ class _ForgotPasswordState extends State<ForgotPassword> {
                               width: double.infinity,
                               decoration: BoxDecoration(
                                 gradient: const LinearGradient(
-                                  colors: [Color(0xFF5D5FEF), Color(0xFF8F94FB)],
+                                  colors: [
+                                    Color(0xFF004AAD),
+                                    Color(0xFF6AAFE6)
+                                  ],
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                 ),
                                 borderRadius: BorderRadius.circular(14),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.2),
+                                    color: Colors.black26,
                                     offset: const Offset(0, 4),
                                     blurRadius: 10,
                                   ),
                                 ],
                               ),
+
                               child: Center(
                                 child: _isLoading
                                     ? const SpinKitFadingCircle(
@@ -179,8 +198,8 @@ class _ForgotPasswordState extends State<ForgotPassword> {
                                         'Send Reset Link',
                                         style: GoogleFonts.poppins(
                                           color: Colors.white,
-                                          fontWeight: FontWeight.bold,
                                           fontSize: 16,
+                                          fontWeight: FontWeight.w600,
                                         ),
                                       ),
                               ),
@@ -199,8 +218,8 @@ class _ForgotPasswordState extends State<ForgotPassword> {
     );
   }
 
-  /// ✨ Custom TextField
-  Widget customTextField({
+  /// 📌 IELTS Style Custom TextField
+  Widget _textField({
     required TextEditingController controller,
     required String label,
     required IconData icon,
@@ -209,8 +228,8 @@ class _ForgotPasswordState extends State<ForgotPassword> {
   }) {
     return TextFormField(
       controller: controller,
-      keyboardType: inputType,
       validator: validator,
+      keyboardType: inputType,
       style: GoogleFonts.poppins(
         color: Colors.white,
         fontSize: 16,
@@ -225,9 +244,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
           color: Colors.white70,
           fontSize: 15,
         ),
-        prefixIcon: Icon(icon, color: Colors.white70, size: 22),
-        contentPadding:
-            const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+        prefixIcon: Icon(icon, color: Colors.white70),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
@@ -238,7 +255,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Colors.redAccent, width: 1.2),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
