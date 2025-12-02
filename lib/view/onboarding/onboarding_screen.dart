@@ -123,7 +123,7 @@ class _OnboardingViewState extends State<OnboardingView>
                     if (controller.currentPage ==
                         controller.pages.length - 1) {
                       // TODO: Navigate to next screen
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => LoginView()));
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => SigninScreen()));
                     } else {
                       controller.pageController.nextPage(
                         duration: Duration(milliseconds: 500),
