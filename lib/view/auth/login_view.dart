@@ -1,9 +1,10 @@
-import 'package:expanse_tracker_app/Screens/Auth_moduls/ForgotPassword.dart';
-import 'package:expanse_tracker_app/Screens/Auth_moduls/signupscreen.dart';
-import 'package:expanse_tracker_app/Screens/HomeScreen/homescreen.dart';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
+import 'package:fyproject/view/auth/forgot_password.dart';
+import 'package:fyproject/view/auth/signup_view.dart';
+import 'package:fyproject/view/home/home_Screen.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 

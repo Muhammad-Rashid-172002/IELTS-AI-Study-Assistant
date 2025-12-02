@@ -1,5 +1,4 @@
 import 'dart:io';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -11,14 +10,16 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 
-// 🌈 Theme Colors
+// 🎨 IELTS AI STUDY Theme Colors
 const kPrimaryGradient = LinearGradient(
-  colors: [Color(0xFF141E30), Color(0xFF243B55)],
+  colors: [Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364)],
   begin: Alignment.topLeft,
   end: Alignment.bottomRight,
 );
-const kButtonColor = Color(0xFF6C63FF);
+
+const kButtonColor = Color(0xFF6C63FF); // Purple AI color
 const kTextColor = Colors.white70;
+
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -31,117 +32,81 @@ class _SignupScreenState extends State<SignupScreen> {
   final TextEditingController nameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  final TextEditingController confirmPasswordController =
-      TextEditingController();
+  final TextEditingController confirmPasswordController = TextEditingController();
+
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
   bool _isLoading = false;
   bool _passwordVisible = false;
   bool _confirmPasswordVisible = false;
+
   File? _profileImage;
 
-  // // 🖼️ Pick Image
-  // Future<void> _pickImage() async {
-  //   final pickedFile = await ImagePicker().pickImage(
-  //     source: ImageSource.gallery,
-  //     imageQuality: 70,
-  //   );
-  //   if (pickedFile != null) {
-  //     setState(() => _profileImage = File(pickedFile.path));
-  //   }
-  // }
 
+  // -------------------------------------------------------------------------
   // 🔐 Email Signup
+  // -------------------------------------------------------------------------
   Future<void> _signUpWithEmail() async {
     if (_formKey.currentState!.validate()) {
       if (passwordController.text != confirmPasswordController.text) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              "Passwords do not match",
-              style: TextStyle(
-                color: Colors.white, // White text for contrast
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            backgroundColor: Color(
-              0xFF2C5364,
-            ), // Dark bluish-gray (matches your theme)
-            behavior: SnackBarBehavior.floating, // Modern floating style
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            margin: const EdgeInsets.all(12),
-            duration: const Duration(seconds: 3),
-          ),
-        );
-
+        _showSnack("Passwords do not match");
         return;
       }
 
       setState(() => _isLoading = true);
+
       try {
         UserCredential userCredential = await FirebaseAuth.instance
             .createUserWithEmailAndPassword(
-              email: emailController.text.trim(),
-              password: passwordController.text.trim(),
-            );
+            email: emailController.text.trim(),
+            password: passwordController.text.trim(),
+        );
 
         String? imageUrl;
         if (_profileImage != null) {
           final ref = FirebaseStorage.instance
               .ref()
-              .child('user_images')
-              .child('${userCredential.user!.uid}.jpg');
+              .child("user_images")
+              .child("${userCredential.user!.uid}.jpg");
+
           await ref.putFile(_profileImage!);
           imageUrl = await ref.getDownloadURL();
         }
 
         await FirebaseFirestore.instance
-            .collection('users')
+            .collection("users")
             .doc(userCredential.user!.uid)
             .set({
-              'name': nameController.text.trim(),
-              'email': emailController.text.trim(),
-              'imageUrl': imageUrl ?? '',
-              'createdAt': Timestamp.now(),
-            });
+          "name": nameController.text.trim(),
+          "email": emailController.text.trim(),
+          "imageUrl": imageUrl ?? "",
+          "createdAt": Timestamp.now(),
+        });
 
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const HomeScreen()),
         );
+
       } on FirebaseAuthException catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              e.message ?? 'Signup failed',
-              style: const TextStyle(
-                color: Colors.white, // White text for readability
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            backgroundColor: const Color(0xFF203A43), // Dark blue-gray tone
-            behavior: SnackBarBehavior.floating, // Modern floating effect
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            margin: const EdgeInsets.all(12),
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        _showSnack(e.message ?? "Signup failed");
       } finally {
         setState(() => _isLoading = false);
       }
     }
   }
 
-  // 🔵 Google Sign-In
+  // -------------------------------------------------------------------------
+  // 🔵 Google Sign-in
+  // -------------------------------------------------------------------------
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
+
     try {
-      await GoogleSignIn().signOut();
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      final googleSignIn = GoogleSignIn();
+      await googleSignIn.signOut();
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+
       if (googleUser == null) {
         setState(() => _isLoading = false);
         return;
@@ -153,55 +118,63 @@ class _SignupScreenState extends State<SignupScreen> {
         idToken: googleAuth.idToken,
       );
 
-      final userCredential = await FirebaseAuth.instance.signInWithCredential(
-        credential,
-      );
+      final userCredential =
+          await FirebaseAuth.instance.signInWithCredential(credential);
 
       final userDoc = await FirebaseFirestore.instance
-          .collection('users')
+          .collection("users")
           .doc(userCredential.user!.uid)
           .get();
 
       if (!userDoc.exists) {
         await FirebaseFirestore.instance
-            .collection('users')
+            .collection("users")
             .doc(userCredential.user!.uid)
             .set({
-              'name': googleUser.displayName ?? 'User',
-              'email': googleUser.email,
-              'imageUrl': googleUser.photoUrl ?? '',
-              'createdAt': Timestamp.now(),
-            });
+          "name": googleUser.displayName ?? "IELTS Student",
+          "email": googleUser.email,
+          "imageUrl": googleUser.photoUrl ?? "",
+          "createdAt": Timestamp.now(),
+        });
       }
 
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const HomeScreen()),
       );
+
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "Google Sign-In failed: $e",
-            style: const TextStyle(
-              color: Colors.white, // White for contrast
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          backgroundColor: const Color(0xFF0F2027), // Dark gradient tone base
-          behavior: SnackBarBehavior.floating, // Floating for modern look
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          margin: const EdgeInsets.all(12),
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      _showSnack("Google Sign-in failed: $e");
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
+  // -------------------------------------------------------------------------
+  // Snackbar
+  // -------------------------------------------------------------------------
+  void _showSnack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          msg,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        backgroundColor: const Color(0xFF203A43),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+
+  // -------------------------------------------------------------------------
+  // UI
+  // -------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -220,26 +193,29 @@ class _SignupScreenState extends State<SignupScreen> {
                   border: Border.all(color: Colors.white24),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
-                      blurRadius: 10,
+                      color: Colors.black.withOpacity(0.25),
+                      blurRadius: 12,
                       offset: const Offset(0, 6),
                     ),
                   ],
                 ),
                 child: Column(
                   children: [
+
+                    // ---------------------------------------------------------
                     // 🧭 Header
+                    // ---------------------------------------------------------
                     Text(
-                      "Join BillSnap AI",
+                      "IELTS AI Study",
                       style: GoogleFonts.poppins(
-                        fontSize: 26,
+                        fontSize: 28,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      "Smart expense tracking with AI",
+                      "Practice • Evaluate • Improve with AI",
                       style: GoogleFonts.roboto(
                         color: Colors.white70,
                         fontSize: 15,
@@ -247,31 +223,15 @@ class _SignupScreenState extends State<SignupScreen> {
                     ),
                     const SizedBox(height: 30),
 
-                    // 🖼️ Profile Image Picker
-                    // GestureDetector(
-                    //   onTap: _pickImage,
-                    //   child: CircleAvatar(
-                    //     radius: 45,
-                    //     backgroundColor: Colors.white24,
-                    //     backgroundImage: _profileImage != null
-                    //         ? FileImage(_profileImage!)
-                    //         : null,
-                    //     child: _profileImage == null
-                    //         ? const Icon(
-                    //             Icons.camera_alt,
-                    //             color: Colors.white70,
-                    //             size: 32,
-                    //           )
-                    //         : null,
-                    //   ),
-                    // ),
-                    // const SizedBox(height: 20),
-
-                    // 🧾 Fields
+                    // ---------------------------------------------------------
+                    // 🧾 Input Fields
+                    // ---------------------------------------------------------
                     _buildInputField("Full Name", Icons.person, nameController),
                     const SizedBox(height: 15),
+
                     _buildInputField("Email", Icons.email, emailController),
                     const SizedBox(height: 15),
+
                     _buildInputField(
                       "Password",
                       Icons.lock,
@@ -282,58 +242,57 @@ class _SignupScreenState extends State<SignupScreen> {
                       },
                     ),
                     const SizedBox(height: 15),
+
                     _buildInputField(
                       "Confirm Password",
                       Icons.lock_outline,
                       confirmPasswordController,
                       obscure: !_confirmPasswordVisible,
                       toggleVisibility: () {
-                        setState(
-                          () => _confirmPasswordVisible =
-                              !_confirmPasswordVisible,
-                        );
+                        setState(() => _confirmPasswordVisible =
+                            !_confirmPasswordVisible);
                       },
                     ),
                     const SizedBox(height: 25),
 
+                    // ---------------------------------------------------------
                     // 🚀 Signup Button
+                    // ---------------------------------------------------------
                     ElevatedButton(
                       onPressed: _isLoading ? null : _signUpWithEmail,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: kButtonColor,
                         minimumSize: const Size(double.infinity, 55),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
+                            borderRadius: BorderRadius.circular(30)),
                       ),
                       child: _isLoading
                           ? const SpinKitFadingCircle(
-                              color: Colors.white,
-                              size: 28,
-                            )
-                          : Text(
+                              color: Colors.white, size: 26)
+                          : const Text(
                               "Create Account",
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 fontSize: 17,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                               ),
                             ),
                     ),
+
                     const SizedBox(height: 20),
-                    Text(
-                      "or continue with",
-                      style: const TextStyle(color: Colors.white60),
-                    ),
+                    const Text("or continue with",
+                        style: TextStyle(color: Colors.white60)),
                     const SizedBox(height: 16),
 
+                    // ---------------------------------------------------------
                     // 🌐 Google Button
+                    // ---------------------------------------------------------
                     GestureDetector(
                       onTap: _isLoading ? null : _signInWithGoogle,
                       child: Container(
                         height: 48,
                         decoration: BoxDecoration(
-                          border: Border.all(color: kButtonPrimary),
+                          border: Border.all(color: Colors.white60),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Row(
@@ -342,11 +301,8 @@ class _SignupScreenState extends State<SignupScreen> {
                             Image.asset("assets/google.png", height: 24),
                             const SizedBox(width: 10),
                             const Text(
-                              "Sign in with Google",
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.white,
-                              ),
+                              "Sign-in with Google",
+                              style: TextStyle(color: Colors.white, fontSize: 16),
                             ),
                           ],
                         ),
@@ -354,23 +310,24 @@ class _SignupScreenState extends State<SignupScreen> {
                     ),
 
                     const SizedBox(height: 25),
+
+                    // ---------------------------------------------------------
+                    // Already Account?
+                    // ---------------------------------------------------------
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text(
-                          "Already have an account?",
-                          style: TextStyle(color: Colors.white70),
-                        ),
+                        const Text("Already have an account?",
+                            style: TextStyle(color: Colors.white70)),
                         TextButton(
                           onPressed: () => Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const SigninScreen(),
-                            ),
+                                builder: (_) => const SigninScreen()),
                           ),
-                          child: Text(
+                          child: const Text(
                             "Sign In",
-                            style: GoogleFonts.poppins(
+                            style: TextStyle(
                               color: Colors.white,
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
@@ -379,6 +336,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         ),
                       ],
                     ),
+
                   ],
                 ),
               ),
@@ -389,46 +347,46 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  // ✏️ Custom Input Field
+  // -------------------------------------------------------------------------
+  // ✏ Custom Input Field Widget
+  // -------------------------------------------------------------------------
   Widget _buildInputField(
-    String label,
-    IconData icon,
-    TextEditingController controller, {
-    bool obscure = false,
-    VoidCallback? toggleVisibility,
-  }) {
+      String label,
+      IconData icon,
+      TextEditingController controller, {
+        bool obscure = false,
+        VoidCallback? toggleVisibility,
+      }) {
     return TextFormField(
       controller: controller,
       obscureText: obscure,
       style: const TextStyle(color: Colors.white),
+      validator: (value) =>
+      (value == null || value.isEmpty) ? "Enter $label" : null,
       decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.white70),
         prefixIcon: Icon(icon, color: Colors.white70),
         suffixIcon: toggleVisibility != null
             ? IconButton(
-                icon: Icon(
-                  obscure ? Icons.visibility_off : Icons.visibility,
-                  color: Colors.white70,
-                ),
-                onPressed: toggleVisibility,
-              )
+          icon: Icon(
+            obscure ? Icons.visibility_off : Icons.visibility,
+            color: Colors.white70,
+          ),
+          onPressed: toggleVisibility,
+        )
             : null,
-        labelText: label,
-        labelStyle: const TextStyle(color: Colors.white70),
         filled: true,
-        fillColor: Colors.white.withOpacity(0.05),
+        fillColor: Colors.white.withOpacity(0.06),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(18),
           borderSide: const BorderSide(color: Colors.white24),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(18),
           borderSide: const BorderSide(color: kButtonColor),
         ),
       ),
-      validator: (value) =>
-          (value == null || value.isEmpty) ? 'Enter $label' : null,
     );
   }
-
-  // 🌐 Google Social Button
 }
