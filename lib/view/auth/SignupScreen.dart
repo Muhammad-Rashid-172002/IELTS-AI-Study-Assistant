@@ -4,10 +4,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
-import 'package:fyproject/view/auth/login_view.dart';
+import 'package:fyproject/view/auth/SigninScreen.dart';
 import 'package:fyproject/view/home/home_Screen.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+
 
 
 // 🎨 IELTS AI STUDY Theme Colors
@@ -99,58 +100,61 @@ class _SignupScreenState extends State<SignupScreen> {
   // -------------------------------------------------------------------------
   // 🔵 Google Sign-in
   // -------------------------------------------------------------------------
-  Future<void> _signInWithGoogle() async {
-    setState(() => _isLoading = true);
 
-    try {
-      final googleSignIn = GoogleSignIn();
-      await googleSignIn.signOut();
-      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
 
-      if (googleUser == null) {
-        setState(() => _isLoading = false);
-        return;
-      }
+Future<void> _signInWithGoogle() async {
+  setState(() => _isLoading = true);
 
-      final googleAuth = await googleUser.authentication;
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
+  try {
+    final GoogleSignIn googleSignIn = GoogleSignIn(
+      scopes: ['email'],
+    );
 
-      final userCredential =
-          await FirebaseAuth.instance.signInWithCredential(credential);
+    // Open Google Sign-In popup
+    final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
 
-      final userDoc = await FirebaseFirestore.instance
-          .collection("users")
-          .doc(userCredential.user!.uid)
-          .get();
-
-      if (!userDoc.exists) {
-        await FirebaseFirestore.instance
-            .collection("users")
-            .doc(userCredential.user!.uid)
-            .set({
-          "name": googleUser.displayName ?? "IELTS Student",
-          "email": googleUser.email,
-          "imageUrl": googleUser.photoUrl ?? "",
-          "createdAt": Timestamp.now(),
-        });
-      }
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-      );
-
-    } catch (e) {
-      _showSnack("Google Sign-in failed: $e");
-    } finally {
+    if (googleUser == null) {
       setState(() => _isLoading = false);
+      return; // User cancelled
     }
-  }
 
-  // -------------------------------------------------------------------------
+    final GoogleSignInAuthentication googleAuth =
+        await googleUser.authentication;
+
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+
+    // Firebase login
+    final UserCredential userCredential =
+        await FirebaseAuth.instance.signInWithCredential(credential);
+
+    // Save to Firestore
+    await FirebaseFirestore.instance
+        .collection("users")
+        .doc(userCredential.user!.uid)
+        .set({
+      "name": googleUser.displayName ?? "Student",
+      "email": googleUser.email,
+      "imageUrl": googleUser.photoUrl,
+      "createdAt": Timestamp.now(),
+    }, SetOptions(merge: true));
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const HomeScreen()),
+    );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Google Sign-in failed: $e")),
+    );
+  } finally {
+    setState(() => _isLoading = false);
+  }
+}
+
+// -------------------------------------------------------------------------
   // Snackbar
   // -------------------------------------------------------------------------
   void _showSnack(String msg) {
@@ -298,7 +302,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Image.asset("assets/google.png", height: 24),
+                            Image.asset("assets/images/google.png", height: 24),
                             const SizedBox(width: 10),
                             const Text(
                               "Sign-in with Google",
