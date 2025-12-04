@@ -1,9 +1,8 @@
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:fyproject/view/auth/forgot_password.dart';
-import 'package:fyproject/view/auth/signup_view.dart';
+import 'package:fyproject/view/auth/SignupScreen.dart';
 import 'package:fyproject/view/home/home_Screen.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -12,10 +11,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 const kButtonPrimary = Color(0xFF6C63FF);
 const kAppBarColor = Color(0xFF5A55DA);
 const kButtonPrimaryText = Colors.white;
-const kCardTextColor = Colors.black87;
-const kCardColor = Colors.white;
-const kBodyTextColor = Colors.grey;
-const kButtonColor = Color(0xFF6C63FF); // 🔧 added missing constant
+const kButtonColor = Color(0xFF6C63FF);
 
 // 🌈 Modern Gradient Background
 const kPrimaryGradient = LinearGradient(
@@ -35,7 +31,8 @@ class _SigninScreenState extends State<SigninScreen> {
   final _formKey = GlobalKey<FormState>();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
-  bool _passwordVisible = false; // ✅ fixed naming mismatch
+
+  bool _passwordVisible = false;
   bool _isLoading = false;
 
   // 🔐 Email Sign-In
@@ -47,33 +44,28 @@ class _SigninScreenState extends State<SigninScreen> {
           email: emailController.text.trim(),
           password: passwordController.text.trim(),
         );
+
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const HomeScreen()),
         );
       } on FirebaseAuthException catch (e) {
         String errorMsg = "Login failed";
-        if (e.code == 'user-not-found')
-          errorMsg = "User not found";
-        else if (e.code == 'wrong-password')
-          errorMsg = "Wrong password";
+        if (e.code == 'user-not-found') errorMsg = "User not found";
+        if (e.code == 'wrong-password') errorMsg = "Wrong password";
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               errorMsg,
-              style: const TextStyle(
-                color: Colors.white,
-              ), // White text for contrast
+              style: const TextStyle(color: Colors.white),
             ),
-            backgroundColor: const Color(0xFF203A43), // Dark background color
-            behavior:
-                SnackBarBehavior.floating, // Floating for better visibility
+            backgroundColor: const Color(0xFF203A43),
+            behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
             margin: const EdgeInsets.all(12),
-            duration: const Duration(seconds: 3),
           ),
         );
       } finally {
@@ -100,6 +92,7 @@ class _SigninScreenState extends State<SigninScreen> {
       );
 
       await FirebaseAuth.instance.signInWithCredential(credential);
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const HomeScreen()),
@@ -109,20 +102,11 @@ class _SigninScreenState extends State<SigninScreen> {
         SnackBar(
           content: Text(
             "Google Sign-In failed: $e",
-            style: const TextStyle(
-              color: Colors.white, // White text for readability
-              fontWeight: FontWeight.w500,
-            ),
+            style: const TextStyle(color: Colors.white),
           ),
-          backgroundColor: const Color(
-            0xFF2C5364,
-          ), // Dark bluish-gray background
-          behavior: SnackBarBehavior.floating, // Floating for modern look
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          backgroundColor: const Color(0xFF2C5364),
+          behavior: SnackBarBehavior.floating,
           margin: const EdgeInsets.all(12),
-          duration: const Duration(seconds: 3),
         ),
       );
     } finally {
@@ -142,40 +126,35 @@ class _SigninScreenState extends State<SigninScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // 🧭 Heading
+                  // 🧭 IELTS Heading
                   Text(
-                    "Welcome Back 👋",
+                    "IELTS AI Study 📘",
                     style: GoogleFonts.playfairDisplay(
-                      fontSize: 32,
+                      fontSize: 34,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
                   ),
                   const SizedBox(height: 10),
+
                   Text(
-                    "Sign in to continue managing your finances smartly.",
+                    "Boost your IELTS preparation with smart AI guidance.",
                     textAlign: TextAlign.center,
                     style: GoogleFonts.poppins(
                       fontSize: 15,
                       color: Colors.white70,
                     ),
                   ),
+
                   const SizedBox(height: 40),
 
-                  // 🧾 Glassmorphic Card
+                  // 🧾 Glass Card
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.08),
                       borderRadius: BorderRadius.circular(25),
                       border: Border.all(color: Colors.white24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
-                          blurRadius: 10,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
                     ),
                     child: Form(
                       key: _formKey,
@@ -186,7 +165,9 @@ class _SigninScreenState extends State<SigninScreen> {
                             Icons.email,
                             emailController,
                           ),
+
                           const SizedBox(height: 15),
+
                           _buildInputField(
                             "Password",
                             Icons.lock,
@@ -198,6 +179,7 @@ class _SigninScreenState extends State<SigninScreen> {
                               );
                             },
                           ),
+
                           const SizedBox(height: 10),
 
                           Align(
@@ -211,16 +193,13 @@ class _SigninScreenState extends State<SigninScreen> {
                               ),
                               child: const Text(
                                 "Forgot Password?",
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontWeight: FontWeight.w500,
-                                ),
+                                style: TextStyle(color: Colors.white70),
                               ),
                             ),
                           ),
                           const SizedBox(height: 20),
 
-                          // 🚀 Sign In Button
+                          // 🎓 Sign In Button
                           GestureDetector(
                             onTap: _isLoading ? null : _signInWithEmail,
                             child: Container(
@@ -247,12 +226,11 @@ class _SigninScreenState extends State<SigninScreen> {
                                         size: 32,
                                       )
                                     : Text(
-                                        "Sign In",
+                                        "Continue Learning",
                                         style: GoogleFonts.poppins(
-                                          color: kButtonPrimaryText,
+                                          color: Colors.white,
                                           fontSize: 18,
                                           fontWeight: FontWeight.bold,
-                                          letterSpacing: 1.2,
                                         ),
                                       ),
                               ),
@@ -275,44 +253,47 @@ class _SigninScreenState extends State<SigninScreen> {
                               Expanded(child: Divider(color: Colors.grey[300])),
                             ],
                           ),
+
                           const SizedBox(height: 20),
 
-                          // 🌐 Google Sign-In
+                          // 🌐 Google Button
                           GestureDetector(
                             onTap: _isLoading ? null : _signInWithGoogle,
                             child: Container(
                               height: 48,
                               decoration: BoxDecoration(
-                                border: Border.all(color: kButtonPrimary),
+                                border: Border.all(color: Colors.white70),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Image.asset("assets/google.png", height: 24),
+                                  Image.asset(
+                                    "assets/images/google.png",
+                                    height: 24,
+                                  ),
                                   const SizedBox(width: 10),
                                   const Text(
-                                    "Sign in with Google",
+                                    "Continue with Google",
                                     style: TextStyle(
-                                      fontSize: 16,
                                       color: Colors.white,
+                                      fontSize: 16,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
                           ),
+
                           const SizedBox(height: 20),
-                          // 📝 Sign Up Option
+
+                          // 📝 Sign Up
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               const Text(
-                                "Don’t have an account? ",
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 15,
-                                ),
+                                "New to IELTS AI Study? ",
+                                style: TextStyle(color: Colors.white70),
                               ),
                               TextButton(
                                 onPressed: () => Navigator.push(
@@ -322,10 +303,9 @@ class _SigninScreenState extends State<SigninScreen> {
                                   ),
                                 ),
                                 child: Text(
-                                  "Sign Up",
+                                  "Create Account",
                                   style: GoogleFonts.poppins(
                                     color: Colors.white,
-                                    fontSize: 16,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),

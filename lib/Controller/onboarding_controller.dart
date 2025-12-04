@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fyproject/model/onboarding_model.dart';
-import 'package:fyproject/view/auth/login_view.dart';
+import 'package:fyproject/view/auth/SigninScreen.dart';
 
 
 class OnboardingController {

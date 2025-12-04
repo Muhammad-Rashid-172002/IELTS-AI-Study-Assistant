@@ -32,22 +32,10 @@ class _ForgotPasswordState extends State<ForgotPassword> {
       );
 
       setState(() => _isLoading = false);
-      showDialog(
-        context: context,
-        builder: (context) => const AlertDialog(
-          title: Text("Email Sent Successfully"),
-          content: Text("A password reset link has been sent to your email."),
-        ),
-      );
+      showDialog(context: context, builder: (_) => _successDialog());
     } catch (e) {
       setState(() => _isLoading = false);
-      showDialog(
-        context: context,
-        builder: (context) => const AlertDialog(
-          title: Text("Error"),
-          content: Text("Unable to send reset link. Please try again."),
-        ),
-      );
+      showDialog(context: context, builder: (_) => _errorDialog());
     }
   }
 
@@ -61,11 +49,11 @@ class _ForgotPasswordState extends State<ForgotPassword> {
         iconTheme: const IconThemeData(color: Colors.white),
         centerTitle: true,
         title: Text(
-          'IELTS Study Assistant',
+          "Reset Password",
           style: GoogleFonts.poppins(
+            fontSize: 20,
             color: Colors.white,
             fontWeight: FontWeight.w600,
-            fontSize: 20,
           ),
         ),
       ),
@@ -73,7 +61,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF004AAD), Color(0xFF5DE0E6)],
+            colors: [Color(0xFF0F172A), Color(0xFF1E3A8A)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -81,136 +69,148 @@ class _ForgotPasswordState extends State<ForgotPassword> {
 
         child: Center(
           child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 28.0),
-              child: Column(
-                children: [
-                  // 🔐 IELTS Lock Icon
-                  Container(
-                    height: 90,
-                    width: 90,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.15),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white30, width: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 26),
+            child: Column(
+              children: [
+                // Icon With Glass Background
+                Container(
+                  height: 110,
+                  width: 110,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.white.withOpacity(0.20),
+                        Colors.white.withOpacity(0.05),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    child: const Icon(
-                      Icons.lock_outline,
-                      color: Colors.white,
-                      size: 50,
-                    ),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white30, width: 1.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.blueAccent.withOpacity(0.25),
+                        blurRadius: 18,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.lock_reset_rounded,
+                    color: Colors.white,
+                    size: 55,
+                  ),
+                ),
+
+                const SizedBox(height: 25),
+
+                Text(
+                  "Forgot Your Password?",
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                Text(
+                  "Enter your email and we will send you a reset link.\nAccess your IELTS AI study account again.",
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: Colors.white70,
+                  ),
+                ),
+
+                const SizedBox(height: 40),
+
+                // Form Card
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 30,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white.withOpacity(0.18)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.15),
+                        blurRadius: 25,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
                   ),
 
-                  const SizedBox(height: 20),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      children: [
+                        _customTextField(
+                          controller: emailController,
+                          label: "Email Address",
+                          icon: Icons.email_outlined,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return "Email is required";
+                            }
+                            if (!RegExp(r'\S+@\S+\.\S+').hasMatch(value)) {
+                              return "Enter a valid email";
+                            }
+                            return null;
+                          },
+                        ),
 
-                  // TITLE
-                  Text(
-                    "Forgot Your Password?",
-                    style: GoogleFonts.poppins(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
+                        const SizedBox(height: 35),
 
-                  const SizedBox(height: 8),
+                        // Reset Button
+                        GestureDetector(
+                          onTap: _isLoading ? null : passwordReset,
+                          child: Container(
+                            height: 55,
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF2563EB), Color(0xFF4F8EF7)],
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.blueAccent.withOpacity(0.25),
+                                  offset: const Offset(0, 6),
+                                  blurRadius: 12,
+                                ),
+                              ],
+                            ),
 
-                  Text(
-                    "Enter your registered email to receive a password reset link.\nThis will help you access your IELTS Study Assistant account again.",
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.poppins(
-                      color: Colors.white70,
-                      fontSize: 14,
-                    ),
-                  ),
-
-                  const SizedBox(height: 40),
-
-                  // WHITE CARD
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 30),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: Colors.white.withOpacity(0.2)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 20,
-                          offset: const Offset(0, 8),
+                            child: Center(
+                              child: _isLoading
+                                  ? const SpinKitFadingCircle(
+                                      color: Colors.white,
+                                      size: 26,
+                                    )
+                                  : Text(
+                                      "Send Reset Link",
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                            ),
+                          ),
                         ),
                       ],
                     ),
-
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        children: [
-                          _textField(
-                            label: "Email",
-                            controller: emailController,
-                            icon: Icons.email_outlined,
-                            inputType: TextInputType.emailAddress,
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return "Email is required";
-                              }
-                              if (!RegExp(r'\S+@\S+\.\S+').hasMatch(value)) {
-                                return "Enter a valid email";
-                              }
-                              return null;
-                            },
-                          ),
-
-                          const SizedBox(height: 30),
-
-                          // Reset Button
-                          GestureDetector(
-                            onTap: _isLoading ? null : passwordReset,
-                            child: Container(
-                              height: 55,
-                              width: double.infinity,
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [
-                                    Color(0xFF004AAD),
-                                    Color(0xFF6AAFE6)
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                borderRadius: BorderRadius.circular(14),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black26,
-                                    offset: const Offset(0, 4),
-                                    blurRadius: 10,
-                                  ),
-                                ],
-                              ),
-
-                              child: Center(
-                                child: _isLoading
-                                    ? const SpinKitFadingCircle(
-                                        color: Colors.white, size: 25)
-                                    : Text(
-                                        'Send Reset Link',
-                                        style: GoogleFonts.poppins(
-                                          color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                   ),
-                ],
-              ),
+                ),
+
+                const SizedBox(height: 40),
+              ],
             ),
           ),
         ),
@@ -218,50 +218,74 @@ class _ForgotPasswordState extends State<ForgotPassword> {
     );
   }
 
-  /// 📌 IELTS Style Custom TextField
-  Widget _textField({
+  // -------------------------------------------
+  // Custom TextField (Glass Style)
+  // -------------------------------------------
+  Widget _customTextField({
     required TextEditingController controller,
     required String label,
     required IconData icon,
-    TextInputType inputType = TextInputType.text,
     String? Function(String?)? validator,
   }) {
     return TextFormField(
       controller: controller,
       validator: validator,
-      keyboardType: inputType,
-      style: GoogleFonts.poppins(
-        color: Colors.white,
-        fontSize: 16,
-        fontWeight: FontWeight.w500,
-      ),
       cursorColor: Colors.white,
+      style: const TextStyle(color: Colors.white, fontSize: 16),
+
       decoration: InputDecoration(
         filled: true,
-        fillColor: Colors.white.withOpacity(0.1),
-        labelText: label,
-        labelStyle: GoogleFonts.poppins(
-          color: Colors.white70,
-          fontSize: 15,
-        ),
+        fillColor: Colors.white.withOpacity(0.10),
+
         prefixIcon: Icon(icon, color: Colors.white70),
+        labelText: label,
+        labelStyle: GoogleFonts.poppins(color: Colors.white70, fontSize: 15),
+
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: Colors.white, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1.3),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1.3),
         ),
       ),
+    );
+  }
+
+  // Success Dialog
+  Widget _successDialog() {
+    return AlertDialog(
+      title: const Text("Email Sent"),
+      content: const Text("A reset link has been sent to your email."),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("OK"),
+        ),
+      ],
+    );
+  }
+
+  // Error Dialog
+  Widget _errorDialog() {
+    return AlertDialog(
+      title: const Text("Error"),
+      content: const Text("Unable to send reset link. Please try again."),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("OK"),
+        ),
+      ],
     );
   }
 }
