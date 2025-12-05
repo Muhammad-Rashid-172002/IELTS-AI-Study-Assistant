@@ -351,9 +351,9 @@ Future<void> _signInWithGoogle() async {
     );
   }
 
-  // -------------------------------------------------------------------------
+
   // ✏ Custom Input Field Widget
-  // -------------------------------------------------------------------------
+
   Widget _buildInputField(
       String label,
       IconData icon,
