@@ -5,7 +5,6 @@ enum InputType { text, email, password }
 class AppInputField extends StatefulWidget {
   final String hint;
   final TextEditingController controller;
-  final bool isPassword;
   final IconData? icon;
   final InputType inputType;
 
@@ -13,7 +12,6 @@ class AppInputField extends StatefulWidget {
     super.key,
     required this.hint,
     required this.controller,
-    this.isPassword = false,
     this.icon,
     this.inputType = InputType.text,
   });
@@ -26,6 +24,8 @@ class _AppInputFieldState extends State<AppInputField> {
   bool _obscure = true;
   String? _errorText;
 
+  bool get isPassword => widget.inputType == InputType.password;
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -33,42 +33,51 @@ class _AppInputFieldState extends State<AppInputField> {
       children: [
         Container(
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(14),
+            color: Colors.white.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: _errorText != null
-                  ? Colors.redAccent
-                  : Colors.white.withOpacity(0.25),
+              color: _errorText == null
+                  ? Colors.white.withOpacity(0.25)
+                  : Colors.redAccent,
             ),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.15),
-                blurRadius: 12,
-                offset: Offset(0, 4),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
           child: TextField(
             controller: widget.controller,
-            obscureText: widget.isPassword ? _obscure : false,
-            style: TextStyle(color: Colors.white),
+            obscureText: isPassword ? _obscure : false,
+            cursorColor: Colors.white,
+            style: const TextStyle(color: Colors.white),
+
             keyboardType: widget.inputType == InputType.email
                 ? TextInputType.emailAddress
                 : TextInputType.text,
-            onChanged: (_) => setState(() => _errorText = null),
+
+            onChanged: (_) {
+              setState(() => _errorText = null);
+            },
+
             decoration: InputDecoration(
               hintText: widget.hint,
-              hintStyle: TextStyle(color: Colors.white70),
+              hintStyle: const TextStyle(color: Colors.white70),
               border: InputBorder.none,
-              contentPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 18),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 15,
+                vertical: 18,
+              ),
 
               // prefix icon
               prefixIcon: widget.icon != null
                   ? Icon(widget.icon, color: Colors.white70)
                   : null,
 
-              // password eye icon
-              suffixIcon: widget.isPassword
+              // password eye toggle
+              suffixIcon: isPassword
                   ? GestureDetector(
                       onTap: () {
                         setState(() => _obscure = !_obscure);
@@ -82,32 +91,37 @@ class _AppInputFieldState extends State<AppInputField> {
             ),
           ),
         ),
+
+        /// Error text display
         if (_errorText != null)
           Padding(
-            padding: const EdgeInsets.only(left: 12, top: 4),
+            padding: const EdgeInsets.only(left: 8, top: 4),
             child: Text(
               _errorText!,
-              style: TextStyle(color: Colors.redAccent, fontSize: 13),
+              style: const TextStyle(color: Colors.redAccent, fontSize: 13),
             ),
           ),
       ],
     );
   }
 
-  /// Validate the input and return true if valid
+  /// Validate the input field
   bool validate() {
     String value = widget.controller.text.trim();
 
+    // Empty check
     if (value.isEmpty) {
       _errorText = "${widget.hint} cannot be empty";
       setState(() {});
       return false;
     }
 
+    // Email validation
     if (widget.inputType == InputType.email) {
-      // basic email regex
-      final emailRegex =
-          RegExp(r"^[a-zA-Z0-9._%-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$");
+      final emailRegex = RegExp(
+        r"^[a-zA-Z0-9._%-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$",
+      );
+
       if (!emailRegex.hasMatch(value)) {
         _errorText = "Enter a valid email";
         setState(() {});
@@ -115,8 +129,8 @@ class _AppInputFieldState extends State<AppInputField> {
       }
     }
 
-    if (widget.isPassword) {
-      // password validation: min 6 chars
+    // Password validation
+    if (widget.inputType == InputType.password) {
       if (value.length < 6) {
         _errorText = "Password must be at least 6 characters";
         setState(() {});
@@ -124,9 +138,9 @@ class _AppInputFieldState extends State<AppInputField> {
       }
     }
 
-    // username validation (if text)
+    // Basic text minimum characters
     if (widget.inputType == InputType.text && value.length < 3) {
-      _errorText = "Must be at least 3 characters";
+      _errorText = "Enter at least 3 characters";
       setState(() {});
       return false;
     }
