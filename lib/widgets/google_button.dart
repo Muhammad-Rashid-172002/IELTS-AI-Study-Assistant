@@ -25,7 +25,7 @@ class _GoogleButtonState extends State<GoogleButton>
   Widget build(BuildContext context) {
     return AnimatedScale(
       scale: _scale,
-      duration: Duration(milliseconds: 120),
+      duration: const Duration(milliseconds: 120),
       curve: Curves.easeInOut,
       child: GestureDetector(
         onTapDown: _onTapDown,
@@ -35,31 +35,37 @@ class _GoogleButtonState extends State<GoogleButton>
         child: Container(
           height: 55,
           decoration: BoxDecoration(
-            color: Colors.white, // background white
+            color: Colors.white.withOpacity(0.9), // slight glass white
             borderRadius: BorderRadius.circular(14),
+
             border: Border.all(
-              color: Colors.white.withOpacity(0.3),
-              width: 1.5,
+              color: Colors.white.withOpacity(0.4),
+              width: 1.3,
             ),
+
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.2),
-                blurRadius: 8,
-                offset: Offset(0, 4),
+                color: Colors.black.withOpacity(0.15),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
               ),
             ],
           ),
+
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Image.asset("assets/images/google.png", height: 26),
-              SizedBox(width: 12),
+
+              const SizedBox(width: 12),
+
               Text(
                 "Continue with Google",
                 style: TextStyle(
-                  color: Colors.black87,
+                  color: Colors.black.withOpacity(0.85),
+                  fontWeight: FontWeight.w700,
                   fontSize: 16,
-                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.2,
                 ),
               ),
             ],
