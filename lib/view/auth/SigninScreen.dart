@@ -4,6 +4,7 @@ import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:fyproject/view/auth/forgot_password.dart';
 import 'package:fyproject/view/auth/SignupScreen.dart';
 import 'package:fyproject/view/home/home_Screen.dart';
+import 'package:fyproject/widgets/app_button.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
@@ -220,18 +221,17 @@ class _SigninScreenState extends State<SigninScreen> {
                                 ],
                               ),
                               child: Center(
-                                child: _isLoading
+                                child: // 🎓 Sign In Button using AppButton
+                                _isLoading
                                     ? const SpinKitCircle(
                                         color: Colors.white,
-                                        size: 32,
+                                        size: 40,
                                       )
-                                    : Text(
-                                        "Continue Learning",
-                                        style: GoogleFonts.poppins(
-                                          color: Colors.white,
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
+                                    : AppButton(
+                                        text: "Continue Learning",
+                                        onPressed: _signInWithEmail,
+                                        backgroundColor: kButtonPrimary,
+                                        textColor: Colors.white,
                                       ),
                               ),
                             ),
