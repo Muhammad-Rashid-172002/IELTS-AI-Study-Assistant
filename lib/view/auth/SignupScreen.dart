@@ -315,9 +315,8 @@ Future<void> _signInWithGoogle() async {
 
                     const SizedBox(height: 25),
 
-                    // ---------------------------------------------------------
+                    
                     // Already Account?
-                    // ---------------------------------------------------------
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
