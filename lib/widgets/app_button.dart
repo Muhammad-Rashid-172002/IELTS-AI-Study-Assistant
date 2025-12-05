@@ -20,11 +20,10 @@ class AppButton extends StatefulWidget {
 
 class _AppButtonState extends State<AppButton>
     with SingleTickerProviderStateMixin {
-      
   double _scale = 1.0;
 
   void _onTapDown(TapDownDetails details) {
-    setState(() => _scale = 0.94);
+    setState(() => _scale = 0.96);
   }
 
   void _onTapUp(TapUpDetails details) {
@@ -35,45 +34,64 @@ class _AppButtonState extends State<AppButton>
   Widget build(BuildContext context) {
     return AnimatedScale(
       scale: _scale,
-      duration: Duration(milliseconds: 120),
-      curve: Curves.easeInOut,
+      duration: const Duration(milliseconds: 140),
+      curve: Curves.easeOutQuint,
       child: GestureDetector(
         onTapDown: _onTapDown,
         onTapCancel: () => setState(() => _scale = 1.0),
         onTapUp: _onTapUp,
         onTap: widget.onPressed,
+
         child: Container(
+          height: 56,
           width: double.infinity,
-          height: 55,
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: widget.backgroundColor != null
-                  ? [
+            borderRadius: BorderRadius.circular(16),
+
+            gradient: widget.backgroundColor != null
+                ? LinearGradient(
+                    colors: [
+                      widget.backgroundColor!.withOpacity(0.9),
                       widget.backgroundColor!,
-                      widget.backgroundColor!,
-                    ]
-                  : const [
-                      Color(0xff6366F1),
-                      Color(0xff4F46E5),
                     ],
-            ),
-            borderRadius: BorderRadius.circular(14),
+                  )
+                : const LinearGradient(
+                    colors: [
+                      Color(0xFF2563EB), // Deep IELTS Blue
+                      Color(0xFF4F8EF7), // Soft Sky Blue
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.25),
-                blurRadius: 10,
-                offset: Offset(0, 4),
-              )
+                color: Colors.blueAccent.withOpacity(0.25),
+                blurRadius: 18,
+                spreadRadius: 1,
+                offset: const Offset(0, 6),
+              ),
             ],
+
+            border: Border.all(
+              color: Colors.white.withOpacity(0.20),
+              width: 1.2,
+            ),
+
+            // Glassmorphism effect
+            color: Colors.white.withOpacity(0.1),
+            backgroundBlendMode: BlendMode.overlay,
           ),
-          alignment: Alignment.center,
-          child: Text(
-            widget.text,
-            style: TextStyle(
-              color: widget.textColor ?? Colors.white,
-              fontWeight: FontWeight.w700,
-              fontSize: 18,
-              letterSpacing: 0.5,
+
+          child: Center(
+            child: Text(
+              widget.text,
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: widget.textColor ?? Colors.white,
+                letterSpacing: 0.7,
+              ),
             ),
           ),
         ),
