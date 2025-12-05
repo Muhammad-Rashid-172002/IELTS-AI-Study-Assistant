@@ -259,9 +259,9 @@ Future<void> _signInWithGoogle() async {
                     ),
                     const SizedBox(height: 25),
 
-                    // ---------------------------------------------------------
+                    
                     // 🚀 Signup Button
-                    // ---------------------------------------------------------
+     
                     ElevatedButton(
                       onPressed: _isLoading ? null : _signUpWithEmail,
                       style: ElevatedButton.styleFrom(
