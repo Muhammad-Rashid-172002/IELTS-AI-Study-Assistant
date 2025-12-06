@@ -1,7 +1,18 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
+import 'package:fyproject/widgets/app_button.dart';
+import 'package:fyproject/widgets/app_input_field.dart';
+import 'package:fyproject/widgets/app_snackbar.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+const kPrimaryGradient = LinearGradient(
+  colors: [Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364)],
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+);
+
+const kButtonColor = Color(0xFF6C63FF);
 
 class ForgotPassword extends StatefulWidget {
   const ForgotPassword({super.key});
@@ -32,10 +43,19 @@ class _ForgotPasswordState extends State<ForgotPassword> {
       );
 
       setState(() => _isLoading = false);
-      showDialog(context: context, builder: (_) => _successDialog());
-    } catch (e) {
+
+      AppSnackBar.show(
+        context,
+        "Reset link sent! Check your email.",
+        type: SnackBarType.success,
+      );
+    } on FirebaseAuthException catch (e) {
       setState(() => _isLoading = false);
-      showDialog(context: context, builder: (_) => _errorDialog());
+      AppSnackBar.show(
+        context,
+        e.message ?? "Unable to send reset link",
+        type: SnackBarType.error,
+      );
     }
   }
 
@@ -57,36 +77,28 @@ class _ForgotPasswordState extends State<ForgotPassword> {
           ),
         ),
       ),
-
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF0F172A), Color(0xFF1E3A8A)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-
+        decoration: const BoxDecoration(gradient: kPrimaryGradient),
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 26),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 60),
             child: Column(
               children: [
-                // Icon With Glass Background
+                // 🔒 Icon
                 Container(
                   height: 110,
                   width: 110,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
-                        Colors.white.withOpacity(0.20),
+                        Colors.white.withOpacity(0.2),
                         Colors.white.withOpacity(0.05),
                       ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white30, width: 1.5),
+                    border: Border.all(color: Colors.white24, width: 1.5),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.blueAccent.withOpacity(0.25),
@@ -113,46 +125,32 @@ class _ForgotPasswordState extends State<ForgotPassword> {
                     color: Colors.white,
                   ),
                 ),
-
                 const SizedBox(height: 10),
-
                 Text(
-                  "Enter your email and we will send you a reset link.\nAccess your IELTS AI study account again.",
+                  "Enter your email and we will send you a reset link to access your IELTS AI study account.",
                   textAlign: TextAlign.center,
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     color: Colors.white70,
                   ),
                 ),
-
                 const SizedBox(height: 40),
 
                 // Form Card
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 30,
-                  ),
+                  padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white.withOpacity(0.18)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
-                        blurRadius: 25,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
+                    color: Colors.white.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(25),
+                    border: Border.all(color: Colors.white24),
                   ),
-
                   child: Form(
                     key: _formKey,
                     child: Column(
                       children: [
-                        _customTextField(
+                        AppInputField(
                           controller: emailController,
-                          label: "Email Address",
+                          hintText: "Email Address",
                           icon: Icons.email_outlined,
                           validator: (value) {
                             if (value == null || value.isEmpty) {
@@ -164,128 +162,28 @@ class _ForgotPasswordState extends State<ForgotPassword> {
                             return null;
                           },
                         ),
-
-                        const SizedBox(height: 35),
-
-                        // Reset Button
-                        GestureDetector(
-                          onTap: _isLoading ? null : passwordReset,
-                          child: Container(
-                            height: 55,
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF2563EB), Color(0xFF4F8EF7)],
+                        const SizedBox(height: 30),
+                        _isLoading
+                            ? const SpinKitFadingCircle(
+                                color: Colors.white,
+                                size: 26,
+                              )
+                            : AppButton(
+                                text: "Send Reset Link",
+                                onPressed: passwordReset,
+                                backgroundColor: kButtonColor,
+                                textColor: Colors.white,
                               ),
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.blueAccent.withOpacity(0.25),
-                                  offset: const Offset(0, 6),
-                                  blurRadius: 12,
-                                ),
-                              ],
-                            ),
-
-                            child: Center(
-                              child: _isLoading
-                                  ? const SpinKitFadingCircle(
-                                      color: Colors.white,
-                                      size: 26,
-                                    )
-                                  : Text(
-                                      "Send Reset Link",
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                            ),
-                          ),
-                        ),
                       ],
                     ),
                   ),
                 ),
-
-                const SizedBox(height: 40),
+                const SizedBox(height: 30),
               ],
             ),
           ),
         ),
       ),
-    );
-  }
-
-  // -------------------------------------------
-  // Custom TextField (Glass Style)
-  // -------------------------------------------
-  Widget _customTextField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      validator: validator,
-      cursorColor: Colors.white,
-      style: const TextStyle(color: Colors.white, fontSize: 16),
-
-      decoration: InputDecoration(
-        filled: true,
-        fillColor: Colors.white.withOpacity(0.10),
-
-        prefixIcon: Icon(icon, color: Colors.white70),
-        labelText: label,
-        labelStyle: GoogleFonts.poppins(color: Colors.white70, fontSize: 15),
-
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Colors.white, width: 1.5),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Colors.redAccent, width: 1.3),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Colors.redAccent, width: 1.3),
-        ),
-      ),
-    );
-  }
-
-  // Success Dialog
-  Widget _successDialog() {
-    return AlertDialog(
-      title: const Text("Email Sent"),
-      content: const Text("A reset link has been sent to your email."),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text("OK"),
-        ),
-      ],
-    );
-  }
-
-  // Error Dialog
-  Widget _errorDialog() {
-    return AlertDialog(
-      title: const Text("Error"),
-      content: const Text("Unable to send reset link. Please try again."),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text("OK"),
-        ),
-      ],
     );
   }
 }
