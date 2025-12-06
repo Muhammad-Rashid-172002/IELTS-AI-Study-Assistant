@@ -5,16 +5,15 @@ import 'package:fyproject/view/auth/forgot_password.dart';
 import 'package:fyproject/view/auth/SignupScreen.dart';
 import 'package:fyproject/view/home/home_Screen.dart';
 import 'package:fyproject/widgets/app_button.dart';
+import 'package:fyproject/widgets/app_snackbar.dart';
+import 'package:fyproject/widgets/google_button.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-// 🎨 App Colors
 const kButtonPrimary = Color(0xFF6C63FF);
 const kAppBarColor = Color(0xFF5A55DA);
-const kButtonPrimaryText = Colors.white;
-const kButtonColor = Color(0xFF6C63FF);
 
-// 🌈 Modern Gradient Background
+// Background Gradient
 const kPrimaryGradient = LinearGradient(
   colors: [Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364)],
   begin: Alignment.topLeft,
@@ -46,6 +45,12 @@ class _SigninScreenState extends State<SigninScreen> {
           password: passwordController.text.trim(),
         );
 
+        AppSnackBar.show(
+          context,
+          "Login Successful 🎉",
+          type: SnackBarType.success,
+        );
+
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const HomeScreen()),
@@ -55,20 +60,7 @@ class _SigninScreenState extends State<SigninScreen> {
         if (e.code == 'user-not-found') errorMsg = "User not found";
         if (e.code == 'wrong-password') errorMsg = "Wrong password";
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              errorMsg,
-              style: const TextStyle(color: Colors.white),
-            ),
-            backgroundColor: const Color(0xFF203A43),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            margin: const EdgeInsets.all(12),
-          ),
-        );
+        AppSnackBar.show(context, errorMsg, type: SnackBarType.error);
       } finally {
         setState(() => _isLoading = false);
       }
@@ -80,13 +72,15 @@ class _SigninScreenState extends State<SigninScreen> {
     setState(() => _isLoading = true);
     try {
       await GoogleSignIn().signOut();
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      final googleUser = await GoogleSignIn().signIn();
+
       if (googleUser == null) {
         setState(() => _isLoading = false);
         return;
       }
 
       final googleAuth = await googleUser.authentication;
+
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
@@ -94,21 +88,21 @@ class _SigninScreenState extends State<SigninScreen> {
 
       await FirebaseAuth.instance.signInWithCredential(credential);
 
+      AppSnackBar.show(
+        context,
+        "Google Login Successful 🎉",
+        type: SnackBarType.success,
+      );
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const HomeScreen()),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "Google Sign-In failed: $e",
-            style: const TextStyle(color: Colors.white),
-          ),
-          backgroundColor: const Color(0xFF2C5364),
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.all(12),
-        ),
+      AppSnackBar.show(
+        context,
+        "Google Sign-In failed",
+        type: SnackBarType.error,
       );
     } finally {
       setState(() => _isLoading = false);
@@ -127,7 +121,6 @@ class _SigninScreenState extends State<SigninScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // 🧭 IELTS Heading
                   Text(
                     "IELTS AI Study 📘",
                     style: GoogleFonts.playfairDisplay(
@@ -149,7 +142,7 @@ class _SigninScreenState extends State<SigninScreen> {
 
                   const SizedBox(height: 40),
 
-                  // 🧾 Glass Card
+                  // Glass card
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
@@ -166,7 +159,6 @@ class _SigninScreenState extends State<SigninScreen> {
                             Icons.email,
                             emailController,
                           ),
-
                           const SizedBox(height: 15),
 
                           _buildInputField(
@@ -174,15 +166,12 @@ class _SigninScreenState extends State<SigninScreen> {
                             Icons.lock,
                             passwordController,
                             obscure: !_passwordVisible,
-                            toggleVisibility: () {
-                              setState(
-                                () => _passwordVisible = !_passwordVisible,
-                              );
-                            },
+                            toggleVisibility: () => setState(
+                              () => _passwordVisible = !_passwordVisible,
+                            ),
                           ),
 
                           const SizedBox(height: 10),
-
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
@@ -198,51 +187,27 @@ class _SigninScreenState extends State<SigninScreen> {
                               ),
                             ),
                           ),
+
                           const SizedBox(height: 20),
 
-                          // 🎓 Sign In Button
-                          GestureDetector(
-                            onTap: _isLoading ? null : _signInWithEmail,
-                            child: Container(
-                              height: 55,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(15),
-                                gradient: const LinearGradient(
-                                  colors: [kButtonPrimary, kAppBarColor],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
+                          // SIGN IN BUTTON
+                          _isLoading
+                              ? const SpinKitCircle(
+                                  color: Colors.white,
+                                  size: 45,
+                                )
+                              : AppButton(
+                                  text: "Continue Learning",
+                                  onPressed: _signInWithEmail,
+                                  backgroundColor: kButtonPrimary,
+                                  textColor: Colors.white,
                                 ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: kButtonPrimary.withOpacity(0.4),
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                ],
-                              ),
-                              child: Center(
-                                child: // 🎓 Sign In Button using AppButton
-                                _isLoading
-                                    ? const SpinKitCircle(
-                                        color: Colors.white,
-                                        size: 40,
-                                      )
-                                    : AppButton(
-                                        text: "Continue Learning",
-                                        onPressed: _signInWithEmail,
-                                        backgroundColor: kButtonPrimary,
-                                        textColor: Colors.white,
-                                      ),
-                              ),
-                            ),
-                          ),
 
                           const SizedBox(height: 25),
 
-                          // 🔘 Divider
                           Row(
                             children: [
-                              Expanded(child: Divider(color: Colors.grey[300])),
+                              Expanded(child: Divider(color: Colors.white30)),
                               const Padding(
                                 padding: EdgeInsets.symmetric(horizontal: 8.0),
                                 child: Text(
@@ -250,44 +215,17 @@ class _SigninScreenState extends State<SigninScreen> {
                                   style: TextStyle(color: Colors.white70),
                                 ),
                               ),
-                              Expanded(child: Divider(color: Colors.grey[300])),
+                              Expanded(child: Divider(color: Colors.white30)),
                             ],
                           ),
 
                           const SizedBox(height: 20),
 
-                          // 🌐 Google Button
-                          GestureDetector(
-                            onTap: _isLoading ? null : _signInWithGoogle,
-                            child: Container(
-                              height: 48,
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.white70),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Image.asset(
-                                    "assets/images/google.png",
-                                    height: 24,
-                                  ),
-                                  const SizedBox(width: 10),
-                                  const Text(
-                                    "Continue with Google",
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
+                          // GOOGLE BUTTON
+                          GoogleButton(onPressed: _signInWithGoogle),
 
                           const SizedBox(height: 20),
 
-                          // 📝 Sign Up
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -325,7 +263,7 @@ class _SigninScreenState extends State<SigninScreen> {
     );
   }
 
-  // ✏️ Custom Input Field
+  // CUSTOM INPUT FIELD
   Widget _buildInputField(
     String label,
     IconData icon,
@@ -358,7 +296,7 @@ class _SigninScreenState extends State<SigninScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
-          borderSide: const BorderSide(color: kButtonColor),
+          borderSide: const BorderSide(color: kButtonPrimary),
         ),
       ),
       validator: (value) =>
