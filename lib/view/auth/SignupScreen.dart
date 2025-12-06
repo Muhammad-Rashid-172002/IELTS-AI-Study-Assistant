@@ -6,21 +6,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:fyproject/view/auth/SigninScreen.dart';
 import 'package:fyproject/view/home/home_Screen.dart';
+import 'package:fyproject/widgets/app_button.dart';
+import 'package:fyproject/widgets/app_input_field.dart';
+import 'package:fyproject/widgets/app_snackbar.dart';
+import 'package:fyproject/widgets/google_button.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-
-
-// 🎨 IELTS AI STUDY Theme Colors
 const kPrimaryGradient = LinearGradient(
   colors: [Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364)],
   begin: Alignment.topLeft,
   end: Alignment.bottomRight,
 );
 
-const kButtonColor = Color(0xFF6C63FF); // Purple AI color
+const kButtonColor = Color(0xFF6C63FF);
 const kTextColor = Colors.white70;
-
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -30,155 +30,118 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignupScreenState extends State<SignupScreen> {
-  final TextEditingController nameController = TextEditingController();
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController passwordController = TextEditingController();
-  final TextEditingController confirmPasswordController = TextEditingController();
+  final nameController = TextEditingController();
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
+  final confirmController = TextEditingController();
 
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-
+  final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
-  bool _passwordVisible = false;
-  bool _confirmPasswordVisible = false;
 
   File? _profileImage;
 
+  // EMAIL SIGNUP
+  Future<void> _signUp() async {
+    if (!_formKey.currentState!.validate()) return;
 
-  // -------------------------------------------------------------------------
-  // 🔐 Email Signup
-  // -------------------------------------------------------------------------
-  Future<void> _signUpWithEmail() async {
-    if (_formKey.currentState!.validate()) {
-      if (passwordController.text != confirmPasswordController.text) {
-        _showSnack("Passwords do not match");
+    if (passwordController.text.trim() != confirmController.text.trim()) {
+      AppSnackBar.show(context, "Passwords do not match",
+          type: SnackBarType.error);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      UserCredential user = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(
+        email: emailController.text.trim(),
+        password: passwordController.text.trim(),
+      );
+
+      // Upload Image If Available
+      String? imageUrl;
+      if (_profileImage != null) {
+        final ref = FirebaseStorage.instance
+            .ref()
+            .child("user_images")
+            .child("${user.user!.uid}.jpg");
+
+        await ref.putFile(_profileImage!);
+        imageUrl = await ref.getDownloadURL();
+      }
+
+      // Save User Data
+      await FirebaseFirestore.instance
+          .collection("users")
+          .doc(user.user!.uid)
+          .set({
+        "name": nameController.text.trim(),
+        "email": emailController.text.trim(),
+        "imageUrl": imageUrl ?? "",
+        "createdAt": Timestamp.now(),
+      });
+
+      AppSnackBar.show(context, "Account Created Successfully 🎉",
+          type: SnackBarType.success);
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
+    } catch (e) {
+      AppSnackBar.show(context, e.toString(), type: SnackBarType.error);
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  // GOOGLE SIGN-IN
+  Future<void> _signInWithGoogle() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final googleUser = await GoogleSignIn().signIn();
+      if (googleUser == null) {
+        setState(() => _isLoading = false);
         return;
       }
 
-      setState(() => _isLoading = true);
+      final googleAuth = await googleUser.authentication;
 
-      try {
-        UserCredential userCredential = await FirebaseAuth.instance
-            .createUserWithEmailAndPassword(
-            email: emailController.text.trim(),
-            password: passwordController.text.trim(),
-        );
+      final credential = GoogleAuthProvider.credential(
+        idToken: googleAuth.idToken,
+        accessToken: googleAuth.accessToken,
+      );
 
-        String? imageUrl;
-        if (_profileImage != null) {
-          final ref = FirebaseStorage.instance
-              .ref()
-              .child("user_images")
-              .child("${userCredential.user!.uid}.jpg");
+      final userCredential =
+          await FirebaseAuth.instance.signInWithCredential(credential);
 
-          await ref.putFile(_profileImage!);
-          imageUrl = await ref.getDownloadURL();
-        }
+      await FirebaseFirestore.instance
+          .collection("users")
+          .doc(userCredential.user!.uid)
+          .set({
+        "name": googleUser.displayName ?? "",
+        "email": googleUser.email,
+        "imageUrl": googleUser.photoUrl ?? "",
+        "createdAt": Timestamp.now(),
+      }, SetOptions(merge: true));
 
-        await FirebaseFirestore.instance
-            .collection("users")
-            .doc(userCredential.user!.uid)
-            .set({
-          "name": nameController.text.trim(),
-          "email": emailController.text.trim(),
-          "imageUrl": imageUrl ?? "",
-          "createdAt": Timestamp.now(),
-        });
+      AppSnackBar.show(context, "Google Login Successful 🎉",
+          type: SnackBarType.success);
 
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-        );
-
-      } on FirebaseAuthException catch (e) {
-        _showSnack(e.message ?? "Signup failed");
-      } finally {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  // -------------------------------------------------------------------------
-  // 🔵 Google Sign-in
-  // -------------------------------------------------------------------------
-
-
-Future<void> _signInWithGoogle() async {
-  setState(() => _isLoading = true);
-
-  try {
-    final GoogleSignIn googleSignIn = GoogleSignIn(
-      scopes: ['email'],
-    );
-
-    // Open Google Sign-In popup
-    final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-
-    if (googleUser == null) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
+    } catch (e) {
+      AppSnackBar.show(context, "Google Sign-in Failed",
+          type: SnackBarType.error);
+    } finally {
       setState(() => _isLoading = false);
-      return; // User cancelled
     }
-
-    final GoogleSignInAuthentication googleAuth =
-        await googleUser.authentication;
-
-    final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
-
-    // Firebase login
-    final UserCredential userCredential =
-        await FirebaseAuth.instance.signInWithCredential(credential);
-
-    // Save to Firestore
-    await FirebaseFirestore.instance
-        .collection("users")
-        .doc(userCredential.user!.uid)
-        .set({
-      "name": googleUser.displayName ?? "Student",
-      "email": googleUser.email,
-      "imageUrl": googleUser.photoUrl,
-      "createdAt": Timestamp.now(),
-    }, SetOptions(merge: true));
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
-    );
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Google Sign-in failed: $e")),
-    );
-  } finally {
-    setState(() => _isLoading = false);
-  }
-}
-
-// -------------------------------------------------------------------------
-  // Snackbar
-  // -------------------------------------------------------------------------
-  void _showSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          msg,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        backgroundColor: const Color(0xFF203A43),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        duration: const Duration(seconds: 3),
-      ),
-    );
   }
 
-
-  // -------------------------------------------------------------------------
-  // UI
-  // -------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -186,208 +149,104 @@ Future<void> _signInWithGoogle() async {
         decoration: const BoxDecoration(gradient: kPrimaryGradient),
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 60),
+            padding: const EdgeInsets.all(24),
             child: Form(
               key: _formKey,
-              child: Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(25),
-                  border: Border.all(color: Colors.white24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.25),
-                      blurRadius: 12,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-
-                    // ---------------------------------------------------------
-                    // 🧭 Header
-                    // ---------------------------------------------------------
-                    Text(
-                      "IELTS AI Study",
+              child: Column(
+                children: [
+                  Text("IELTS AI Study",
                       style: GoogleFonts.poppins(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "Practice • Evaluate • Improve with AI",
-                      style: GoogleFonts.roboto(
-                        color: Colors.white70,
-                        fontSize: 15,
-                      ),
-                    ),
-                    const SizedBox(height: 30),
+                          fontSize: 32,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 20),
 
-                    // ---------------------------------------------------------
-                    // 🧾 Input Fields
-                    // ---------------------------------------------------------
-                    _buildInputField("Full Name", Icons.person, nameController),
-                    const SizedBox(height: 15),
+                  // FULL NAME
+                  AppInputField(
+                    controller: nameController,
+                    hintText: "Full Name",
+                    icon: Icons.person,
+                    validator: (v) =>
+                        v!.isEmpty ? "Enter Full Name" : null,
+                  ),
+                  const SizedBox(height: 16),
 
-                    _buildInputField("Email", Icons.email, emailController),
-                    const SizedBox(height: 15),
+                  // EMAIL
+                  AppInputField(
+                    controller: emailController,
+                    hintText: "Email",
+                    icon: Icons.email,
+                    validator: (v) => v!.isEmpty ? "Enter Email" : null,
+                  ),
+                  const SizedBox(height: 16),
 
-                    _buildInputField(
-                      "Password",
-                      Icons.lock,
-                      passwordController,
-                      obscure: !_passwordVisible,
-                      toggleVisibility: () {
-                        setState(() => _passwordVisible = !_passwordVisible);
-                      },
-                    ),
-                    const SizedBox(height: 15),
+                  // PASSWORD
+                  AppInputField(
+                    controller: passwordController,
+                    hintText: "Password",
+                    icon: Icons.lock,
+                    isPassword: true,
+                    validator: (v) => v!.isEmpty ? "Enter Password" : null,
+                  ),
+                  const SizedBox(height: 16),
 
-                    _buildInputField(
-                      "Confirm Password",
-                      Icons.lock_outline,
-                      confirmPasswordController,
-                      obscure: !_confirmPasswordVisible,
-                      toggleVisibility: () {
-                        setState(() => _confirmPasswordVisible =
-                            !_confirmPasswordVisible);
-                      },
-                    ),
-                    const SizedBox(height: 25),
+                  // CONFIRM PASSWORD
+                  AppInputField(
+                    controller: confirmController,
+                    hintText: "Confirm Password",
+                    icon: Icons.lock_outline,
+                    isPassword: true,
+                    validator: (v) =>
+                        v!.isEmpty ? "Enter Confirm Password" : null,
+                  ),
+                  const SizedBox(height: 25),
 
-                    
-                    // 🚀 Signup Button
-     
-                    ElevatedButton(
-                      onPressed: _isLoading ? null : _signUpWithEmail,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: kButtonColor,
-                        minimumSize: const Size(double.infinity, 55),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30)),
-                      ),
-                      child: _isLoading
-                          ? const SpinKitFadingCircle(
-                              color: Colors.white, size: 26)
-                          : const Text(
-                              "Create Account",
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                    ),
-
-                    const SizedBox(height: 20),
-                    const Text("or continue with",
-                        style: TextStyle(color: Colors.white60)),
-                    const SizedBox(height: 16),
-
-                    // ---------------------------------------------------------
-                    // 🌐 Google Button
-                    // ---------------------------------------------------------
-                    GestureDetector(
-                      onTap: _isLoading ? null : _signInWithGoogle,
-                      child: Container(
-                        height: 48,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.white60),
-                          borderRadius: BorderRadius.circular(12),
+                  // SIGN-UP BUTTON
+                  _isLoading
+                      ? const SpinKitCircle(color: Colors.white, size: 40)
+                      : AppButton(
+                          text: "Create Account",
+                          onPressed: _signUp,
+                          backgroundColor: kButtonColor,
+                          textColor: Colors.white,
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Image.asset("assets/images/google.png", height: 24),
-                            const SizedBox(width: 10),
-                            const Text(
-                              "Sign-in with Google",
-                              style: TextStyle(color: Colors.white, fontSize: 16),
-                            ),
-                          ],
+
+                  const SizedBox(height: 25),
+
+                  // OR
+                  const Text("or continue with",
+                      style: TextStyle(color: Colors.white70)),
+                  const SizedBox(height: 14),
+
+                  // GOOGLE BUTTON
+                  GoogleButton(onPressed: _signInWithGoogle),
+
+                  const SizedBox(height: 20),
+
+                  // SIGN IN LINK
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text("Already have an account?",
+                          style: TextStyle(color: Colors.white70)),
+                      TextButton(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const SigninScreen()),
                         ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 25),
-
-                    
-                    // Already Account?
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text("Already have an account?",
-                            style: TextStyle(color: Colors.white70)),
-                        TextButton(
-                          onPressed: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const SigninScreen()),
-                          ),
-                          child: const Text(
-                            "Sign In",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                        child: const Text(
+                          "Sign In",
+                          style:
+                              TextStyle(color: Colors.white, fontSize: 16),
                         ),
-                      ],
-                    ),
-
-                  ],
-                ),
+                      )
+                    ],
+                  )
+                ],
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-
-  // ✏ Custom Input Field Widget
-
-  Widget _buildInputField(
-      String label,
-      IconData icon,
-      TextEditingController controller, {
-        bool obscure = false,
-        VoidCallback? toggleVisibility,
-      }) {
-    return TextFormField(
-      controller: controller,
-      obscureText: obscure,
-      style: const TextStyle(color: Colors.white),
-      validator: (value) =>
-      (value == null || value.isEmpty) ? "Enter $label" : null,
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: Colors.white70),
-        prefixIcon: Icon(icon, color: Colors.white70),
-        suffixIcon: toggleVisibility != null
-            ? IconButton(
-          icon: Icon(
-            obscure ? Icons.visibility_off : Icons.visibility,
-            color: Colors.white70,
-          ),
-          onPressed: toggleVisibility,
-        )
-            : null,
-        filled: true,
-        fillColor: Colors.white.withOpacity(0.06),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: Colors.white24),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: kButtonColor),
         ),
       ),
     );
