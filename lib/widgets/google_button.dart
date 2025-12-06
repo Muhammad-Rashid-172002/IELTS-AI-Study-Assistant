@@ -12,42 +12,54 @@ class GoogleButton extends StatefulWidget {
 class _GoogleButtonState extends State<GoogleButton>
     with SingleTickerProviderStateMixin {
   double _scale = 1.0;
+  double _elevationOffset = 5;
 
   void _onTapDown(TapDownDetails details) {
-    setState(() => _scale = 0.95);
+    setState(() {
+      _scale = 0.94;
+      _elevationOffset = 2;
+    });
   }
 
   void _onTapUp(TapUpDetails details) {
-    setState(() => _scale = 1.0);
+    setState(() {
+      _scale = 1.0;
+      _elevationOffset = 5;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return AnimatedScale(
       scale: _scale,
-      duration: const Duration(milliseconds: 120),
-      curve: Curves.easeInOut,
+      duration: const Duration(milliseconds: 130),
+      curve: Curves.easeOutCubic,
       child: GestureDetector(
         onTapDown: _onTapDown,
         onTapUp: _onTapUp,
-        onTapCancel: () => setState(() => _scale = 1.0),
+        onTapCancel: () => setState(() {
+          _scale = 1.0;
+          _elevationOffset = 5;
+        }),
         onTap: widget.onPressed,
         child: Container(
           height: 55,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.9), // slight glass white
+            color: Colors.white.withOpacity(0.92),
             borderRadius: BorderRadius.circular(14),
 
+            // border stroke
             border: Border.all(
-              color: Colors.white.withOpacity(0.4),
-              width: 1.3,
+              color: Colors.white.withOpacity(0.35),
+              width: 1.2,
             ),
 
+            // shadow
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.15),
-                blurRadius: 12,
-                offset: const Offset(0, 5),
+                color: Colors.black.withOpacity(0.18),
+                blurRadius: 14,
+                offset: Offset(0, _elevationOffset),
               ),
             ],
           ),
@@ -55,17 +67,19 @@ class _GoogleButtonState extends State<GoogleButton>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              // google icon
               Image.asset("assets/images/google.png", height: 26),
 
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
 
+              // text
               Text(
                 "Continue with Google",
                 style: TextStyle(
-                  color: Colors.black.withOpacity(0.85),
+                  color: Colors.black87,
                   fontWeight: FontWeight.w700,
                   fontSize: 16,
-                  letterSpacing: 0.2,
+                  letterSpacing: 0.3,
                 ),
               ),
             ],
