@@ -12,22 +12,20 @@ class OnboardingView extends StatefulWidget {
 
 class _OnboardingViewState extends State<OnboardingView>
     with SingleTickerProviderStateMixin {
-      
   final OnboardingController controller = OnboardingController();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              AppColors.primaryDark
-
-              AppColors.primaryColor.withOpacity(0.7),
-              Colors.black87,
+              AppColors.primaryDark,
+              AppColors.primaryMid,
+              AppColors.primaryLight,
             ],
           ),
         ),
@@ -49,9 +47,9 @@ class _OnboardingViewState extends State<OnboardingView>
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          // Image with soft fade animation effect
+                          // Soft zoom effect on images
                           AnimatedContainer(
-                            duration: Duration(milliseconds: 600),
+                            duration: const Duration(milliseconds: 600),
                             curve: Curves.easeOutBack,
                             child: Image.asset(
                               page.image,
@@ -59,27 +57,30 @@ class _OnboardingViewState extends State<OnboardingView>
                             ),
                           ),
 
-                          SizedBox(height: 50),
+                          const SizedBox(height: 50),
 
                           // Title
                           Text(
                             page.title,
-                            style: TextStyle(
-                              fontSize: 28,
+                            style: const TextStyle(
+                              fontSize: 30,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
                               height: 1.3,
+                              letterSpacing: 0.8,
                             ),
                             textAlign: TextAlign.center,
                           ),
 
-                          SizedBox(height: 20),
+                          const SizedBox(height: 18),
 
+                          // Description
                           Text(
                             page.description,
                             style: TextStyle(
-                              fontSize: 17,
-                              color: Colors.white70,
+                              fontSize: 16,
+                              color: Colors.white.withOpacity(0.85),
+                              height: 1.5,
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -98,14 +99,14 @@ class _OnboardingViewState extends State<OnboardingView>
                   (index) {
                     bool active = controller.currentPage == index;
                     return AnimatedContainer(
-                      duration: Duration(milliseconds: 300),
-                      margin: EdgeInsets.symmetric(horizontal: 5),
+                      duration: const Duration(milliseconds: 300),
+                      margin: const EdgeInsets.symmetric(horizontal: 5),
                       width: active ? 26 : 10,
                       height: 10,
                       decoration: BoxDecoration(
                         color: active
                             ? Colors.white
-                            : Colors.white.withOpacity(0.4),
+                            : Colors.white.withOpacity(0.45),
                         borderRadius: BorderRadius.circular(30),
                       ),
                     );
@@ -113,39 +114,43 @@ class _OnboardingViewState extends State<OnboardingView>
                 ),
               ),
 
-              SizedBox(height: 30),
+              const SizedBox(height: 35),
 
-              // Premium Button
+              // Start / Next Button
               Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 25, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 25, vertical: 10),
                 child: ElevatedButton(
                   onPressed: () {
                     if (controller.currentPage ==
                         controller.pages.length - 1) {
-                      // TODO: Navigate to next screen
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => SigninScreen()));
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => const SigninScreen()),
+                      );
                     } else {
                       controller.pageController.nextPage(
-                        duration: Duration(milliseconds: 500),
+                        duration: const Duration(milliseconds: 500),
                         curve: Curves.easeInOut,
                       );
                     }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
-                    minimumSize: Size(double.infinity, 55),
+                    minimumSize: const Size(double.infinity, 55),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                    elevation: 6,
+                    elevation: 8,
+                    shadowColor: Colors.white.withOpacity(0.35),
                   ),
                   child: Text(
                     controller.currentPage == controller.pages.length - 1
                         ? "Get Started"
                         : "Next",
-                    style: TextStyle(
-                      color: AppColors.primaryColor,
+                    style: const TextStyle(
+                      color: AppColors.accentBlue,
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
                     ),
@@ -153,7 +158,7 @@ class _OnboardingViewState extends State<OnboardingView>
                 ),
               ),
 
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
             ],
           ),
         ),
