@@ -24,7 +24,8 @@ class _OnboardingViewState extends State<OnboardingView>
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              AppColors.primaryColor,
+              AppColors.primaryDark
+
               AppColors.primaryColor.withOpacity(0.7),
               Colors.black87,
             ],
