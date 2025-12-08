@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fyproject/Controller/onboarding_controller.dart';
 import 'package:fyproject/utils/app_colors.dart';
 import 'package:fyproject/view/auth/SigninScreen.dart';
+import 'package:fyproject/widgets/app_button.dart'; // <-- IMPORTANT
 
 class OnboardingView extends StatefulWidget {
   const OnboardingView({super.key});
@@ -47,7 +48,6 @@ class _OnboardingViewState extends State<OnboardingView>
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          // Soft zoom effect on images
                           AnimatedContainer(
                             duration: const Duration(milliseconds: 600),
                             curve: Curves.easeOutBack,
@@ -56,10 +56,7 @@ class _OnboardingViewState extends State<OnboardingView>
                               height: 260,
                             ),
                           ),
-
                           const SizedBox(height: 50),
-
-                          // Title
                           Text(
                             page.title,
                             style: const TextStyle(
@@ -71,10 +68,7 @@ class _OnboardingViewState extends State<OnboardingView>
                             ),
                             textAlign: TextAlign.center,
                           ),
-
                           const SizedBox(height: 18),
-
-                          // Description
                           Text(
                             page.description,
                             style: TextStyle(
@@ -91,7 +85,6 @@ class _OnboardingViewState extends State<OnboardingView>
                 ),
               ),
 
-              // Modern Smooth Indicator
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(
@@ -116,11 +109,15 @@ class _OnboardingViewState extends State<OnboardingView>
 
               const SizedBox(height: 35),
 
-              // Start / Next Button
+              // 🔥 Updated with AppButton
               Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 25, vertical: 10),
-                child: ElevatedButton(
+                child: AppButton(
+                  title: controller.currentPage ==
+                          controller.pages.length - 1
+                      ? "Get Started"
+                      : "Next",
                   onPressed: () {
                     if (controller.currentPage ==
                         controller.pages.length - 1) {
@@ -136,25 +133,6 @@ class _OnboardingViewState extends State<OnboardingView>
                       );
                     }
                   },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    minimumSize: const Size(double.infinity, 55),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 8,
-                    shadowColor: Colors.white.withOpacity(0.35),
-                  ),
-                  child: Text(
-                    controller.currentPage == controller.pages.length - 1
-                        ? "Get Started"
-                        : "Next",
-                    style: const TextStyle(
-                      color: AppColors.accentBlue,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
                 ),
               ),
 
