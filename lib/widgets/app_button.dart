@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 
 class AppButton extends StatefulWidget {
+//  final String title;
   final String text;
   final VoidCallback onPressed;
   final Color? backgroundColor;
   final Color? textColor;
 
   const AppButton({
+
     super.key,
+   // required this.title,
     required this.text,
     required this.onPressed,
     this.backgroundColor,
