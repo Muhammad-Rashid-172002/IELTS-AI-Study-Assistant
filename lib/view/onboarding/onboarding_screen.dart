@@ -114,7 +114,7 @@ class _OnboardingViewState extends State<OnboardingView>
                 padding:
                     const EdgeInsets.symmetric(horizontal: 25, vertical: 10),
                 child: AppButton(
-                  title: controller.currentPage ==
+                  text: controller.currentPage ==
                           controller.pages.length - 1
                       ? "Get Started"
                       : "Next",
