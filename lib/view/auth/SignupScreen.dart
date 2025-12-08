@@ -18,7 +18,7 @@ const kPrimaryGradient = LinearGradient(
   begin: Alignment.topLeft,
   end: Alignment.bottomRight,
 );
-
+// Button color
 const kButtonColor = Color(0xFF6C63FF);
 const kTextColor = Colors.white70;
 
