@@ -1,5 +1,6 @@
 // adding logout button`
 import 'package:flutter/material.dart';
+import 'package:fyproject/view/auth/SignupScreen.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -7,6 +8,40 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    void _showLogoutDialog(BuildContext context) {
+      showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: const Text("Logout"),
+            content: const Text("Are you sure you want to logout?"),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => SignupScreen()),
+                  ); // your login route
+                },
+                child: const Text(
+                  "Logout",
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    }
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -22,7 +57,6 @@ class HomeScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-
                 // 🧑‍🎓 TOP HEADER
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -33,7 +67,9 @@ class HomeScreen extends StatelessWidget {
                         Text(
                           "Welcome Back 👋",
                           style: GoogleFonts.poppins(
-                              fontSize: 18, color: Colors.white70),
+                            fontSize: 18,
+                            color: Colors.white70,
+                          ),
                         ),
                         Text(
                           "IELTS Student",
@@ -57,7 +93,7 @@ class HomeScreen extends StatelessWidget {
                           fit: BoxFit.cover,
                         ),
                       ),
-                    )
+                    ),
                   ],
                 ),
 
@@ -137,7 +173,11 @@ class HomeScreen extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     _moduleCard("Listening", Icons.headset, Colors.blueAccent),
-                    _moduleCard("Reading", Icons.menu_book, Colors.orangeAccent),
+                    _moduleCard(
+                      "Reading",
+                      Icons.menu_book,
+                      Colors.orangeAccent,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 18),
