@@ -8,6 +8,7 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Logout Dialog
     void _showLogoutDialog(BuildContext context) {
       showDialog(
         context: context,
@@ -43,6 +44,23 @@ class HomeScreen extends StatelessWidget {
     }
 
     return Scaffold(
+  //     appBar: AppBar(
+  //   backgroundColor: Colors.transparent,
+  //   elevation: 0,
+  //   title: Text(
+  //     "IELTS Assistant",
+  //     style: GoogleFonts.poppins(
+  //       color: Colors.white,
+  //       fontWeight: FontWeight.w600,
+  //     ),
+  //   ),
+  //   actions: [
+  //     IconButton(
+  //       icon: const Icon(Icons.logout, color: Colors.white),
+  //       onPressed: () => _showLogoutDialog(context),
+  //     ),
+  //   ],
+  // ),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
