@@ -50,12 +50,9 @@ dependencies:
   currency_picker: ^2.0.21
   flutter_animate: ^4.5.2
   google_fonts: ^6.1.0
-  local_auth: ^2.3.0
-  sign_in_with_apple: ^6.1.0
-  crypto: ^3.0.3
   image_picker: ^1.2.0
   fluttertoast: ^8.2.12
-  hive: ^2.2.3
+  intl_phone_number_input: ^0.7.5
 
 dev_dependencies:
   flutter_test:
