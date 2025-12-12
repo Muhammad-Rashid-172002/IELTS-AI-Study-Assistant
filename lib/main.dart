@@ -1,13 +1,12 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:fyproject/view/splash/Splash_view.dart';
-import 'firebase_options.dart'; // <-- IMPORTANT (add this)
-
+import 'firebase_options.dart'; 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform, // <-- IMPORTANT (add this)
+    options: DefaultFirebaseOptions.currentPlatform, 
   );
 
   runApp(const MyApp());
