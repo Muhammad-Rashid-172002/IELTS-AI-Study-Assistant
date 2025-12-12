@@ -1,9 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
-import 'package:fyproject/widgets/app_button.dart';
-import 'package:fyproject/widgets/app_input_field.dart';
-import 'package:fyproject/widgets/app_snackbar.dart';
+import 'package:fyproject/resources/app_button.dart';
+import 'package:fyproject/resources/app_input_field.dart';
+import 'package:fyproject/resources/app_snackbar.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 const kPrimaryGradient = LinearGradient(

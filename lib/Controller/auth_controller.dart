@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fyproject/view/home/home_Screen.dart';
-import 'package:fyproject/widgets/app_snackbar.dart';
+import 'package:fyproject/resources/app_snackbar.dart';
 
 
 class AuthController {

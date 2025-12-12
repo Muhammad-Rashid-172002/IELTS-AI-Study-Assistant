@@ -6,10 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:fyproject/view/auth/SigninScreen.dart';
 import 'package:fyproject/view/home/home_Screen.dart';
-import 'package:fyproject/widgets/app_button.dart';
-import 'package:fyproject/widgets/app_input_field.dart';
-import 'package:fyproject/widgets/app_snackbar.dart';
-import 'package:fyproject/widgets/google_button.dart';
+import 'package:fyproject/resources/app_button.dart';
+import 'package:fyproject/resources/app_input_field.dart';
+import 'package:fyproject/resources/app_snackbar.dart';
+import 'package:fyproject/resources/google_button.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
