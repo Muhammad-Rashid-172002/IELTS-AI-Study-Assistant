@@ -1,6 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:fyproject/widgets/app_snackbar.dart';
+import 'package:fyproject/resources/app_snackbar.dart';
 
 
 class SignUpController {

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fyproject/Controller/onboarding_controller.dart';
 import 'package:fyproject/utils/app_colors.dart';
 import 'package:fyproject/view/auth/SigninScreen.dart';
-import 'package:fyproject/widgets/app_button.dart'; // <-- IMPORTANT
+import 'package:fyproject/resources/app_button.dart'; // <-- IMPORTANT
 
 class OnboardingView extends StatefulWidget {
   const OnboardingView({super.key});
