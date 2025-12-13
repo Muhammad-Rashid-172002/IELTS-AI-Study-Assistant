@@ -1,8 +1,18 @@
-import 'package:flutter/cupertino.dart';
+
 import 'package:fyproject/resources/routes/routes_names.dart';
+import 'package:fyproject/resources/splash_screen/spalsh_screen.dart';
+import 'package:fyproject/screens/pages/feedback/feedback.dart';
+import 'package:fyproject/screens/pages/home/home.dart';
+import 'package:fyproject/screens/pages/login/login.dart';
+import 'package:fyproject/screens/pages/math/math.dart';
+import 'package:fyproject/screens/pages/mcq/mcq.dart';
+import 'package:fyproject/screens/pages/profile/profile.dart';
+import 'package:fyproject/screens/pages/progress/progress.dart';
+import 'package:fyproject/screens/pages/registration/registration.dart';
+import 'package:fyproject/screens/pages/saved/saved.dart';
+import 'package:fyproject/screens/pages/summarizer/summarizer.dart';
 import 'package:get/get_navigation/src/routes/get_route.dart';
 import 'package:get/get_navigation/src/routes/transitions_type.dart';
-
 
 class AppRoutes {
   static appRoutes() => [
