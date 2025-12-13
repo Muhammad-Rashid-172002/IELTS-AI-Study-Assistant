@@ -11,25 +11,27 @@ class BottomNavigation extends StatefulWidget {
 }
 
 class _BottomNavigationState extends State<BottomNavigation> {
-  late int myIndex = widget.index;
+  late int myIndex;
 
-  final iconList = [
-    Icons.home,
-    Icons.analytics_outlined,
-    Icons.save,
-    Icons.people,
+  @override
+  void initState() {
+    super.initState();
+    myIndex = widget.index;
+  }
+
+  final iconList = const [
+    Icons.home_rounded,
+    Icons.bar_chart_rounded,
+    Icons.bookmark_rounded,
+    Icons.person_rounded,
   ];
 
-  final labels = [
+  final labels = const [
     "Home",
     "Progress",
     "Saved",
     "Profile",
   ];
-
-  // Colors
-  static const Color blue = Color(0xFF1E88E5);
-  static const Color grey = Colors.grey;
 
   void onTap(int index) {
     if (index == myIndex) return;
@@ -54,44 +56,63 @@ class _BottomNavigationState extends State<BottomNavigation> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 70,
-      decoration: const BoxDecoration(
-        border: Border(
-          top: BorderSide(color: Colors.grey, width: 0.4),
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+    final inactive = Colors.grey.shade500;
+
+    return SafeArea(
+      child: Container(
+        height: 72,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border(
+            top: BorderSide(color: Colors.grey.shade200),
+          ),
         ),
-      ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: List.generate(iconList.length, (index) {
+            final isSelected = index == myIndex;
 
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: List.generate(iconList.length, (index) {
-          final bool isSelected = index == myIndex;
-
-          return GestureDetector(
-            onTap: () => onTap(index),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  iconList[index],
-                  size: 26,
-                  color: isSelected ? blue : grey,
-                ),
-
-                const SizedBox(height: 4),
-
-                Text(
-                  labels[index],
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                    color: isSelected ? blue : grey,
+            return Expanded(
+              child: GestureDetector(
+                onTap: () => onTap(index),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOut,
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? primary.withOpacity(0.12)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        iconList[index],
+                        size: 26,
+                        color: isSelected ? primary : inactive,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        labels[index],
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight:
+                              isSelected ? FontWeight.w600 : FontWeight.normal,
+                          color: isSelected ? primary : inactive,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
-          );
-        }),
+              ),
+            );
+          }),
+        ),
       ),
     );
   }
