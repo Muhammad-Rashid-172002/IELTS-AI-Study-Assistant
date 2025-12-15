@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 
+/// 🧩 Universal Modern Text Field (IELTS Style)
 class CustomTextField extends StatelessWidget {
   final TextEditingController controller;
   final String hintText;
   final bool obscureText;
   final Widget? suffixIcon;
+  final Widget? prefixIcon;
   final String? Function(String?)? validator;
-  final TextInputType keyboardType; // ✅ Added this line
+  final TextInputType keyboardType;
+  final TextCapitalization textCapitalization;
 
   const CustomTextField({
     super.key,
@@ -14,35 +17,68 @@ class CustomTextField extends StatelessWidget {
     required this.hintText,
     this.obscureText = false,
     this.suffixIcon,
+    this.prefixIcon,
     this.validator,
-    this.keyboardType = TextInputType.text, // ✅ Added default value
+    this.keyboardType = TextInputType.text,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 1.0),
+      padding: const EdgeInsets.symmetric(vertical: 10),
       child: TextFormField(
         controller: controller,
         obscureText: obscureText,
-        textCapitalization: TextCapitalization.words,
-        keyboardType: keyboardType, // ✅ Now this works
-        style: TextStyle(color: theme.colorScheme.onSurface),
+        keyboardType: keyboardType,
+        textCapitalization: textCapitalization,
+        validator: validator,
+        style: theme.textTheme.bodyLarge,
+        cursorColor: theme.colorScheme.primary,
+
         decoration: InputDecoration(
           hintText: hintText,
-          hintStyle: const TextStyle(color: Colors.grey),
+          prefixIcon: prefixIcon,
           suffixIcon: suffixIcon,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 19),
-          border: const OutlineInputBorder(),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
+
+          filled: true,
+          fillColor: theme.colorScheme.surface,
+
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+
+          // Modern borderless style (theme handles most)
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
           ),
+
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(
+              color: theme.colorScheme.primary,
+              width: 1.4,
+            ),
+          ),
+
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Colors.redAccent),
+          ),
+
+          focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide:
+                const BorderSide(color: Colors.redAccent, width: 1.4),
           ),
         ),
-        validator: validator,
       ),
     );
   }
