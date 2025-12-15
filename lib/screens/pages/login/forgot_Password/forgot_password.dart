@@ -95,7 +95,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
                   controller: emailController,
                   hintText: "Email Address",
                   keyboardType: TextInputType.emailAddress,
-                  prefixIcon: const Icon(Icons.email_outlined),
+                 // prefixIcon: const Icon(Icons.email_outlined),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return "Please enter your email";
