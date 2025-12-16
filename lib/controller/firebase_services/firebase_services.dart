@@ -41,9 +41,8 @@ class FirebaseServices extends GetxController {
   StreamSubscription<DocumentSnapshot>? _userListener;
 
 
-  // --------------------------------------------------------
   // REGISTRATION
-  // --------------------------------------------------------
+
   Future<void> registration({
     required String email,
     required String password,
@@ -85,9 +84,8 @@ class FirebaseServices extends GetxController {
     }
   }
 
-  // --------------------------------------------------------
   // LOGIN (EMAIL/PASSWORD)
-  // --------------------------------------------------------
+
   Future<void> login({
     required String email,
     required String password,
@@ -114,6 +112,8 @@ class FirebaseServices extends GetxController {
       loadingLoginL.value = false;
     }
   }
+
+
 
   // --------------------------------------------------------
   // GOOGLE LOGIN

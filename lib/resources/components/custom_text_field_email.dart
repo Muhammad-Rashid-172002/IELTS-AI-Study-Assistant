@@ -7,11 +7,15 @@ class CustomTextFieldEmail extends StatelessWidget {
     required this.controller,
     required this.hintText,
     this.validator,
+    this.suffixIcon,
+    this.enabled = true,
   });
 
   final TextEditingController controller;
   final String hintText;
   final String? Function(String?)? validator;
+  final Widget? suffixIcon;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -22,17 +26,20 @@ class CustomTextFieldEmail extends StatelessWidget {
       child: TextFormField(
         controller: controller,
         validator: validator,
+        enabled: enabled,
         keyboardType: TextInputType.emailAddress,
         style: theme.textTheme.bodyLarge,
         cursorColor: theme.colorScheme.primary,
         decoration: InputDecoration(
           hintText: hintText,
 
-          // ICON
+          // FIXED EMAIL ICON
           prefixIcon: Icon(
             Icons.email_outlined,
             color: theme.colorScheme.onSurface.withOpacity(0.6),
           ),
+
+          suffixIcon: suffixIcon,
 
           filled: true,
           fillColor: theme.colorScheme.surface,
@@ -40,7 +47,6 @@ class CustomTextFieldEmail extends StatelessWidget {
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
 
-          // BORDER (modern rounded)
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
             borderSide: BorderSide.none,

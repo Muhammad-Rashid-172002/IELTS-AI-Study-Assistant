@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:fyproject/resources/custom_text_field.dart';
+import 'package:fyproject/resources/components/custom_text_field.dart';
+
 
 class ForgotPassword extends StatefulWidget {
   const ForgotPassword({super.key});
@@ -95,7 +96,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
                   controller: emailController,
                   hintText: "Email Address",
                   keyboardType: TextInputType.emailAddress,
-                 // prefixIcon: const Icon(Icons.email_outlined),
+                 prefixIcon: const Icon(Icons.email_outlined),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return "Please enter your email";
