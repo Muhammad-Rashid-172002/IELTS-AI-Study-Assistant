@@ -13,7 +13,7 @@ import 'package:fyproject/screens/pages/saved/saved.dart';
 import 'package:fyproject/screens/pages/summarizer/summarizer.dart';
 import 'package:get/get_navigation/src/routes/get_route.dart';
 import 'package:get/get_navigation/src/routes/transitions_type.dart';
-
+//
 class AppRoutes {
   static appRoutes() => [
 
