@@ -113,6 +113,39 @@ class FirebaseServices extends GetxController {
     }
   }
 
+  // --------------------------------------------------------
+// FORGOT PASSWORD (MVC CONTROLLER)
+// --------------------------------------------------------
+
+final isResetLoading = false.obs;
+
+Future<void> sendPasswordResetEmail(String email) async {
+  try {
+    isResetLoading.value = true;
+
+    await auth.sendPasswordResetEmail(email: email);
+
+    Get.dialog(
+      const AlertDialog(
+        title: Text("Email Sent"),
+        content: Text(
+          "A password reset link has been sent to your email address.",
+        ),
+      ),
+    );
+  } catch (e) {
+    Get.dialog(
+      const AlertDialog(
+        title: Text("Error"),
+        content: Text(
+          "Something went wrong. Please try again later.",
+        ),
+      ),
+    );
+  } finally {
+    isResetLoading.value = false;
+  }
+}
 
 
   // --------------------------------------------------------
