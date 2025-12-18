@@ -1,6 +1,7 @@
+import 'package:fyproject/services/ai_service.dart';
 import 'package:get/get.dart';
 
-import '../../services/ai_service.dart';
+//import '../../services/ai_service.dart';
 
 //
 // class FeedbackController extends GetxController {
