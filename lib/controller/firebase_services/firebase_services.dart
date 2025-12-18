@@ -84,7 +84,7 @@ class FirebaseServices extends GetxController {
     }
   }
 
-  // LOGIN (EMAIL/PASSWORD)
+  /// LOGIN (EMAIL/PASSWORD)
 
   Future<void> login({
     required String email,

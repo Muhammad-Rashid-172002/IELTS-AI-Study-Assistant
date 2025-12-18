@@ -24,7 +24,7 @@ class MCQController extends GetxController {
       options.value = List<String>.from(data["options"]);
       answer.value = data["answer"];
 
-      // ⭐ UPDATE USER PROGRESS (questions +1)
+      /// ⭐ UPDATE USER PROGRESS (questions +1)
       await FirebaseFirestore.instance
           .collection("users")
           .doc(FirebaseAuth.instance.currentUser!.uid)
