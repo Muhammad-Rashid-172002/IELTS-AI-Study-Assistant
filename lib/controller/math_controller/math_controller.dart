@@ -23,7 +23,7 @@ class MathController extends GetxController {
       final output = await ai.solveMath(query);
       result.value = output;
 
-      // ⭐ UPDATE FIRESTORE PROGRESS ⭐
+      /// ⭐ UPDATE FIRESTORE PROGRESS ⭐
       await FirebaseFirestore.instance
           .collection("users")
           .doc(FirebaseAuth.instance.currentUser!.uid)
