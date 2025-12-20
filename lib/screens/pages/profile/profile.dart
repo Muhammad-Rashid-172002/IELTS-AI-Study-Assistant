@@ -2,10 +2,13 @@
 
 
 import 'package:flutter/material.dart';
+import 'package:fyproject/controller/firebase_services/firebase_services.dart';
+import 'package:fyproject/resources/bottom_navigation_bar/botton_navigation.dart';
+import 'package:fyproject/resources/routes/routes_names.dart';
 import 'package:get/get.dart';
-import '../../../../controller/firebase_services/firebase_services.dart';
-import '../../../../resources/bottom_navigation_bar/botton_navigation.dart';
-import '../../../../resources/routes/routes_names.dart';
+// import '../../../../controller/firebase_services/firebase_services.dart';
+// import '../../../../resources/bottom_navigation_bar/botton_navigation.dart';
+// import '../../../../resources/routes/routes_names.dart';
 
 class Profile extends StatefulWidget {
   const Profile({super.key});
