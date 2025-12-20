@@ -1,7 +1,7 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:fyproject/controller/firebase_services/firebase_services.dart';
+import 'package:get/get.dart';
 import 'package:fyproject/resources/components/custom_text_field.dart';
-
 
 class ForgotPassword extends StatefulWidget {
   const ForgotPassword({super.key});
@@ -13,7 +13,9 @@ class ForgotPassword extends StatefulWidget {
 class _ForgotPasswordState extends State<ForgotPassword> {
   final TextEditingController emailController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  bool _isLoading = false;
+
+  // Controller (MVC)
+  final FirebaseServices firebaseServices = Get.find<FirebaseServices>();
 
   @override
   void dispose() {
@@ -21,40 +23,12 @@ class _ForgotPasswordState extends State<ForgotPassword> {
     super.dispose();
   }
 
-  Future<void> passwordReset() async {
+  void passwordReset() {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
-
-    try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(
-        email: emailController.text.trim(),
-      );
-
-      setState(() => _isLoading = false);
-
-      showDialog(
-        context: context,
-        builder: (_) => const AlertDialog(
-          title: Text("Email Sent"),
-          content: Text(
-            "A password reset link has been sent to your email address.",
-          ),
-        ),
-      );
-    } catch (e) {
-      setState(() => _isLoading = false);
-
-      showDialog(
-        context: context,
-        builder: (_) => const AlertDialog(
-          title: Text("Error"),
-          content: Text(
-            "Something went wrong. Please try again later.",
-          ),
-        ),
-      );
-    }
+    firebaseServices.sendPasswordResetEmail(
+      emailController.text.trim(),
+    );
   }
 
   @override
@@ -75,7 +49,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 const SizedBox(height: 40),
-//
+
                 Text(
                   "Forgot your password?",
                   style: theme.textTheme.headlineMedium,
@@ -91,12 +65,12 @@ class _ForgotPasswordState extends State<ForgotPassword> {
 
                 const SizedBox(height: 32),
 
-                // Email Field (using your modern reusable field)
+                // EMAIL FIELD
                 CustomTextField(
                   controller: emailController,
                   hintText: "Email Address",
                   keyboardType: TextInputType.emailAddress,
-                 prefixIcon: const Icon(Icons.email_outlined),
+                  prefixIcon: const Icon(Icons.email_outlined),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return "Please enter your email";
@@ -110,21 +84,25 @@ class _ForgotPasswordState extends State<ForgotPassword> {
 
                 const SizedBox(height: 30),
 
-                // Reset Button
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: _isLoading ? null : passwordReset,
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 22,
-                            width: 22,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Text("Send Reset Link"),
+                // RESET BUTTON (Obx for loading)
+                Obx(
+                  () => SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: firebaseServices.isResetLoading.value
+                          ? null
+                          : passwordReset,
+                      child: firebaseServices.isResetLoading.value
+                          ? const SizedBox(
+                              height: 22,
+                              width: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text("Send Reset Link"),
+                    ),
                   ),
                 ),
 
