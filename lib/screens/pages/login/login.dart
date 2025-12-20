@@ -237,13 +237,13 @@
 //   }
 // }
 
-
 import 'package:flutter/material.dart';
+import 'package:fyproject/screens/pages/login/forgot_Password/forgot_password.dart';
 import 'package:get/get.dart';
 import '../../../../controller/firebase_services/firebase_services.dart';
 import '../../../../resources/components/custom_text_field.dart';
 import '../../../../resources/components/custom_text_field_email.dart';
-import '../../../../resources/routes/routes.dart';
+//import '../../../../resources/routes/routes.dart';
 import '../../../resources/routes/routes_names.dart';
 import '../../widgets/botton/round_botton.dart';
 import '../../widgets/botton/round_botton2.dart';
@@ -282,7 +282,6 @@ class _LoginState extends State<Login> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-
               /// --------------------------
               /// LOGO
               /// --------------------------
@@ -316,7 +315,6 @@ class _LoginState extends State<Login> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-
                     /// EMAIL LABEL
                     Text(
                       'Email Address'.tr,
@@ -345,26 +343,35 @@ class _LoginState extends State<Login> {
                     ),
                     const SizedBox(height: 6),
 
-                    Obx(() => CustomTextField(
-                      controller: passwordControllerL,
-                      obscureText: !firebaseServices.isPasswordVisibleL.value,
-                      hintText: 'Enter your password'.tr,
-                      suffixIcon: IconButton(
-                        onPressed: firebaseServices.togglePasswordVisibilityL,
-                        icon: Icon(
-                          firebaseServices.isPasswordVisibleL.value
-                              ? Icons.visibility
-                              : Icons.visibility_off_outlined,
-                          color: theme.colorScheme.primary,
+                    Obx(
+                      () => CustomTextField(
+                        controller: passwordControllerL,
+                        obscureText: !firebaseServices.isPasswordVisibleL.value,
+                        hintText: 'Enter your password'.tr,
+                        suffixIcon: IconButton(
+                          onPressed: firebaseServices.togglePasswordVisibilityL,
+                          icon: Icon(
+                            firebaseServices.isPasswordVisibleL.value
+                                ? Icons.visibility
+                                : Icons.visibility_off_outlined,
+                            color: theme.colorScheme.primary,
+                          ),
                         ),
+                        validator: validatePassword,
                       ),
-                      validator: validatePassword,
-                    )),
+                    ),
 
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
-                        onPressed: () {},
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ForgotPassword(),
+                            ),
+                          );
+                        },
                         child: Text(
                           'Forgot password?'.tr,
                           style: TextStyle(
@@ -383,20 +390,22 @@ class _LoginState extends State<Login> {
               /// --------------------------
               /// LOGIN BUTTON
               /// --------------------------
-              Obx(() => RoundButton(
-                width: double.infinity,
-                height: isTablet ? 65 : 55,
-                title: 'Login'.tr,
-                loading: firebaseServices.loadingLoginL.value,
-                onPress: () {
-                  if (formKey2.currentState!.validate()) {
-                    firebaseServices.login(
-                      email: emailControllerL.text.trim(),
-                      password: passwordControllerL.text.trim(),
-                    );
-                  }
-                },
-              )),
+              Obx(
+                () => RoundButton(
+                  width: double.infinity,
+                  height: isTablet ? 65 : 55,
+                  title: 'Login'.tr,
+                  loading: firebaseServices.loadingLoginL.value,
+                  onPress: () {
+                    if (formKey2.currentState!.validate()) {
+                      firebaseServices.login(
+                        email: emailControllerL.text.trim(),
+                        password: passwordControllerL.text.trim(),
+                      );
+                    }
+                  },
+                ),
+              ),
 
               SizedBox(height: size.height * 0.03),
 
@@ -405,15 +414,21 @@ class _LoginState extends State<Login> {
               /// --------------------------
               Row(
                 children: [
-                  Expanded(child: Divider(color: theme.colorScheme.outlineVariant)),
+                  Expanded(
+                    child: Divider(color: theme.colorScheme.outlineVariant),
+                  ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     child: Text(
                       'OR'.tr,
-                      style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                      style: TextStyle(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
-                  Expanded(child: Divider(color: theme.colorScheme.outlineVariant)),
+                  Expanded(
+                    child: Divider(color: theme.colorScheme.outlineVariant),
+                  ),
                 ],
               ),
 
@@ -422,29 +437,31 @@ class _LoginState extends State<Login> {
               /// --------------------------
               /// GOOGLE SIGN-IN BUTTON
               /// --------------------------
-              Obx(() => RoundButton2(
-                width: double.infinity,
-                height: isTablet ? 65 : 55,
-                loading: firebaseServices.loadingGoogleL.value,
-                onPress: firebaseServices.loginWithGoogle,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Image.asset(
-                      'assets/images/google1.png',
-                      height: isTablet ? 46 : 36,
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Continue with Google',
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.onSurface,
+              Obx(
+                () => RoundButton2(
+                  width: double.infinity,
+                  height: isTablet ? 65 : 55,
+                  loading: firebaseServices.loadingGoogleL.value,
+                  onPress: firebaseServices.loginWithGoogle,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Image.asset(
+                        'assets/images/google1.png',
+                        height: isTablet ? 46 : 36,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 12),
+                      Text(
+                        'Continue with Google',
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              )),
+              ),
 
               SizedBox(height: size.height * 0.04),
 
