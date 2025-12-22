@@ -130,6 +130,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
                           ),
                           elevation: 2,
                         ),
+                        //
                         onPressed: firebaseServices.isResetLoading.value
                             ? null
                             : passwordReset,
