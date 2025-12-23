@@ -40,6 +40,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
         backgroundColor: Colors.transparent,
         foregroundColor: Colors.black87,
         centerTitle: true,
+        // TITLE
         title: const Text(
           "Reset Password",
           style: TextStyle(fontWeight: FontWeight.w600),
@@ -130,6 +131,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
                           ),
                           elevation: 2,
                         ),
+                        ///
                         ///
                         ///
                         ///
