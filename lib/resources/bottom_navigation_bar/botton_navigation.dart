@@ -18,7 +18,7 @@ class _BottomNavigationState extends State<BottomNavigation> {
     super.initState();
     myIndex = widget.index;
   }
-
+// ICONS AND LABELS
   final iconList = const [
     Icons.home_rounded,
     Icons.bar_chart_rounded,
