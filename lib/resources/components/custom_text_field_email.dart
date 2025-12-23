@@ -43,10 +43,9 @@ class CustomTextFieldEmail extends StatelessWidget {
 
           filled: true,
           fillColor: theme.colorScheme.surface,
-//
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-
+// MODERN BORDERS
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
             borderSide: BorderSide.none,
