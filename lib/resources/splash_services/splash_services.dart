@@ -17,11 +17,12 @@
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:fyproject/resources/routes/routes_names.dart';
 import 'package:get/get.dart';
-//import 'package:get/get_core/src/get_main.dart';
+///import 'package:get/get_core/src/get_main.dart';
 
 //import '../routes/routes.dart';
-import '../routes/routes_names.dart';
+//import '../routes/routes_names.dart';
 
 class SplashService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
