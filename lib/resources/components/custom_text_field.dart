@@ -10,7 +10,7 @@ class CustomTextField extends StatelessWidget {
   final String? Function(String?)? validator;
   final TextInputType keyboardType;
   final TextCapitalization textCapitalization;
-  //final Widget? prefixIcon;
+  ///final Widget? prefixIcon;
 
 
   const CustomTextField({
