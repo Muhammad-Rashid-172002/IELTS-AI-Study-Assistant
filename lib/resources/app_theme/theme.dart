@@ -14,7 +14,7 @@ class AppTheme {
       seedColor: const Color(0xFF3F6AE1), // premium blue
       brightness: Brightness.light,
     ),
-
+// 
     scaffoldBackgroundColor: const Color(0xFFF6F8FC),
 
     // APP BAR
