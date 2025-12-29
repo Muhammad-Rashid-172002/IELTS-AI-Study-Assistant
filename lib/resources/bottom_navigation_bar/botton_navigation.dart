@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:fyproject/resources/routes/routes_names.dart';
 import 'package:get/get.dart';
-import '../routes/routes_names.dart';
+//import '../routes/routes_names.dart';
 
 class BottomNavigation extends StatefulWidget {
   final int index;
