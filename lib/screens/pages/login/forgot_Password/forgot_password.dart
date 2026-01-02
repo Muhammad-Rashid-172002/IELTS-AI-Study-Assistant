@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fyproject/controller/firebase_services/firebase_services.dart';
 import 'package:get/get.dart';
 import 'package:fyproject/resources/components/custom_text_field.dart';
-//
+///
 class ForgotPassword extends StatefulWidget {
   const ForgotPassword({super.key});
 
