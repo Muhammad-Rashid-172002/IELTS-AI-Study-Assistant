@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:fyproject/screens/pages/home/home.dart';
+import 'package:fyproject/screens/pages/login/login.dart';
 import 'package:fyproject/screens/widgets/botton/round_botton.dart';
+import 'package:get/route_manager.dart';
 import 'package:intl_phone_number_input/intl_phone_number_input.dart';
 
 import '../../../resources/components/custom_text_field.dart';
 import '../../../resources/components/custom_text_field_email.dart';
 import '../../../resources/components/custom_text_field_name.dart';
-
 
 class Registration extends StatefulWidget {
   const Registration({super.key});
@@ -22,7 +23,8 @@ class _RegistrationState extends State<Registration> {
   final TextEditingController nameController = TextEditingController();
   final TextEditingController phoneController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  final TextEditingController confirmPasswordController = TextEditingController();
+  final TextEditingController confirmPasswordController =
+      TextEditingController();
 
   PhoneNumber phoneNumber = PhoneNumber(isoCode: 'PK');
   bool isPasswordVisible = false;
@@ -38,7 +40,8 @@ class _RegistrationState extends State<Registration> {
     super.dispose();
   }
 
-  String _normalizedPhone() => phoneNumber.phoneNumber ?? phoneController.text.trim();
+  String _normalizedPhone() =>
+      phoneNumber.phoneNumber ?? phoneController.text.trim();
 
   @override
   Widget build(BuildContext context) {
@@ -50,13 +53,15 @@ class _RegistrationState extends State<Registration> {
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: EdgeInsets.symmetric(horizontal: width * 0.06, vertical: height * 0.02),
+          padding: EdgeInsets.symmetric(
+            horizontal: width * 0.06,
+            vertical: height * 0.02,
+          ),
           child: Form(
             key: formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-
                 /// Logo
                 Center(
                   child: Image.asset(
@@ -114,7 +119,9 @@ class _RegistrationState extends State<Registration> {
                   padding: const EdgeInsets.symmetric(horizontal: 6),
                   child: InternationalPhoneNumberInput(
                     onInputChanged: (number) => phoneNumber = number,
-                    selectorConfig: const SelectorConfig(selectorType: PhoneInputSelectorType.DROPDOWN),
+                    selectorConfig: const SelectorConfig(
+                      selectorType: PhoneInputSelectorType.DROPDOWN,
+                    ),
                     ignoreBlank: false,
                     autoValidateMode: AutovalidateMode.disabled,
                     textFieldController: phoneController,
@@ -135,13 +142,17 @@ class _RegistrationState extends State<Registration> {
                   obscureText: !isPasswordVisible,
                   hintText: "Enter password",
                   suffixIcon: IconButton(
-                    onPressed: () => setState(() => isPasswordVisible = !isPasswordVisible),
+                    onPressed: () =>
+                        setState(() => isPasswordVisible = !isPasswordVisible),
                     icon: Icon(
-                      isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                      isPasswordVisible
+                          ? Icons.visibility
+                          : Icons.visibility_off,
                       color: theme.colorScheme.primary,
                     ),
                   ),
-                  validator: validatePassword, prefixIcon: Icon(Icons.lock),
+                  validator: validatePassword,
+                  prefixIcon: Icon(Icons.lock),
                 ),
                 SizedBox(height: height * 0.02),
 
@@ -152,13 +163,20 @@ class _RegistrationState extends State<Registration> {
                   obscureText: !isConfirmPasswordVisible,
                   hintText: "Confirm password",
                   suffixIcon: IconButton(
-                    onPressed: () => setState(() => isConfirmPasswordVisible = !isConfirmPasswordVisible),
+                    onPressed: () => setState(
+                      () =>
+                          isConfirmPasswordVisible = !isConfirmPasswordVisible,
+                    ),
                     icon: Icon(
-                      isConfirmPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                      isConfirmPasswordVisible
+                          ? Icons.visibility
+                          : Icons.visibility_off,
                       color: theme.colorScheme.primary,
                     ),
                   ),
-                  validator: (v) => validateConfirmPassword(v, passwordController.text), prefixIcon: Icon(Icons.lock),
+                  validator: (v) =>
+                      validateConfirmPassword(v, passwordController.text),
+                  prefixIcon: Icon(Icons.lock),
                 ),
                 SizedBox(height: height * 0.03),
 
@@ -174,7 +192,9 @@ class _RegistrationState extends State<Registration> {
                     final normalized = _normalizedPhone();
                     if (normalized.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Phone number is required")),
+                        const SnackBar(
+                          content: Text("Phone number is required"),
+                        ),
                       );
                       return;
                     }
@@ -185,6 +205,25 @@ class _RegistrationState extends State<Registration> {
                       MaterialPageRoute(builder: (context) => const Home()),
                     );
                   },
+                ),
+                SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text("Already have an account?"),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const Login(),
+                          ),
+                        );
+                      },
+                      child: Text("Login"),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -216,7 +255,8 @@ class _RegistrationState extends State<Registration> {
   String? validateName(String? value) {
     if (value == null || value.trim().isEmpty) return "Name is required";
     if (value.trim().length < 3) return "Minimum 3 characters required";
-    if (!RegExp(r"^[a-zA-Z\s]+$").hasMatch(value.trim())) return "Only alphabets and spaces allowed";
+    if (!RegExp(r"^[a-zA-Z\s]+$").hasMatch(value.trim()))
+      return "Only alphabets and spaces allowed";
     return null;
   }
 

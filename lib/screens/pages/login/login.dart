@@ -3,6 +3,7 @@ import 'package:fyproject/resources/components/custom_text_field.dart';
 import 'package:fyproject/resources/components/custom_text_field_email.dart';
 import 'package:fyproject/screens/pages/home/home.dart';
 import 'package:fyproject/screens/pages/login/forgot_Password/forgot_password.dart';
+import 'package:fyproject/screens/pages/registration/registration.dart';
 import '../../widgets/botton/round_botton.dart';
 import '../../widgets/botton/round_botton2.dart';
 
@@ -206,7 +207,7 @@ class _LoginState extends State<Login> {
                   ),
                   InkWell(
                     onTap: () {
-                      // UI only, no backend
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const Registration()));
                     },
                     child: Text(
                       'Signup',

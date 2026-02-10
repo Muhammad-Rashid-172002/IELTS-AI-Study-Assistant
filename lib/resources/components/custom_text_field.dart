@@ -6,7 +6,7 @@ class CustomTextField extends StatelessWidget {
   final bool obscureText;
   final Widget? suffixIcon;
   final String? Function(String?)? validator;
-  final TextInputType keyboardType; // ✅ Added this line
+  final TextInputType keyboardType; 
 
   const CustomTextField({
     super.key,
@@ -15,7 +15,7 @@ class CustomTextField extends StatelessWidget {
     this.obscureText = false,
     this.suffixIcon,
     this.validator,
-    this.keyboardType = TextInputType.text, required Icon prefixIcon, // ✅ Added default value
+    this.keyboardType = TextInputType.text, required Icon prefixIcon, 
   });
 
   @override
@@ -27,7 +27,7 @@ class CustomTextField extends StatelessWidget {
         controller: controller,
         obscureText: obscureText,
         textCapitalization: TextCapitalization.words,
-        keyboardType: keyboardType, // ✅ Now this works
+        keyboardType: keyboardType, 
         style: TextStyle(color: theme.colorScheme.onSurface),
         decoration: InputDecoration(
           hintText: hintText,
