@@ -1,80 +1,50 @@
+
 import 'package:flutter/material.dart';
 
-//// ✉️ Modern Email Text Field (IELTS Style)
-///
-///
+/// ✉️ Email Text Field
 class CustomTextFieldEmail extends StatelessWidget {
   const CustomTextFieldEmail({
     super.key,
     required this.controller,
     required this.hintText,
     this.validator,
-    this.suffixIcon,
-    this.enabled = true,
   });
 
   final TextEditingController controller;
   final String hintText;
   final String? Function(String?)? validator;
-  final Widget? suffixIcon;
-  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: TextFormField(
         controller: controller,
         validator: validator,
-        enabled: enabled,
         keyboardType: TextInputType.emailAddress,
-        style: theme.textTheme.bodyLarge,
-        cursorColor: theme.colorScheme.primary,
+        style: TextStyle(color: theme.colorScheme.onSurface),
         decoration: InputDecoration(
           hintText: hintText,
-
-          // FIXED EMAIL ICON
-          prefixIcon: Icon(
-            Icons.email_outlined,
+          hintStyle: TextStyle(
             color: theme.colorScheme.onSurface.withOpacity(0.6),
+            fontSize: 15,
           ),
-
-          suffixIcon: suffixIcon,
-
           filled: true,
           fillColor: theme.colorScheme.surface,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-// MODERN BORDERS
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 19),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide.none,
+            borderRadius: BorderRadius.circular(5),
+            borderSide: BorderSide(color: theme.dividerColor),
           ),
-
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide.none,
+            borderRadius: BorderRadius.circular(5),
+            //borderSide: BorderSide(color: theme.dividerColor),
           ),
-
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(
-              color: theme.colorScheme.primary,
-              width: 1.4,
-            ),
-          ),
-
-          errorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Colors.redAccent),
-          ),
-
-          focusedErrorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide:
-                const BorderSide(color: Colors.redAccent, width: 1.4),
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
           ),
         ),
       ),

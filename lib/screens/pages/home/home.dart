@@ -1,13 +1,5 @@
-
-
 import 'package:flutter/material.dart';
 import 'package:fyproject/resources/bottom_navigation_bar/botton_navigation.dart';
-import 'package:fyproject/resources/routes/routes_names.dart';
-import 'package:get/get.dart';
-// import 'package:ielts_ai_study/resources/bottom_navigation_bar/botton_navigation.dart';
-// import 'package:ielts_ai_study/resources/routes/routes_names.dart';
-
-import '../../../controller/firebase_services/firebase_services.dart';
 import '../../widgets/add_fire_pulse/fire_animation.dart';
 
 class Home extends StatefulWidget {
@@ -18,14 +10,10 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
-
-  @override
-  void initState() {
-    super.initState();
-    final services = Get.find<FirebaseServices>();
-    services.loadUserProfile(); // ensure listener starts
-  }
-
+  // Mock static data
+  final String userName = "User";
+  final String? userPhoto = null; // put a URL string here if needed
+  final int streak = 5; // Example streak value
 
   @override
   Widget build(BuildContext context) {
@@ -49,9 +37,9 @@ class _HomeState extends State<Home> {
               // =====================================================
               //                     STUDY MODULES TEXT
               // =====================================================
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: const Column(
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
@@ -81,51 +69,42 @@ class _HomeState extends State<Home> {
               _moduleCard(
                 title: "Text Summarizer",
                 subtitle:
-                "Transform long texts into concise summaries instantly with AI assistance",
+                    "Transform long texts into concise summaries instantly with AI assistance",
                 color: const Color(0xFF4A79F6),
                 tag: "AI Powered",
                 icon: Icons.description,
-                onTap: () {
-                  Get.toNamed(RoutesName.summarizer);
-                },
+                onTap: () {},
               ),
 
               _moduleCard(
                 title: "MCQ Generator",
                 subtitle:
-                "Create custom multiple choice questions from any topic for practice",
+                    "Create custom multiple choice questions from any topic for practice",
                 color: const Color(0xFF2ECC9A),
                 tag: "Practice",
                 icon: Icons.list_alt,
-                onTap: () {
-                  Get.toNamed(RoutesName.mcq);
-                },
+                onTap: () {},
               ),
 
               _moduleCard(
                 title: "Math Solver",
                 subtitle:
-                "Solve complex math problems with detailed explanations and solutions",
+                    "Solve complex math problems with detailed explanations and solutions",
                 color: const Color(0xFF8E44FF),
                 tag: "Step by Step",
                 icon: Icons.calculate_outlined,
-                onTap: () {
-                  Get.toNamed(RoutesName.math);
-                },
+                onTap: () {},
               ),
 
               _moduleCard(
                 title: "AI Study Feedback",
                 subtitle:
-                "Get personalized feedback and insights to improve your learning progress",
+                    "Get personalized feedback and insights to improve your learning progress",
                 color: const Color(0xFFFFA726),
                 tag: "AI Feedback",
                 icon: Icons.feedback_outlined,
-                onTap: () {
-                  Get.toNamed(RoutesName.feedback);   // Create this route
-                },
+                onTap: () {},
               ),
-
 
               const SizedBox(height: 20),
 
@@ -145,16 +124,8 @@ class _HomeState extends State<Home> {
 
               const SizedBox(height: 14),
 
-              // Row(
-              //   children: [
-              //     _progressCard("12", "Summaries", Icons.menu_book_rounded),
-              //     _progressCard("45", "Questions", Icons.help_outline_rounded),
-              //     _progressCard("8", "Solved", Icons.check_circle_outline),
-              //   ],
-              // ),
+              // Progress section with static mock data
               _buildProgressSection(),
-
-
 
               const SizedBox(height: 26),
             ],
@@ -168,15 +139,6 @@ class _HomeState extends State<Home> {
   //                     HEADER WIDGET
   // =====================================================
   Widget _buildHeader() {
-    final FirebaseServices services = Get.find<FirebaseServices>();
-    final data = services.userData;
-
-    final int streak = data['streak'] ?? 1;
-
-
-    final String? userName = data['name'];
-    final String? userPhoto = data['profileImage'];
-
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
@@ -194,18 +156,15 @@ class _HomeState extends State<Home> {
           bottomRight: Radius.circular(22),
         ),
       ),
-
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-
           // Logo + Notification
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
                 children: [
-                  // Small logo box
                   Container(
                     padding: const EdgeInsets.all(9),
                     decoration: BoxDecoration(
@@ -239,38 +198,31 @@ class _HomeState extends State<Home> {
                 ],
               ),
 
-              // Bell icon
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.18),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.notifications_none,
-                    color: Colors.white),
+                child: const Icon(Icons.notifications_none, color: Colors.white),
               ),
             ],
           ),
+
           const SizedBox(height: 22),
 
           Row(
             children: [
-              // PROFILE IMAGE
               CircleAvatar(
                 radius: 30,
                 backgroundColor: Colors.grey[300],
-
-                backgroundImage: (userPhoto != null && userPhoto.isNotEmpty)
-                    ? NetworkImage(userPhoto)
-                    : null,
-
-                child: (userPhoto == null || userPhoto.isEmpty)
+                backgroundImage:
+                    (userPhoto?.isNotEmpty ?? false) ? NetworkImage(userPhoto!) : null,
+                child: (userPhoto?.isEmpty ?? true)
                     ? Icon(Icons.person, size: 32, color: Colors.grey[700])
                     : null,
               ),
-
               const SizedBox(width: 14),
-
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -279,7 +231,7 @@ class _HomeState extends State<Home> {
                     style: TextStyle(color: Colors.white70, fontSize: 14),
                   ),
                   Text(
-                    userName ?? "User",
+                    userName,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 22,
@@ -291,9 +243,8 @@ class _HomeState extends State<Home> {
             ],
           ),
 
-
           const SizedBox(height: 24),
-          // Streak box
+
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -301,7 +252,6 @@ class _HomeState extends State<Home> {
               color: Colors.white.withOpacity(0.25),
               borderRadius: BorderRadius.circular(18),
             ),
-
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -313,7 +263,7 @@ class _HomeState extends State<Home> {
                       style: TextStyle(color: Colors.white70, fontSize: 12),
                     ),
                     Text(
-                      "$streak Days",    // ⭐ Dynamic streak value
+                      "$streak Days",
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 22,
@@ -323,7 +273,6 @@ class _HomeState extends State<Home> {
                   ],
                 ),
                 const FirePulseIcon(),
-
               ],
             ),
           ),
@@ -342,20 +291,15 @@ class _HomeState extends State<Home> {
   }) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-
-        // 🔥 LEFT BORDER EXACT LIKE SCREENSHOT
         border: Border(
           left: BorderSide(
             color: color,
             width: 4,
           ),
         ),
-
-        // Soft shadow
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -364,18 +308,16 @@ class _HomeState extends State<Home> {
           ),
         ],
       ),
-
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-
-            // TAG BADGE
             Align(
               alignment: Alignment.topRight,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(14),
@@ -390,10 +332,7 @@ class _HomeState extends State<Home> {
                 ),
               ),
             ),
-
             const SizedBox(height: 14),
-
-            // ICON + TITLE ROW
             Row(
               children: [
                 Container(
@@ -404,9 +343,7 @@ class _HomeState extends State<Home> {
                   ),
                   child: Icon(icon, color: color, size: 30),
                 ),
-
                 const SizedBox(width: 14),
-
                 Expanded(
                   child: Text(
                     title,
@@ -418,9 +355,7 @@ class _HomeState extends State<Home> {
                 )
               ],
             ),
-
             const SizedBox(height: 10),
-
             Text(
               subtitle,
               style: const TextStyle(
@@ -429,10 +364,7 @@ class _HomeState extends State<Home> {
                 height: 1.4,
               ),
             ),
-
             const SizedBox(height: 18),
-
-            // START BUTTON (PILL)
             Align(
               alignment: Alignment.bottomRight,
               child: GestureDetector(
@@ -462,7 +394,6 @@ class _HomeState extends State<Home> {
                 ),
               ),
             )
-
           ],
         ),
       ),
@@ -491,7 +422,8 @@ class _HomeState extends State<Home> {
             const SizedBox(height: 10),
             Text(
               value,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              style:
+                  const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             Text(label, style: const TextStyle(color: Colors.black54)),
           ],
@@ -501,48 +433,22 @@ class _HomeState extends State<Home> {
   }
 
   Widget _buildProgressSection() {
-    final FirebaseServices services = Get.find<FirebaseServices>();
+    // Static mock progress data
+    final progress = {
+      "summaries": 12,
+      "questions": 45,
+      "solved": 8,
+    };
 
-    return Obx(() {
-      print("🔄 OBX → progress section rebuilding...");
-      print("📦 Current userData: ${services.userData}");
-
-      final progress = services.userData['progress'] ?? {
-        "summaries": 0,
-        "questions": 0,
-        "solved": 0,
-      };
-
-      print("📊 Extracted progress:");
-      print("➡️ summaries: ${progress["summaries"]}");
-      print("➡️ questions: ${progress["questions"]}");
-      print("➡️ solved: ${progress["solved"]}");
-
-      // Force UI update log
-      services.userData.refresh();
-      print("✨ userData.refresh() called inside progress section");
-
-      return Row(
-        children: [
-          _progressCard(
-            progress["summaries"].toString(),
-            "Text Summaries",
-            Icons.menu_book_rounded,
-          ),
-          _progressCard(
-            progress["questions"].toString(),
-            "MCQs Generated",
-            Icons.quiz_outlined,
-          ),
-          _progressCard(
-            progress["solved"].toString(),
-            "Math Problems Solved",
-            Icons.calculate_outlined,
-          ),
-        ],
-      );
-    });
+    return Row(
+      children: [
+        _progressCard(progress["summaries"].toString(), "Text Summaries",
+            Icons.menu_book_rounded),
+        _progressCard(
+            progress["questions"].toString(), "MCQs Generated", Icons.quiz_outlined),
+        _progressCard(
+            progress["solved"].toString(), "Math Problems Solved", Icons.calculate_outlined),
+      ],
+    );
   }
-
-
 }

@@ -64,9 +64,8 @@
 //     );
 //   }
 // }
-//
 
-//import 'package:flutter/cupertino.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../splash_services/splash_services.dart';
@@ -87,7 +86,7 @@ class _SplashscreenState extends State<Splashscreen> {
   void initState() {
     // TODO: implement initState
     super.initState();
-    splashService.isLogin(context);
+    splashService.startSplash(context);
   }
 
   @override
