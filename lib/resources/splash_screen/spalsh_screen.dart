@@ -95,19 +95,7 @@ class _SplashscreenState extends State<Splashscreen> {
       body: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.center,
-        // children: [
-        //   Center(
-        //     child: Text(
-        //       'My Project',
-        //       style: TextStyle(
-        //         fontWeight: FontWeight.bold,
-        //         fontSize: 30,
-        //         color: Theme.of(context).colorScheme.onSurface, // ✅ Auto adapts to light/dark
-        //         letterSpacing: 0.5, // subtle readability
-        //       ),
-        //     ),
-        //   ),
-        // ],
+      
         children: [
           Center(
             child: Column(
