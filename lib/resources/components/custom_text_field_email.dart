@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 /// ✉️ Email Text Field
@@ -25,6 +24,7 @@ class CustomTextFieldEmail extends StatelessWidget {
         validator: validator,
         keyboardType: TextInputType.emailAddress,
         style: TextStyle(color: theme.colorScheme.onSurface),
+        enabled: true, // ensure it can be tapped
         decoration: InputDecoration(
           hintText: hintText,
           hintStyle: TextStyle(
@@ -36,11 +36,11 @@ class CustomTextFieldEmail extends StatelessWidget {
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 19),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(5),
-            borderSide: BorderSide(color: theme.dividerColor),
+            borderSide: BorderSide(color: theme.dividerColor), 
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(5),
-            //borderSide: BorderSide(color: theme.dividerColor),
+            borderSide: BorderSide(color: theme.dividerColor), 
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
