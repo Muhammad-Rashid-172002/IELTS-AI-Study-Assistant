@@ -1,7 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:fyproject/resources/routes/routes_names.dart';
-import 'package:get/get.dart';
-//import '../routes/routes_names.dart';
 
 class BottomNavigation extends StatefulWidget {
   final int index;
@@ -12,108 +9,71 @@ class BottomNavigation extends StatefulWidget {
 }
 
 class _BottomNavigationState extends State<BottomNavigation> {
-  late int myIndex;
+  late int myIndex = widget.index;
 
-  @override
-  void initState() {
-    super.initState();
-    myIndex = widget.index;
-  }
-// ICONS AND LABELS
-  final iconList = const [
-    Icons.home_rounded,
-    Icons.bar_chart_rounded,
-    Icons.bookmark_rounded,
-    Icons.person_rounded,
+  final iconList = [
+    Icons.home,
+    Icons.analytics_outlined,
+    Icons.save,
+    Icons.people,
   ];
 
-  final labels = const [
+  final labels = [
     "Home",
     "Progress",
     "Saved",
     "Profile",
   ];
 
+  // Colors
+  static const Color blue = Color(0xFF1E88E5);
+  static const Color grey = Colors.grey;
+
   void onTap(int index) {
-    if (index == myIndex) return;
-
-    setState(() => myIndex = index);
-
-    switch (index) {
-      case 0:
-        Get.offAllNamed(RoutesName.home);
-        break;
-      case 1:
-        Get.offAllNamed(RoutesName.progress);
-        break;
-      case 2:
-        Get.offAllNamed(RoutesName.saved);
-        break;
-      case 3:
-        Get.offAllNamed(RoutesName.profile);
-        break;
+    // Only update selected index visually
+    if (index != myIndex) {
+      setState(() => myIndex = index);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final primary = theme.colorScheme.primary;
-    final inactive = Colors.grey.shade500;
-
-    return SafeArea(
-      child: Container(
-        height: 72,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border(
-            top: BorderSide(color: Colors.grey.shade200),
-          ),
+    return Container(
+      height: 70,
+      decoration: const BoxDecoration(
+        border: Border(
+          top: BorderSide(color: Colors.grey, width: 0.4),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: List.generate(iconList.length, (index) {
-            final isSelected = index == myIndex;
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: List.generate(iconList.length, (index) {
+          final bool isSelected = index == myIndex;
 
-            return Expanded(
-              child: GestureDetector(
-                onTap: () => onTap(index),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOut,
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? primary.withOpacity(0.12)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        iconList[index],
-                        size: 26,
-                        color: isSelected ? primary : inactive,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        labels[index],
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight:
-                              isSelected ? FontWeight.w600 : FontWeight.normal,
-                          color: isSelected ? primary : inactive,
-                        ),
-                      ),
-                    ],
+          return GestureDetector(
+            onTap: () => onTap(index),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  iconList[index],
+                  size: 26,
+                  color: isSelected ? blue : grey,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  labels[index],
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight:
+                        isSelected ? FontWeight.w600 : FontWeight.normal,
+                    color: isSelected ? blue : grey,
                   ),
                 ),
-              ),
-            );
-          }),
-        ),
+              ],
+            ),
+          );
+        }),
       ),
     );
   }
