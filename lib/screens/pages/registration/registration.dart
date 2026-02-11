@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:fyproject/screens/pages/home/home.dart';
 import 'package:fyproject/screens/pages/login/login.dart';
 import 'package:fyproject/screens/widgets/botton/round_botton.dart';
-import 'package:get/route_manager.dart';
 import 'package:intl_phone_number_input/intl_phone_number_input.dart';
 
 import '../../../resources/components/custom_text_field.dart';
@@ -25,6 +24,7 @@ class _RegistrationState extends State<Registration> {
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController confirmPasswordController =
       TextEditingController();
+       final FocusNode emailFocus = FocusNode();
 
   PhoneNumber phoneNumber = PhoneNumber(isoCode: 'PK');
   bool isPasswordVisible = false;
@@ -37,6 +37,7 @@ class _RegistrationState extends State<Registration> {
     phoneController.dispose();
     passwordController.dispose();
     confirmPasswordController.dispose();
+    emailFocus.dispose();   
     super.dispose();
   }
 
@@ -97,8 +98,8 @@ class _RegistrationState extends State<Registration> {
                 buildLabel("Email Address", theme),
                 CustomTextFieldEmail(
                   controller: emailController,
-                  hintText: "Enter email",
-                  validator: validateEmail,
+                  hintText: "Enter Email",
+                  focusNode: emailFocus, // ✅ pass here
                 ),
                 SizedBox(height: height * 0.02),
 

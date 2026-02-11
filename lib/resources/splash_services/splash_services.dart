@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:fyproject/screens/pages/login/login.dart';
+import 'package:fyproject/screens/pages/registration/registration.dart';
 
 
 class SplashService {
@@ -8,7 +8,7 @@ class SplashService {
     Timer(const Duration(seconds: 2), () {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const Login()),
+        MaterialPageRoute(builder: (context) => const Registration()),
       );
     });
   }

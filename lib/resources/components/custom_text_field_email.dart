@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 
-/// ✉️ Email Text Field
+///  Email Text Field
 class CustomTextFieldEmail extends StatelessWidget {
   const CustomTextFieldEmail({
     super.key,
     required this.controller,
     required this.hintText,
+    required this.focusNode,
     this.validator,
   });
 
   final TextEditingController controller;
   final String hintText;
+  final FocusNode focusNode;
   final String? Function(String?)? validator;
 
   @override
@@ -21,6 +23,7 @@ class CustomTextFieldEmail extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: TextFormField(
         controller: controller,
+        focusNode: focusNode,
         validator: validator,
         keyboardType: TextInputType.emailAddress,
         style: TextStyle(color: theme.colorScheme.onSurface),
@@ -33,14 +36,17 @@ class CustomTextFieldEmail extends StatelessWidget {
           ),
           filled: true,
           fillColor: theme.colorScheme.surface,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 19),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 19,
+          ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(5),
-            borderSide: BorderSide(color: theme.dividerColor), 
+            borderSide: BorderSide(color: theme.dividerColor),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(5),
-            borderSide: BorderSide(color: theme.dividerColor), 
+            borderSide: BorderSide(color: theme.dividerColor),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),

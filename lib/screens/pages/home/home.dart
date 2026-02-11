@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fyproject/resources/bottom_navigation_bar/botton_navigation.dart';
+import 'package:fyproject/screens/pages/Modules/text_summarizer.dart';
 import '../../widgets/add_fire_pulse/fire_animation.dart';
 
 class Home extends StatefulWidget {
@@ -8,7 +9,6 @@ class Home extends StatefulWidget {
   @override
   State<Home> createState() => _HomeState();
 }
-
 class _HomeState extends State<Home> {
   // Mock static data
   final String userName = "User";
@@ -27,16 +27,15 @@ class _HomeState extends State<Home> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
 
-              // =====================================================
+             
               //                     HEADER SECTION
-              // =====================================================
+              
               _buildHeader(),
 
               const SizedBox(height: 20),
 
-              // =====================================================
               //                     STUDY MODULES TEXT
-              // =====================================================
+            
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
@@ -63,9 +62,9 @@ class _HomeState extends State<Home> {
 
               const SizedBox(height: 14),
 
-              // =====================================================
+             
               //                     MODULE CARDS
-              // =====================================================
+              
               _moduleCard(
                 title: "Text Summarizer",
                 subtitle:
@@ -73,7 +72,12 @@ class _HomeState extends State<Home> {
                 color: const Color(0xFF4A79F6),
                 tag: "AI Powered",
                 icon: Icons.description,
-                onTap: () {},
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const TextSummarizer()),
+                  );
+                },
               ),
 
               _moduleCard(
