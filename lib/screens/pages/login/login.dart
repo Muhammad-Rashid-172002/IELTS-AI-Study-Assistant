@@ -18,6 +18,7 @@ class _LoginState extends State<Login> {
   final formKey = GlobalKey<FormState>();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+  final FocusNode emailFocus = FocusNode();
   bool isPasswordVisible = false;
 
   @override
@@ -75,7 +76,7 @@ class _LoginState extends State<Login> {
                     CustomTextFieldEmail(
                       controller: emailController,
                       hintText: 'Enter your email',
-                      validator: validateEmail,
+                      validator: validateEmail, focusNode: emailFocus, 
                     ),
                     const SizedBox(height: 16),
 
