@@ -4,8 +4,9 @@ import 'package:fyproject/resources/components/custom_text_field_email.dart';
 import 'package:fyproject/screens/pages/home/home.dart';
 import 'package:fyproject/screens/pages/login/forgot_Password/forgot_password.dart';
 import 'package:fyproject/screens/pages/registration/registration.dart';
-import '../../widgets/botton/round_botton.dart';
-import '../../widgets/botton/round_botton2.dart';
+import 'package:fyproject/screens/widgets/botton/round_botton.dart';
+import 'package:fyproject/screens/widgets/botton/round_botton2.dart';
+
 
 class Login extends StatefulWidget {
   const Login({super.key});
