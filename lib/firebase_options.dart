@@ -70,6 +70,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '600359875882',
     projectId: 'ielts-ai-study-assistant',
     storageBucket: 'ielts-ai-study-assistant.firebasestorage.app',
+    androidClientId: '600359875882-r9ivn3tc6vmdmhckl6pi1kg5jorvjlgr.apps.googleusercontent.com',
+    iosClientId: '600359875882-7m4al83uq8fhj3jmbisjdot09vn1db6v.apps.googleusercontent.com',
     iosBundleId: 'com.example.fyproject',
   );
 }
