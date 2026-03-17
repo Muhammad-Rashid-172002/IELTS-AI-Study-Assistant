@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import '../routes/routes_names.dart';
 
 class BottomNavigation extends StatefulWidget {
   final int index;
@@ -30,9 +32,23 @@ class _BottomNavigationState extends State<BottomNavigation> {
   static const Color grey = Colors.grey;
 
   void onTap(int index) {
-    // Only update selected index visually
-    if (index != myIndex) {
-      setState(() => myIndex = index);
+    if (index == myIndex) return;
+
+    setState(() => myIndex = index);
+
+    switch (index) {
+      case 0:
+        Get.offAllNamed(RoutesName.home);
+        break;
+      case 1:
+        Get.offAllNamed(RoutesName.progress);
+        break;
+      case 2:
+        Get.offAllNamed(RoutesName.saved);
+        break;
+      case 3:
+        Get.offAllNamed(RoutesName.profile);
+        break;
     }
   }
 
@@ -45,6 +61,7 @@ class _BottomNavigationState extends State<BottomNavigation> {
           top: BorderSide(color: Colors.grey, width: 0.4),
         ),
       ),
+
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: List.generate(iconList.length, (index) {
@@ -60,13 +77,14 @@ class _BottomNavigationState extends State<BottomNavigation> {
                   size: 26,
                   color: isSelected ? blue : grey,
                 ),
+
                 const SizedBox(height: 4),
+
                 Text(
                   labels[index],
                   style: TextStyle(
                     fontSize: 12,
-                    fontWeight:
-                        isSelected ? FontWeight.w600 : FontWeight.normal,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                     color: isSelected ? blue : grey,
                   ),
                 ),

@@ -1,12 +1,12 @@
-import 'package:flutter/material.dart';
-import 'package:fyproject/resources/components/custom_text_field.dart';
-import 'package:fyproject/resources/components/custom_text_field_email.dart';
-import 'package:fyproject/screens/pages/home/home.dart';
-import 'package:fyproject/screens/pages/login/forgot_Password/forgot_password.dart';
-import 'package:fyproject/screens/pages/registration/registration.dart';
-import 'package:fyproject/screens/widgets/botton/round_botton.dart';
-import 'package:fyproject/screens/widgets/botton/round_botton2.dart';
 
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import '../../../../controller/firebase_services/firebase_services.dart';
+import '../../../../resources/components/custom_text_field.dart';
+import '../../../../resources/components/custom_text_field_email.dart';
+import '../../../resources/routes/routes_names.dart';
+import '../../widgets/botton/round_botton.dart';
+import '../../widgets/botton/round_botton2.dart';
 
 class Login extends StatefulWidget {
   const Login({super.key});
@@ -15,12 +15,13 @@ class Login extends StatefulWidget {
   State<Login> createState() => _LoginState();
 }
 
+final FirebaseServices firebaseServices = Get.find<FirebaseServices>();
+
 class _LoginState extends State<Login> {
-  final formKey = GlobalKey<FormState>();
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController passwordController = TextEditingController();
-  final FocusNode emailFocus = FocusNode();
-  bool isPasswordVisible = false;
+  final formKey2 = GlobalKey<FormState>();
+  final TextEditingController emailControllerL = TextEditingController();
+  final TextEditingController passwordControllerL = TextEditingController();
+  
 
   @override
   Widget build(BuildContext context) {
@@ -31,99 +32,102 @@ class _LoginState extends State<Login> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       resizeToAvoidBottomInset: true,
+
       body: SafeArea(
         child: SingleChildScrollView(
           padding: EdgeInsets.symmetric(
             horizontal: isTablet ? size.width * 0.18 : 22,
             vertical: 28,
           ),
+
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+
+              /// --------------------------
               /// LOGO
+              /// --------------------------
               Image.asset(
                 'assets/images/ai.png',
                 height: 120,
                 fit: BoxFit.contain,
               ),
+
               const SizedBox(height: 12),
 
+              /// --------------------------
               /// TITLE
+              /// --------------------------
               Text(
-                'HELLO, WELCOME BACK',
+                'HELLO, WELCOME BACK'.tr,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: theme.colorScheme.onSurface,
                 ),
               ),
+
               SizedBox(height: size.height * 0.03),
 
+              /// --------------------------
               /// FORM
+              /// --------------------------
               Form(
-                key: formKey,
+                key: formKey2,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+
                     /// EMAIL LABEL
                     Text(
-                      'Email Address',
+                      'Email Address'.tr,
                       style: theme.textTheme.bodyLarge?.copyWith(
                         fontWeight: FontWeight.w600,
                         color: theme.colorScheme.onSurface,
                       ),
                     ),
                     const SizedBox(height: 6),
+
                     CustomTextFieldEmail(
-                      controller: emailController,
-                      hintText: 'Enter your email',
-                      validator: validateEmail, focusNode: emailFocus, 
+                      controller: emailControllerL,
+                      hintText: 'Enter your email'.tr,
+                      validator: validateEmail,
                     ),
+
                     const SizedBox(height: 16),
 
                     /// PASSWORD LABEL
                     Text(
-                      'Password',
+                      'Password'.tr,
                       style: theme.textTheme.bodyLarge?.copyWith(
                         fontWeight: FontWeight.w600,
                         color: theme.colorScheme.onSurface,
                       ),
                     ),
                     const SizedBox(height: 6),
-                    CustomTextField(
-                      controller: passwordController,
-                      obscureText: !isPasswordVisible,
-                      hintText: 'Enter your password',
+
+                    Obx(() => CustomTextField(
+                      controller: passwordControllerL,
+                      obscureText: !firebaseServices.isPasswordVisibleL.value,
+                      hintText: 'Enter your password'.tr,
                       suffixIcon: IconButton(
-                        onPressed: () {
-                          setState(() {
-                            isPasswordVisible = !isPasswordVisible;
-                          });
-                        },
+                        onPressed: firebaseServices.togglePasswordVisibilityL,
                         icon: Icon(
-                          isPasswordVisible
+                          firebaseServices.isPasswordVisibleL.value
                               ? Icons.visibility
                               : Icons.visibility_off_outlined,
                           color: theme.colorScheme.primary,
                         ),
                       ),
-                      validator: validatePassword,
-                      prefixIcon: Icon(Icons.lock),
-                    ),
+                      validator: validatePassword, prefixIcon: Icon(Icons.lock_outline),
+                    )),
 
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ForgotPasswordPage(),
-                            ),
-                          );
-                        },
+                        onPressed: () {},
                         child: Text(
-                          'Forgot password?',
+                          'Forgot password?'.tr,
                           style: TextStyle(
                             color: theme.colorScheme.primary,
                             fontWeight: FontWeight.w500,
@@ -134,51 +138,56 @@ class _LoginState extends State<Login> {
                   ],
                 ),
               ),
+
               const SizedBox(height: 20),
 
-              /// LOGIN BUTTON (UI only)
-              RoundButton(
+              /// --------------------------
+              /// LOGIN BUTTON
+              /// --------------------------
+              Obx(() => RoundButton(
                 width: double.infinity,
                 height: isTablet ? 65 : 55,
-                title: 'Login',
-                loading: false,
+                title: 'Login'.tr,
+                loading: firebaseServices.loadingLoginL.value,
                 onPress: () {
-                  if (formKey.currentState!.validate()) {
-                    // Navigate to Home screen
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (context) => const Home()),
+                  if (formKey2.currentState!.validate()) {
+                    firebaseServices.login(
+                      email: emailControllerL.text.trim(),
+                      password: passwordControllerL.text.trim(),
                     );
                   }
                 },
-              ),
+              )),
+
               SizedBox(height: size.height * 0.03),
 
+              /// --------------------------
               /// OR DIVIDER
+              /// --------------------------
               Row(
                 children: [
-                  Expanded(
-                    child: Divider(color: theme.colorScheme.outlineVariant),
+                  Expanded(child: Divider(color: theme.colorScheme.outlineVariant)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Text(
+                      'OR'.tr,
+                      style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                    ),
                   ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 10),
-                    child: Text('OR'),
-                  ),
-                  Expanded(
-                    child: Divider(color: theme.colorScheme.outlineVariant),
-                  ),
+                  Expanded(child: Divider(color: theme.colorScheme.outlineVariant)),
                 ],
               ),
+
               SizedBox(height: size.height * 0.03),
 
-              /// GOOGLE SIGN-IN BUTTON (UI only)
-              RoundButton2(
+              /// --------------------------
+              /// GOOGLE SIGN-IN BUTTON
+              /// --------------------------
+              Obx(() => RoundButton2(
                 width: double.infinity,
                 height: isTablet ? 65 : 55,
-                loading: false,
-                onPress: () {
-                  // UI only, no backend
-                },
+                loading: firebaseServices.loadingGoogleL.value,
+                onPress: firebaseServices.loginWithGoogle,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -196,23 +205,24 @@ class _LoginState extends State<Login> {
                     ),
                   ],
                 ),
-              ),
+              )),
+
               SizedBox(height: size.height * 0.04),
 
+              /// --------------------------
               /// SIGNUP TEXT
+              /// --------------------------
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    "Don't have an account?",
+                    "Don't have an account?".tr,
                     style: theme.textTheme.bodyMedium,
                   ),
                   InkWell(
-                    onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => const Registration()));
-                    },
+                    onTap: () => Get.toNamed(RoutesName.register),
                     child: Text(
-                      'Signup',
+                      'Signup'.tr,
                       style: TextStyle(
                         color: theme.colorScheme.primary,
                         fontWeight: FontWeight.bold,
@@ -221,6 +231,7 @@ class _LoginState extends State<Login> {
                   ),
                 ],
               ),
+
               SizedBox(height: size.height * 0.02),
             ],
           ),
@@ -229,17 +240,19 @@ class _LoginState extends State<Login> {
     );
   }
 
+  /// --------------------------
   /// VALIDATORS
+  /// --------------------------
   String? validateEmail(String? value) {
-    if (value == null || value.isEmpty) return "Email is required";
+    if (value == null || value.isEmpty) return "Email is required".tr;
     final emailRegex = RegExp(r'^[\w\.-]+@[a-zA-Z\d\.-]+\.[a-zA-Z]{2,}$');
-    if (!emailRegex.hasMatch(value)) return "Enter a valid email";
+    if (!emailRegex.hasMatch(value)) return "Enter a valid email".tr;
     return null;
   }
 
   String? validatePassword(String? value) {
-    if (value == null || value.isEmpty) return "Password is required";
-    if (value.length < 6) return "Password must be at least 6 characters";
+    if (value == null || value.isEmpty) return "Password is required".tr;
+    if (value.length < 6) return "Password must be at least 6 characters".tr;
     return null;
   }
 }

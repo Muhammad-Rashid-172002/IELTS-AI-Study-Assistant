@@ -1,6 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:fyproject/resources/bottom_navigation_bar/botton_navigation.dart';
-import 'package:fyproject/screens/pages/Modules/text_summarizer.dart';
+import 'package:fyproject/resources/routes/routes_names.dart';
+import 'package:fyproject/screens/Full_Mock_Test/Full_mock_test.dart';
+import 'package:fyproject/screens/Vocabulary_Builder/VocabularyBuilder.dart';
+import 'package:fyproject/screens/pages/Reading_Practice/ReadingPractice.dart';
+import 'package:fyproject/screens/pages/Listening_Practice/ListeningPractice.dart';
+import 'package:fyproject/screens/pages/Writing_Checker/WritingChecker.dart';
+import 'package:fyproject/screens/pages/Speaking_Practice/SpeakingPractice.dart';
+import 'package:get/get.dart';
+
+import '../../../controller/firebase_services/firebase_services.dart';
 import '../../widgets/add_fire_pulse/fire_animation.dart';
 
 class Home extends StatefulWidget {
@@ -9,11 +18,14 @@ class Home extends StatefulWidget {
   @override
   State<Home> createState() => _HomeState();
 }
+
 class _HomeState extends State<Home> {
-  // Mock static data
-  final String userName = "User";
-  final String? userPhoto = null; // put a URL string here if needed
-  final int streak = 5; // Example streak value
+  @override
+  void initState() {
+    super.initState();
+    final services = Get.find<FirebaseServices>();
+    services.loadUserProfile(); // ensure listener starts
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,19 +38,19 @@ class _HomeState extends State<Home> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
-             
+              // =====================================================
               //                     HEADER SECTION
-              
+              // =====================================================
               _buildHeader(),
 
               const SizedBox(height: 20),
 
+              // =====================================================
               //                     STUDY MODULES TEXT
-            
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
+              // =====================================================
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
@@ -51,10 +63,7 @@ class _HomeState extends State<Home> {
                     SizedBox(height: 6),
                     Text(
                       "Choose a tool to enhance your learning",
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.black54,
-                      ),
+                      style: TextStyle(fontSize: 14, color: Colors.black54),
                     ),
                   ],
                 ),
@@ -62,76 +71,83 @@ class _HomeState extends State<Home> {
 
               const SizedBox(height: 14),
 
-             
+              // =====================================================
               //                     MODULE CARDS
-              
+              // =====================================================
               _moduleCard(
-                title: "Text Summarizer",
+                title: "Listening Practice",
                 subtitle:
-                    "Transform long texts into concise summaries instantly with AI assistance",
+                    "Improve your listening skills with real IELTS audio tests",
                 color: const Color(0xFF4A79F6),
-                tag: "AI Powered",
-                icon: Icons.description,
+                tag: "IELTS Skill",
+                icon: Icons.headphones,
                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const TextSummarizer()),
-                  );
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const ListeningPractice()));
                 },
               ),
 
               _moduleCard(
-                title: "MCQ Generator",
+                title: "Reading Practice",
                 subtitle:
-                    "Create custom multiple choice questions from any topic for practice",
+                    "Practice academic reading passages with IELTS style questions",
                 color: const Color(0xFF2ECC9A),
-                tag: "Practice",
-                icon: Icons.list_alt,
-                onTap: () {},
+                tag: "IELTS Skill",
+                icon: Icons.menu_book,
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const ReadingPractice()));
+                },
               ),
 
               _moduleCard(
-                title: "Math Solver",
+                title: "Writing Tasks",
                 subtitle:
-                    "Solve complex math problems with detailed explanations and solutions",
+                    "Practice IELTS Writing Task 1 and Task 2 with AI feedback",
                 color: const Color(0xFF8E44FF),
-                tag: "Step by Step",
-                icon: Icons.calculate_outlined,
-                onTap: () {},
+                tag: "AI Feedback",
+                icon: Icons.edit_note,
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const WritingChecker()));
+                },
               ),
 
               _moduleCard(
-                title: "AI Study Feedback",
+                title: "Speaking Practice",
                 subtitle:
-                    "Get personalized feedback and insights to improve your learning progress",
+                    "Practice speaking questions and get AI pronunciation feedback",
                 color: const Color(0xFFFFA726),
-                tag: "AI Feedback",
-                icon: Icons.feedback_outlined,
-                onTap: () {},
+                tag: "AI Speaking",
+                icon: Icons.mic,
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const SpeakingPractice()));
+                },
               ),
 
+              _moduleCard(
+                title: "Vocabulary Builder",
+                subtitle: "Learn high band IELTS vocabulary with examples",
+                color: const Color(0xFF26A69A),
+                tag: "Vocabulary",
+                icon: Icons.translate,
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const Vocabularybuilder()));
+                },
+              ),
+
+              _moduleCard(
+                title: "Full Mock Test",
+                subtitle: "Take a full IELTS test simulation with timer",
+                color: const Color(0xFFE74C3C),
+                tag: "Exam Mode",
+                icon: Icons.assignment,
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const FullMockTest()));
+                },
+              ),
               const SizedBox(height: 20),
 
-              // =====================================================
-              //                     TODAY'S PROGRESS
-              // =====================================================
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20),
-                child: Text(
-                  "Today's Progress",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              // Progress section with static mock data
-              _buildProgressSection(),
-
-              const SizedBox(height: 26),
+            
+              
+              
             ],
           ),
         ),
@@ -143,15 +159,20 @@ class _HomeState extends State<Home> {
   //                     HEADER WIDGET
   // =====================================================
   Widget _buildHeader() {
+    final FirebaseServices services = Get.find<FirebaseServices>();
+    final data = services.userData;
+
+    final int streak = data['streak'] ?? 1;
+
+    final String? userName = data['name'];
+    final String? userPhoto = data['profileImage'];
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            Color(0xFF4A79F6),
-            Color(0xFF5AA9FA),
-          ],
+          colors: [Color(0xFF4A79F6), Color(0xFF5AA9FA)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -160,6 +181,7 @@ class _HomeState extends State<Home> {
           bottomRight: Radius.circular(22),
         ),
       ),
+
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -169,21 +191,25 @@ class _HomeState extends State<Home> {
             children: [
               Row(
                 children: [
+                  // Small logo box
                   Container(
                     padding: const EdgeInsets.all(9),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.18),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.auto_stories,
-                        color: Colors.white, size: 20),
+                    child: const Icon(
+                      Icons.auto_stories,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        "IELTS AI",
+                        "IELTS Master",
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 18,
@@ -191,42 +217,48 @@ class _HomeState extends State<Home> {
                         ),
                       ),
                       Text(
-                        "Study Assistant",
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                        ),
+                        "Your IELTS Preparation App",
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
                       ),
                     ],
                   ),
                 ],
               ),
 
+              // Bell icon
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.18),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.notifications_none, color: Colors.white),
+                child: const Icon(
+                  Icons.notifications_none,
+                  color: Colors.white,
+                ),
               ),
             ],
           ),
-
           const SizedBox(height: 22),
 
           Row(
             children: [
+              // PROFILE IMAGE
               CircleAvatar(
                 radius: 30,
                 backgroundColor: Colors.grey[300],
-                backgroundImage:
-                    (userPhoto?.isNotEmpty ?? false) ? NetworkImage(userPhoto!) : null,
-                child: (userPhoto?.isEmpty ?? true)
+
+                backgroundImage: (userPhoto != null && userPhoto.isNotEmpty)
+                    ? NetworkImage(userPhoto)
+                    : null,
+
+                child: (userPhoto == null || userPhoto.isEmpty)
                     ? Icon(Icons.person, size: 32, color: Colors.grey[700])
                     : null,
               ),
+
               const SizedBox(width: 14),
+
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -235,7 +267,7 @@ class _HomeState extends State<Home> {
                     style: TextStyle(color: Colors.white70, fontSize: 14),
                   ),
                   Text(
-                    userName,
+                    userName ?? "User",
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 22,
@@ -248,7 +280,7 @@ class _HomeState extends State<Home> {
           ),
 
           const SizedBox(height: 24),
-
+          // Streak box
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -256,6 +288,7 @@ class _HomeState extends State<Home> {
               color: Colors.white.withOpacity(0.25),
               borderRadius: BorderRadius.circular(18),
             ),
+
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -267,7 +300,7 @@ class _HomeState extends State<Home> {
                       style: TextStyle(color: Colors.white70, fontSize: 12),
                     ),
                     Text(
-                      "$streak Days",
+                      "$streak Days", // ⭐ Dynamic streak value
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 22,
@@ -295,15 +328,15 @@ class _HomeState extends State<Home> {
   }) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border(
-          left: BorderSide(
-            color: color,
-            width: 4,
-          ),
-        ),
+
+        // 🔥 LEFT BORDER EXACT LIKE SCREENSHOT
+        border: Border(left: BorderSide(color: color, width: 4)),
+
+        // Soft shadow
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -312,16 +345,20 @@ class _HomeState extends State<Home> {
           ),
         ],
       ),
+
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // TAG BADGE
             Align(
               alignment: Alignment.topRight,
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(14),
@@ -336,7 +373,10 @@ class _HomeState extends State<Home> {
                 ),
               ),
             ),
+
             const SizedBox(height: 14),
+
+            // ICON + TITLE ROW
             Row(
               children: [
                 Container(
@@ -347,7 +387,9 @@ class _HomeState extends State<Home> {
                   ),
                   child: Icon(icon, color: color, size: 30),
                 ),
+
                 const SizedBox(width: 14),
+
                 Expanded(
                   child: Text(
                     title,
@@ -356,10 +398,12 @@ class _HomeState extends State<Home> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                )
+                ),
               ],
             ),
+
             const SizedBox(height: 10),
+
             Text(
               subtitle,
               style: const TextStyle(
@@ -368,7 +412,10 @@ class _HomeState extends State<Home> {
                 height: 1.4,
               ),
             ),
+
             const SizedBox(height: 18),
+
+            // START BUTTON (PILL)
             Align(
               alignment: Alignment.bottomRight,
               child: GestureDetector(
@@ -391,13 +438,16 @@ class _HomeState extends State<Home> {
                         ),
                       ),
                       SizedBox(width: 6),
-                      Icon(Icons.arrow_forward_ios_rounded,
-                          color: Colors.white, size: 16),
+                      Icon(
+                        Icons.arrow_forward_ios_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
                     ],
                   ),
                 ),
               ),
-            )
+            ),
           ],
         ),
       ),
@@ -426,8 +476,7 @@ class _HomeState extends State<Home> {
             const SizedBox(height: 10),
             Text(
               value,
-              style:
-                  const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             Text(label, style: const TextStyle(color: Colors.black54)),
           ],
@@ -436,23 +485,4 @@ class _HomeState extends State<Home> {
     );
   }
 
-  Widget _buildProgressSection() {
-    // Static mock progress data
-    final progress = {
-      "summaries": 12,
-      "questions": 45,
-      "solved": 8,
-    };
-
-    return Row(
-      children: [
-        _progressCard(progress["summaries"].toString(), "Text Summaries",
-            Icons.menu_book_rounded),
-        _progressCard(
-            progress["questions"].toString(), "MCQs Generated", Icons.quiz_outlined),
-        _progressCard(
-            progress["solved"].toString(), "Math Problems Solved", Icons.calculate_outlined),
-      ],
-    );
-  }
 }
