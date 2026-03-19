@@ -1,34 +1,69 @@
-IELTS AI Study Assistant
+# 📚 IELTS AI Study Assistant
 
-A smart and modern Flutter-based IELTS preparation app powered by AI.
-It helps users practice Speaking, Reading, Writing, and Listening with intelligent suggestions and real-time evaluations.
+A smart and modern **Flutter-based IELTS preparation app** powered by AI.  
+This app helps users practice **Speaking, Reading, Writing, and Listening** with intelligent suggestions and real-time evaluations.
 
-🚀 Features
+---
 
-🎤 AI Speaking Evaluation
+## 🚀 Features
 
-✍️ Grammar Correction & Writing Feedback
+- 🎤 **AI Speaking Evaluation**
+  - Record voice and get band score
+  - Fluency, grammar, and vocabulary feedback
 
-🧠 MCQ Generation for Reading Practice
+- ✍️ **Writing Feedback**
+  - Grammar correction
+  - Band score estimation
+  - Improved version suggestions
 
-🔍 OCR-Based Text Extraction
+- 🧠 **Reading Practice**
+  - AI-generated MCQs
+  - Passage summaries
 
-🤖 AI Chat Assistant (IELTS-focused)
+- 🔍 **OCR Text Extraction**
+  - Extract text from images
+  - Useful for reading practice
 
-📄 Reading Summaries
+- 🤖 **AI Chat Assistant**
+  - IELTS-focused chatbot
+  - Ask questions, practice cue cards, grammar help
 
-🔐 Firebase Authentication
+- 📊 **Progress Tracking**
+  - Track scores and improvements
 
-📊 Progress Tracking
+- 🔐 **Authentication**
+  - Firebase login (Email/Google)
 
-🎨 Clean & Modern UI/UX
+- 🎨 **Modern UI/UX**
+  - Clean and responsive design
 
-📦 Tech Stack
+---
 
-Flutter
+## 📦 Tech Stack
 
-Firebase (Auth, Firestore, Storage)
+- **Frontend:** Flutter  
+- **Backend:** Firebase  
+  - Authentication  
+  - Firestore  
+  - Storage  
+- **AI Integration:** OpenAI API  
+- **OCR:** Google ML Kit  
 
-OpenAI API
+---
 
-Google ML Kit (OCR)
+## 📱 App Modules
+
+- 🏠 Home Dashboard  
+- 🎤 Speaking Practice  
+- ✍️ Writing Practice  
+- 📖 Reading Practice  
+- 🤖 AI Chat Assistant  
+- 📊 Progress Tracker  
+
+---
+
+## ⚙️ Installation
+
+1. Clone the repository:
+```bash
+git clone https://github.com/Muhammad-Rashid-172002/IELTS-AI-Study-Assistant.git
