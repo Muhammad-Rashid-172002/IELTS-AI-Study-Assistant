@@ -18,9 +18,7 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:get/get_core/src/get_main.dart';
 
-import '../routes/routes.dart';
 import '../routes/routes_names.dart';
 
 class SplashService {
@@ -34,14 +32,14 @@ class SplashService {
         if (user != null) {
           Get.offAllNamed(RoutesName.home);
         } else {
-          Get.offAllNamed(RoutesName.login);
+          Get.offAllNamed(RoutesName.onboarding);
         }
       });
     } catch (e) {
       Get.snackbar("Error", "Authentication check failed: $e",
           snackPosition: SnackPosition.BOTTOM);
       Timer(const Duration(seconds: 4), () {
-        Get.offNamed(RoutesName.login);
+        Get.offNamed(RoutesName.onboarding);
       });
     }
   }

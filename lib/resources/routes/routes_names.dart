@@ -1,5 +1,8 @@
+
+
 class RoutesName {
   static const splash = '/';
+  static const onboarding = '/onboarding';
   static const home = '/home';
   static const login = '/login';
   static const register = '/signup';
@@ -11,6 +14,6 @@ class RoutesName {
 
   static const profile = '/profile';
   static const progress = '/progress';
-  static const saved = '/saved';
+  static const vocabularybuilder = '/Vocabularybuilder';
 
 }

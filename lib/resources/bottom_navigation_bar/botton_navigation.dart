@@ -15,15 +15,15 @@ class _BottomNavigationState extends State<BottomNavigation> {
 
   final iconList = [
     Icons.home,
+    Icons.book_outlined,
     Icons.analytics_outlined,
-    Icons.save,
     Icons.people,
   ];
 
   final labels = [
     "Home",
+    "Vocabulary",
     "Progress",
-    "Saved",
     "Profile",
   ];
 
@@ -41,10 +41,10 @@ class _BottomNavigationState extends State<BottomNavigation> {
         Get.offAllNamed(RoutesName.home);
         break;
       case 1:
-        Get.offAllNamed(RoutesName.progress);
+        Get.offAllNamed(RoutesName.vocabularybuilder);
         break;
       case 2:
-        Get.offAllNamed(RoutesName.saved);
+        Get.offAllNamed(RoutesName.progress);
         break;
       case 3:
         Get.offAllNamed(RoutesName.profile);
