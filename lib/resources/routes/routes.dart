@@ -1,14 +1,14 @@
 import 'package:fyproject/resources/routes/routes_names.dart';
+import 'package:fyproject/screens/Onboarding_Screen/Onboarding_screen.dart';
+import 'package:fyproject/screens/Vocabulary_Builder/VocabularyBuilder.dart';
 import 'package:fyproject/screens/pages/home/home.dart';
 import 'package:fyproject/screens/pages/login/login.dart';
 
 import 'package:fyproject/screens/pages/profile/profile.dart';
 import 'package:fyproject/screens/pages/progress/progress.dart';
 import 'package:fyproject/screens/pages/registration/registration.dart';
-import 'package:fyproject/screens/pages/saved/saved.dart';
 import 'package:get/get_navigation/src/routes/get_route.dart';
 import 'package:get/get_navigation/src/routes/transitions_type.dart';
-
 import '../splash_screen/spalsh_screen.dart';
 
 class AppRoutes {
@@ -17,6 +17,12 @@ class AppRoutes {
     GetPage(
       name: RoutesName.splash,
       page: () => const Splashscreen(),
+      transition: Transition.leftToRightWithFade,
+      transitionDuration: const Duration(milliseconds: 250),
+    ),
+    GetPage(
+      name: RoutesName.onboarding,
+      page: () => const OnboardingScreen(),
       transition: Transition.leftToRightWithFade,
       transitionDuration: const Duration(milliseconds: 250),
     ),
@@ -38,24 +44,7 @@ class AppRoutes {
       transition: Transition.leftToRightWithFade,
       transitionDuration: const Duration(milliseconds: 250),
     ),
-    // GetPage(
-    //   name: RoutesName.summarizer,
-    //   page: () => const Summarizer(),
-    //   transition: Transition.leftToRightWithFade,
-    //   transitionDuration: const Duration(milliseconds: 250),
-    // ),
-    // GetPage(
-    //   name: RoutesName.mcq,
-    //   page: () => const Mcq(),
-    //   transition: Transition.leftToRightWithFade,
-    //   transitionDuration: const Duration(milliseconds: 250),
-    // ),
-    // GetPage(
-    //   name: RoutesName.math,
-    //   page: () => const Math(),
-    //   transition: Transition.leftToRightWithFade,
-    //   transitionDuration: const Duration(milliseconds: 250),
-    // ),
+
     GetPage(
       name: RoutesName.profile,
       page: () => const Profile(),
@@ -69,16 +58,11 @@ class AppRoutes {
       transitionDuration: const Duration(milliseconds: 250),
     ),
     GetPage(
-      name: RoutesName.saved,
-      page: () =>  Saved(),
+      name: RoutesName.vocabularybuilder,
+      page: () =>  Vocabularybuilder(),
       transition: Transition.leftToRightWithFade,
       transitionDuration: const Duration(milliseconds: 250),
     ),
-    // GetPage(
-    //   name: RoutesName.feedback,
-    //   page: () => const FeedbackScreen(),
-    //   transition: Transition.leftToRightWithFade,
-    //   transitionDuration: const Duration(milliseconds: 250),
-    // ),
+
   ];
 }
