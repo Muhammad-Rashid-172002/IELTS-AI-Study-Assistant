@@ -5,8 +5,7 @@ import '../../../../controller/firebase_services/firebase_services.dart';
 import '../../../../resources/components/custom_text_field.dart';
 import '../../../../resources/components/custom_text_field_email.dart';
 import '../../../resources/routes/routes_names.dart';
-import '../../widgets/botton/round_botton.dart';
-import '../../widgets/botton/round_botton2.dart';
+
 
 class Login extends StatefulWidget {
   const Login({super.key});
@@ -23,224 +22,240 @@ class _LoginState extends State<Login> {
   final TextEditingController passwordControllerL = TextEditingController();
   
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final size = MediaQuery.of(context).size;
-    final isTablet = size.width > 600;
+@override
+Widget build(BuildContext context) {
+//  final size = MediaQuery.of(context).size;
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      resizeToAvoidBottomInset: true,
-
-      body: SafeArea(
+  return Scaffold(
+    backgroundColor: const Color(0xffF5F5F7),
+    body: SafeArea(
+      child: Center(
         child: SingleChildScrollView(
-          padding: EdgeInsets.symmetric(
-            horizontal: isTablet ? size.width * 0.18 : 22,
-            vertical: 28,
-          ),
-
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
 
-              /// --------------------------
               /// LOGO
-              /// --------------------------
-              Image.asset(
-                'assets/images/ai.png',
-                height: 120,
-                fit: BoxFit.contain,
-              ),
-
-              const SizedBox(height: 12),
-
-              /// --------------------------
-              /// TITLE
-              /// --------------------------
-              Text(
-                'HELLO, WELCOME BACK'.tr,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.onSurface,
+              Container(
+                height: 80,
+                width: 80,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xff4A5DF9), Color(0xff9C27B0)],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-              ),
-
-              SizedBox(height: size.height * 0.03),
-
-              /// --------------------------
-              /// FORM
-              /// --------------------------
-              Form(
-                key: formKey2,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-
-                    /// EMAIL LABEL
-                    Text(
-                      'Email Address'.tr,
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: theme.colorScheme.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-
-                    CustomTextFieldEmail(
-                      controller: emailControllerL,
-                      hintText: 'Enter your email'.tr,
-                      validator: validateEmail,
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    /// PASSWORD LABEL
-                    Text(
-                      'Password'.tr,
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: theme.colorScheme.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-
-                    Obx(() => CustomTextField(
-                      controller: passwordControllerL,
-                      obscureText: !firebaseServices.isPasswordVisibleL.value,
-                      hintText: 'Enter your password'.tr,
-                      suffixIcon: IconButton(
-                        onPressed: firebaseServices.togglePasswordVisibilityL,
-                        icon: Icon(
-                          firebaseServices.isPasswordVisibleL.value
-                              ? Icons.visibility
-                              : Icons.visibility_off_outlined,
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                      validator: validatePassword, prefixIcon: Icon(Icons.lock_outline),
-                    )),
-
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () {},
-                        child: Text(
-                          'Forgot password?'.tr,
-                          style: TextStyle(
-                            color: theme.colorScheme.primary,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                child: const Icon(Icons.track_changes,
+                    color: Colors.white, size: 40),
               ),
 
               const SizedBox(height: 20),
 
-              /// --------------------------
-              /// LOGIN BUTTON
-              /// --------------------------
-              Obx(() => RoundButton(
-                width: double.infinity,
-                height: isTablet ? 65 : 55,
-                title: 'Login'.tr,
-                loading: firebaseServices.loadingLoginL.value,
-                onPress: () {
-                  if (formKey2.currentState!.validate()) {
-                    firebaseServices.login(
-                      email: emailControllerL.text.trim(),
-                      password: passwordControllerL.text.trim(),
-                    );
-                  }
-                },
-              )),
-
-              SizedBox(height: size.height * 0.03),
-
-              /// --------------------------
-              /// OR DIVIDER
-              /// --------------------------
-              Row(
-                children: [
-                  Expanded(child: Divider(color: theme.colorScheme.outlineVariant)),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Text(
-                      'OR'.tr,
-                      style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-                    ),
-                  ),
-                  Expanded(child: Divider(color: theme.colorScheme.outlineVariant)),
-                ],
+              /// TITLE
+              const Text(
+                "Welcome Back",
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
 
-              SizedBox(height: size.height * 0.03),
+              const SizedBox(height: 8),
 
-              /// --------------------------
-              /// GOOGLE SIGN-IN BUTTON
-              /// --------------------------
-              Obx(() => RoundButton2(
+              const Text(
+                "Continue your IELTS preparation",
+                style: TextStyle(color: Colors.grey, fontSize: 15),
+              ),
+
+              const SizedBox(height: 30),
+
+              /// CARD CONTAINER
+              Container(
                 width: double.infinity,
-                height: isTablet ? 65 : 55,
-                loading: firebaseServices.loadingGoogleL.value,
-                onPress: firebaseServices.loginWithGoogle,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Image.asset(
-                      'assets/images/google1.png',
-                      height: isTablet ? 46 : 36,
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Continue with Google',
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.onSurface,
-                      ),
-                    ),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(25),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 15,
+                      offset: const Offset(0, 5),
+                    )
                   ],
                 ),
-              )),
 
-              SizedBox(height: size.height * 0.04),
+                child: Form(
+                  key: formKey2,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
 
-              /// --------------------------
-              /// SIGNUP TEXT
-              /// --------------------------
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    "Don't have an account?".tr,
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                  InkWell(
-                    onTap: () => Get.toNamed(RoutesName.register),
-                    child: Text(
-                      'Signup'.tr,
-                      style: TextStyle(
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.bold,
+                      /// EMAIL
+                      const Text("Email",
+                          style: TextStyle(fontWeight: FontWeight.w600)),
+
+                      const SizedBox(height: 8),
+
+                      CustomTextFieldEmail(
+                        controller: emailControllerL,
+                        hintText: 'Enter your email',
+                        validator: validateEmail,
                       ),
-                    ),
-                  ),
-                ],
-              ),
 
-              SizedBox(height: size.height * 0.02),
+                      const SizedBox(height: 18),
+
+                      /// PASSWORD
+                      const Text("Password",
+                          style: TextStyle(fontWeight: FontWeight.w600)),
+
+                      const SizedBox(height: 8),
+
+                      Obx(() => CustomTextField(
+                        controller: passwordControllerL,
+                        obscureText: !firebaseServices.isPasswordVisibleL.value,
+                        hintText: 'Enter your password',
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          onPressed: firebaseServices.togglePasswordVisibilityL,
+                          icon: Icon(
+                            firebaseServices.isPasswordVisibleL.value
+                                ? Icons.visibility
+                                : Icons.visibility_off,
+                          ),
+                        ),
+                        validator: validatePassword,
+                      )),
+
+                      /// FORGOT PASSWORD
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () {},
+                          child: const Text(
+                            "Forgot password?",
+                            style: TextStyle(color: Colors.purple),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      /// LOGIN BUTTON (GRADIENT)
+                      Obx(() => GestureDetector(
+                        onTap: () {
+                          if (formKey2.currentState!.validate()) {
+                            firebaseServices.login(
+                              email: emailControllerL.text.trim(),
+                              password: passwordControllerL.text.trim(),
+                            );
+                          }
+                        },
+                        child: Container(
+                          height: 55,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [
+                                Color(0xff3F5EFb),
+                                Color(0xff9C27B0)
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          child: Center(
+                            child: firebaseServices.loadingLoginL.value
+                                ? const CircularProgressIndicator(
+                                    color: Colors.white)
+                                : const Text(
+                                    "Log In",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      )),
+
+                      const SizedBox(height: 20),
+
+                      /// OR DIVIDER
+                      Row(
+                        children: const [
+                          Expanded(child: Divider()),
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 8),
+                            child: Text("or continue with"),
+                          ),
+                          Expanded(child: Divider()),
+                        ],
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      /// GOOGLE + APPLE
+                      Row(
+                        children: [
+                          Expanded(
+                            child: socialButton(
+                                "Google", "assets/images/google1.png"),
+                          ),
+                          const SizedBox(width: 10),
+                        
+                        ],
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      /// SIGNUP
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text("Don't have an account? "),
+                          GestureDetector(
+                            onTap: () =>
+                                Get.toNamed(RoutesName.register),
+                            child: const Text(
+                              "Sign Up",
+                              style: TextStyle(
+                                  color: Colors.purple,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
-  /// --------------------------
+/// SOCIAL BUTTON
+Widget socialButton(String title, String icon) {
+  return Container(
+    height: 50,
+    decoration: BoxDecoration(
+      border: Border.all(color: Colors.grey.shade300),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Image.asset(icon, height: 24),
+        const SizedBox(width: 8),
+        Text(title),
+      ],
+    ),
+  );
+}  /// --------------------------
   /// VALIDATORS
   /// --------------------------
   String? validateEmail(String? value) {

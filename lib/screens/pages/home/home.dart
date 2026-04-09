@@ -6,6 +6,7 @@ import 'package:fyproject/screens/pages/Reading_Practice/ReadingPractice.dart';
 import 'package:fyproject/screens/pages/Listening_Practice/ListeningPractice.dart';
 import 'package:fyproject/screens/pages/Writing_Checker/WritingChecker.dart';
 import 'package:fyproject/screens/pages/Speaking_Practice/SpeakingPractice.dart';
+import 'package:fyproject/screens/widgets/add_fire_pulse/fire_animation.dart';
 import 'package:get/get.dart';
 
 import '../../../controller/firebase_services/firebase_services.dart';
@@ -252,14 +253,7 @@ class _HomeState extends State<Home> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.notifications, color: Colors.white),
-              ),
+          
             ],
           ),
 
@@ -328,11 +322,7 @@ class _HomeState extends State<Home> {
                     ),
                   ],
                 ),
-                const Icon(
-                  Icons.local_fire_department,
-                  color: Colors.orange,
-                  size: 32,
-                ),
+              FirePulseIcon(),
               ],
             ),
           ),
