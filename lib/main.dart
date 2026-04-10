@@ -25,7 +25,7 @@ void main()async{
   Get.put(SummarizerController(), permanent: true);
   Get.put(MCQController(), permanent: true);
   Get.put(MathController(), permanent: true);
-  Get.put(FeedbackController(), permanent: true);
+  Get.put(IELTSController(), permanent: true);
   Get.put(FirebaseServices(),permanent: true);
 
   runApp(const MyApp());
