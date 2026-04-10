@@ -38,16 +38,13 @@ class _HomeState extends State<Home> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // =====================================================
-              //                     HEADER SECTION
-              // =====================================================
+              //                   HEADER SECTION
+              
               _buildHeader(),
 
               const SizedBox(height: 20),
 
-              // =====================================================
               //                     STUDY MODULES TEXT
-              // =====================================================
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: const Column(
