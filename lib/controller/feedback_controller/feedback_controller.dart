@@ -1,30 +1,6 @@
 import 'package:fyproject/services/ai_service.dart';
 import 'package:get/get.dart';
 
-
-
-
-// class FeedbackController extends GetxController {
-//   final AIService api = AIService();
-
-//   var isLoading = false.obs;
-//   var feedback = "".obs;
-
-//   Future<void> generateFeedback(String text, String category) async {
-//     isLoading.value = true;
-
-//     try {
-//       feedback.value = await api.feedback(text, category);
-//     } catch (e) {
-//       feedback.value =
-//       "Gemini is busy or rate limited. Please try again in a moment.";
-//     }
-
-//     isLoading.value = false;
-//   }
-// }
-
-
 class IELTSController extends GetxController {
   final AIService api = AIService();
 
@@ -38,6 +14,8 @@ class IELTSController extends GetxController {
   var listeningHelp = "".obs;
   var vocabularyHelp = "".obs;
   var bandScore = "".obs;
+  var vocabWords = [].obs;
+  var currentIndex = 0.obs;
 
   // ==========================
   // ✍️ WRITING TASK FEEDBACK
@@ -46,7 +24,8 @@ class IELTSController extends GetxController {
     isLoading.value = true;
 
     try {
-      final prompt = """
+      final prompt =
+          """
 You are an IELTS examiner. Evaluate this IELTS Writing $taskType response.
 
 Give:
@@ -63,8 +42,7 @@ $text
 
       writingFeedback.value = await api.feedback(prompt, "writing");
     } catch (e) {
-      writingFeedback.value =
-          "⚠️ Error: Server busy. Please try again.";
+      writingFeedback.value = "⚠️ Error: Server busy. Please try again.";
     }
 
     isLoading.value = false;
@@ -77,7 +55,8 @@ $text
     isLoading.value = true;
 
     try {
-      final prompt = """
+      final prompt =
+          """
 You are an IELTS Speaking examiner.
 
 Evaluate this response:
@@ -94,8 +73,7 @@ $speechText
 
       speakingFeedback.value = await api.feedback(prompt, "speaking");
     } catch (e) {
-      speakingFeedback.value =
-          "⚠️ Speaking evaluation failed. Try again.";
+      speakingFeedback.value = "⚠️ Speaking evaluation failed. Try again.";
     }
 
     isLoading.value = false;
@@ -108,7 +86,8 @@ $speechText
     isLoading.value = true;
 
     try {
-      final prompt = """
+      final prompt =
+          """
 You are an IELTS Reading tutor.
 
 Passage:
@@ -125,8 +104,7 @@ Explain:
 
       readingHelp.value = await api.feedback(prompt, "reading");
     } catch (e) {
-      readingHelp.value =
-          "⚠️ Reading help not available.";
+      readingHelp.value = "⚠️ Reading help not available.";
     }
 
     isLoading.value = false;
@@ -139,7 +117,8 @@ Explain:
     isLoading.value = true;
 
     try {
-      final prompt = """
+      final prompt =
+          """
 You are an IELTS Listening tutor.
 
 Transcript:
@@ -156,8 +135,7 @@ Provide:
 
       listeningHelp.value = await api.feedback(prompt, "listening");
     } catch (e) {
-      listeningHelp.value =
-          "⚠️ Listening help failed.";
+      listeningHelp.value = "⚠️ Listening help failed.";
     }
 
     isLoading.value = false;
@@ -170,7 +148,8 @@ Provide:
     isLoading.value = true;
 
     try {
-      final prompt = """
+      final prompt =
+          """
 Extract advanced IELTS vocabulary from this text.
 
 Give:
@@ -184,8 +163,7 @@ $text
 
       vocabularyHelp.value = await api.feedback(prompt, "vocabulary");
     } catch (e) {
-      vocabularyHelp.value =
-          "⚠️ Vocabulary service unavailable.";
+      vocabularyHelp.value = "⚠️ Vocabulary service unavailable.";
     }
 
     isLoading.value = false;
@@ -198,7 +176,8 @@ $text
     isLoading.value = true;
 
     try {
-      final prompt = """
+      final prompt =
+          """
 Estimate IELTS band score for this writing.
 
 Give:
@@ -212,8 +191,7 @@ $text
 
       bandScore.value = await api.feedback(prompt, "band");
     } catch (e) {
-      bandScore.value =
-          "⚠️ Could not estimate band score.";
+      bandScore.value = "⚠️ Could not estimate band score.";
     }
 
     isLoading.value = false;

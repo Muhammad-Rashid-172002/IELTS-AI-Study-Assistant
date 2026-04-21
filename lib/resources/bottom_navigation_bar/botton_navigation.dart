@@ -11,16 +11,18 @@ class BottomNavigation extends StatefulWidget {
 }
 
 class _BottomNavigationState extends State<BottomNavigation> {
-  late int myIndex = widget.index;
+  late int myIndex;
 
-  final iconList = [
+  // Icons
+  final List<IconData> iconList = [
     Icons.home,
     Icons.book_outlined,
     Icons.analytics_outlined,
     Icons.people,
   ];
 
-  final labels = [
+  // Labels
+  final List<String> labels = [
     "Home",
     "Vocabulary",
     "Progress",
@@ -31,10 +33,18 @@ class _BottomNavigationState extends State<BottomNavigation> {
   static const Color blue = Color(0xFF1E88E5);
   static const Color grey = Colors.grey;
 
+  @override
+  void initState() {
+    super.initState();
+    myIndex = widget.index; // ✅ Correct initialization
+  }
+
   void onTap(int index) {
     if (index == myIndex) return;
 
-    setState(() => myIndex = index);
+    setState(() {
+      myIndex = index;
+    });
 
     switch (index) {
       case 0:
@@ -61,34 +71,35 @@ class _BottomNavigationState extends State<BottomNavigation> {
           top: BorderSide(color: Colors.grey, width: 0.4),
         ),
       ),
-
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: List.generate(iconList.length, (index) {
           final bool isSelected = index == myIndex;
 
-          return GestureDetector(
-            onTap: () => onTap(index),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  iconList[index],
-                  size: 26,
-                  color: isSelected ? blue : grey,
-                ),
-
-                const SizedBox(height: 4),
-
-                Text(
-                  labels[index],
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+          return Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onTap(index),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    iconList[index],
+                    size: 26,
                     color: isSelected ? blue : grey,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Text(
+                    labels[index],
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight:
+                          isSelected ? FontWeight.w600 : FontWeight.normal,
+                      color: isSelected ? blue : grey,
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         }),

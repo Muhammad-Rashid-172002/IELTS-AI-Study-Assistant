@@ -9,9 +9,6 @@ import 'package:get/get_navigation/src/root/get_material_app.dart';
 
 import 'config/keys.dart';
 import 'controller/feedback_controller/feedback_controller.dart';
-import 'controller/math_controller/math_controller.dart';
-import 'controller/mcq_controller/mcq_controller.dart';
-import 'controller/summarizer_controller/summarizer_controller.dart';
 import 'firebase_options.dart';
 
 void main()async{
@@ -22,9 +19,6 @@ void main()async{
   //My Api is Expired
   Gemini.init(apiKey: AppKeys.geminiApiKey);  // <--- USE YOUR KEY SAFELY
   // Register all controllers globally
-  Get.put(SummarizerController(), permanent: true);
-  Get.put(MCQController(), permanent: true);
-  Get.put(MathController(), permanent: true);
   Get.put(IELTSController(), permanent: true);
   Get.put(FirebaseServices(),permanent: true);
 
@@ -39,7 +33,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return GetMaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Flutter Demo',
+      title: 'IELTS Assistant',
       theme: ThemeData(
         //colorScheme: .fromSeed(seedColor: Colors.deepPurple),
       ),

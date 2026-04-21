@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:fyproject/controller/feedback_controller/feedback_controller.dart';
 import 'package:get/get.dart';
 
-
 class Vocabularybuilder extends StatefulWidget {
   const Vocabularybuilder({super.key});
 
@@ -13,12 +12,12 @@ class Vocabularybuilder extends StatefulWidget {
 class _VocabularybuilderState extends State<Vocabularybuilder> {
   final TextEditingController topicController = TextEditingController();
 
-  final IELTSController ieltsController =
-      Get.put(IELTSController());
+  // ✅ FIX: avoid multiple instances
+  final IELTSController ieltsController = Get.find<IELTSController>();
 
   String selectedLevel = "Band 7+";
 
-  final levels = [
+  final List<String> levels = [
     "Band 6+",
     "Band 7+",
     "Band 8+",
@@ -26,10 +25,12 @@ class _VocabularybuilderState extends State<Vocabularybuilder> {
   ];
 
   // =====================================================
-  // GENERATE REAL AI VOCABULARY
-  // =====================================================
+  // GENERATE VOCABULARY
+  
   Future<void> generateVocabulary() async {
-    if (topicController.text.trim().isEmpty) {
+    final topic = topicController.text.trim();
+
+    if (topic.isEmpty) {
       Get.snackbar(
         "Error",
         "Enter a topic first",
@@ -39,14 +40,14 @@ class _VocabularybuilderState extends State<Vocabularybuilder> {
       return;
     }
 
-    ieltsController.isLoading.value = true;
-
     try {
+      ieltsController.isLoading.value = true;
+
       final prompt = """
 You are an IELTS Vocabulary Expert.
 
 Generate advanced IELTS $selectedLevel vocabulary words for topic:
-${topicController.text}
+$topic
 
 Requirements:
 - Generate 12 advanced vocabulary words
@@ -55,18 +56,6 @@ Requirements:
 2. Meaning
 3. IELTS Example Sentence
 4. Synonym
-
-Format exactly like:
-
-1. Word: Sustainable
-Meaning: able to continue over time
-Example: Sustainable energy is important for future generations.
-Synonym: Renewable
-
-2. Word: Innovation
-Meaning: new idea or method
-Example: Technological innovation improves productivity.
-Synonym: Advancement
 """;
 
       final result = await ieltsController.api.feedback(
@@ -82,9 +71,17 @@ Synonym: Advancement
         backgroundColor: Colors.red,
         colorText: Colors.white,
       );
+    } finally {
+      // ✅ FIX: always stop loading
+      ieltsController.isLoading.value = false;
     }
+  }
 
-    ieltsController.isLoading.value = false;
+  @override
+  void dispose() {
+    // ✅ FIX: prevent memory leak
+    topicController.dispose();
+    super.dispose();
   }
 
   // =====================================================
@@ -98,8 +95,7 @@ Synonym: Advancement
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(18),
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _infoBanner(),
             const SizedBox(height: 20),
@@ -127,14 +123,14 @@ Synonym: Advancement
       automaticallyImplyLeading: false,
       title: Row(
         children: [
-          GestureDetector(
+          InkWell(
             onTap: () => Get.back(),
+            borderRadius: BorderRadius.circular(12),
             child: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: const Color(0xFFEFF3FA),
-                borderRadius:
-                    BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(
                 Icons.arrow_back,
@@ -146,10 +142,8 @@ Synonym: Advancement
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color:
-                  Colors.green.withOpacity(0.15),
-              borderRadius:
-                  BorderRadius.circular(12),
+              color: Colors.green.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(
               Icons.auto_awesome,
@@ -158,8 +152,7 @@ Synonym: Advancement
           ),
           const SizedBox(width: 12),
           const Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 "AI Vocabulary Builder",
@@ -196,29 +189,19 @@ Synonym: Advancement
             Color(0xFFF1FCF6),
           ],
         ),
-        borderRadius:
-            BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(16),
         border: const Border(
-          left: BorderSide(
-            color: Colors.green,
-            width: 4,
-          ),
+          left: BorderSide(color: Colors.green, width: 4),
         ),
       ),
       child: const Row(
         children: [
-          Icon(
-            Icons.lightbulb_outline,
-            color: Colors.green,
-          ),
+          Icon(Icons.lightbulb_outline, color: Colors.green),
           SizedBox(width: 12),
           Expanded(
             child: Text(
-              "Enter any IELTS topic and AI will generate real advanced vocabulary with meanings, examples, and synonyms.",
-              style: TextStyle(
-                fontSize: 14,
-                height: 1.4,
-              ),
+              "Enter any IELTS topic and AI will generate advanced vocabulary with meanings, examples, and synonyms.",
+              style: TextStyle(fontSize: 14, height: 1.4),
             ),
           )
         ],
@@ -234,23 +217,17 @@ Synonym: Advancement
       padding: const EdgeInsets.all(18),
       decoration: _card(),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             "IELTS Topic",
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-            ),
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: topicController,
-            decoration:
-                const InputDecoration(
-              hintText:
-                  "Example: Education, Environment, Technology",
+            decoration: const InputDecoration(
+              hintText: "Education, Environment, Technology...",
               border: OutlineInputBorder(),
             ),
           ),
@@ -267,32 +244,23 @@ Synonym: Advancement
       padding: const EdgeInsets.all(18),
       decoration: _card(),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             "Vocabulary Level",
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-            ),
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 12),
-          DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: selectedLevel,
-              isExpanded: true,
-              items: levels.map((e) {
-                return DropdownMenuItem(
-                  value: e,
-                  child: Text(e),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  selectedLevel = value!;
-                });
-              },
+          DropdownButtonFormField<String>(
+            value: selectedLevel,
+            items: levels.map((e) {
+              return DropdownMenuItem(value: e, child: Text(e));
+            }).toList(),
+            onChanged: (value) {
+              setState(() => selectedLevel = value!);
+            },
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
             ),
           ),
         ],
@@ -305,47 +273,32 @@ Synonym: Advancement
   // =====================================================
   Widget _generateButton() {
     return Obx(() {
-      return Container(
+      final isLoading = ieltsController.isLoading.value;
+
+      return SizedBox(
         height: 54,
         width: double.infinity,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [
-              Color(0xFF2ECC9A),
-              Color(0xFF7FECC2),
-            ],
+        child: ElevatedButton.icon(
+          onPressed: isLoading ? null : generateVocabulary,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF2ECC9A),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
           ),
-          borderRadius:
-              BorderRadius.circular(14),
-        ),
-        child: TextButton.icon(
-          onPressed:
-              ieltsController.isLoading.value
-                  ? null
-                  : generateVocabulary,
-          icon: ieltsController
-                  .isLoading.value
+          icon: isLoading
               ? const SizedBox(
                   width: 20,
                   height: 20,
-                  child:
-                      CircularProgressIndicator(
+                  child: CircularProgressIndicator(
                     color: Colors.white,
                     strokeWidth: 2,
                   ),
                 )
-              : const Icon(
-                  Icons.auto_awesome,
-                  color: Colors.white,
-                ),
+              : const Icon(Icons.auto_awesome),
           label: Text(
-            ieltsController.isLoading.value
-                ? "Generating..."
-                : "Generate Vocabulary",
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
+            isLoading ? "Generating..." : "Generate Vocabulary",
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
       );
@@ -357,33 +310,24 @@ Synonym: Advancement
   // =====================================================
   Widget _resultCard() {
     return Obx(() {
-      if (ieltsController
-          .vocabularyHelp.value.isEmpty) {
-        return const SizedBox();
-      }
+      final result = ieltsController.vocabularyHelp.value;
+
+      if (result.isEmpty) return const SizedBox();
 
       return Container(
         padding: const EdgeInsets.all(18),
         decoration: _card(),
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
               "AI Generated Vocabulary",
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 12),
-            Text(
-              ieltsController
-                  .vocabularyHelp.value,
-              style: const TextStyle(
-                fontSize: 15,
-                height: 1.6,
-              ),
+            SelectableText(
+              result,
+              style: const TextStyle(fontSize: 15, height: 1.6),
             ),
           ],
         ),
@@ -397,12 +341,10 @@ Synonym: Advancement
   BoxDecoration _card() {
     return BoxDecoration(
       color: Colors.white,
-      borderRadius:
-          BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(16),
       boxShadow: [
         BoxShadow(
-          color:
-              Colors.black.withOpacity(0.06),
+          color: Colors.black.withOpacity(0.06),
           blurRadius: 12,
           offset: const Offset(0, 4),
         )
