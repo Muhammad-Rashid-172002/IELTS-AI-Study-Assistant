@@ -120,7 +120,7 @@ class FirebaseServices extends GetxController {
 
       await googleSignIn.initialize(serverClientId: null);
 
-      final GoogleSignInAccount? googleUser = await googleSignIn.authenticate();
+      final GoogleSignInAccount googleUser = await googleSignIn.authenticate();
 
       if (googleUser == null) return null;
 
@@ -252,7 +252,7 @@ class FirebaseServices extends GetxController {
             // Update RxMap
             userData.assignAll(data);
             userData.refresh();
-            print("userData updated => ${userData}");
+            print("userData updated => $userData");
 
             await updateStreak();
 

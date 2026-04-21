@@ -1,8 +1,8 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:fyproject/controller/feedback_controller/feedback_controller.dart';
+import 'package:fyproject/services/ai_service.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class ReadingPractice extends StatefulWidget {
   const ReadingPractice({super.key});
@@ -12,210 +12,125 @@ class ReadingPractice extends StatefulWidget {
 }
 
 class _ReadingPracticeState extends State<ReadingPractice> {
-  final IELTSController ieltsController = Get.put(IELTSController());
-  final FirebaseFirestore firestore = FirebaseFirestore.instance;
-  final FirebaseAuth auth = FirebaseAuth.instance;
+  final AIService ai = AIService();
 
-  List<Map<String, dynamic>> questions = [];
+  List questions = [];
   List<int?> selectedAnswers = [];
-
-  bool generated = false;
-  bool showResult = false;
-  int score = 0;
 
   String passage = "";
 
-  // =========================================================
-  // GENERATE FULL AI READING TEST
-  // =========================================================
+  bool isLoading = false;
+  bool generated = false;
+  bool showResult = false;
+
+  int score = 0;
+
+  final FirebaseFirestore firestore = FirebaseFirestore.instance;
+  final FirebaseAuth auth = FirebaseAuth.instance;
+
+  // ================= GENERATE =================
   Future<void> generateAIReadingTest() async {
-    ieltsController.isLoading.value = true;
-
-    try {
-      final prompt = """
-Generate a complete IELTS Reading Practice Test.
-
-Format exactly like this:
-
-PASSAGE:
-<write one short IELTS reading passage>
-
-QUESTIONS:
-1. Question text
-A) Option A
-B) Option B
-C) Option C
-D) Option D
-ANSWER: A
-
-2. Question text
-A) Option A
-B) Option B
-C) Option C
-D) Option D
-ANSWER: B
-""";
-
-      final response =
-          await ieltsController.api.feedback(prompt, "reading");
-
-      parseAIResponse(response);
-
-      generated = true;
+    setState(() {
+      isLoading = true;
+      generated = false;
       showResult = false;
       score = 0;
+    });
 
-      setState(() {});
+    try {
+      final data = await ai.generateReadingTest();
 
-      // Store the generated test in Firebase
-      await storeReadingTestToFirebase();
+      passage = data["passage"] ?? "";
+      questions = data["questions"] ?? [];
+      selectedAnswers = List.generate(questions.length, (_) => null);
+
+      generated = true;
     } catch (e) {
-      Get.snackbar("Error", "Failed to generate reading test");
+      Get.snackbar("Error", "AI failed");
     }
 
-    ieltsController.isLoading.value = false;
+    setState(() => isLoading = false);
   }
 
-  // =========================================================
-  // PARSE AI RESPONSE
-  // =========================================================
-  void parseAIResponse(String response) {
-    questions.clear();
-    selectedAnswers.clear();
+  // ================= SAVE TO FIREBASE =================
+  Future<void> saveResultToFirebase() async {
+    try {
+      final user = auth.currentUser;
 
-    final parts = response.split("QUESTIONS:");
-
-    if (parts.length < 2) {
-      passage = "Failed to load passage.";
-      return;
-    }
-
-    passage = parts[0].replaceFirst("PASSAGE:", "").trim();
-
-    final questionText = parts[1].trim();
-
-    final questionBlocks =
-        questionText.split(RegExp(r'\n(?=\d+\.)'));
-
-    for (var block in questionBlocks) {
-      final lines = block.trim().split("\n");
-
-      if (lines.length >= 6) {
-        String question = lines[0];
-
-        List<String> options = [
-          lines[1].replaceFirst("A) ", ""),
-          lines[2].replaceFirst("B) ", ""),
-          lines[3].replaceFirst("C) ", ""),
-          lines[4].replaceFirst("D) ", ""),
-        ];
-
-        String answerLine = lines[5];
-        String correctAnswer =
-            answerLine.replaceFirst("ANSWER:", "").trim();
-
-        int correctIndex = ["A", "B", "C", "D"].indexOf(correctAnswer);
-
-        questions.add({
-          "question": question,
-          "options": options,
-          "correct": correctIndex,
-        });
-
-        selectedAnswers.add(null);
+      if (user == null) {
+        Get.snackbar("Error", "User not logged in");
+        return;
       }
+
+      final userRef = firestore.collection("users").doc(user.uid);
+
+      final percentage = questions.isEmpty
+          ? 0
+          : ((score / questions.length) * 100).round();
+
+      // 1️⃣ Save detailed result (history)
+      await userRef.collection("reading_results").add({
+        "score": score,
+        "total": questions.length,
+        "percentage": percentage,
+        "timestamp": FieldValue.serverTimestamp(),
+      });
+
+      // 2️⃣ Update reading_progress (LIKE listening_progress)
+      await userRef.set({
+        "reading_progress": {
+          "createdAt": FieldValue.serverTimestamp(),
+          "lastActive": DateTime.now().toIso8601String(),
+          "lastReset": DateTime.now().toIso8601String(),
+
+          "progress": {
+            "questions": FieldValue.increment(questions.length),
+            "solved": FieldValue.increment(1),
+            "streak": FieldValue.increment(1),
+          },
+        },
+      }, SetOptions(merge: true));
+      Get.snackbar("Success", "Reading progress updated");
+    } catch (e) {
+      Get.snackbar("Error", "Failed to save result");
     }
   }
 
-  // =========================================================
-  // SUBMIT ANSWERS
-  // =========================================================
   void submitAnswers() async {
     score = 0;
 
     for (int i = 0; i < questions.length; i++) {
-      if (selectedAnswers[i] == questions[i]["correct"]) {
+      if (selectedAnswers[i] == questions[i]["answer"]) {
         score++;
       }
     }
 
-    setState(() {
-      showResult = true;
-    });
+    setState(() => showResult = true);
 
-    // Store the user's answers and score in Firebase
-    await storeUserAnswersToFirebase();
+    // 🔥 Save after submit
+    await saveResultToFirebase();
   }
 
-  // =========================================================
-  // STORE GENERATED TEST TO FIREBASE
-  // =========================================================
-  Future<void> storeReadingTestToFirebase() async {
-    final user = auth.currentUser;
-    if (user == null) return;
-
-    try {
-      final testData = {
-        "userId": user.uid,
-        "passage": passage,
-        "questions": questions,
-        "timestamp": FieldValue.serverTimestamp(),
-      };
-
-      await firestore.collection("reading_tests").add(testData);
-    } catch (e) {
-      print("Error storing reading test: $e");
-    }
-  }
-
-  // =========================================================
-  // STORE USER ANSWERS TO FIREBASE
-  // =========================================================
-  Future<void> storeUserAnswersToFirebase() async {
-    final user = auth.currentUser;
-    if (user == null) return;
-
-    try {
-      final answersData = {
-        "userId": user.uid,
-        "answers": selectedAnswers,
-        "score": score,
-        "timestamp": FieldValue.serverTimestamp(),
-      };
-
-      await firestore.collection("reading_test_answers").add(answersData);
-    } catch (e) {
-      print("Error storing user answers: $e");
-    }
-  }
-
-  // =========================================================
-  // UI
-  // =========================================================
+  // ================= UI =================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FB),
-      appBar: _buildAppBar(),
+      appBar: _appBar(),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             _infoCard(),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             _generateButton(),
             const SizedBox(height: 20),
-
-            if (generated) _readingPassage(),
-
-            const SizedBox(height: 20),
-
-            if (generated) _questionCard(),
-
-            const SizedBox(height: 20),
-
+            if (isLoading) _loading(),
+            if (generated) _passageCard(),
+            const SizedBox(height: 16),
+            if (generated) _questions(),
+            const SizedBox(height: 16),
             if (generated) _submitButton(),
-
             if (showResult) _resultCard(),
           ],
         ),
@@ -223,78 +138,36 @@ ANSWER: B
     );
   }
 
-  // =========================================================
-  // APP BAR
-  // =========================================================
-  AppBar _buildAppBar() {
+  AppBar _appBar() {
     return AppBar(
       elevation: 0,
       backgroundColor: Colors.white,
-      toolbarHeight: 72,
-      automaticallyImplyLeading: false,
-      title: Row(
-        children: [
-          _roundButton(Icons.arrow_back, onTap: () => Get.back()),
-          const SizedBox(width: 14),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF4A79F6).withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.menu_book,
-                color: Color(0xFF4A79F6)),
-          ),
-          const SizedBox(width: 12),
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "AI Reading Practice",
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black,
-                ),
-              ),
-              Text(
-                "IELTS Reading Test",
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.black54,
-                ),
-              ),
-            ],
-          ),
-        ],
+      title: const Text(
+        "AI Reading Practice",
+        style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
       ),
+      centerTitle: true,
+      iconTheme: const IconThemeData(color: Colors.black),
     );
   }
 
-  // =========================================================
-  // INFO CARD
-  // =========================================================
   Widget _infoCard() {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFFDDEBFF), Color(0xFFE9F3FF)],
+          colors: [Color(0xFF4A79F6), Color(0xFF7FA6FF)],
         ),
         borderRadius: BorderRadius.circular(16),
-        border: const Border(
-          left: BorderSide(color: Colors.blue, width: 4),
-        ),
       ),
       child: const Row(
         children: [
-          Icon(Icons.info_outline,
-              color: Color(0xFF4A79F6)),
+          Icon(Icons.auto_awesome, color: Colors.white),
           SizedBox(width: 12),
           Expanded(
             child: Text(
-              "AI will generate IELTS passage with dynamic MCQs automatically.",
-              style: TextStyle(fontSize: 14, height: 1.4),
+              "Generate AI-based IELTS reading test instantly.",
+              style: TextStyle(color: Colors.white),
             ),
           ),
         ],
@@ -302,147 +175,112 @@ ANSWER: B
     );
   }
 
-  // =========================================================
-  // GENERATE BUTTON
-  // =========================================================
   Widget _generateButton() {
-    return Obx(() {
-      return Container(
-        height: 54,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF4A79F6), Color(0xFF8FB2FF)],
-          ),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: TextButton.icon(
-          onPressed: ieltsController.isLoading.value
-              ? null
-              : generateAIReadingTest,
-          icon: const Icon(Icons.auto_awesome,
-              color: Colors.white),
-          label: Text(
-            ieltsController.isLoading.value
-                ? "Generating..."
-                : "Generate AI Reading Test",
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-      );
-    });
-  }
-
-  // =========================================================
-  // PASSAGE
-  // =========================================================
-  Widget _readingPassage() {
-    return Obx(() {
-      if (ieltsController.isLoading.value) {
-        return const Center(
-            child: CircularProgressIndicator());
-      }
-
-      return Container(
-        padding: const EdgeInsets.all(18),
-        decoration: _cardDecoration(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "AI Reading Passage",
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              passage,
-              style: const TextStyle(
-                fontSize: 14,
-                height: 1.6,
-              ),
-            ),
-          ],
-        ),
-      );
-    });
-  }
-
-  // =========================================================
-  // QUESTIONS
-  // =========================================================
-  Widget _questionCard() {
     return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: _cardDecoration(),
+      width: double.infinity,
+      height: 52,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF4A79F6), Color(0xFF8FB2FF)],
+        ),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: TextButton.icon(
+        onPressed: isLoading ? null : generateAIReadingTest,
+        icon: const Icon(Icons.auto_awesome, color: Colors.white),
+        label: Text(
+          isLoading ? "Generating..." : "Generate Reading Test",
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _loading() {
+    return const Padding(
+      padding: EdgeInsets.all(20),
+      child: CircularProgressIndicator(),
+    );
+  }
+
+  Widget _passageCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _card(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "Questions",
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
+          const Row(
+            children: [
+              Icon(Icons.menu_book, color: Color(0xFF4A79F6)),
+              SizedBox(width: 8),
+              Text(
+                "Reading Passage",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-
-          ...List.generate(questions.length, (index) {
-            final q = questions[index];
-
-            return Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                Text(
-                  q["question"],
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                ...List.generate(
-                  q["options"].length,
-                  (optIndex) {
-                    return RadioListTile<int>(
-                      title:
-                          Text(q["options"][optIndex]),
-                      value: optIndex,
-                      groupValue:
-                          selectedAnswers[index],
-                      onChanged: (value) {
-                        setState(() {
-                          selectedAnswers[index] =
-                              value;
-                        });
-                      },
-                    );
-                  },
-                ),
-
-                const SizedBox(height: 14),
-              ],
-            );
-          }),
+          const SizedBox(height: 12),
+          Text(passage, style: const TextStyle(height: 1.5)),
         ],
       ),
     );
   }
 
-  // =========================================================
-  // SUBMIT BUTTON
-  // =========================================================
+  Widget _questions() {
+    return Column(
+      children: List.generate(questions.length, (i) {
+        final q = questions[i];
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.all(14),
+          decoration: _card(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Q${i + 1}. ${q["question"]}",
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 10),
+              ...List.generate(4, (opt) {
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: selectedAnswers[i] == opt
+                          ? const Color(0xFF4A79F6)
+                          : Colors.black12,
+                    ),
+                  ),
+                  child: RadioListTile(
+                    value: opt,
+                    groupValue: selectedAnswers[i],
+                    onChanged: (val) {
+                      setState(() {
+                        selectedAnswers[i] = val as int;
+                      });
+                    },
+                    title: Text(q["options"][opt]),
+                  ),
+                );
+              }),
+            ],
+          ),
+        );
+      }),
+    );
+  }
+
   Widget _submitButton() {
     return Container(
-      height: 54,
       width: double.infinity,
+      height: 52,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Color(0xFF4A79F6), Color(0xFF8FB2FF)],
@@ -453,76 +291,52 @@ ANSWER: B
         onPressed: submitAnswers,
         child: const Text(
           "Submit Answers",
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
       ),
     );
   }
 
-  // =========================================================
-  // RESULT CARD
-  // =========================================================
   Widget _resultCard() {
     return Container(
       margin: const EdgeInsets.only(top: 20),
       padding: const EdgeInsets.all(18),
-      decoration: _cardDecoration(),
+      decoration: _card(),
       child: Column(
         children: [
           const Text(
             "Your Score",
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 10),
+          CircleAvatar(
+            radius: 40,
+            backgroundColor: const Color(0xFF4A79F6),
+            child: Text(
+              "$score",
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
           const SizedBox(height: 10),
           Text(
             "$score / ${questions.length}",
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF4A79F6),
-            ),
+            style: const TextStyle(fontSize: 16),
           ),
         ],
       ),
     );
   }
 
-  // =========================================================
-  // COMMON UI
-  // =========================================================
-  Widget _roundButton(IconData icon,
-      {VoidCallback? onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: const Color(0xFFEFF3FA),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Icon(icon,
-            color: Colors.black87),
-      ),
-    );
-  }
-
-  BoxDecoration _cardDecoration() {
+  BoxDecoration _card() {
     return BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(14),
       boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.06),
-          blurRadius: 12,
-          offset: const Offset(0, 4),
-        ),
+        BoxShadow(blurRadius: 10, color: Colors.black.withOpacity(0.05)),
       ],
     );
   }
