@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:fyproject/resources/bottom_navigation_bar/botton_navigation.dart';
 import 'package:fyproject/screens/Full_Mock_Test/Full_mock_test.dart';
 import 'package:fyproject/screens/Vocabulary_Builder/VocabularyBuilder.dart';
+import 'package:fyproject/screens/pages/Listening_Practice/ListeningPractice.dart';
 import 'package:fyproject/screens/pages/Reading_Practice/ReadingPractice.dart';
+import 'package:fyproject/screens/pages/Speaking_Practice/SpeakingPractice.dart';
 import 'package:fyproject/screens/pages/Writing_Checker/WritingChecker.dart';
 import 'package:fyproject/screens/widgets/add_fire_pulse/fire_animation.dart';
 import 'package:get/get.dart';
@@ -76,23 +78,23 @@ class _HomeState extends State<Home> {
                   children: [
                     Row(
                       children: [
-                        // Expanded(
-                        //   child: _moduleCard(
-                        //     title: "Listening",
-                        //     subtitle: "Audio practice",
-                        //     color: const Color(0xFF4A79F6),
-                        //     tag: "IELTS",
-                        //     icon: Icons.headphones,
-                        //     onTap: () {
-                        //       Navigator.push(
-                        //         context,
-                        //         MaterialPageRoute(
-                        //           builder: (_) => const ListeningPractice(),
-                        //         ),
-                        //       );
-                        //     },
-                        //   ),
-                        // ),
+                        Expanded(
+                          child: _moduleCard(
+                            title: "Listening",
+                            subtitle: "Audio practice",
+                            color: const Color(0xFF4A79F6),
+                            tag: "IELTS",
+                            icon: Icons.headphones,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const ListeningPractice(),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: _moduleCard(
@@ -112,8 +114,18 @@ class _HomeState extends State<Home> {
                           ),
                           
                         ),
-                        const SizedBox(width: 12),
-                          Expanded(
+                      
+                      
+                      ],
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    Row(
+                      children: [
+                      
+                    
+                            Expanded(
                           child: _moduleCard(
                             title: "Writing",
                             subtitle: "AI feedback",
@@ -130,32 +142,24 @@ class _HomeState extends State<Home> {
                             },
                           ),
                         ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    Row(
-                      children: [
-                      
                         const SizedBox(width: 12),
-                        // Expanded(
-                        //   child: _moduleCard(
-                        //     title: "Speaking",
-                        //     subtitle: "AI speaking",
-                        //     color: const Color(0xFFFFA726),
-                        //     tag: "AI",
-                        //     icon: Icons.mic,
-                        //     onTap: () {
-                        //       Navigator.push(
-                        //         context,
-                        //         MaterialPageRoute(
-                        //           builder: (_) => const SpeakingPractice(),
-                        //         ),
-                        //       );
-                        //     },
-                        //   ),
-                        // ),
+                        Expanded(
+                          child: _moduleCard(
+                            title: "Speaking",
+                            subtitle: "AI speaking",
+                            color: const Color(0xFFFFA726),
+                            tag: "AI",
+                            icon: Icons.mic,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const SpeakingPractice(),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
                       ],
                     ),
 
