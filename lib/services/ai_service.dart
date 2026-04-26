@@ -233,9 +233,11 @@ Future<Map<String, dynamic>> evaluateWriting(
   String taskType,
 ) async {
   final prompt = """
-You are an IELTS examiner.
+You are a certified IELTS Writing Examiner.
 
-Evaluate this Writing Task $taskType.
+Strictly evaluate this essay using official IELTS band descriptors.
+
+Give realistic band score (0-9) with decimals like 6.5, 7.0 etc.
 
 Return ONLY JSON:
 
@@ -247,6 +249,12 @@ Return ONLY JSON:
   "grammar": "",
   "improvement": ""
 }
+
+Evaluation Rules:
+- Be strict (do not give high band easily)
+- Mention mistakes clearly
+- Give short but useful feedback
+- No symbols, no markdown
 
 Essay:
 $text
@@ -357,6 +365,22 @@ Rules:
   } catch (e) {
     return {};
   }
+}
+Future<String> generateWritingTopic(String taskType) async {
+  final prompt = """
+You are an IELTS examiner.
+
+Generate ONE IELTS Writing Task $taskType topic.
+
+Rules:
+- Task 1 = chart/graph
+- Task 2 = opinion/discussion essay
+- No explanation
+- Only topic text
+""";
+
+  final res = await _safeCall(() => gemini.text(prompt));
+  return _clean(res?.output ?? "Failed to load topic");
 }
 
 }
