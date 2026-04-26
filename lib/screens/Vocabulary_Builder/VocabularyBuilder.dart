@@ -1,6 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:fyproject/controller/feedback_controller/feedback_controller.dart';
 import 'package:get/get.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:fyproject/controller/feedback_controller/feedback_controller.dart';
 
 class Vocabularybuilder extends StatefulWidget {
   const Vocabularybuilder({super.key});
@@ -11,11 +15,15 @@ class Vocabularybuilder extends StatefulWidget {
 
 class _VocabularybuilderState extends State<Vocabularybuilder> {
   final TextEditingController topicController = TextEditingController();
-
-  // ✅ FIX: avoid multiple instances
   final IELTSController ieltsController = Get.find<IELTSController>();
 
+  final FlutterTts flutterTts = FlutterTts();
+
+  List vocabList = [];
+  Set<String> bookmarkedWords = {}; // ⭐ bookmarks
+
   String selectedLevel = "Band 7+";
+  bool isLoading = false;
 
   final List<String> levels = [
     "Band 6+",
@@ -24,329 +32,258 @@ class _VocabularybuilderState extends State<Vocabularybuilder> {
     "Band 9"
   ];
 
-  // =====================================================
-  // GENERATE VOCABULARY
-  
+  // ================= GENERATE =================
   Future<void> generateVocabulary() async {
     final topic = topicController.text.trim();
 
     if (topic.isEmpty) {
-      Get.snackbar(
-        "Error",
-        "Enter a topic first",
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      Get.snackbar("Error", "Enter topic first");
       return;
     }
 
-    try {
-      ieltsController.isLoading.value = true;
+    setState(() => isLoading = true);
 
-      final prompt = """
+    try {
+final prompt = """
 You are an IELTS Vocabulary Expert.
 
-Generate advanced IELTS $selectedLevel vocabulary words for topic:
-$topic
+STRICT RULES:
+- Return ONLY JSON
+- No explanation
+- No text before or after JSON
 
-Requirements:
-- Generate 12 advanced vocabulary words
-- For each word give:
-1. Word
-2. Meaning
-3. IELTS Example Sentence
-4. Synonym
+FORMAT:
+{
+ "words":[
+  {
+   "word":"example",
+   "meaning":"definition",
+   "example":"sentence",
+   "synonym":"similar word"
+  }
+ ]
+}
+
+Generate 12 vocabulary for topic: $topic
+Level: $selectedLevel
 """;
+      final result =
+          await ieltsController.api.feedback(prompt, "vocabulary");
 
-      final result = await ieltsController.api.feedback(
-        prompt,
-        "vocabulary",
-      );
+      final decoded = jsonDecode(result);
 
-      ieltsController.vocabularyHelp.value = result;
+      vocabList = decoded["words"] ?? [];
+
+      await saveHistory(topic);
+
+      setState(() {});
     } catch (e) {
-      Get.snackbar(
-        "Error",
-        "Failed to generate vocabulary",
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    } finally {
-      // ✅ FIX: always stop loading
-      ieltsController.isLoading.value = false;
+      print(e);
+      Get.snackbar("Error", "AI parsing failed");
     }
+
+    setState(() => isLoading = false);
+  }
+
+  // ================= TTS =================
+  Future speak(String word) async {
+    await flutterTts.setLanguage("en-US");
+    await flutterTts.setPitch(1);
+    await flutterTts.speak(word);
+  }
+
+  // ================= BOOKMARK =================
+  Future<void> toggleBookmark(Map item) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final word = item["word"];
+
+    final ref = FirebaseFirestore.instance
+        .collection("users")
+        .doc(user.uid)
+        .collection("bookmarks")
+        .doc(word);
+
+    if (bookmarkedWords.contains(word)) {
+      await ref.delete();
+      bookmarkedWords.remove(word);
+    } else {
+      await ref.set({
+        "word": item["word"],
+        "meaning": item["meaning"],
+        "example": item["example"],
+        "synonym": item["synonym"],
+        "createdAt": FieldValue.serverTimestamp(),
+      });
+      bookmarkedWords.add(word);
+    }
+
+    setState(() {});
+  }
+
+  // ================= SAVE HISTORY =================
+  Future<void> saveHistory(String topic) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    await FirebaseFirestore.instance
+        .collection("users")
+        .doc(user.uid)
+        .collection("vocabulary_history")
+        .add({
+      "topic": topic,
+      "level": selectedLevel,
+      "words": vocabList,
+      "createdAt": FieldValue.serverTimestamp(),
+    });
   }
 
   @override
   void dispose() {
-    // ✅ FIX: prevent memory leak
     topicController.dispose();
     super.dispose();
   }
 
-  // =====================================================
-  // UI
-  // =====================================================
+  // ================= UI =================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FB),
-      appBar: _appBar(),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        title: const Text("AI Vocabulary Builder"),
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _infoBanner(),
-            const SizedBox(height: 20),
             _topicInput(),
-            const SizedBox(height: 20),
-            _bandSelector(),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+            _levelDropdown(),
+            const SizedBox(height: 16),
             _generateButton(),
             const SizedBox(height: 20),
-            _resultCard(),
+            _resultList(),
           ],
         ),
       ),
     );
   }
 
-  // =====================================================
-  // APP BAR
-  // =====================================================
-  AppBar _appBar() {
-    return AppBar(
-      elevation: 0,
-      backgroundColor: Colors.white,
-      toolbarHeight: 72,
-      automaticallyImplyLeading: false,
-      title: Row(
-        children: [
-          InkWell(
-            onTap: () => Get.back(),
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEFF3FA),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.arrow_back,
-                color: Colors.black87,
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.auto_awesome,
-              color: Colors.green,
-            ),
-          ),
-          const SizedBox(width: 12),
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "AI Vocabulary Builder",
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black,
-                ),
-              ),
-              Text(
-                "Real IELTS Smart Vocabulary",
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.black54,
-                ),
-              ),
-            ],
-          )
-        ],
-      ),
-    );
-  }
-
-  // =====================================================
-  // INFO BANNER
-  // =====================================================
-  Widget _infoBanner() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFFE8F8EF),
-            Color(0xFFF1FCF6),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: const Border(
-          left: BorderSide(color: Colors.green, width: 4),
-        ),
-      ),
-      child: const Row(
-        children: [
-          Icon(Icons.lightbulb_outline, color: Colors.green),
-          SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              "Enter any IELTS topic and AI will generate advanced vocabulary with meanings, examples, and synonyms.",
-              style: TextStyle(fontSize: 14, height: 1.4),
-            ),
-          )
-        ],
-      ),
-    );
-  }
-
-  // =====================================================
-  // TOPIC INPUT
-  // =====================================================
+  // ================= INPUT =================
   Widget _topicInput() {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: _card(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "IELTS Topic",
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: topicController,
-            decoration: const InputDecoration(
-              hintText: "Education, Environment, Technology...",
-              border: OutlineInputBorder(),
-            ),
-          ),
-        ],
+      child: TextField(
+        controller: topicController,
+        decoration: const InputDecoration(
+          hintText: "Enter IELTS Topic",
+          border: OutlineInputBorder(),
+        ),
       ),
     );
   }
 
-  // =====================================================
-  // BAND SELECTOR
-  // =====================================================
-  Widget _bandSelector() {
+  Widget _levelDropdown() {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: _card(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "Vocabulary Level",
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            value: selectedLevel,
-            items: levels.map((e) {
-              return DropdownMenuItem(value: e, child: Text(e));
-            }).toList(),
-            onChanged: (value) {
-              setState(() => selectedLevel = value!);
-            },
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-            ),
-          ),
-        ],
+      child: DropdownButtonFormField(
+        value: selectedLevel,
+        items: levels
+            .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+            .toList(),
+        onChanged: (val) {
+          setState(() => selectedLevel = val!);
+        },
       ),
     );
   }
 
-  // =====================================================
-  // GENERATE BUTTON
-  // =====================================================
+  // ================= BUTTON =================
   Widget _generateButton() {
-    return Obx(() {
-      final isLoading = ieltsController.isLoading.value;
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: isLoading ? null : generateVocabulary,
+        child: isLoading
+            ? const CircularProgressIndicator(color: Colors.white)
+            : const Text("Generate Vocabulary"),
+      ),
+    );
+  }
 
-      return SizedBox(
-        height: 54,
-        width: double.infinity,
-        child: ElevatedButton.icon(
-          onPressed: isLoading ? null : generateVocabulary,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF2ECC9A),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-          ),
-          icon: isLoading
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2,
+  // ================= RESULT =================
+  Widget _resultList() {
+    if (vocabList.isEmpty) return const SizedBox();
+
+    return Column(
+      children: List.generate(vocabList.length, (i) {
+        final item = vocabList[i];
+        final word = item["word"];
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: _card(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 🔥 WORD HEADER
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    word ?? "",
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold),
                   ),
-                )
-              : const Icon(Icons.auto_awesome),
-          label: Text(
-            isLoading ? "Generating..." : "Generate Vocabulary",
-            style: const TextStyle(fontWeight: FontWeight.bold),
+
+                  Row(
+                    children: [
+                      // 🔊 SPEAK
+                      IconButton(
+                        icon: const Icon(Icons.volume_up),
+                        onPressed: () => speak(word),
+                      ),
+
+                      // ⭐ BOOKMARK
+                      IconButton(
+                        icon: Icon(
+                          bookmarkedWords.contains(word)
+                              ? Icons.bookmark
+                              : Icons.bookmark_border,
+                          color: Colors.blue,
+                        ),
+                        onPressed: () => toggleBookmark(item),
+                      ),
+                    ],
+                  )
+                ],
+              ),
+
+              const SizedBox(height: 6),
+              Text("Meaning: ${item["meaning"]}"),
+              Text("Example: ${item["example"]}"),
+              Text("Synonym: ${item["synonym"]}"),
+            ],
           ),
-        ),
-      );
-    });
+        );
+      }),
+    );
   }
 
-  // =====================================================
-  // RESULT CARD
-  // =====================================================
-  Widget _resultCard() {
-    return Obx(() {
-      final result = ieltsController.vocabularyHelp.value;
-
-      if (result.isEmpty) return const SizedBox();
-
-      return Container(
-        padding: const EdgeInsets.all(18),
-        decoration: _card(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "AI Generated Vocabulary",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 12),
-            SelectableText(
-              result,
-              style: const TextStyle(fontSize: 15, height: 1.6),
-            ),
-          ],
-        ),
-      );
-    });
-  }
-
-  // =====================================================
-  // CARD STYLE
-  // =====================================================
+  // ================= UI =================
   BoxDecoration _card() {
     return BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(14),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withOpacity(0.06),
-          blurRadius: 12,
-          offset: const Offset(0, 4),
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 10,
         )
       ],
     );

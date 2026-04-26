@@ -11,7 +11,6 @@ import 'package:get/get.dart';
 
 import '../../../controller/firebase_services/firebase_services.dart';
 
-
 class Home extends StatefulWidget {
   const Home({super.key});
 
@@ -31,7 +30,7 @@ class _HomeState extends State<Home> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FB),
-      bottomNavigationBar: const BottomNavigation(index: 0),
+      bottomNavigationBar:  BottomNavigation(index: 0, ),
 
       body: SafeArea(
         child: SingleChildScrollView(
@@ -39,7 +38,6 @@ class _HomeState extends State<Home> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               //                   HEADER SECTION
-              
               _buildHeader(),
 
               const SizedBox(height: 20),
@@ -81,16 +79,20 @@ class _HomeState extends State<Home> {
                         Expanded(
                           child: _moduleCard(
                             title: "Listening",
-                            subtitle: "Audio practice",
-                            color: const Color(0xFF4A79F6),
-                            tag: "IELTS",
-                            icon: Icons.headphones,
+                            subtitle: "AI listening",
+                            color: const Color(0xFFFFA726),
+                            tag: "AI",
+                            icon: Icons.mic,
                             onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const ListeningPractice(),
-                                ),
+                              Get.snackbar(
+                                "Coming Soon ",
+                                "This feature will be available soon",
+                                snackPosition: SnackPosition.TOP,
+                                backgroundColor: Colors.black87,
+                                colorText: Colors.white,
+                                margin: const EdgeInsets.all(10),
+                                borderRadius: 10,
+                                duration: const Duration(seconds: 2),
                               );
                             },
                           ),
@@ -112,10 +114,7 @@ class _HomeState extends State<Home> {
                               );
                             },
                           ),
-                          
                         ),
-                      
-                      
                       ],
                     ),
 
@@ -123,12 +122,10 @@ class _HomeState extends State<Home> {
 
                     Row(
                       children: [
-                      
-                    
-                            Expanded(
+                        Expanded(
                           child: _moduleCard(
                             title: "Writing",
-                            subtitle: "AI feedback",
+                            subtitle: "AI writing checker",
                             color: const Color(0xFF8E44FF),
                             tag: "AI",
                             icon: Icons.edit_note,
@@ -151,11 +148,21 @@ class _HomeState extends State<Home> {
                             tag: "AI",
                             icon: Icons.mic,
                             onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const SpeakingPractice(),
-                                ),
+                              // Navigator.push(
+                              //   context,
+                              //   MaterialPageRoute(
+                              //     builder: (_) => const SpeakingPractice(),
+                              //   ),
+                              // );
+                              Get.snackbar(
+                                "Coming Soon ",
+                                "This feature will be available soon",
+                                snackPosition: SnackPosition.TOP,
+                                backgroundColor: Colors.black87,
+                                colorText: Colors.white,
+                                margin: const EdgeInsets.all(10),
+                                borderRadius: 10,
+                                duration: const Duration(seconds: 2),
                               );
                             },
                           ),
@@ -255,7 +262,6 @@ class _HomeState extends State<Home> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-          
             ],
           ),
 
@@ -324,7 +330,7 @@ class _HomeState extends State<Home> {
                     ),
                   ],
                 ),
-              FirePulseIcon(),
+                FirePulseIcon(),
               ],
             ),
           ),

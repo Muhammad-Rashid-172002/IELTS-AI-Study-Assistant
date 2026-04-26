@@ -13,7 +13,6 @@ import '../splash_screen/spalsh_screen.dart';
 
 class AppRoutes {
   static List<GetPage<dynamic>> appRoutes() => [
-
     GetPage(
       name: RoutesName.splash,
       page: () => const Splashscreen(),
@@ -45,9 +44,9 @@ class AppRoutes {
       transitionDuration: const Duration(milliseconds: 250),
     ),
 
-      GetPage(
+    GetPage(
       name: RoutesName.vocabularybuilder,
-      page: () =>  Vocabularybuilder(),
+      page: () => Vocabularybuilder(),
       transition: Transition.leftToRightWithFade,
       transitionDuration: const Duration(milliseconds: 250),
     ),
@@ -60,11 +59,9 @@ class AppRoutes {
     ),
     GetPage(
       name: RoutesName.progress,
-      page: () => const Progress(),
+      page: () => const ProgressScreen(),
       transition: Transition.leftToRightWithFade,
       transitionDuration: const Duration(milliseconds: 250),
     ),
-  
-
   ];
 }

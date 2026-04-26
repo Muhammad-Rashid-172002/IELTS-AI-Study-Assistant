@@ -13,30 +13,27 @@ class BottomNavigation extends StatefulWidget {
 class _BottomNavigationState extends State<BottomNavigation> {
   late int myIndex;
 
-  // Icons
+  // ✅ Updated Icons (Vocabulary removed)
   final List<IconData> iconList = [
     Icons.home,
-    Icons.book_outlined,
     Icons.analytics_outlined,
     Icons.people,
   ];
 
-  // Labels
+  // ✅ Labels MUST match icons count
   final List<String> labels = [
     "Home",
-    "Vocabulary",
     "Progress",
     "Profile",
   ];
 
-  // Colors
   static const Color blue = Color(0xFF1E88E5);
   static const Color grey = Colors.grey;
 
   @override
   void initState() {
     super.initState();
-    myIndex = widget.index; // ✅ Correct initialization
+    myIndex = widget.index;
   }
 
   void onTap(int index) {
@@ -50,13 +47,12 @@ class _BottomNavigationState extends State<BottomNavigation> {
       case 0:
         Get.offAllNamed(RoutesName.home);
         break;
+
       case 1:
-        Get.offAllNamed(RoutesName.vocabularybuilder);
-        break;
-      case 2:
         Get.offAllNamed(RoutesName.progress);
         break;
-      case 3:
+
+      case 2:
         Get.offAllNamed(RoutesName.profile);
         break;
     }
@@ -72,7 +68,6 @@ class _BottomNavigationState extends State<BottomNavigation> {
         ),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: List.generate(iconList.length, (index) {
           final bool isSelected = index == myIndex;
 

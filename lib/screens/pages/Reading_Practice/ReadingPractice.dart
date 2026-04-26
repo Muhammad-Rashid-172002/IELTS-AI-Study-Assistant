@@ -1,8 +1,9 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:fyproject/services/ai_service.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ReadingPractice extends StatefulWidget {
   const ReadingPractice({super.key});
@@ -25,6 +26,12 @@ class _ReadingPracticeState extends State<ReadingPractice> {
 
   int score = 0;
 
+  // ⏱ TIMER
+  int totalSeconds = 900; // 15 min
+  Timer? timer;
+
+  int currentQuestion = 0;
+
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
   final FirebaseAuth auth = FirebaseAuth.instance;
 
@@ -35,14 +42,17 @@ class _ReadingPracticeState extends State<ReadingPractice> {
       generated = false;
       showResult = false;
       score = 0;
+      totalSeconds = 900;
     });
 
     try {
       final data = await ai.generateReadingTest();
 
-      passage = data["passage"] ?? "";
-      questions = data["questions"] ?? [];
+      passage = data["passage"];
+      questions = data["questions"];
       selectedAnswers = List.generate(questions.length, (_) => null);
+
+      startTimer();
 
       generated = true;
     } catch (e) {
@@ -52,53 +62,31 @@ class _ReadingPracticeState extends State<ReadingPractice> {
     setState(() => isLoading = false);
   }
 
-  // ================= SAVE TO FIREBASE =================
-  Future<void> saveResultToFirebase() async {
-    try {
-      final user = auth.currentUser;
+  // ================= TIMER =================
+  void startTimer() {
+    timer?.cancel();
 
-      if (user == null) {
-        Get.snackbar("Error", "User not logged in");
-        return;
+    timer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (totalSeconds == 0) {
+        t.cancel();
+        submitAnswers();
+      } else {
+        setState(() => totalSeconds--);
       }
-
-      final userRef = firestore.collection("users").doc(user.uid);
-
-      final percentage = questions.isEmpty
-          ? 0
-          : ((score / questions.length) * 100).round();
-
-      // 1️⃣ Save detailed result (history)
-      await userRef.collection("reading_results").add({
-        "score": score,
-        "total": questions.length,
-        "percentage": percentage,
-        "timestamp": FieldValue.serverTimestamp(),
-      });
-
-      // 2️⃣ Update reading_progress (LIKE listening_progress)
-      await userRef.set({
-        "reading_progress": {
-          "createdAt": FieldValue.serverTimestamp(),
-          "lastActive": DateTime.now().toIso8601String(),
-          "lastReset": DateTime.now().toIso8601String(),
-
-          "progress": {
-            "questions": FieldValue.increment(questions.length),
-            "solved": FieldValue.increment(1),
-            "streak": FieldValue.increment(1),
-          },
-        },
-      }, SetOptions(merge: true));
-      Get.snackbar("Success", "Reading progress updated");
-    } catch (e) {
-      Get.snackbar("Error", "Failed to save result");
-    }
+    });
   }
 
-  void submitAnswers() async {
-    score = 0;
+  String get timeFormatted {
+    int min = totalSeconds ~/ 60;
+    int sec = totalSeconds % 60;
+    return "${min.toString().padLeft(2, '0')}:${sec.toString().padLeft(2, '0')}";
+  }
 
+  // ================= SUBMIT =================
+  void submitAnswers() async {
+    timer?.cancel();
+
+    score = 0;
     for (int i = 0; i < questions.length; i++) {
       if (selectedAnswers[i] == questions[i]["answer"]) {
         score++;
@@ -107,8 +95,26 @@ class _ReadingPracticeState extends State<ReadingPractice> {
 
     setState(() => showResult = true);
 
-    // 🔥 Save after submit
     await saveResultToFirebase();
+  }
+
+  // ================= FIREBASE =================
+  Future<void> saveResultToFirebase() async {
+    final user = auth.currentUser;
+    if (user == null) return;
+
+    await firestore
+        .collection("users")
+        .doc(user.uid)
+        .collection("reading_results")
+        .add({
+      "score": score,
+      "total": questions.length,
+      "passage": passage,
+      "questions": questions,
+      "answers": selectedAnswers,
+      "timestamp": FieldValue.serverTimestamp(),
+    });
   }
 
   // ================= UI =================
@@ -116,96 +122,104 @@ class _ReadingPracticeState extends State<ReadingPractice> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FB),
-      appBar: _appBar(),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+      body: SafeArea(
         child: Column(
           children: [
-            _infoCard(),
-            const SizedBox(height: 16),
-            _generateButton(),
-            const SizedBox(height: 20),
-            if (isLoading) _loading(),
-            if (generated) _passageCard(),
-            const SizedBox(height: 16),
-            if (generated) _questions(),
-            const SizedBox(height: 16),
-            if (generated) _submitButton(),
-            if (showResult) _resultCard(),
+            _header(),
+            Expanded(
+              child: isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : generated
+                      ? _body()
+                      : _generateButton(),
+            ),
           ],
         ),
       ),
     );
   }
 
-  AppBar _appBar() {
-    return AppBar(
-      elevation: 0,
-      backgroundColor: Colors.white,
-      title: const Text(
-        "AI Reading Practice",
-        style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-      ),
-      centerTitle: true,
-      iconTheme: const IconThemeData(color: Colors.black),
-    );
-  }
-
-  Widget _infoCard() {
+  // ================= HEADER =================
+  Widget _header() {
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF4A79F6), Color(0xFF7FA6FF)],
+      padding: const EdgeInsets.all(20),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF7B1FA2), Color(0xFFE040FB)],
         ),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
       ),
-      child: const Row(
+      child: Column(
         children: [
-          Icon(Icons.auto_awesome, color: Colors.white),
-          SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              "Generate AI-based IELTS reading test instantly.",
-              style: TextStyle(color: Colors.white),
-            ),
+          Row(
+            children: [
+              GestureDetector(
+                onTap: () => Get.back(),
+                child: const CircleAvatar(
+                  backgroundColor: Colors.white24,
+                  child: Icon(Icons.arrow_back, color: Colors.white),
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Reading Practice",
+                      style: TextStyle(color: Colors.white, fontSize: 18)),
+                  Text("Academic Reading - Passage 1",
+                      style: TextStyle(color: Colors.white70)),
+                ],
+              )
+            ],
           ),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.timer, color: Colors.white),
+                    const SizedBox(width: 8),
+                    Text(timeFormatted,
+                        style: const TextStyle(color: Colors.white)),
+                  ],
+                ),
+                Text(
+                  "Q ${currentQuestion + 1}/${questions.length}",
+                  style: const TextStyle(color: Colors.white),
+                )
+              ],
+            ),
+          )
         ],
       ),
     );
   }
 
-  Widget _generateButton() {
-    return Container(
-      width: double.infinity,
-      height: 52,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF4A79F6), Color(0xFF8FB2FF)],
-        ),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: TextButton.icon(
-        onPressed: isLoading ? null : generateAIReadingTest,
-        icon: const Icon(Icons.auto_awesome, color: Colors.white),
-        label: Text(
-          isLoading ? "Generating..." : "Generate Reading Test",
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+  // ================= BODY =================
+  Widget _body() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          _passageCard(),
+          const SizedBox(height: 20),
+          _questionCard(),
+          const SizedBox(height: 20),
+          _submitButton(),
+          if (showResult) _resultCard()
+        ],
       ),
     );
   }
 
-  Widget _loading() {
-    return const Padding(
-      padding: EdgeInsets.all(20),
-      child: CircularProgressIndicator(),
-    );
-  }
-
+  // ================= PASSAGE =================
   Widget _passageCard() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -213,130 +227,165 @@ class _ReadingPracticeState extends State<ReadingPractice> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            children: [
-              Icon(Icons.menu_book, color: Color(0xFF4A79F6)),
-              SizedBox(width: 8),
-              Text(
-                "Reading Passage",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
+          const Text("📖 Passage",
+              style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
           Text(passage, style: const TextStyle(height: 1.5)),
         ],
       ),
     );
   }
 
-  Widget _questions() {
-    return Column(
-      children: List.generate(questions.length, (i) {
-        final q = questions[i];
+  // ================= QUESTION =================
+  Widget _questionCard() {
+    final q = questions[currentQuestion];
 
-        return Container(
-          margin: const EdgeInsets.only(bottom: 14),
-          padding: const EdgeInsets.all(14),
-          decoration: _card(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "Q${i + 1}. ${q["question"]}",
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 10),
-              ...List.generate(4, (opt) {
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 6),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: selectedAnswers[i] == opt
-                          ? const Color(0xFF4A79F6)
-                          : Colors.black12,
-                    ),
-                  ),
-                  child: RadioListTile(
-                    value: opt,
-                    groupValue: selectedAnswers[i],
-                    onChanged: (val) {
-                      setState(() {
-                        selectedAnswers[i] = val as int;
-                      });
-                    },
-                    title: Text(q["options"][opt]),
-                  ),
-                );
-              }),
-            ],
-          ),
-        );
-      }),
-    );
-  }
-
-  Widget _submitButton() {
     return Container(
-      width: double.infinity,
-      height: 52,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF4A79F6), Color(0xFF8FB2FF)],
-        ),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: TextButton(
-        onPressed: submitAnswers,
-        child: const Text(
-          "Submit Answers",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-      ),
-    );
-  }
-
-  Widget _resultCard() {
-    return Container(
-      margin: const EdgeInsets.only(top: 20),
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: _card(),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "Your Score",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
+          Text("Q${currentQuestion + 1}. ${q["question"]}",
+              style:
+                  const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 10),
-          CircleAvatar(
-            radius: 40,
-            backgroundColor: const Color(0xFF4A79F6),
-            child: Text(
-              "$score",
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
+
+          ...List.generate(4, (i) {
+            return GestureDetector(
+              onTap: () {
+                setState(() {
+                  selectedAnswers[currentQuestion] = i;
+                });
+              },
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: selectedAnswers[currentQuestion] == i
+                        ? Colors.purple
+                        : Colors.grey.shade300,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      selectedAnswers[currentQuestion] == i
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_off,
+                      color: Colors.purple,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(q["options"][i]))
+                  ],
+                ),
               ),
-            ),
-          ),
+            );
+          }),
+
           const SizedBox(height: 10),
-          Text(
-            "$score / ${questions.length}",
-            style: const TextStyle(fontSize: 16),
-          ),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              if (currentQuestion > 0)
+                TextButton(
+                    onPressed: () =>
+                        setState(() => currentQuestion--),
+                    child: const Text("Previous")),
+              if (currentQuestion < questions.length - 1)
+                TextButton(
+                    onPressed: () =>
+                        setState(() => currentQuestion++),
+                    child: const Text("Next")),
+            ],
+          )
         ],
       ),
     );
   }
 
+  // ================= SUBMIT =================
+  Widget _submitButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: submitAnswers,
+        child: const Text("Submit"),
+      ),
+    );
+  }
+
+  // ================= RESULT =================
+  Widget _resultCard() {
+    return Container(
+      margin: const EdgeInsets.only(top: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: _card(),
+      child: Column(
+        children: [
+          const Text("Result",
+              style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          Text("$score / ${questions.length}",
+              style: const TextStyle(fontSize: 22)),
+        ],
+      ),
+    );
+  }
+
+  // ================= GENERATE BUTTON =================
+Widget _generateButton() {
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+    child: Center(
+      child: GestureDetector(
+        onTap: generateAIReadingTest,
+        child: Container(
+          height: 55,
+          padding: const EdgeInsets.symmetric(horizontal: 28),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF7B1FA2), Color(0xFFE040FB)],
+            ),
+            borderRadius: BorderRadius.circular(30),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF7B1FA2).withOpacity(0.4),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.play_arrow, color: Colors.white),
+              SizedBox(width: 8),
+              Text(
+                "Start AI Reading Test",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}  // ================= CARD =================
   BoxDecoration _card() {
     return BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(16),
       boxShadow: [
-        BoxShadow(blurRadius: 10, color: Colors.black.withOpacity(0.05)),
+        BoxShadow(
+            blurRadius: 10, color: Colors.black.withOpacity(0.05)),
       ],
     );
   }
