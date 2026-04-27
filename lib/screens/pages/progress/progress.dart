@@ -1,10 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
 import 'package:fyproject/resources/bottom_navigation_bar/botton_navigation.dart';
-import 'package:get/get.dart';
-import 'package:fyproject/controller/feedback_controller/feedback_controller.dart';
 
 class ProgressScreen extends StatefulWidget {
   const ProgressScreen({super.key});
@@ -14,114 +12,152 @@ class ProgressScreen extends StatefulWidget {
 }
 
 class _ProgressScreenState extends State<ProgressScreen> {
-  final controller = Get.find<IELTSController>();
-
   double listening = 0;
   double reading = 0;
   double writing = 0;
   double speaking = 0;
 
-  List<double> weekly = [];
-
-  String aiStrength = "";
-  String aiImprove = "";
+  List<double> readingGraph = [];
+  List<double> writingGraph = [];
+  List<double> speakingGraph = [];
+  List<double> listeningGraph = [];
 
   bool isLoading = true;
+  bool hasData = true;
 
-  double get overall => ((listening + reading + writing + speaking) / 4);
+  double get overall => (listening + reading + writing + speaking) / 4;
 
   @override
   void initState() {
     super.initState();
-    loadData();
+    fetchData();
   }
 
   // =========================================
-  // 🔥 LOAD REAL FIREBASE DATA
+  // ⚡ FAST FIREBASE FETCH (PARALLEL)
   // =========================================
-  Future<void> loadData() async {
+  Future<void> fetchData() async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      debugPrint("❌ No user logged in");
+      return;
+    }
 
     final db = FirebaseFirestore.instance;
 
-    // ================= MAIN USER DATA =================
-    final userDoc = await db.collection("users").doc(user.uid).get();
+    try {
+      debugPrint("🚀 Fetching Firebase data for UID: ${user.uid}");
 
-    final data = userDoc.data() ?? {};
+      final userDocFuture = db.collection("users").doc(user.uid).get();
 
-    listening = (data["listening"] ?? 6.5).toDouble();
-    reading = (data["reading"] ?? 6.5).toDouble();
-    writing = (data["writing"] ?? 6.0).toDouble();
-    speaking = (data["speaking"] ?? 6.5).toDouble();
+      final readingFuture = db
+          .collection("users")
+          .doc(user.uid)
+          .collection("reading_results")
+          .orderBy("createdAt")
+          .get();
 
-    // ================= WEEKLY REAL DATA =================
-    final snap = await db
-        .collection("users")
-        .doc(user.uid)
-        .collection("speaking_history")
-        .orderBy("createdAt")
-        .limit(5)
-        .get();
+      final writingFuture = db
+          .collection("users")
+          .doc(user.uid)
+          .collection("writing_results")
+          .orderBy("createdAt")
+          .get();
 
-    weekly = snap.docs.map<double>((e) {
-      final data = e.data() as Map<String, dynamic>;
+      final speakingFuture = db
+          .collection("users")
+          .doc(user.uid)
+          .collection("speaking_history")
+          .orderBy("createdAt")
+          .get();
 
-      final value = data['band'];
+      final results = await Future.wait([
+        userDocFuture,
+        readingFuture,
+        writingFuture,
+        speakingFuture,
+      ]);
+
+      // ================= USER DATA =================
+      final userDoc = results[0] as DocumentSnapshot<Map<String, dynamic>>;
+
+      final readingSnap = results[1] as QuerySnapshot<Map<String, dynamic>>;
+
+      final writingSnap = results[2] as QuerySnapshot<Map<String, dynamic>>;
+
+      final speakingSnap = results[3] as QuerySnapshot<Map<String, dynamic>>;
+
+      final userData = userDoc.data() ?? {};
+
+      // 🔥 PRINT FULL USER DATA
+      debugPrint("📌 USER DOC DATA:");
+      debugPrint(userData.toString());
+
+      // ================= MAIN SCORES =================
+     final progress = userData["progress"] ?? {};
+
+listening = (progress["listening"] ?? 0).toDouble();
+reading = (progress["reading"] ?? 0).toDouble();
+writing = (progress["writing"] ?? 0).toDouble();
+speaking = (progress["speaking"] ?? 0).toDouble();
+
+      debugPrint("🎯 SCORES:");
+      debugPrint("Listening: $listening");
+      debugPrint("Reading: $reading");
+      debugPrint("Writing: $writing");
+      debugPrint("Speaking: $speaking");
+
+      // ================= READ COLLECTION =================
+      debugPrint("📚 reading_results:");
+      for (var doc in readingSnap.docs) {
+        debugPrint(doc.data().toString());
+      }
+
+      // ================= WRITING COLLECTION =================
+      debugPrint("✍️ writing_results:");
+      for (var doc in writingSnap.docs) {
+        debugPrint(doc.data().toString());
+      }
+
+      // ================= SPEAKING COLLECTION =================
+      debugPrint("🗣 speaking_history:");
+      for (var doc in speakingSnap.docs) {
+        debugPrint(doc.data().toString());
+      }
+
+      // ================= GRAPH =================
+      readingGraph = _map(readingSnap);
+      writingGraph = _map(writingSnap);
+      speakingGraph = _map(speakingSnap);
+
+      hasData =
+          readingGraph.isNotEmpty ||
+          writingGraph.isNotEmpty ||
+          speakingGraph.isNotEmpty;
+
+      debugPrint("📊 GRAPH DATA:");
+      debugPrint("Reading: $readingGraph");
+      debugPrint("Writing: $writingGraph");
+      debugPrint("Speaking: $speakingGraph");
+
+      setState(() => isLoading = false);
+    } catch (e) {
+      debugPrint("❌ FIREBASE ERROR: $e");
+      hasData = false;
+      setState(() => isLoading = false);
+    }
+  } // 📊 SAFE MAPPING
+
+  // =========================================
+  List<double> _map(QuerySnapshot<Map<String, dynamic>> snap) {
+    return snap.docs.map<double>((e) {
+      final value = e.data()["band"];
 
       if (value is int) return value.toDouble();
       if (value is double) return value;
 
-      return 6.0; // fallback
+      return 0.0;
     }).toList();
-
-    if (weekly.isEmpty) {
-      weekly = [5.5, 5.8, 6.0, 6.2, 6.5];
-    }
-
-    // ================= AI INSIGHTS =================
-    await generateInsights();
-
-    setState(() => isLoading = false);
-  }
-
-  // =========================================
-  // 🤖 AI INSIGHTS (REAL)
-  // =========================================
-  Future<void> generateInsights() async {
-    try {
-      final prompt =
-          """
-Analyze IELTS performance:
-
-Listening: $listening
-Reading: $reading
-Writing: $writing
-Speaking: $speaking
-
-Return JSON:
-
-{
- "strength": "...",
- "improvement": "..."
-}
-""";
-
-      final result = await controller.api.feedback(prompt, "insight");
-
-      final decoded = result;
-
-      aiStrength = decoded.contains("strength")
-          ? decoded.split("strength")[1]
-          : "Strong performance in Listening";
-
-      aiImprove = decoded.contains("improvement")
-          ? decoded.split("improvement")[1]
-          : "Improve Writing task structure";
-    } catch (e) {
-      aiStrength = "Good progress overall";
-      aiImprove = "Focus more on Writing";
-    }
   }
 
   // =========================================
@@ -131,16 +167,38 @@ Return JSON:
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+    if (!hasData) {
+      return Scaffold(
+        bottomNavigationBar: const BottomNavigation(index: 1),
+        body: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.bar_chart, size: 80, color: Colors.grey),
+              SizedBox(height: 10),
+              Text("No Progress Data Found", style: TextStyle(fontSize: 18)),
+              SizedBox(height: 5),
+              Text(
+                "Start practicing to see your progress",
+                style: TextStyle(color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FB),
-      bottomNavigationBar:  BottomNavigation(index: 1, ),
+      bottomNavigationBar: const BottomNavigation(index: 1),
       body: SingleChildScrollView(
         child: Column(
           children: [
             _header(),
             _modules(),
-            _lineChart(),
-            _barChart(),
+            _chart("Reading Progress", readingGraph),
+            _chart("Writing Progress", writingGraph),
+            _chart("Speaking Progress", speakingGraph),
             _insights(),
           ],
         ),
@@ -149,7 +207,7 @@ Return JSON:
   }
 
   // =========================================
-  // 🎯 HEADER (LIKE IMAGE)
+  // HEADER
   // =========================================
   Widget _header() {
     return Container(
@@ -167,46 +225,10 @@ Return JSON:
             "Performance",
             style: TextStyle(color: Colors.white, fontSize: 22),
           ),
-          const Text(
-            "Track your progress",
-            style: TextStyle(color: Colors.white70),
-          ),
-
-          const SizedBox(height: 20),
-
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "Overall Band Score",
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    Text(
-                      overall.toStringAsFixed(1),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 40,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                const CircleAvatar(
-                  radius: 30,
-                  backgroundColor: Colors.orange,
-                  child: Icon(Icons.emoji_events, color: Colors.white),
-                ),
-              ],
-            ),
+          const SizedBox(height: 10),
+          Text(
+            "Overall: ${overall.toStringAsFixed(1)}",
+            style: const TextStyle(color: Colors.white, fontSize: 18),
           ),
         ],
       ),
@@ -214,7 +236,7 @@ Return JSON:
   }
 
   // =========================================
-  // 📊 MODULE CARDS
+  // MODULES
   // =========================================
   Widget _modules() {
     return Padding(
@@ -226,33 +248,65 @@ Return JSON:
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
         children: [
-          _moduleCard("Listening", listening),
-          _moduleCard("Reading", reading),
-          _moduleCard("Writing", writing),
-          _moduleCard("Speaking", speaking),
+          _card("Listening", listening),
+          _card("Reading", reading),
+          _card("Writing", writing),
+          _card("Speaking", speaking),
         ],
       ),
     );
   }
 
-  Widget _moduleCard(String title, double value) {
+  Widget _card(String title, double value) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: _card(),
+      decoration: _box(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title),
           const Spacer(),
-          Text(
-            value.toString(),
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 6),
-          LinearProgressIndicator(
-            value: value / 9,
-            color: Colors.purple,
-            backgroundColor: Colors.grey.shade300,
+          Text(value.toStringAsFixed(1), style: const TextStyle(fontSize: 22)),
+          LinearProgressIndicator(value: value / 9),
+        ],
+      ),
+    );
+  }
+
+  // =========================================
+  // CHART (REUSABLE)
+  // =========================================
+  Widget _chart(String title, List<double> data) {
+    if (data.isEmpty) return const SizedBox();
+
+    return Container(
+      height: 220,
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
+      decoration: _box(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title),
+          const SizedBox(height: 10),
+          Expanded(
+            child: LineChart(
+              LineChartData(
+                titlesData: FlTitlesData(show: false),
+                borderData: FlBorderData(show: false),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: List.generate(
+                      data.length,
+                      (i) => FlSpot(i.toDouble(), data[i]),
+                    ),
+                    isCurved: true,
+                    barWidth: 3,
+                    dotData: FlDotData(show: false),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -260,110 +314,45 @@ Return JSON:
   }
 
   // =========================================
-  // 📈 LINE CHART
-  // =========================================
-  Widget _lineChart() {
-    return Container(
-      height: 220,
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
-      decoration: _card(),
-      child: LineChart(
-        LineChartData(
-          titlesData: FlTitlesData(show: false),
-          borderData: FlBorderData(show: false),
-          lineBarsData: [
-            LineChartBarData(
-              spots: List.generate(
-                weekly.length,
-                (i) => FlSpot(i.toDouble(), weekly[i]),
-              ),
-              isCurved: true,
-              color: Colors.purple,
-              barWidth: 4,
-              dotData: FlDotData(show: true),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // =========================================
-  // 📊 BAR CHART
-  // =========================================
-  Widget _barChart() {
-    final data = [listening, reading, writing, speaking];
-
-    return Container(
-      height: 220,
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
-      decoration: _card(),
-      child: BarChart(
-        BarChartData(
-          borderData: FlBorderData(show: false),
-          titlesData: FlTitlesData(show: false),
-          barGroups: List.generate(
-            data.length,
-            (i) => BarChartGroupData(
-              x: i,
-              barRods: [
-                BarChartRodData(toY: data[i], color: Colors.purple, width: 18),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // =========================================
-  // 🧠 AI INSIGHTS
+  // INSIGHTS (REAL CALCULATED)
   // =========================================
   Widget _insights() {
+    String strength = listening >= 7 || reading >= 7
+        ? "Strong in Reading/Listening"
+        : "Balanced Performance";
+
+    String improve = writing < 6.5
+        ? "Improve Writing Structure"
+        : "Keep Practicing Consistently";
+
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          _insightCard("Strengths", aiStrength, Colors.green),
+          _insight("Strength", strength, Colors.green),
           const SizedBox(height: 10),
-          _insightCard("Areas to Improve", aiImprove, Colors.orange),
+          _insight("Improve", improve, Colors.orange),
         ],
       ),
     );
   }
 
-  Widget _insightCard(String title, String text, Color color) {
+  Widget _insight(String title, String text, Color color) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: _card(),
+      decoration: _box(),
       child: Row(
         children: [
-          CircleAvatar(
-            backgroundColor: color,
-            child: const Icon(Icons.trending_up, color: Colors.white),
-          ),
+          CircleAvatar(backgroundColor: color),
           const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 6),
-                Text(text),
-              ],
-            ),
-          ),
+          Expanded(child: Text("$title: $text")),
         ],
       ),
     );
   }
 
-  BoxDecoration _card() {
+  // =========================================
+  BoxDecoration _box() {
     return BoxDecoration(
       color: Colors.white,
       borderRadius: BorderRadius.circular(16),

@@ -99,11 +99,23 @@ class _ReadingPracticeState extends State<ReadingPractice> {
   }
 
   // ================= FIREBASE =================
-  Future<void> saveResultToFirebase() async {
-    final user = auth.currentUser;
-    if (user == null) return;
+Future<void> saveResultToFirebase() async {
+  final user = auth.currentUser;
 
-    await firestore
+  if (user == null) {
+    print("❌ No user logged in");
+    return;
+  }
+
+  print("👤 User ID: ${user.uid}");
+  print("📊 Score: $score");
+  print("📊 Total Questions: ${questions.length}");
+  print("📖 Passage: $passage");
+  print("❓ Questions: $questions");
+  print("✅ Selected Answers: $selectedAnswers");
+
+  try {
+    final docRef = await firestore
         .collection("users")
         .doc(user.uid)
         .collection("reading_results")
@@ -115,8 +127,22 @@ class _ReadingPracticeState extends State<ReadingPractice> {
       "answers": selectedAnswers,
       "timestamp": FieldValue.serverTimestamp(),
     });
-  }
 
+    print("✅ Data saved successfully!");
+    print("📄 Document ID: ${docRef.id}");
+  } catch (e) {
+    print("❌ Error saving to Firebase: $e");
+  }
+  final data = {
+  "score": score,
+  "total": questions.length,
+  "passage": passage,
+  "questions": questions,
+  "answers": selectedAnswers,
+};
+
+print("📦 FULL DATA: $data");
+}
   // ================= UI =================
   @override
   Widget build(BuildContext context) {
