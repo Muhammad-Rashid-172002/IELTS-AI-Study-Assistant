@@ -54,21 +54,21 @@ class _ProgressScreenState extends State<ProgressScreen> {
           .collection("users")
           .doc(user.uid)
           .collection("reading_results")
-          .orderBy("createdAt")
+          .orderBy("timestamp", descending: false)
           .get();
 
       final writingFuture = db
           .collection("users")
           .doc(user.uid)
           .collection("writing_results")
-          .orderBy("createdAt")
+       .orderBy("timestamp", descending: false)
           .get();
 
       final speakingFuture = db
           .collection("users")
           .doc(user.uid)
           .collection("speaking_history")
-          .orderBy("createdAt")
+         .orderBy("timestamp", descending: false)
           .get();
 
       final results = await Future.wait([
@@ -126,9 +126,9 @@ speaking = (progress["speaking"] ?? 0).toDouble();
       }
 
       // ================= GRAPH =================
-      readingGraph = _map(readingSnap);
-      writingGraph = _map(writingSnap);
-      speakingGraph = _map(speakingSnap);
+      readingGraph = _mapReading(readingSnap);
+      writingGraph = _mapReading(writingSnap);
+      speakingGraph = _mapReading(speakingSnap);
 
       hasData =
           readingGraph.isNotEmpty ||
@@ -149,16 +149,19 @@ speaking = (progress["speaking"] ?? 0).toDouble();
   } // 📊 SAFE MAPPING
 
   // =========================================
-  List<double> _map(QuerySnapshot<Map<String, dynamic>> snap) {
-    return snap.docs.map<double>((e) {
-      final value = e.data()["band"];
+ List<double> _mapReading(QuerySnapshot<Map<String, dynamic>> snap) {
+  return snap.docs.map<double>((e) {
+    final data = e.data();
 
-      if (value is int) return value.toDouble();
-      if (value is double) return value;
+    final score = data["score"] ?? 0;
+    final total = data["total"] ?? 1;
 
-      return 0.0;
-    }).toList();
-  }
+    // IELTS style band (approx)
+    double band = (score / total) * 9;
+
+    return band;
+  }).toList();
+}
 
   // =========================================
   @override
