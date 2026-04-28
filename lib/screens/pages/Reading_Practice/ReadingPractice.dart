@@ -35,7 +35,8 @@ class _ReadingPracticeState extends State<ReadingPractice> {
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
   final FirebaseAuth auth = FirebaseAuth.instance;
 
-  // ================= GENERATE =================
+  // ============== GENERATE
+
   Future<void> generateAIReadingTest() async {
     setState(() {
       isLoading = true;
