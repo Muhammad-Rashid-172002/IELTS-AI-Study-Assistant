@@ -3,8 +3,6 @@ import 'package:get/get.dart';
 import 'package:intl_phone_number_input/intl_phone_number_input.dart';
 import '../../../../controller/firebase_services/firebase_services.dart';
 import '../../../../resources/components/custom_text_field.dart';
-import '../../../../resources/components/custom_text_field_email.dart';
-import '../../../../resources/components/custom_text_field_name.dart';
 import '../../../resources/routes/routes_names.dart';
 import '../../widgets/botton/round_botton.dart';
 
@@ -61,7 +59,6 @@ class _RegistrationState extends State<Registration> {
           child: SingleChildScrollView(
             child: Column(
               children: [
-
                 const SizedBox(height: 40),
 
                 /// 🔥 LOGO ICON
@@ -74,7 +71,11 @@ class _RegistrationState extends State<Registration> {
                       colors: [Color(0xff4A00E0), Color(0xff8E2DE2)],
                     ),
                   ),
-                  child: const Icon(Icons.gps_fixed, color: Colors.white, size: 35),
+                  child: const Icon(
+                    Icons.gps_fixed,
+                    color: Colors.white,
+                    size: 35,
+                  ),
                 ),
 
                 const SizedBox(height: 20),
@@ -82,10 +83,7 @@ class _RegistrationState extends State<Registration> {
                 /// TITLE
                 const Text(
                   "Create Account",
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                 ),
 
                 const SizedBox(height: 8),
@@ -109,7 +107,7 @@ class _RegistrationState extends State<Registration> {
                         color: Colors.black.withOpacity(0.08),
                         blurRadius: 20,
                         offset: const Offset(0, 10),
-                      )
+                      ),
                     ],
                   ),
 
@@ -117,75 +115,86 @@ class _RegistrationState extends State<Registration> {
                     key: formKey,
                     child: Column(
                       children: [
-
                         /// NAME
-                        CustomTextFieldName(
+                        CustomTextField(
                           controller: nameController,
                           hintText: "Enter your name",
                           validator: validateName,
+                          prefixIcon: const Icon(Icons.person_outline),
                         ),
 
                         const SizedBox(height: 16),
 
                         /// EMAIL
-                        CustomTextFieldEmail(
+                        CustomTextField(
                           controller: emailController,
                           hintText: "Enter your email",
                           validator: validateEmail,
+                          prefixIcon: const Icon(Icons.email_outlined),
                         ),
 
                         const SizedBox(height: 16),
 
                         /// PASSWORD
-                        Obx(() => CustomTextField(
-                          controller: passwordController,
-                          obscureText: !firebaseServices.isPasswordVisibleR.value,
-                          hintText: "Create a password",
-                          prefixIcon: const Icon(Icons.lock_outline),
-                          suffixIcon: IconButton(
-                            onPressed: firebaseServices.togglePasswordVisibility,
-                            icon: Icon(
-                              firebaseServices.isPasswordVisibleR.value
-                                  ? Icons.visibility
-                                  : Icons.visibility_off,
+                        Obx(
+                          () => CustomTextField(
+                            controller: passwordController,
+                            obscureText:
+                                !firebaseServices.isPasswordVisibleR.value,
+                            hintText: "Create a password",
+                            prefixIcon: const Icon(Icons.lock_outline),
+                            suffixIcon: IconButton(
+                              onPressed:
+                                  firebaseServices.togglePasswordVisibility,
+                              icon: Icon(
+                                firebaseServices.isPasswordVisibleR.value
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                              ),
                             ),
+                            validator: validatePassword,
                           ),
-                          validator: validatePassword,
-                        )),
+                        ),
                         SizedBox(height: height * 0.02),
-                             Obx(() => CustomTextField(
-                          controller: passwordController,
-                          obscureText: !firebaseServices.isPasswordVisibleR.value,
-                          hintText: "Confirm password",
-                          prefixIcon: const Icon(Icons.lock_outline),
-                          suffixIcon: IconButton(
-                            onPressed: firebaseServices.togglePasswordVisibility,
-                            icon: Icon(
-                              firebaseServices.isPasswordVisibleR.value
-                                  ? Icons.visibility
-                                  : Icons.visibility_off,
+                        Obx(
+                          () => CustomTextField(
+                            controller: confirmPasswordController,
+                            obscureText:
+                                !firebaseServices.isPasswordVisibleR.value,
+                            hintText: "Confirm password",
+                            prefixIcon: const Icon(Icons.lock_outline),
+                            suffixIcon: IconButton(
+                              onPressed:
+                                  firebaseServices.togglePasswordVisibility,
+                              icon: Icon(
+                                firebaseServices.isPasswordVisibleR.value
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                              ),
                             ),
+                            validator: validateConfirmPassword,
                           ),
-                          validator: validatePassword,
-                        )),
+                        ),
 
                         const SizedBox(height: 25),
 
                         /// BUTTON
-                        Obx(() => RoundButton(
-                          loading: firebaseServices.loadingRegistration.value,
-                          title: "Sign Up",
-                          onPress: () {
-                            if (!formKey.currentState!.validate()) return;
+                        Obx(
+                          () => RoundButton(
+                            loading: firebaseServices.loadingRegistration.value,
+                            title: "Sign Up",
+                            onPress: () {
+                              if (!formKey.currentState!.validate()) return;
 
-                            firebaseServices.registration(
-                              email: emailController.text.trim(),
-                              password: passwordController.text,
-                              fullName: nameController.text.trim(),
-                              phone: _normalizedPhone(),
-                            );
-                          },
-                        )),
+                              firebaseServices.registration(
+                                email: emailController.text.trim(),
+                                password: passwordController.text,
+                                fullName: nameController.text.trim(),
+                                phone: _normalizedPhone(),
+                              );
+                            },
+                          ),
+                        ),
 
                         const SizedBox(height: 20),
 
@@ -207,12 +216,13 @@ class _RegistrationState extends State<Registration> {
                         Row(
                           children: [
                             Expanded(
-                              child: _socialButton(
-                                  "Google", Icons.g_mobiledata),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _socialButton("Apple", Icons.apple),
+                              child: socialButton(
+                                "Google",
+                                "assets/images/google1.png",
+                                () async {
+                                  await firebaseServices.loginWithGoogle();
+                                },
+                              ),
                             ),
                           ],
                         ),
@@ -225,8 +235,7 @@ class _RegistrationState extends State<Registration> {
                           children: [
                             const Text("Already have an account? "),
                             GestureDetector(
-                              onTap: () =>
-                                  Get.toNamed(RoutesName.login),
+                              onTap: () => Get.toNamed(RoutesName.login),
                               child: const Text(
                                 "Log In",
                                 style: TextStyle(
@@ -236,7 +245,7 @@ class _RegistrationState extends State<Registration> {
                               ),
                             ),
                           ],
-                        )
+                        ),
                       ],
                     ),
                   ),
@@ -252,20 +261,25 @@ class _RegistrationState extends State<Registration> {
   }
 
   /// 🔘 SOCIAL BUTTON
-  Widget _socialButton(String title, IconData icon) {
-    return Container(
-      height: 50,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon),
-          const SizedBox(width: 8),
-          Text(title),
-        ],
+  Widget socialButton(String title, String icon, VoidCallback onPressed) {
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        height: 50,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset(icon, height: 22),
+            const SizedBox(width: 8),
+            Text(title),
+          ],
+        ),
       ),
     );
   }
@@ -283,6 +297,12 @@ class _RegistrationState extends State<Registration> {
 
   String? validatePassword(String? value) {
     if (value == null || value.length < 6) return "Min 6 chars";
+    return null;
+  }
+
+  String? validateConfirmPassword(String? value) {
+    if (value == null || value.isEmpty) return "Confirm password required";
+    if (value != passwordController.text) return "Passwords do not match";
     return null;
   }
 }
