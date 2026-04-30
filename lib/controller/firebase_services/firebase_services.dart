@@ -115,37 +115,36 @@ class FirebaseServices extends GetxController {
   // GOOGLE LOGIN
 
   Future<User?> loginWithGoogle() async {
-    try {
-      final GoogleSignIn googleSignIn = GoogleSignIn.instance;
+  try {
+    final GoogleSignIn googleSignIn = GoogleSignIn();
 
-      await googleSignIn.initialize(serverClientId: null);
+    final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
 
-      final GoogleSignInAccount googleUser = await googleSignIn.authenticate();
+    if (googleUser == null) return null;
 
-      if (googleUser == null) return null;
+    final GoogleSignInAuthentication googleAuth =
+        await googleUser.authentication;
 
-      final googleAuth = googleUser.authentication;
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
 
-      final credential = GoogleAuthProvider.credential(
-        idToken: googleAuth.idToken,
-      );
+    final userCredential = await auth.signInWithCredential(credential);
+    final user = userCredential.user;
 
-      final userCredential = await auth.signInWithCredential(credential);
-
-      final user = userCredential.user;
-
-      if (user != null) {
-        await saveUserToFirestore(user, fullName: user.displayName);
-        await loadUserProfile();
-      }
-
-      Get.offAllNamed(RoutesName.home);
-      return user;
-    } catch (e) {
-      Get.snackbar("Error", e.toString());
-      return null;
+    if (user != null) {
+      await saveUserToFirestore(user, fullName: user.displayName);
+      await loadUserProfile();
     }
+
+    Get.offAllNamed(RoutesName.home);
+    return user;
+  } catch (e) {
+    Get.snackbar("Error", e.toString());
+    return null;
   }
+}
 
   // SAVE USER TO FIRESTORE (WITH INITIAL PROGRESS)
 
