@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:fyproject/controller/feedback_controller/feedback_controller.dart';
+import 'package:fyproject/screens/Full_Mock_Test/test_runner.dart';
+import 'package:fyproject/screens/pages/Listening_Practice/ListeningPractice.dart';
+import 'package:fyproject/screens/pages/Reading_Practice/ReadingPractice.dart';
+import 'package:fyproject/screens/pages/Speaking_Practice/SpeakingPractice.dart';
+import 'package:fyproject/screens/pages/Writing_Checker/WritingChecker.dart';
 import 'package:get/get.dart';
-
+import 'package:fyproject/controller/feedback_controller/feedback_controller.dart';
 
 class FullMockTest extends StatefulWidget {
   const FullMockTest({super.key});
@@ -10,138 +14,36 @@ class FullMockTest extends StatefulWidget {
   State<FullMockTest> createState() => _FullMockTestState();
 }
 
-class _FullMockTestState extends State<FullMockTest> {
+class _FullMockTestState extends State<FullMockTest>
+    with SingleTickerProviderStateMixin {
   final IELTSController ieltsController = Get.put(IELTSController());
 
-  final TextEditingController answerController = TextEditingController();
-
-  int questionIndex = 0;
   bool testStarted = false;
-  bool testSubmitted = false;
 
-  List<String> questions = [];
-  List<String> userAnswers = [];
+  late AnimationController _controller;
+  late Animation<double> _scaleAnim;
 
-  // =====================================================
-  // GENERATE FULL AI MOCK TEST QUESTIONS
-  // =====================================================
-  Future<void> generateMockTestQuestions() async {
-    ieltsController.isLoading.value = true;
+  @override
+  void initState() {
+    super.initState();
 
-    try {
-      final prompt = """
-Generate a full IELTS mock test with 4 questions:
-1 Writing question
-1 Speaking question
-1 Reading analytical question
-1 Listening analytical question
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
 
-Format:
-1. Question text
-2. Question text
-3. Question text
-4. Question text
-""";
+    _scaleAnim = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutBack,
+    );
 
-      final response =
-          await ieltsController.api.feedback(prompt, "mocktest");
-
-      parseQuestions(response);
-
-      setState(() {
-        testStarted = true;
-        questionIndex = 0;
-        testSubmitted = false;
-      });
-    } catch (e) {
-      Get.snackbar("Error", "Failed to generate mock test");
-    }
-
-    ieltsController.isLoading.value = false;
+    _controller.forward();
   }
 
-  // =====================================================
-  // PARSE QUESTIONS
-  // =====================================================
-  void parseQuestions(String response) {
-    questions.clear();
-    userAnswers.clear();
-
-    final lines = response.split("\n");
-
-    for (var line in lines) {
-      if (line.trim().isNotEmpty &&
-          RegExp(r'^\d+\.').hasMatch(line.trim())) {
-        questions.add(line.trim());
-      }
-    }
-
-    userAnswers = List.generate(questions.length, (_) => "");
-  }
-
-  // =====================================================
-  // NEXT QUESTION
-  // =====================================================
-  void nextQuestion() {
-    userAnswers[questionIndex] = answerController.text.trim();
-
-    if (questionIndex < questions.length - 1) {
-      setState(() {
-        questionIndex++;
-        answerController.text = userAnswers[questionIndex];
-      });
-    } else {
-      submitFullTest();
-    }
-  }
-
-  // =====================================================
-  // SUBMIT FULL TEST TO AI
-  // =====================================================
-  Future<void> submitFullTest() async {
-    ieltsController.isLoading.value = true;
-
-    try {
-      String compiledAnswers = "";
-
-      for (int i = 0; i < questions.length; i++) {
-        compiledAnswers += """
-${questions[i]}
-Answer: ${userAnswers[i]}
-
-""";
-      }
-
-      final prompt = """
-You are an IELTS examiner.
-
-Evaluate this full IELTS mock test.
-
-Give:
-- Estimated Band Score
-- Writing Feedback
-- Speaking Feedback
-- Reading Feedback
-- Listening Feedback
-- Improvement Suggestions
-
-Answers:
-$compiledAnswers
-""";
-
-      final result =
-          await ieltsController.api.feedback(prompt, "mocktest");
-
-      ieltsController.bandScore.value = result;
-
-      setState(() {
-        testSubmitted = true;
-      });
-    } catch (e) {
-      Get.snackbar("Error", "Failed to evaluate mock test");
-    }
-
-    ieltsController.isLoading.value = false;
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   // =====================================================
@@ -150,293 +52,303 @@ $compiledAnswers
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FB),
-      appBar: _appBar(),
+      backgroundColor: const Color(0xffeef1f7),
       body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _infoBanner(),
-              const SizedBox(height: 20),
+        child: Column(
+          children: [
+            _topHeader(),
+            const SizedBox(height: 20),
+            _progressCard(),
+            const SizedBox(height: 20),
+            _mainCard(),
+            const SizedBox(height: 10),
 
-              if (!testStarted) _startTestButton(),
+            _sectionTile(
+              "Listening",
+              Icons.headphones,
+              "30 min • 40 Q",
+              Colors.blue,
+            ),
+            _sectionTile(
+              "Reading",
+              Icons.menu_book,
+              "15 min • 5 Q",
+              Colors.purple,
+              onTap: () {
+                Get.to(() => const ReadingPractice());
+              },
+            ),
+            _sectionTile(
+              "Writing",
+              Icons.edit,
+              "60 min • 2 Q",
+              Colors.pink,
+              onTap: () {
+                Get.to(() => const WritingChecker());
+              },
+            ),
+            _sectionTile("Speaking", Icons.mic, "15 min • 3 Q", Colors.teal),
 
-              if (testStarted) _questionCard(),
-
-              const SizedBox(height: 20),
-
-              if (testStarted && !testSubmitted) _answerBox(),
-
-              const SizedBox(height: 20),
-
-              if (testStarted && !testSubmitted) _nextButton(),
-
-              const SizedBox(height: 20),
-
-              _aiResult(),
-            ],
-          ),
+            const SizedBox(height: 20),
+            _startButton(),
+            const SizedBox(height: 20),
+            _beforeStartCard(),
+            const SizedBox(height: 30),
+          ],
         ),
       ),
     );
   }
 
   // =====================================================
-  // APP BAR
+  // 🔥 HEADER
   // =====================================================
-  AppBar _appBar() {
-    return AppBar(
-      automaticallyImplyLeading: false,
-      elevation: 0,
-      backgroundColor: Colors.white,
-      toolbarHeight: 72,
-      title: Row(
+  Widget _topHeader() {
+    return Container(
+      height: 240,
+      width: double.infinity,
+      padding: const EdgeInsets.only(top: 60, left: 20, right: 20),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xff4a00e0), Color(0xff8e2de2)],
+        ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(40),
+          bottomRight: Radius.circular(40),
+        ),
+      ),
+      child: Row(
         children: [
           GestureDetector(
             onTap: () => Get.back(),
-            child: Container(
-              padding: const EdgeInsets.all(10),
+            child: const CircleAvatar(
+              backgroundColor: Colors.white24,
+              child: Icon(Icons.arrow_back, color: Colors.white),
+            ),
+          ),
+          const SizedBox(width: 20),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Full Mock Test",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  "Complete IELTS Simulation",
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.workspace_premium, color: Colors.white),
+        ],
+      ),
+    );
+  }
+
+  // =====================================================
+  // 📊 PROGRESS CARD
+  // =====================================================
+  Widget _progressCard() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Your Readiness",
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 10),
+
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+              value: 0.7,
+              minHeight: 10,
+              backgroundColor: Colors.grey[200],
+              color: Colors.deepPurple,
+            ),
+          ),
+
+          const SizedBox(height: 6),
+          const Text("70% Ready - Keep practicing 💪"),
+        ],
+      ),
+    );
+  }
+
+  // =====================================================
+  // 📦 MAIN CARD
+  // =====================================================
+  Widget _mainCard() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
+        ],
+      ),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Academic IELTS",
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                Text("Practice Test #12"),
+              ],
+            ),
+          ),
+          Column(children: const [Icon(Icons.access_time), Text("165 min")]),
+        ],
+      ),
+    );
+  }
+
+  // =====================================================
+  // 🎯 SECTION TILE
+  // =====================================================
+  Widget _sectionTile(
+    String title,
+    IconData icon,
+    String subtitle,
+    Color color, {
+    VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap:
+          onTap ??
+          () {
+            Get.snackbar(title, "Section preview coming soon 🚀");
+          },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.15),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: const Color(0xFFEFF3FA),
-                borderRadius: BorderRadius.circular(12),
+                color: color.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(16),
               ),
-              child: const Icon(Icons.arrow_back,
-                  color: Colors.black87),
+              child: Icon(icon, color: color),
             ),
-          ),
-          const SizedBox(width: 14),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.quiz,
-                color: Colors.orange),
-          ),
-          const SizedBox(width: 12),
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "AI Full Mock Test",
-                style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(subtitle),
+                ],
               ),
-              Text(
-                "Simulate real IELTS exam",
-                style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.black54),
+            ),
+            const Icon(Icons.arrow_forward_ios, size: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // =====================================================
+  // 🚀 START BUTTON (ANIMATED)
+  // =====================================================
+  Widget _startButton() {
+    return ScaleTransition(
+      scale: _scaleAnim,
+      child: GestureDetector(
+        onTap: () {
+          Get.to(() => const TestRunner());
+        },
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          height: 65,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xff4a00e0), Color(0xff8e2de2)],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.deepPurple.withOpacity(0.4),
+                blurRadius: 15,
               ),
             ],
-          )
-        ],
-      ),
-    );
-  }
-
-  // =====================================================
-  // INFO BANNER
-  // =====================================================
-  Widget _infoBanner() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFFFFF3E0),
-            Color(0xFFFFF8ED)
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: const Border(
-          left: BorderSide(
-              color: Colors.orange, width: 4),
-        ),
-      ),
-      child: const Row(
-        children: [
-          Icon(Icons.info_outline,
-              color: Colors.orange),
-          SizedBox(width: 12),
-          Expanded(
+          ),
+          child: const Center(
             child: Text(
-              "Take a full IELTS style mock test. AI will generate questions and evaluate your band score.",
-              style:
-                  TextStyle(fontSize: 14, height: 1.4),
-            ),
-          )
-        ],
-      ),
-    );
-  }
-
-  // =====================================================
-  // START BUTTON
-  // =====================================================
-  Widget _startTestButton() {
-    return Container(
-      height: 54,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFFFF9800),
-            Color(0xFFFFC107)
-          ],
-        ),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: TextButton(
-        onPressed: generateMockTestQuestions,
-        child: const Text(
-          "Start AI Mock Test",
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // =====================================================
-  // QUESTION CARD
-  // =====================================================
-  Widget _questionCard() {
-    return Obx(() {
-      if (ieltsController.isLoading.value &&
-          questions.isEmpty) {
-        return const Center(
-          child: CircularProgressIndicator(),
-        );
-      }
-
-      return Container(
-        padding: const EdgeInsets.all(18),
-        decoration: _card(),
-        child: Text(
-          questions[questionIndex],
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      );
-    });
-  }
-
-  // =====================================================
-  // ANSWER BOX
-  // =====================================================
-  Widget _answerBox() {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: _card(),
-      child: TextField(
-        controller: answerController,
-        maxLines: 6,
-        decoration: const InputDecoration(
-          hintText: "Write your answer here...",
-          border: OutlineInputBorder(),
-        ),
-      ),
-    );
-  }
-
-  // =====================================================
-  // NEXT BUTTON
-  // =====================================================
-  Widget _nextButton() {
-    return Container(
-      height: 54,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFFFF9800),
-            Color(0xFFFFC107)
-          ],
-        ),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: TextButton(
-        onPressed: nextQuestion,
-        child: Text(
-          questionIndex == questions.length - 1
-              ? "Submit Test"
-              : "Next Question",
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // =====================================================
-  // AI RESULT
-  // =====================================================
-  Widget _aiResult() {
-    return Obx(() {
-      if (ieltsController.bandScore.value.isEmpty) {
-        return const SizedBox();
-      }
-
-      if (ieltsController.isLoading.value) {
-        return const Center(
-          child: CircularProgressIndicator(),
-        );
-      }
-
-      return Container(
-        padding: const EdgeInsets.all(18),
-        decoration: _card(),
-        child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "AI Test Result",
+              "Start Mock Test",
               style: TextStyle(
-                fontSize: 16,
+                color: Colors.white,
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 10),
-            Text(
-              ieltsController.bandScore.value,
-              style: const TextStyle(
-                fontSize: 15,
-                height: 1.5,
-              ),
-            )
-          ],
+          ),
         ),
-      );
-    });
+      ),
+    );
   }
 
   // =====================================================
-  // CARD STYLE
+  // 💡 TIPS CARD
   // =====================================================
-  BoxDecoration _card() {
-    return BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.06),
-          blurRadius: 12,
-          offset: const Offset(0, 4),
-        )
-      ],
+  Widget _beforeStartCard() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xfffff3e0),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.lightbulb, color: Colors.orange),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              "Find a quiet space and ensure stable internet before starting.",
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

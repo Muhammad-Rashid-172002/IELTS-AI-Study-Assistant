@@ -172,28 +172,28 @@ class _HomeState extends State<Home> {
 
                     const SizedBox(height: 12),
 
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _moduleCard(
-                            title: "Vocabulary",
-                            subtitle: "Word builder",
-                            color: const Color(0xFF26A69A),
-                            tag: "Vocab",
-                            icon: Icons.translate,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const Vocabularybuilder(),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                      ],
-                    ),
+                    // Row(
+                    //   children: [
+                    //     Expanded(
+                    //       child: _moduleCard(
+                    //         title: "Vocabulary",
+                    //         subtitle: "Word builder",
+                    //         color: const Color(0xFF26A69A),
+                    //         tag: "Vocab",
+                    //         icon: Icons.translate,
+                    //         onTap: () {
+                    //           Navigator.push(
+                    //             context,
+                    //             MaterialPageRoute(
+                    //               builder: (_) => const Vocabularybuilder(),
+                    //             ),
+                    //           );
+                    //         },
+                    //       ),
+                    //     ),
+                    //     const SizedBox(width: 12),
+                    //   ],
+                    // ),
                     SizedBox(height: 12),
                     _moduleCard1(
                       title: "Full Mock Test",
