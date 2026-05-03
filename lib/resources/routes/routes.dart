@@ -44,12 +44,12 @@ class AppRoutes {
       transitionDuration: const Duration(milliseconds: 250),
     ),
 
-    GetPage(
-      name: RoutesName.vocabularybuilder,
-      page: () => Vocabularybuilder(),
-      transition: Transition.leftToRightWithFade,
-      transitionDuration: const Duration(milliseconds: 250),
-    ),
+    // GetPage(
+    //   name: RoutesName.vocabularybuilder,
+    //   page: () => Vocabularybuilder(),
+    //   transition: Transition.leftToRightWithFade,
+    //   transitionDuration: const Duration(milliseconds: 250),
+    // ),
 
     GetPage(
       name: RoutesName.profile,

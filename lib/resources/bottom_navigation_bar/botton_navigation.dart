@@ -13,22 +13,22 @@ class BottomNavigation extends StatefulWidget {
 class _BottomNavigationState extends State<BottomNavigation> {
   late int myIndex;
 
-  // ✅ Updated Icons (Vocabulary removed)
   final List<IconData> iconList = [
+    Icons.home_outlined,
+    Icons.bar_chart_outlined,
+    Icons.person_outline,
+  ];
+
+  final List<IconData> activeIconList = [
     Icons.home,
-    Icons.analytics_outlined,
-    Icons.people,
+    Icons.bar_chart,
+    Icons.person,
   ];
 
-  // ✅ Labels MUST match icons count
-  final List<String> labels = [
-    "Home",
-    "Progress",
-    "Profile",
-  ];
+  final List<String> labels = ["Home", "Progress", "Profile"];
 
-  static const Color blue = Color(0xFF1E88E5);
-  static const Color grey = Colors.grey;
+  static const Color activeColor = Color(0xFF007AFF); // iOS blue
+  static const Color inactiveColor = Colors.grey;
 
   @override
   void initState() {
@@ -39,19 +39,15 @@ class _BottomNavigationState extends State<BottomNavigation> {
   void onTap(int index) {
     if (index == myIndex) return;
 
-    setState(() {
-      myIndex = index;
-    });
+    setState(() => myIndex = index);
 
     switch (index) {
       case 0:
         Get.offAllNamed(RoutesName.home);
         break;
-
       case 1:
         Get.offAllNamed(RoutesName.progress);
         break;
-
       case 2:
         Get.offAllNamed(RoutesName.profile);
         break;
@@ -61,36 +57,43 @@ class _BottomNavigationState extends State<BottomNavigation> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 70,
-      decoration: const BoxDecoration(
+      height: 75,
+      decoration: BoxDecoration(
+        color: Colors.white,
         border: Border(
-          top: BorderSide(color: Colors.grey, width: 0.4),
+          top: BorderSide(color: Colors.grey.shade300, width: 0.6),
         ),
       ),
       child: Row(
         children: List.generate(iconList.length, (index) {
-          final bool isSelected = index == myIndex;
+          final isSelected = index == myIndex;
 
           return Expanded(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
+            child: InkWell(
               onTap: () => onTap(index),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    iconList[index],
-                    size: 26,
-                    color: isSelected ? blue : grey,
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(
+                      isSelected ? activeIconList[index] : iconList[index],
+                      key: ValueKey(isSelected),
+                      size: 26,
+                      color: isSelected ? activeColor : inactiveColor,
+                    ),
                   ),
+
                   const SizedBox(height: 4),
+
                   Text(
                     labels[index],
                     style: TextStyle(
-                      fontSize: 12,
-                      fontWeight:
-                          isSelected ? FontWeight.w600 : FontWeight.normal,
-                      color: isSelected ? blue : grey,
+                      fontSize: 11,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.normal,
+                      color: isSelected ? activeColor : inactiveColor,
                     ),
                   ),
                 ],

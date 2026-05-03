@@ -33,7 +33,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return GetMaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'IELTS Assistant',
+      title: 'IELTS Master',
       theme: ThemeData(
         //colorScheme: .fromSeed(seedColor: Colors.deepPurple),
       ),

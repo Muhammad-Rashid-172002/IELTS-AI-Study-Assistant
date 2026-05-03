@@ -1,5 +1,7 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../controller/firebase_services/firebase_services.dart';
 import '../../../../resources/bottom_navigation_bar/botton_navigation.dart';
 import '../../../../resources/routes/routes_names.dart';
@@ -14,9 +16,9 @@ class Profile extends StatefulWidget {
 class _ProfileState extends State<Profile> {
   final FirebaseServices services = Get.find<FirebaseServices>();
 
-  final TextEditingController nameC = TextEditingController();
-  final TextEditingController emailC = TextEditingController();
-  final TextEditingController phoneC = TextEditingController();
+  final nameC = TextEditingController();
+  final emailC = TextEditingController();
+  final phoneC = TextEditingController();
 
   bool isEditing = false;
   bool isSaving = false;
@@ -29,11 +31,9 @@ class _ProfileState extends State<Profile> {
 
   void _fillFields() {
     final data = services.userData;
-
     nameC.text = data['name'] ?? '';
     emailC.text = data['email'] ?? '';
     phoneC.text = data['phone'] ?? '';
-
     setState(() {});
   }
 
@@ -46,9 +46,9 @@ class _ProfileState extends State<Profile> {
     );
 
     Get.snackbar(
-      "Profile Updated",
-      "Your changes have been successfully saved.",
-      backgroundColor: Colors.green,
+      "Success",
+      "Profile updated",
+      backgroundColor: Colors.black87,
       colorText: Colors.white,
     );
 
@@ -65,136 +65,126 @@ class _ProfileState extends State<Profile> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Obx(() {
       final data = services.userData;
 
       return Scaffold(
-        backgroundColor: theme.scaffoldBackgroundColor,
-        appBar: AppBar(
-          title: Text(
-            isEditing ? "Edit Profile" : "Profile",
-            style: theme.textTheme.titleLarge,
-          ),
-          centerTitle: true,
-        ),
-
+        backgroundColor: const Color(0xfff5f5f7),
         bottomNavigationBar: BottomNavigation(index: 2),
 
-        body: SingleChildScrollView(
-          child: Column(
-            children: [
-              /// 🔥 HEADER
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 30),
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xff4facfe), Color(0xff00f2fe)],
-                  ),
-                  borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(30),
-                    bottomRight: Radius.circular(30),
-                  ),
-                ),
-                child: Column(
+        body: CustomScrollView(
+          slivers: [
+            /// 🔥 APP STORE STYLE HEADER
+            SliverAppBar(
+              expandedHeight: 260,
+              pinned: true,
+              backgroundColor: Colors.transparent,
+              flexibleSpace: FlexibleSpaceBar(
+                background: Stack(
+                  fit: StackFit.expand,
                   children: [
-                    CircleAvatar(
-                      radius: 45,
-                      backgroundImage: NetworkImage(
-                        (data['profileImage'] != null &&
-                                data['profileImage'].toString().isNotEmpty)
-                            ? data['profileImage']
-                            : "https://cdn-icons-png.flaticon.com/512/149/149071.png",
+                    /// Background Gradient
+                    Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xff1d1d1f), Color(0xff2c2c2e)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    Text(
-                      nameC.text,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
+
+                    /// Blur Effect
+                    BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                      child: Container(color: Colors.black.withOpacity(0.2)),
                     ),
-                    Text(
-                      emailC.text,
-                      style: const TextStyle(color: Colors.white70),
+
+                    /// Profile Info
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircleAvatar(
+                          radius: 50,
+                          backgroundImage: NetworkImage(
+                            (data['profileImage'] != null &&
+                                    data['profileImage'].toString().isNotEmpty)
+                                ? data['profileImage']
+                                : "https://cdn-icons-png.flaticon.com/512/149/149071.png",
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          nameC.text,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          emailC.text,
+                          style: const TextStyle(color: Colors.white60),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
+            ),
 
-              const SizedBox(height: 20),
-
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+            /// 🔽 CONTENT
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
-                    /// 🧾 PROFILE INFO CARD
-                    Card(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      elevation: 3,
-                      child: Padding(
-                        padding: const EdgeInsets.all(18),
-                        child: Column(
-                          children: [
-                            _buildField(
-                              controller: nameC,
-                              label: "Full Name",
-                              enabled: isEditing,
-                            ),
-                            const SizedBox(height: 12),
-                            _buildField(
-                              controller: emailC,
-                              label: "Email",
-                              enabled: false,
-                            ),
-                            const SizedBox(height: 12),
-                            _buildField(
-                              controller: phoneC,
-                              label: "Phone",
-                              enabled: isEditing,
-                            ),
+                    /// ✨ GLASS CARD
+                    _glassCard(
+                      child: Column(
+                        children: [
+                          _buildField(nameC, "Full Name", isEditing),
+                          const SizedBox(height: 12),
+                          _buildField(emailC, "Email", false),
+                          const SizedBox(height: 12),
+                          _buildField(phoneC, "Phone", isEditing),
+                          const SizedBox(height: 20),
 
-                            const SizedBox(height: 20),
-
-                            isEditing
-                                ? ElevatedButton.icon(
-                                    onPressed: isSaving ? null : _saveChanges,
-                                    icon: const Icon(Icons.save),
-                                    label: isSaving
-                                        ? const CircularProgressIndicator(
-                                            color: Colors.white,
-                                          )
-                                        : const Text("Save Changes"),
-                                  )
-                                : OutlinedButton.icon(
-                                    onPressed: () =>
-                                        setState(() => isEditing = true),
-                                    icon: const Icon(Icons.edit),
-                                    label: const Text("Edit Profile"),
-                                  ),
-                          ],
-                        ),
+                          isEditing
+                              ? _primaryButton("Save Changes", _saveChanges)
+                              : _outlineButton(
+                                  "Edit Profile",
+                                  () => setState(() => isEditing = true),
+                                ),
+                        ],
                       ),
                     ),
 
                     const SizedBox(height: 20),
 
-                    /// ⚡ QUICK ACTIONS
-                    Card(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
+                    /// ⚡ ACTIONS
+                    _glassCard(
                       child: Column(
                         children: [
-                          _tile(Icons.help_outline, "Help & Support", () {}),
-                          _tile(Icons.privacy_tip, "Privacy Policy", () {}),
-                          _tile(Icons.info_outline, "About App", () {}),
+                          _tile(Icons.help_outline, "Help & Support", () {
+                            launchUrl(
+                              Uri.parse(
+                                "https://ielts-support-portal.vercel.app/",
+                              ),
+                            );
+                          }),
+                          _tile(Icons.lock_outline, "Privacy Policy", () {
+                            launchUrl(
+                              Uri.parse(
+                                "hhttps://ielts-privacy-police.vercel.app/",
+                              ),
+                            );
+                          }),
+                          _tile(Icons.info_outline, "About App", () {
+                            launchUrl(
+                              Uri.parse("https://ieltsabout.vercel.app/"),
+                            );
+                          }),
                         ],
                       ),
                     ),
@@ -202,58 +192,103 @@ class _ProfileState extends State<Profile> {
                     const SizedBox(height: 20),
 
                     /// 🚪 LOGOUT
-                    Card(
-                      color: Colors.red.shade50,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: ListTile(
-                        onTap: _logout,
-                        leading: const Icon(Icons.logout, color: Colors.red),
-                        title: const Text(
-                          "Logout",
-                          style: TextStyle(
-                            color: Colors.red,
-                            fontWeight: FontWeight.bold,
+                    GestureDetector(
+                      onTap: _logout,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          color: Colors.red,
+                        ),
+                        child: const Center(
+                          child: Text(
+                            "Logout",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
                     ),
-
-                    const SizedBox(height: 30),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     });
   }
 
-  /// 🔹 INPUT FIELD
-  Widget _buildField({
-    required TextEditingController controller,
-    required String label,
-    bool enabled = true,
-    TextInputType keyboardType = TextInputType.text,
-  }) {
-    return TextField(
-      controller: controller,
-      enabled: enabled,
-      keyboardType: keyboardType,
-      decoration: InputDecoration(
-        labelText: label,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+  /// ✨ GLASS CARD
+  Widget _glassCard({required Widget child}) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.7),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: child,
+        ),
       ),
     );
   }
 
-  /// 🔹 LIST TILE
+  /// 🔹 FIELD
+  Widget _buildField(controller, label, enabled) {
+    return TextField(
+      controller: controller,
+      enabled: enabled,
+      decoration: InputDecoration(
+        labelText: label,
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+      ),
+    );
+  }
+
+  /// 🔵 PRIMARY BUTTON
+  Widget _primaryButton(String text, VoidCallback onTap) {
+    return ElevatedButton(
+      onPressed: isSaving ? null : onTap,
+      style: ElevatedButton.styleFrom(
+        minimumSize: const Size(double.infinity, 50),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        backgroundColor: Colors.black,
+      ),
+      child: isSaving
+          ? const CircularProgressIndicator(color: Colors.white)
+          : Text(text),
+    );
+  }
+
+  /// ⚪ OUTLINE BUTTON
+  Widget _outlineButton(String text, VoidCallback onTap) {
+    return OutlinedButton(
+      onPressed: onTap,
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(double.infinity, 50),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+      child: Text(text),
+    );
+  }
+
+  /// 🔹 TILE
   Widget _tile(IconData icon, String title, VoidCallback onTap) {
     return ListTile(
       onTap: onTap,
-      leading: Icon(icon, color: Colors.blue),
+      leading: Icon(icon),
       title: Text(title),
       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
     );
