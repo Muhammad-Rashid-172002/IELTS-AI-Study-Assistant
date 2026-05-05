@@ -1,56 +1,56 @@
-
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_gemini/flutter_gemini.dart';
 
 class AIService {
   Map<String, dynamic> _safeJson(String raw) {
-  try {
-    return jsonDecode(raw);
-  } catch (_) {
-    return {};
-  }
-}
-  final gemini = Gemini.instance;
-
-  // Clean latex / symbols
-String _clean(String s) {
-  return s
-      .replaceAll("\$", "")
-      .replaceAll("\\", "")
-      .replaceAll("```json", "")
-      .replaceAll("```", "")
-      .trim();
-}
-
-// UNIVERSAL SAFE CALL WITH RETRY (fixes 429)
-Future<T> _safeCall<T>(Future<T> Function() fn) async {
-  int attempts = 0;
-
-  while (attempts < 5) {
     try {
-      return await fn().timeout(Duration(seconds: 20));
-    } catch (e) {
-      final error = e.toString();
-
-      if (error.contains("429")) {
-        attempts++;
-        await Future.delayed(Duration(seconds: attempts * 2));
-        continue;
-      }
-
-      rethrow;
+      return jsonDecode(raw);
+    } catch (_) {
+      return {};
     }
   }
 
-  throw Exception("Server busy. Try again.");
-}
+  final gemini = Gemini.instance;
 
-// ---------------- TEXT SUMMARIZER ----------------
-Future<String> summarizeText(
-  String text, {
-  String length = "Medium",
-  bool bullets = false,
+  // Clean latex / symbols
+  String _clean(String s) {
+    return s
+        .replaceAll("\$", "")
+        .replaceAll("\\", "")
+        .replaceAll("```json", "")
+        .replaceAll("```", "")
+        .trim();
+  }
+
+  // UNIVERSAL SAFE CALL WITH RETRY (fixes 429)
+  Future<T> _safeCall<T>(Future<T> Function() fn) async {
+    int attempts = 0;
+
+    while (attempts < 5) {
+      try {
+        return await fn().timeout(Duration(seconds: 20));
+      } catch (e) {
+        final error = e.toString();
+
+        if (error.contains("429")) {
+          attempts++;
+          await Future.delayed(Duration(seconds: attempts * 2));
+          continue;
+        }
+
+        rethrow;
+      }
+    }
+
+    throw Exception("Server busy. Try again.");
+  }
+
+  // ---------------- TEXT SUMMARIZER ----------------
+  Future<String> summarizeText(
+    String text, {
+    String length = "Medium",
+    bool bullets = false,
   }) async {
     final prompt =
         """
@@ -166,10 +166,9 @@ $text
   }
 
   // ---------------- READING QUESTIONS GENERATOR ----------------
-  Future<Map<String, dynamic>> generateReadingQuestions(
-  String passage,
-) async {
-  final prompt = """
+  Future<Map<String, dynamic>> generateReadingQuestions(String passage) async {
+    final prompt =
+        """
 You are an IELTS Reading examiner.
 
 Create:
@@ -198,17 +197,18 @@ PASSAGE:
 $passage
 """;
 
-  final res = await _safeCall(() => gemini.text(prompt));
-  return _safeJson(res?.output ?? "{}");
-}
+    final res = await _safeCall(() => gemini.text(prompt));
+    return _safeJson(res?.output ?? "{}");
+  }
 
-// ---------------- reading 
-Future<String> checkReadingAnswer(
-  String question,
-  String userAnswer,
-  String correctAnswer,
-) async {
-  final prompt = """
+  // ---------------- reading
+  Future<String> checkReadingAnswer(
+    String question,
+    String userAnswer,
+    String correctAnswer,
+  ) async {
+    final prompt =
+        """
 Check the user's answer.
 
 Question: $question
@@ -222,17 +222,18 @@ Rules:
 - No symbols
 """;
 
-  final res = await _safeCall(() => gemini.text(prompt));
-  return _clean(res?.output ?? "No explanation.");
-}
+    final res = await _safeCall(() => gemini.text(prompt));
+    return _clean(res?.output ?? "No explanation.");
+  }
 
-// Writing Evaluation (Band Score)
+  // Writing Evaluation (Band Score)
 
-Future<Map<String, dynamic>> evaluateWriting(
-  String text,
-  String taskType,
-) async {
-  final prompt = """
+  Future<Map<String, dynamic>> evaluateWriting(
+    String text,
+    String taskType,
+  ) async {
+    final prompt =
+        """
 You are a certified IELTS Writing Examiner.
 
 Strictly evaluate this essay using official IELTS band descriptors.
@@ -260,12 +261,14 @@ Essay:
 $text
 """;
 
-  final res = await _safeCall(() => gemini.text(prompt));
-  return _safeJson(res?.output ?? "{}");
-}
-// Writing Ideas Generator
-Future<String> generateWritingIdeas(String topic) async {
-  final prompt = """
+    final res = await _safeCall(() => gemini.text(prompt));
+    return _safeJson(res?.output ?? "{}");
+  }
+
+  // Writing Ideas Generator
+  Future<String> generateWritingIdeas(String topic) async {
+    final prompt =
+        """
 Give ideas for IELTS essay.
 
 Topic:
@@ -278,12 +281,14 @@ Provide:
 Simple English only.
 """;
 
-  final res = await _safeCall(() => gemini.text(prompt));
-  return _clean(res?.output ?? "No ideas.");
-}
-//Improve Writing
-Future<String> improveWriting(String text) async {
-  final prompt = """
+    final res = await _safeCall(() => gemini.text(prompt));
+    return _clean(res?.output ?? "No ideas.");
+  }
+
+  //Improve Writing
+  Future<String> improveWriting(String text) async {
+    final prompt =
+        """
 Improve this IELTS essay.
 
 Rules:
@@ -296,12 +301,12 @@ Essay:
 $text
 """;
 
-  final res = await _safeCall(() => gemini.text(prompt));
-  return _clean(res?.output ?? "No improvement.");
-}
+    final res = await _safeCall(() => gemini.text(prompt));
+    return _clean(res?.output ?? "No improvement.");
+  }
 
-Future<Map<String, dynamic>> generateReadingTest() async {
-  final prompt = """
+  Future<Map<String, dynamic>> generateReadingTest() async {
+    final prompt = """
 You are an IELTS Reading examiner.
 
 Generate a reading test.
@@ -326,17 +331,19 @@ Rules:
 - No explanation
 """;
 
-  final res = await _safeCall(() => gemini.text(prompt));
+    final res = await _safeCall(() => gemini.text(prompt));
 
-  try {
-    return jsonDecode(res?.output ?? "{}");
-  } catch (e) {
-    return {};
+    try {
+      return jsonDecode(res?.output ?? "{}");
+    } catch (e) {
+      return {};
+    }
   }
-}
-//. 
-Future<Map<String, dynamic>> generateVocabulary(String topic) async {
-  final prompt = """
+
+  //.
+  Future<Map<String, dynamic>> generateVocabulary(String topic) async {
+    final prompt =
+        """
 Generate IELTS vocabulary words for topic: $topic
 
 Return ONLY JSON:
@@ -358,16 +365,18 @@ Rules:
 - no extra text
 """;
 
-  final res = await _safeCall(() => gemini.text(prompt));
+    final res = await _safeCall(() => gemini.text(prompt));
 
-  try {
-    return jsonDecode(res?.output ?? "{}");
-  } catch (e) {
-    return {};
+    try {
+      return jsonDecode(res?.output ?? "{}");
+    } catch (e) {
+      return {};
+    }
   }
-}
-Future<String> generateWritingTopic(String taskType) async {
-  final prompt = """
+
+  Future<String> generateWritingTopic(String taskType) async {
+    final prompt =
+        """
 You are an IELTS examiner.
 
 Generate ONE IELTS Writing Task $taskType topic.
@@ -379,8 +388,159 @@ Rules:
 - Only topic text
 """;
 
-  final res = await _safeCall(() => gemini.text(prompt));
-  return _clean(res?.output ?? "Failed to load topic");
+    final res = await _safeCall(() => gemini.text(prompt));
+    return _clean(res?.output ?? "Failed to load topic");
+  }
+
+  Future<Map<String, dynamic>> generateSpeakingTopic() async {
+    final prompt = """
+You are an IELTS Speaking examiner.
+
+Generate ONE IELTS Speaking Part 2 cue card.
+
+Return ONLY JSON:
+
+{
+  "topic": "",
+  "points": [
+    "",
+    "",
+    "",
+    ""
+  ]
 }
 
+Rules:
+- Real IELTS style
+- Simple English
+- No explanation
+""";
+
+    final res = await _safeCall(() => gemini.text(prompt));
+    return _safeJson(res?.output ?? "{}");
+  }
+
+  Future<Map<String, dynamic>> evaluateSpeaking(
+    String transcript,
+    int duration,
+  ) async {
+    final prompt =
+        """
+You are a certified IELTS Speaking Examiner.
+
+Evaluate the candidate based on official IELTS criteria:
+
+- Fluency and Coherence
+- Lexical Resource
+- Grammatical Range and Accuracy
+- Pronunciation
+
+Give a realistic band score (0–9).
+
+Return ONLY JSON:
+
+{
+  "band": "",
+  "fluency": "",
+  "lexical": "",
+  "grammar": "",
+  "pronunciation": "",
+  "improvement": ""
+}
+
+Rules:
+- Be strict
+- No symbols
+- Simple English
+- Short feedback
+
+Transcript:
+$transcript
+
+Speaking Duration: $duration seconds
+""";
+
+    final res = await _safeCall(() => gemini.text(prompt));
+    return _safeJson(res?.output ?? "{}");
+  }
+
+  Future<List<String>> generateFollowUpQuestions(String topic) async {
+    final prompt =
+        """
+You are an IELTS examiner.
+
+Generate 3 Part 3 follow-up questions based on this topic:
+
+$topic
+
+Return ONLY JSON:
+
+{
+  "questions": ["", "", ""]
+}
+""";
+
+    final res = await _safeCall(() => gemini.text(prompt));
+    final data = _safeJson(res?.output ?? "{}");
+
+    return List<String>.from(data["questions"] ?? []);
+  }
+
+  // ---------------- LISTENING TEST GENERATOR ----------------
+  Future<String> generateListeningTest() async {
+    final prompt = """
+You are an IELTS Listening examiner.
+
+Generate a realistic IELTS Listening Section 1 test.
+
+Requirements:
+- 2 speakers (Customer and Receptionist)
+- Natural conversation (include names, dates, numbers)
+- Simple English
+- Around 120-150 words
+
+Format EXACTLY like this:
+
+TRANSCRIPT:
+Customer: ...
+Receptionist: ...
+
+QUESTIONS:
+1. What is the main purpose of the call?
+A) ...
+B) ...
+C) ...
+D) ...
+ANSWER: A
+
+2. Where does the receptionist work?
+A) ...
+B) ...
+C) ...
+D) ...
+ANSWER: B
+
+3. What time is the meeting?
+A) ...
+B) ...
+C) ...
+D) ...
+ANSWER: C
+
+4. How many people will attend?
+A) ...
+B) ...
+C) ...
+D) ...
+ANSWER: D
+
+Rules:
+- No JSON
+- No explanation
+- Only this format
+""";
+
+    final res = await _safeCall(() => gemini.text(prompt));
+    return _clean(res?.output ?? "Failed to generate listening test.");
+  }
 }

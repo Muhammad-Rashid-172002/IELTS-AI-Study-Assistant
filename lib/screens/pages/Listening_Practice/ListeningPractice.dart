@@ -1,29 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:fyproject/controller/feedback_controller/feedback_controller.dart';
+import 'package:fyproject/screens/widgets/botton/round_botton.dart';
 import 'package:get/get.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
+import 'package:fyproject/controller/feedback_controller/feedback_controller.dart';
 
 class ListeningPractice extends StatefulWidget {
   const ListeningPractice({super.key});
 
   @override
-  State<ListeningPractice> createState() =>
-      _ListeningPracticeState();
+  State<ListeningPractice> createState() => _ListeningPracticeState();
 }
 
-class _ListeningPracticeState
-    extends State<ListeningPractice> {
-  final IELTSController ieltsController =
-      Get.put(IELTSController());
-
+class _ListeningPracticeState extends State<ListeningPractice> {
+  final IELTSController ieltsController = Get.put(IELTSController());
   final FlutterTts flutterTts = FlutterTts();
 
-  String transcript = "";
   String audioScript = "";
-
   List<Map<String, dynamic>> questions = [];
   List<int?> selectedAnswers = [];
 
@@ -33,42 +28,21 @@ class _ListeningPracticeState
 
   int score = 0;
 
-  // =====================================================
-  // GENERATE LISTENING TEST
-  // =====================================================
+  @override
+  void initState() {
+    super.initState();
+
+    flutterTts.setCompletionHandler(() {
+      setState(() => isPlaying = false);
+    });
+  }
+
+  // ================= GENERATE =================
   Future<void> generateListeningTest() async {
     ieltsController.isLoading.value = true;
 
     try {
-      final prompt = """
-Generate a real IELTS Listening Practice Test.
-
-Format exactly like this:
-
-TRANSCRIPT:
-<short listening conversation transcript>
-
-QUESTIONS:
-1. Question text
-A) Option A
-B) Option B
-C) Option C
-D) Option D
-ANSWER: A
-
-2. Question text
-A) Option A
-B) Option B
-C) Option C
-D) Option D
-ANSWER: B
-""";
-
-      final result = await ieltsController.api.feedback(
-        prompt,
-        "listening",
-      );
-
+      final result = await ieltsController.api.generateListeningTest();
       parseListeningResponse(result);
 
       setState(() {
@@ -77,18 +51,13 @@ ANSWER: B
         score = 0;
       });
     } catch (e) {
-      Get.snackbar(
-        "Error",
-        "Failed to generate listening test",
-      );
+      Get.snackbar("Error", "Failed to generate test");
     }
 
     ieltsController.isLoading.value = false;
   }
 
-  // =====================================================
-  // PARSE AI RESPONSE
-  // =====================================================
+  // ================= PARSE =================
   void parseListeningResponse(String response) {
     questions.clear();
     selectedAnswers.clear();
@@ -96,24 +65,18 @@ ANSWER: B
     final parts = response.split("QUESTIONS:");
 
     if (parts.length < 2) {
-      audioScript = "Failed to generate transcript.";
+      audioScript = "Failed transcript.";
       return;
     }
 
-    audioScript =
-        parts[0].replaceFirst("TRANSCRIPT:", "").trim();
+    audioScript = parts[0].replaceFirst("TRANSCRIPT:", "").trim();
 
-    final questionPart = parts[1].trim();
-
-    final blocks =
-        questionPart.split(RegExp(r'\n(?=\d+\.)'));
+    final blocks = parts[1].trim().split(RegExp(r'\n(?=\d+\.)'));
 
     for (var block in blocks) {
       final lines = block.trim().split("\n");
 
       if (lines.length >= 6) {
-        String question = lines[0];
-
         List<String> options = [
           lines[1].replaceFirst("A) ", ""),
           lines[2].replaceFirst("B) ", ""),
@@ -121,14 +84,11 @@ ANSWER: B
           lines[4].replaceFirst("D) ", ""),
         ];
 
-        String correct =
-            lines[5].replaceFirst("ANSWER:", "").trim();
-
-        int correctIndex =
-            ["A", "B", "C", "D"].indexOf(correct);
+        String correct = lines[5].replaceFirst("ANSWER:", "").trim();
+        int correctIndex = ["A", "B", "C", "D"].indexOf(correct);
 
         questions.add({
-          "question": question,
+          "question": lines[0],
           "options": options,
           "correct": correctIndex,
         });
@@ -138,63 +98,57 @@ ANSWER: B
     }
   }
 
-  // =====================================================
-  // PLAY AUDIO
-  // =====================================================
-  Future<void> playAudioScript() async {
+  // ================= AUDIO =================
+  Future<void> playAudio() async {
     if (audioScript.isEmpty) return;
 
-    setState(() => isPlaying = true);
+    await flutterTts.stop();
 
-    await flutterTts.setLanguage("en-US");
+    await flutterTts.setLanguage("en-GB");
     await flutterTts.setSpeechRate(0.45);
-    await flutterTts.speak(audioScript);
 
-    flutterTts.setCompletionHandler(() {
-      setState(() => isPlaying = false);
-    });
+    setState(() => isPlaying = true);
+    await flutterTts.speak(audioScript);
   }
 
-  // =====================================================
-  // STOP AUDIO
-  // =====================================================
   Future<void> stopAudio() async {
     await flutterTts.stop();
     setState(() => isPlaying = false);
   }
 
-  // =====================================================
-  // SUBMIT ANSWERS + SAVE TO FIREBASE
-  // =====================================================
+  // ================= SUBMIT =================
   Future<void> submitAnswers() async {
     score = 0;
-
     List<int> correctAnswers = [];
 
     for (int i = 0; i < questions.length; i++) {
       correctAnswers.add(questions[i]["correct"]);
 
-      if (selectedAnswers[i] ==
-          questions[i]["correct"]) {
+      if (selectedAnswers[i] == questions[i]["correct"]) {
         score++;
       }
     }
 
-    setState(() {
-      showResult = true;
-    });
-
+    setState(() => showResult = true);
     await saveResultToFirebase(correctAnswers);
   }
 
-  // =====================================================
-  // SAVE RESULT INTO USERS COLLECTION
-  // users/{uid}/listening_results/{doc}
-  // =====================================================
-  Future<void> saveResultToFirebase(
-      List<int> correctAnswers) async {
-    final user = FirebaseAuth.instance.currentUser;
+  double calculateBandScore() {
+    if (questions.isEmpty) return 0;
 
+    double percent = score / questions.length;
+
+    // IELTS approx mapping
+    if (percent >= 0.9) return 9;
+    if (percent >= 0.8) return 8;
+    if (percent >= 0.7) return 7;
+    if (percent >= 0.6) return 6;
+    if (percent >= 0.5) return 5;
+    return 4;
+  }
+
+  Future<void> saveResultToFirebase(List<int> correctAnswers) async {
+    final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
     await FirebaseFirestore.instance
@@ -203,438 +157,248 @@ ANSWER: B
         .collection("listening_results")
         .add({
       "score": score,
-      "totalQuestions": questions.length,
-      "selectedAnswers":
-          selectedAnswers.map((e) => e ?? -1).toList(),
-      "correctAnswers": correctAnswers,
-      "audioScript": audioScript,
+      "band": calculateBandScore(),
+      "total": questions.length,
       "timestamp": FieldValue.serverTimestamp(),
-      "type": "listening",
     });
   }
 
-  // =====================================================
-  // FETCH PROGRESS FROM FIREBASE
-  // =====================================================
-  Future<List<Map<String, dynamic>>>
-      fetchListeningProgress() async {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) return [];
-
-    final snapshot = await FirebaseFirestore.instance
-        .collection("users")
-        .doc(user.uid)
-        .collection("listening_results")
-        .orderBy("timestamp", descending: true)
-        .get();
-
-    return snapshot.docs
-        .map((doc) => doc.data())
-        .toList();
-  }
-
-  // =====================================================
-  // DISPOSE
-  // =====================================================
-  @override
-  void dispose() {
-    flutterTts.stop();
-    super.dispose();
-  }
-
-  // =====================================================
-  // UI
-  // =====================================================
+  // ================= UI =================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F5F9),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF2D5BFF),
-        elevation: 0,
-        title: const Text("AI Listening Practice"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.bar_chart),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      const ListeningProgressScreen(),
-                ),
-              );
-            },
-          )
-        ],
-      ),
-      body: SingleChildScrollView(
+      backgroundColor: const Color(0xffF4F6FA),
+      body: SafeArea(
         child: Column(
           children: [
-            _audioCard(),
-            const SizedBox(height: 20),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  _generateButton(),
-                  const SizedBox(height: 20),
-                  if (generated) _questionsSection(),
-                  if (generated)
-                    const SizedBox(height: 20),
-                  if (generated) _submitButton(),
-                  if (showResult) _resultCard(),
-                ],
+            _header(context),
+            const SizedBox(height: 10),
+
+            if (!generated)
+              Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: RoundButton(title: "Generate Test", onPress: generateListeningTest),
               ),
-            )
+
+            if (generated)
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      _audioCard(),
+                      _progress(),
+                      _questions(),
+                      const SizedBox(height: 20),
+                      _submitButton(),
+                      if (showResult) _resultCard(),
+                    ],
+                  ),
+                ),
+              ),
           ],
         ),
       ),
     );
   }
 
-  // =====================================================
-  // AUDIO CARD
-  // =====================================================
-  Widget _audioCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Color(0xFF2D5BFF),
-            Color(0xFF4A79F6),
-          ],
-        ),
-        borderRadius: BorderRadius.vertical(
-          bottom: Radius.circular(24),
-        ),
+  // ================= HEADER =================
+Widget _header(BuildContext context) {
+  return Container(
+    padding: const EdgeInsets.all(20),
+    decoration: const BoxDecoration(
+      gradient: LinearGradient(
+        colors: [Color(0xff2F6BFF), Color(0xff7B2CFF)],
       ),
-      child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "Section 1 - AI Generated Listening",
-            style: TextStyle(
-              color: Colors.white70,
+      borderRadius: BorderRadius.vertical(
+        bottom: Radius.circular(30),
+      ),
+    ),
+    child: Row(
+      children: [
+        // 🔥 CUSTOM BACK BUTTON
+        GestureDetector(
+          onTap: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.arrow_back,
+              color: Colors.white,
+              size: 20,
             ),
           ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color:
-                      Colors.white.withOpacity(0.2),
-                  borderRadius:
-                      BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.volume_up,
-                  color: Colors.white,
-                ),
+        ),
+
+        const SizedBox(width: 12),
+
+        // 🔥 TITLE
+        const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Listening Practice",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
               ),
-              const SizedBox(width: 12),
-              const Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "AI Audio Track",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    "Real AI Generated Audio",
-                    style: TextStyle(
-                      color: Colors.white70,
-                    ),
-                  ),
-                ],
-              )
+            ),
+            Text(
+              "Section 1 - Social Context",
+              style: TextStyle(color: Colors.white70),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+  // ================= AUDIO CARD =================
+  Widget _audioCard() {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xff4A7BFF), Color(0xff6A5BFF)],
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.volume_up, color: Colors.white),
+              SizedBox(width: 10),
+              Text("Audio Track 1",
+                  style: TextStyle(color: Colors.white, fontSize: 18)),
             ],
           ),
           const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment:
-                MainAxisAlignment.center,
-            children: [
-              GestureDetector(
-                onTap: isPlaying
-                    ? stopAudio
-                    : playAudioScript,
-                child: CircleAvatar(
-                  radius: 28,
-                  backgroundColor:
-                      Colors.white,
-                  child: Icon(
-                    isPlaying
-                        ? Icons.pause
-                        : Icons.play_arrow,
-                    color: Colors.blue,
-                  ),
-                ),
-              ),
-            ],
-          ),
+          IconButton(
+            icon: Icon(
+              isPlaying ? Icons.pause_circle : Icons.play_circle,
+              color: Colors.white,
+              size: 50,
+            ),
+            onPressed: isPlaying ? stopAudio : playAudio,
+          )
         ],
       ),
     );
   }
 
-  // =====================================================
-  // GENERATE BUTTON
-  // =====================================================
-  Widget _generateButton() {
-    return Obx(() {
-      return Container(
-        height: 55,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          borderRadius:
-              BorderRadius.circular(14),
-          gradient: const LinearGradient(
-            colors: [
-              Color(0xFF6A5AE0),
-              Color(0xFF9D6BFF),
+  // ================= PROGRESS =================
+  Widget _progress() {
+    int answered =
+        selectedAnswers.where((e) => e != null).length;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text("Questions",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Text("$answered of ${questions.length} answered"),
+        ],
+      ),
+    );
+  }
+
+  // ================= QUESTIONS =================
+  Widget _questions() {
+    return Column(
+      children: List.generate(questions.length, (i) {
+        final q = questions[i];
+
+        return Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Colors.green),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(q["question"],
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+
+              ...List.generate(4, (index) {
+                return RadioListTile<int>(
+                  value: index,
+                  groupValue: selectedAnswers[i],
+                  onChanged: (v) {
+                    setState(() {
+                      selectedAnswers[i] = v;
+                    });
+                  },
+                  title: Text(q["options"][index]),
+                );
+              })
             ],
           ),
-        ),
-        child: TextButton(
-          onPressed:
-              ieltsController.isLoading.value
-                  ? null
-                  : generateListeningTest,
-          child: Text(
-            ieltsController.isLoading.value
-                ? "Generating..."
-                : "Generate AI Listening Test",
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight:
-                  FontWeight.bold,
-            ),
-          ),
-        ),
-      );
-    });
-  }
-
-  // =====================================================
-  // QUESTIONS
-  // =====================================================
-  Widget _questionsSection() {
-    return Column(
-      children: List.generate(
-        questions.length,
-        (index) {
-          final q = questions[index];
-
-          return Padding(
-            padding:
-                const EdgeInsets.only(bottom: 16),
-            child: _questionTile(
-              number: index + 1,
-              title: q["question"],
-              options:
-                  List<String>.from(q["options"]),
-              groupValue:
-                  selectedAnswers[index],
-              onChanged: (v) {
-                setState(() {
-                  selectedAnswers[index] = v;
-                });
-              },
-            ),
-          );
-        },
-      ),
+        );
+      }),
     );
   }
 
-  // =====================================================
-  // SUBMIT BUTTON
-  // =====================================================
+  // ================= SUBMIT =================
   Widget _submitButton() {
-    return Container(
-      height: 55,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        borderRadius:
-            BorderRadius.circular(14),
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFF6A5AE0),
-            Color(0xFF9D6BFF),
-          ],
-        ),
-      ),
-      child: TextButton(
-        onPressed: submitAnswers,
-        child: const Text(
-          "Submit Answers",
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight:
-                FontWeight.bold,
+    return GestureDetector(
+      onTap: submitAnswers,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 20),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xff2F6BFF), Color(0xffB721FF)],
           ),
+          borderRadius: BorderRadius.circular(30),
+        ),
+        child: const Center(
+          child: Text("Submit Answers",
+              style: TextStyle(color: Colors.white, fontSize: 16)),
         ),
       ),
     );
   }
 
-  // =====================================================
-  // RESULT CARD
-  // =====================================================
+  // ================= RESULT =================
   Widget _resultCard() {
-    return Container(
-      margin: const EdgeInsets.only(top: 20),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius:
-            BorderRadius.circular(16),
-      ),
-      child: Text(
-        "Score: $score / ${questions.length}",
-        style: const TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
+    double band = calculateBandScore();
 
-  // =====================================================
-  // QUESTION TILE
-  // =====================================================
-  Widget _questionTile({
-    required int number,
-    required String title,
-    required List<String> options,
-    required int? groupValue,
-    required Function(int?) onChanged,
-  }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius:
-            BorderRadius.circular(16),
-        border:
-            Border.all(color: Colors.green),
+        color: Colors.black,
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 14,
-                backgroundColor:
-                    Colors.green,
-                child: Text(
-                  "$number",
-                  style: const TextStyle(
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(child: Text(title)),
-            ],
-          ),
+          const Text("Your Band Score",
+              style: TextStyle(color: Colors.white70)),
           const SizedBox(height: 10),
-          ...List.generate(
-            options.length,
-            (index) {
-              return RadioListTile<int>(
-                value: index,
-                groupValue: groupValue,
-                onChanged: onChanged,
-                title: Text(options[index]),
-              );
-            },
-          ),
+          Text(band.toString(),
+              style: const TextStyle(
+                  fontSize: 40,
+                  color: Colors.greenAccent,
+                  fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          Text("Score: $score / ${questions.length}",
+              style: const TextStyle(color: Colors.white)),
         ],
-      ),
-    );
-  }
-}
-
-// =====================================================
-// PROGRESS SCREEN
-// =====================================================
-class ListeningProgressScreen
-    extends StatelessWidget {
-  const ListeningProgressScreen({super.key});
-
-  Future<List<Map<String, dynamic>>>
-      getProgress() async {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) return [];
-
-    final snapshot = await FirebaseFirestore.instance
-        .collection("users")
-        .doc(user.uid)
-        .collection("listening_results")
-        .orderBy("timestamp", descending: true)
-        .get();
-
-    return snapshot.docs
-        .map((e) => e.data())
-        .toList();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar:
-          AppBar(title: const Text("Listening Progress")),
-      body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: getProgress(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
-
-          final data = snapshot.data!;
-
-          if (data.isEmpty) {
-            return const Center(
-              child: Text("No progress found"),
-            );
-          }
-
-          return ListView.builder(
-            itemCount: data.length,
-            itemBuilder: (context, index) {
-              final item = data[index];
-
-              return Card(
-                child: ListTile(
-                  title: Text(
-                    "Score: ${item["score"]} / ${item["totalQuestions"]}",
-                  ),
-                  subtitle: Text(
-                    "Type: ${item["type"]}",
-                  ),
-                ),
-              );
-            },
-          );
-        },
       ),
     );
   }
