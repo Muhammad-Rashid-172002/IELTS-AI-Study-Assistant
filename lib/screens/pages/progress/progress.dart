@@ -565,7 +565,7 @@ BarChartGroupData _barGradient(int x, double y) {
     final speakingSnap = await firestore
         .collection("users")
         .doc(uid)
-        .collection("speaking_history")
+        .collection("speaking")
         .get();
 
     double listening = _avgScore(listeningSnap.docs);

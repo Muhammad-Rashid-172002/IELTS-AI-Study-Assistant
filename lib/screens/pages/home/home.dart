@@ -84,16 +84,22 @@ class _HomeState extends State<Home> {
                             tag: "AI",
                             icon: Icons.mic,
                             onTap: () {
-                              Get.snackbar(
-                                "Coming Soon ",
-                                "This feature will be available soon",
-                                snackPosition: SnackPosition.TOP,
-                                backgroundColor: Colors.black87,
-                                colorText: Colors.white,
-                                margin: const EdgeInsets.all(10),
-                                borderRadius: 10,
-                                duration: const Duration(seconds: 2),
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const ListeningPractice(),
+                                ),
                               );
+                              // Get.snackbar(
+                              //   "Coming Soon ",
+                              //   "This feature will be available soon",
+                              //   snackPosition: SnackPosition.TOP,
+                              //   backgroundColor: Colors.black87,
+                              //   colorText: Colors.white,
+                              //   margin: const EdgeInsets.all(10),
+                              //   borderRadius: 10,
+                              //   duration: const Duration(seconds: 2),
+                              // );
                             },
                           ),
                         ),
@@ -148,22 +154,22 @@ class _HomeState extends State<Home> {
                             tag: "AI",
                             icon: Icons.mic,
                             onTap: () {
-                              // Navigator.push(
-                              //   context,
-                              //   MaterialPageRoute(
-                              //     builder: (_) => const SpeakingPractice(),
-                              //   ),
-                              // );
-                              Get.snackbar(
-                                "Coming Soon ",
-                                "This feature will be available soon",
-                                snackPosition: SnackPosition.TOP,
-                                backgroundColor: Colors.black87,
-                                colorText: Colors.white,
-                                margin: const EdgeInsets.all(10),
-                                borderRadius: 10,
-                                duration: const Duration(seconds: 2),
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const SpeakingProUI(),
+                                ),
                               );
+                              // Get.snackbar(
+                              //   "Coming Soon ",
+                              //   "This feature will be available soon",
+                              //   snackPosition: SnackPosition.TOP,
+                              //   backgroundColor: Colors.black87,
+                              //   colorText: Colors.white,
+                              //   margin: const EdgeInsets.all(10),
+                              //   borderRadius: 10,
+                              //   duration: const Duration(seconds: 2),
+                              // );
                             },
                           ),
                         ),

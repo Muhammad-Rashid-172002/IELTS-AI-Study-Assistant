@@ -1,293 +1,551 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:fyproject/services/ai_service.dart';
+import 'package:record/record.dart';
+import 'package:speech_to_text/speech_to_text.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:fyproject/controller/feedback_controller/feedback_controller.dart';
 
-class SpeakingPractice extends StatefulWidget {
-  const SpeakingPractice({super.key});
+class SpeakingProUI extends StatefulWidget {
+  const SpeakingProUI({super.key});
 
   @override
-  State<SpeakingPractice> createState() => _SpeakingPracticeState();
+  State<SpeakingProUI> createState() => _SpeakingProUIState();
 }
 
-class _SpeakingPracticeState extends State<SpeakingPractice> {
-  final IELTSController controller = Get.put(IELTSController());
-  final stt.SpeechToText speech = stt.SpeechToText();
+class _SpeakingProUIState extends State<SpeakingProUI> {
+  final SpeechToText speech = SpeechToText();
+  final FlutterTts tts = FlutterTts();
 
-  bool isListening = false;
+  bool isRecording = false;
   String transcript = "";
-  String aiQuestion = "";
-
-  // TIMER
+  String topic = "Loading topic...";
   int seconds = 0;
   Timer? timer;
 
-  String topic = "Describe your favorite place";
+  List recordings = [];
+  String band = "";
+final AudioRecorder recorder = AudioRecorder();
+String? audioPath;
 
-  // =========================================
-  // 🎯 AI QUESTION
-  // =========================================
-  Future<void> generateQuestion() async {
-    controller.isLoading.value = true;
+  // ======================
+  // 🔥 AI TOPIC GENERATOR
+  // ======================
+  final ai = AIService();
 
-    try {
-      final prompt = """
-You are a professional IELTS Speaking Examiner.
+  Future<void> generateTopic() async {
+    final data = await ai.generateSpeakingTopic();
 
-Generate a REAL IELTS Speaking Part 2 Cue Card.
+    setState(() {
+      topic =
+          "${data["topic"]}\n\n• ${data["points"][0]}\n• ${data["points"][1]}\n• ${data["points"][2]}\n• ${data["points"][3]}";
+    });
 
-Topic: $topic
+    speakQuestion();
+  }
 
-Return EXACT format:
+  // ======================
+  // 🎤 START RECORDING
+  // ======================
+Future<void> startRecording() async {
+  bool speechAvailable = await speech.initialize();
+  bool micPermission = await recorder.hasPermission();
 
-{
- "topic": "...",
- "question": "...",
- "prompts": ["...", "...", "..."]
+  if (!speechAvailable || !micPermission) return;
+
+  setState(() {
+    isRecording = true;
+    seconds = 0;
+    transcript = "";
+  });
+
+  // 🎤 Speech-to-text
+  speech.listen(
+    onResult: (res) {
+      setState(() => transcript = res.recognizedWords);
+    },
+  );
+
+  // 🎧 File path
+  audioPath =
+      '/storage/emulated/0/Download/speaking_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+  // 🎧 Start recording (v6 syntax)
+  await recorder.start(
+    const RecordConfig(
+      encoder: AudioEncoder.aacLc,
+    ),
+    path: audioPath!,
+  );
+
+  // ⏱ Timer
+  timer = Timer.periodic(const Duration(seconds: 1), (t) {
+    setState(() => seconds++);
+  });
 }
-""";
 
-      final result =
-          await controller.api.feedback(prompt, "speaking");
+ // ======================
+  // 🛑 STOP RECORDING
+  // ======================
+Future<void> stopRecording() async {
+  timer?.cancel();
 
-      aiQuestion = result;
-      transcript = "";
+  await speech.stop();
 
-      startPreparationTimer();
-      setState(() {});
-    } catch (e) {
-      Get.snackbar("Error", "AI Question Failed");
-    }
+  final path = await recorder.stop();
 
-    controller.isLoading.value = false;
-  }
+  setState(() {
+    isRecording = false;
+    audioPath = path;
+  });
 
-  // =========================================
-  // 🎤 SPEECH
-  // =========================================
-  void toggleMic() async {
-    if (!isListening) {
-      bool available = await speech.initialize();
-
-      if (available) {
-        setState(() => isListening = true);
-
-        speech.listen(onResult: (res) {
-          setState(() {
-            transcript = res.recognizedWords;
-          });
-        });
-
-        startSpeakingTimer();
-      }
-    } else {
-      speech.stop();
-      setState(() => isListening = false);
-    }
-  }
-
-  // =========================================
-  // ⏱ TIMER
-  // =========================================
-  void startPreparationTimer() {
-    seconds = 60; // 1 min prep
-    timer?.cancel();
-
-    timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (seconds == 0) {
-        t.cancel();
-      } else {
-        setState(() => seconds--);
-      }
-    });
-  }
-
-  void startSpeakingTimer() {
-    seconds = 120; // 2 min speaking
-    timer?.cancel();
-
-    timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (seconds == 0) {
-        t.cancel();
-        speech.stop();
-        setState(() => isListening = false);
-      } else {
-        setState(() => seconds--);
-      }
-    });
-  }
-
-  // =========================================
+  await analyzeSpeaking();
+}
+  // ======================
   // 🤖 AI ANALYSIS
-  // =========================================
-  Future<void> analyze() async {
-    if (transcript.isEmpty) {
-      Get.snackbar("Error", "Speak first");
-      return;
-    }
+  // ======================
+Future<void> analyzeSpeaking() async {
+  final ai = AIService();
 
-    controller.isLoading.value = true;
+  // ✅ TEXT-BASED EVALUATION (fast + stable)
+  final result = await ai.evaluateSpeaking(transcript, seconds);
 
-    try {
-      final prompt = """
-Evaluate IELTS Speaking answer.
+  band = result["band"] ?? "0";
 
-Return JSON:
+  final fluency = result["fluency"] ?? "";
+  final lexical = result["lexical"] ?? "";
+  final grammar = result["grammar"] ?? "";
+  final pronunciation = result["pronunciation"] ?? "";
+  final improvement = result["improvement"] ?? "";
 
-{
- "band": "...",
- "fluency": "...",
- "lexical": "...",
- "grammar": "...",
- "improvement": "..."
+  await saveToFirebaseExtra(
+    fluency,
+    lexical,
+    grammar,
+    pronunciation,
+    improvement,
+  );
+
+  loadRecordings();
 }
-
-Answer:
-$transcript
-""";
-
-      final result =
-          await controller.api.feedback(prompt, "speaking_eval");
-
-      controller.speakingFeedback.value = result;
-
-      await saveToFirebase(result);
-    } catch (e) {
-      Get.snackbar("Error", "AI Analysis Failed");
-    }
-
-    controller.isLoading.value = false;
-  }
-
-  // =========================================
-  // 🔥 FIREBASE SAVE
-  // =========================================
-  Future<void> saveToFirebase(String result) async {
+  Future<void> saveToFirebaseExtra(
+    String fluency,
+    String lexical,
+    String grammar,
+    String pronunciation,
+    String improvement,
+  ) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
     await FirebaseFirestore.instance
         .collection("users")
         .doc(user.uid)
-        .collection("speaking_history")
+        .collection("speaking")
         .add({
-      "topic": topic,
-      "answer": transcript,
-      "feedback": result,
-      "createdAt": FieldValue.serverTimestamp(),
+          "topic": topic,
+          "transcript": transcript,
+          "band": band,
+          "duration": seconds,
+          "fluency": fluency,
+          "lexical": lexical,
+          "grammar": grammar,
+          "pronunciation": pronunciation,
+          "improvement": improvement,
+          "createdAt": Timestamp.now(),
+        });
+  }
+
+  // ======================
+  // 🔥 FIREBASE SAVE
+  // ======================
+  Future<void> saveToFirebase() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    await FirebaseFirestore.instance
+        .collection("users")
+        .doc(user.uid)
+        .collection("speaking")
+        .add({
+          "topic": topic,
+          "transcript": transcript,
+          "band": band,
+          "duration": seconds,
+          "createdAt": Timestamp.now(),
+        });
+  }
+
+  // ======================
+  // 📂 LOAD RECORDINGS
+  // ======================
+  void loadRecordings() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final data = await FirebaseFirestore.instance
+        .collection("users")
+        .doc(user.uid)
+        .collection("speaking")
+        .orderBy("createdAt", descending: true)
+        .get();
+
+    setState(() {
+      recordings = data.docs;
     });
   }
 
-  // =========================================
+  // ======================
+  // 🔊 SPEAK QUESTION
+  // ======================
+  Future speakQuestion() async {
+    await tts.speak(topic);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    generateTopic();
+    loadRecordings();
+  }
+
+  // ======================
   // UI
-  // =========================================
+  // ======================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FB),
-      appBar: AppBar(
-        title: const Text("IELTS Speaking PRO"),
-        backgroundColor: Colors.deepPurple,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(18),
-        child: Column(
+      backgroundColor: const Color(0xFFF3F6FB),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
           children: [
-            _topicDropdown(),
-            const SizedBox(height: 16),
-            _generateBtn(),
+            _header(),
             const SizedBox(height: 20),
-            if (aiQuestion.isNotEmpty) _questionCard(),
+            _topicCard(),
             const SizedBox(height: 20),
-            _timerUI(),
+            _micSection(),
             const SizedBox(height: 20),
-            _micUI(),
+            _recordings(),
             const SizedBox(height: 20),
-            _analyzeBtn(),
-            const SizedBox(height: 20),
-            _resultUI(),
+            _nextButton(),
           ],
         ),
       ),
     );
   }
 
-  // =========================================
-  Widget _topicDropdown() {
-    return DropdownButtonFormField(
-      value: topic,
-      items: [
-        "Describe your favorite place",
-        "Describe a memorable trip",
-        "Describe your hometown"
-      ]
-          .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-          .toList(),
-      onChanged: (v) => setState(() => topic = v!),
-    );
-  }
-
-  Widget _generateBtn() {
-    return ElevatedButton(
-      onPressed: generateQuestion,
-      child: const Text("Generate IELTS Question"),
-    );
-  }
-
-  Widget _questionCard() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Text(aiQuestion),
+  // ======================
+  // HEADER (MATCH IMAGE)
+  // ======================
+Widget _header() {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 25),
+    decoration: BoxDecoration(
+      gradient: const LinearGradient(
+        colors: [Color(0xFF0F9D8A), Color(0xFF0A7C6F)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
       ),
-    );
-  }
-
-  Widget _timerUI() {
-    return Text(
-      "Time Left: $seconds s",
-      style: const TextStyle(
-          fontSize: 18, fontWeight: FontWeight.bold),
-    );
-  }
-
-  Widget _micUI() {
-    return GestureDetector(
-      onTap: toggleMic,
-      child: CircleAvatar(
-        radius: 40,
-        backgroundColor:
-            isListening ? Colors.red : Colors.deepPurple,
-        child: Icon(
-          isListening ? Icons.stop : Icons.mic,
-          color: Colors.white,
+      borderRadius: BorderRadius.circular(28),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.15),
+          blurRadius: 15,
+          offset: const Offset(0, 8),
         ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Top Row
+        Row(
+          children: [
+            GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.arrow_back,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              "Speaking Practice",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 18),
+
+       
+
+     
+
+        Text(
+          "Improve fluency, pronunciation & confidence",
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.75),
+            fontSize: 12,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+  // ======================
+  // TOPIC CARD
+  // ======================
+  Widget _topicCard() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF4F7),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Topic Card",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 10),
+          Text(topic, style: const TextStyle(fontSize: 16)),
+          const SizedBox(height: 10),
+          const Text(
+            "You will have 1 minute to prepare and 2 minutes to speak.",
+            style: TextStyle(color: Colors.grey),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _analyzeBtn() {
-    return ElevatedButton(
-      onPressed: analyze,
-      child: const Text("Analyze Speaking"),
+  // ======================
+  // MIC UI (LIKE IMAGE)
+  // ======================
+  Widget _micSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEAF1F4),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        children: [
+          // 🎤 MIC ICON (JUST VISUAL)
+          CircleAvatar(
+            radius: 55,
+            backgroundColor: isRecording
+                ? Colors.teal.withOpacity(0.3)
+                : Colors.teal,
+            child: const Icon(Icons.mic, size: 50, color: Colors.white),
+          ),
+
+          const SizedBox(height: 15),
+
+          Text(
+            isRecording ? "Recording..." : "Ready to record",
+            style: const TextStyle(fontSize: 16),
+          ),
+
+          const SizedBox(height: 5),
+
+          Text(
+            "$seconds sec",
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          ),
+
+          const SizedBox(height: 20),
+
+          // ✅ START BUTTON
+          if (!isRecording)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: startRecording,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  elevation: 5,
+                ),
+                child: const Text(
+                  "Start Recording",
+                  style: TextStyle(fontSize: 16, color: Colors.white),
+                ),
+              ),
+            ),
+
+          // 🛑 STOP BUTTON
+          if (isRecording)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: stopRecording,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  elevation: 5,
+                ),
+                child: const Text(
+                  "Stop Recording",
+                  style: TextStyle(fontSize: 16, color: Colors.white),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
-  }
+  } // ======================
 
-  Widget _resultUI() {
-    return Obx(() {
-      if (controller.speakingFeedback.value.isEmpty) {
-        return const SizedBox();
-      }
+  // RECORDINGS
+  // ======================
+Widget _recordings() {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text(
+        "Your Recordings",
+        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      ),
+      const SizedBox(height: 10),
 
-      return Card(
-        child: Padding(
+      ...recordings.map((e) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(15),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 6,
+                offset: Offset(0, 3),
+              )
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+
+              // TOP ROW
+              Row(
+                children: [
+                  const Icon(Icons.play_circle_fill,
+                      size: 40, color: Colors.teal),
+                  const SizedBox(width: 10),
+
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "${e['topic'] ?? 'No Topic'}",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold),
+                        ),
+                        Text("${e['duration']} sec"),
+                      ],
+                    ),
+                  ),
+
+                  Chip(
+                    label: Text("Band ${e['band']}"),
+                    backgroundColor: Colors.green.shade100,
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 10),
+
+              // IELTS BREAKDOWN
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  _scoreChip("Fluency", e['fluency']),
+                  _scoreChip("Lexical", e['lexical']),
+                  _scoreChip("Grammar", e['grammar']),
+                  _scoreChip("Pronunciation", e['pronunciation']),
+                ],
+              ),
+
+              const SizedBox(height: 10),
+
+              // IMPROVEMENT
+              if (e['improvement'] != null)
+                Text(
+                  "💡 ${e['improvement']}",
+                  style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 12,
+                  ),
+                ),
+            ],
+          ),
+        );
+      }).toList(),
+    ],
+  );
+}
+Widget _scoreChip(String title, String value) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    decoration: BoxDecoration(
+      color: Colors.teal.withOpacity(0.1),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Text(
+      "$title: $value",
+      style: const TextStyle(fontSize: 12),
+    ),
+  );
+}
+  // ======================
+  // NEXT BUTTON
+  // ======================
+  Widget _nextButton() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0F9D8A), Color(0xFF1E6CE3)],
+        ),
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: ElevatedButton(
+        onPressed: generateTopic,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
           padding: const EdgeInsets.all(16),
-          child: Text(controller.speakingFeedback.value),
         ),
-      );
-    });
+        child: const Text("Next Question", style: TextStyle(fontSize: 16)),
+      ),
+    );
   }
 }
