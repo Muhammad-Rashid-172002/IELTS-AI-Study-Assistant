@@ -263,48 +263,48 @@ class ProgressScreen extends StatelessWidget {
   }
 
   // ================= GRAPH =================
-Widget _chartSection(String title, Widget child) {
-  return Container(
-    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20), // smooth rounded corners
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.05),
-          blurRadius: 20,
-          offset: const Offset(0, 10),
-        ),
-      ],
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF1F2937), // dark text like image
-          ),
-        ),
-        const SizedBox(height: 16),
+// Widget _chartSection(String title, Widget child) {
+//   return Container(
+//     margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+//     padding: const EdgeInsets.all(20),
+//     decoration: BoxDecoration(
+//       color: Colors.white,
+//       borderRadius: BorderRadius.circular(20), // smooth rounded corners
+//       boxShadow: [
+//         BoxShadow(
+//           color: Colors.black.withOpacity(0.05),
+//           blurRadius: 20,
+//           offset: const Offset(0, 10),
+//         ),
+//       ],
+//     ),
+//     child: Column(
+//       crossAxisAlignment: CrossAxisAlignment.start,
+//       children: [
+//         Text(
+//           title,
+//           style: const TextStyle(
+//             fontSize: 20,
+//             fontWeight: FontWeight.w700,
+//             color: Color(0xFF1F2937), // dark text like image
+//           ),
+//         ),
+//         const SizedBox(height: 16),
 
-        // Chart Area with light background
-        Container(
-          height: 220,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF9FAFB), // light grey bg like image
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: child,
-        ),
-      ],
-    ),
-  );
-}
+//         // Chart Area with light background
+//         Container(
+//           height: 220,
+//           padding: const EdgeInsets.all(12),
+//           decoration: BoxDecoration(
+//             color: const Color(0xFFF9FAFB), // light grey bg like image
+//             borderRadius: BorderRadius.circular(16),
+//           ),
+//           child: child,
+//         ),
+//       ],
+//     ),
+//   );
+// }
 
 Widget _moduleComparisonChart(
     double l, double r, double w, double s) {
@@ -442,40 +442,40 @@ BarChartGroupData _barGradient(int x, double y) {
   );
 }
   // ================= COMPARISON =================
-  Widget _comparison(double l, double r, double w, double s) {
-    return Container(
-      height: 250,
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
-      decoration: _box(),
-      child: BarChart(
-        BarChartData(
-          titlesData: FlTitlesData(show: false),
-          borderData: FlBorderData(show: false),
-          barGroups: [
-            _bar(0, l),
-            _bar(1, r),
-            _bar(2, w),
-            _bar(3, s),
-          ],
-        ),
-      ),
-    );
-  }
+  // Widget _comparison(double l, double r, double w, double s) {
+  //   return Container(
+  //     height: 250,
+  //     margin: const EdgeInsets.all(16),
+  //     padding: const EdgeInsets.all(16),
+  //     decoration: _box(),
+  //     child: BarChart(
+  //       BarChartData(
+  //         titlesData: FlTitlesData(show: false),
+  //         borderData: FlBorderData(show: false),
+  //         barGroups: [
+  //           _bar(0, l),
+  //           _bar(1, r),
+  //           _bar(2, w),
+  //           _bar(3, s),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
 
-  BarChartGroupData _bar(int x, double y) {
-    return BarChartGroupData(
-      x: x,
-      barRods: [
-        BarChartRodData(
-          toY: y,
-          width: 18,
-          borderRadius: BorderRadius.circular(6),
-          color: Colors.deepPurple,
-        ),
-      ],
-    );
-  }
+  // BarChartGroupData _bar(int x, double y) {
+  //   return BarChartGroupData(
+  //     x: x,
+  //     barRods: [
+  //       BarChartRodData(
+  //         toY: y,
+  //         width: 18,
+  //         borderRadius: BorderRadius.circular(6),
+  //         color: Colors.deepPurple,
+  //       ),
+  //     ],
+  //   );
+  // }
 
   // ================= INSIGHTS =================
   Widget _insights(double l, double r, double w, double s) {

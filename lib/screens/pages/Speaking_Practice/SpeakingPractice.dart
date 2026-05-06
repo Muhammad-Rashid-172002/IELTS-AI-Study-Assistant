@@ -7,14 +7,14 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-class SpeakingProUI extends StatefulWidget {
-  const SpeakingProUI({super.key});
+class SpeakingPractice extends StatefulWidget {
+  const SpeakingPractice({super.key});
 
   @override
-  State<SpeakingProUI> createState() => _SpeakingProUIState();
+  State<SpeakingPractice> createState() => _SpeakingPracticeState();
 }
 
-class _SpeakingProUIState extends State<SpeakingProUI> {
+class _SpeakingPracticeState extends State<SpeakingPractice> {
   final SpeechToText speech = SpeechToText();
   final FlutterTts tts = FlutterTts();
 
@@ -26,8 +26,8 @@ class _SpeakingProUIState extends State<SpeakingProUI> {
 
   List recordings = [];
   String band = "";
-final AudioRecorder recorder = AudioRecorder();
-String? audioPath;
+  final AudioRecorder recorder = AudioRecorder();
+  String? audioPath;
 
   // ======================
   // 🔥 AI TOPIC GENERATOR
@@ -48,87 +48,87 @@ String? audioPath;
   // ======================
   // 🎤 START RECORDING
   // ======================
-Future<void> startRecording() async {
-  bool speechAvailable = await speech.initialize();
-  bool micPermission = await recorder.hasPermission();
+  Future<void> startRecording() async {
+    bool speechAvailable = await speech.initialize();
+    bool micPermission = await recorder.hasPermission();
 
-  if (!speechAvailable || !micPermission) return;
+    if (!speechAvailable || !micPermission) return;
 
-  setState(() {
-    isRecording = true;
-    seconds = 0;
-    transcript = "";
-  });
+    setState(() {
+      isRecording = true;
+      seconds = 0;
+      transcript = "";
+    });
 
-  // 🎤 Speech-to-text
-  speech.listen(
-    onResult: (res) {
-      setState(() => transcript = res.recognizedWords);
-    },
-  );
+    // 🎤 Speech-to-text
+    speech.listen(
+      onResult: (res) {
+        setState(() => transcript = res.recognizedWords);
+      },
+    );
 
-  // 🎧 File path
-  audioPath =
-      '/storage/emulated/0/Download/speaking_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    // 🎧 File path
+    audioPath =
+        '/storage/emulated/0/Download/speaking_${DateTime.now().millisecondsSinceEpoch}.m4a';
 
-  // 🎧 Start recording (v6 syntax)
-  await recorder.start(
-    const RecordConfig(
-      encoder: AudioEncoder.aacLc,
-    ),
-    path: audioPath!,
-  );
+    // 🎧 Start recording (v6 syntax)
+    await recorder.start(
+      const RecordConfig(encoder: AudioEncoder.aacLc),
+      path: audioPath!,
+    );
 
-  // ⏱ Timer
-  timer = Timer.periodic(const Duration(seconds: 1), (t) {
-    setState(() => seconds++);
-  });
-}
+    // ⏱ Timer
+    timer = Timer.periodic(const Duration(seconds: 1), (t) {
+      setState(() => seconds++);
+    });
+  }
 
- // ======================
+  // ======================
   // 🛑 STOP RECORDING
   // ======================
-Future<void> stopRecording() async {
-  timer?.cancel();
+  Future<void> stopRecording() async {
+    timer?.cancel();
 
-  await speech.stop();
+    await speech.stop();
 
-  final path = await recorder.stop();
+    final path = await recorder.stop();
 
-  setState(() {
-    isRecording = false;
-    audioPath = path;
-  });
+    setState(() {
+      isRecording = false;
+      audioPath = path;
+    });
 
-  await analyzeSpeaking();
-}
+    await analyzeSpeaking();
+  }
+
   // ======================
   // 🤖 AI ANALYSIS
   // ======================
-Future<void> analyzeSpeaking() async {
-  final ai = AIService();
+  Future<void> analyzeSpeaking() async {
+    final ai = AIService();
 
-  // ✅ TEXT-BASED EVALUATION (fast + stable)
-  final result = await ai.evaluateSpeaking(transcript, seconds);
+    // ✅ TEXT-BASED EVALUATION (fast + stable)
+    final result = await ai.evaluateSpeaking(transcript, seconds);
 
-  band = result["band"] ?? "0";
+    band = result["band"] ?? "0";
 
-  final fluency = result["fluency"] ?? "";
-  final lexical = result["lexical"] ?? "";
-  final grammar = result["grammar"] ?? "";
-  final pronunciation = result["pronunciation"] ?? "";
-  final improvement = result["improvement"] ?? "";
+    final fluency = result["fluency"] ?? "";
+    final lexical = result["lexical"] ?? "";
+    final grammar = result["grammar"] ?? "";
+    final pronunciation = result["pronunciation"] ?? "";
+    final improvement = result["improvement"] ?? "";
 
-  await saveToFirebaseExtra(
-    fluency,
-    lexical,
-    grammar,
-    pronunciation,
-    improvement,
-  );
+    await saveToFirebaseExtra(
+      fluency,
+      lexical,
+      grammar,
+      pronunciation,
+      improvement,
+    );
 
-  loadRecordings();
-}
+    loadRecordings();
+  }
+
   Future<void> saveToFirebaseExtra(
     String fluency,
     String lexical,
@@ -239,75 +239,72 @@ Future<void> analyzeSpeaking() async {
   // ======================
   // HEADER (MATCH IMAGE)
   // ======================
-Widget _header() {
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 25),
-    decoration: BoxDecoration(
-      gradient: const LinearGradient(
-        colors: [Color(0xFF0F9D8A), Color(0xFF0A7C6F)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ),
-      borderRadius: BorderRadius.circular(28),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.15),
-          blurRadius: 15,
-          offset: const Offset(0, 8),
+  Widget _header() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 25),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0F9D8A), Color(0xFF0A7C6F)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-      ],
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Top Row
-        Row(
-          children: [
-            GestureDetector(
-              onTap: () => Navigator.pop(context),
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.arrow_back,
-                  color: Colors.white,
-                  size: 20,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Text(
-              "Speaking Practice",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 18),
-
-       
-
-     
-
-        Text(
-          "Improve fluency, pronunciation & confidence",
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.75),
-            fontSize: 12,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.15),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
           ),
-        ),
-      ],
-    ),
-  );
-}
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Top Row
+          Row(
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.arrow_back,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                "Speaking Practice",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 18),
+
+          Text(
+            "Improve fluency, pronunciation & confidence",
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.75),
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ======================
   // TOPIC CARD
   // ======================
@@ -422,110 +419,107 @@ Widget _header() {
 
   // RECORDINGS
   // ======================
-Widget _recordings() {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      const Text(
-        "Your Recordings",
-        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-      ),
-      const SizedBox(height: 10),
+  Widget _recordings() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Your Recordings",
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 10),
 
-      ...recordings.map((e) {
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(15),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black12,
-                blurRadius: 6,
-                offset: Offset(0, 3),
-              )
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-
-              // TOP ROW
-              Row(
-                children: [
-                  const Icon(Icons.play_circle_fill,
-                      size: 40, color: Colors.teal),
-                  const SizedBox(width: 10),
-
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "${e['topic'] ?? 'No Topic'}",
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold),
-                        ),
-                        Text("${e['duration']} sec"),
-                      ],
-                    ),
-                  ),
-
-                  Chip(
-                    label: Text("Band ${e['band']}"),
-                    backgroundColor: Colors.green.shade100,
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 10),
-
-              // IELTS BREAKDOWN
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  _scoreChip("Fluency", e['fluency']),
-                  _scoreChip("Lexical", e['lexical']),
-                  _scoreChip("Grammar", e['grammar']),
-                  _scoreChip("Pronunciation", e['pronunciation']),
-                ],
-              ),
-
-              const SizedBox(height: 10),
-
-              // IMPROVEMENT
-              if (e['improvement'] != null)
-                Text(
-                  "💡 ${e['improvement']}",
-                  style: const TextStyle(
-                    color: Colors.grey,
-                    fontSize: 12,
-                  ),
+        ...recordings.map((e) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(15),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black12,
+                  blurRadius: 6,
+                  offset: Offset(0, 3),
                 ),
-            ],
-          ),
-        );
-      }).toList(),
-    ],
-  );
-}
-Widget _scoreChip(String title, String value) {
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-    decoration: BoxDecoration(
-      color: Colors.teal.withOpacity(0.1),
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: Text(
-      "$title: $value",
-      style: const TextStyle(fontSize: 12),
-    ),
-  );
-}
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // TOP ROW
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.play_circle_fill,
+                      size: 40,
+                      color: Colors.teal,
+                    ),
+                    const SizedBox(width: 10),
+
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "${e['topic'] ?? 'No Topic'}",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text("${e['duration']} sec"),
+                        ],
+                      ),
+                    ),
+
+                    Chip(
+                      label: Text("Band ${e['band']}"),
+                      backgroundColor: Colors.green.shade100,
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 10),
+
+                // IELTS BREAKDOWN
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    _scoreChip("Fluency", e['fluency']),
+                    _scoreChip("Lexical", e['lexical']),
+                    _scoreChip("Grammar", e['grammar']),
+                    _scoreChip("Pronunciation", e['pronunciation']),
+                  ],
+                ),
+
+                const SizedBox(height: 10),
+
+                // IMPROVEMENT
+                if (e['improvement'] != null)
+                  Text(
+                    "💡 ${e['improvement']}",
+                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+              ],
+            ),
+          );
+        }).toList(),
+      ],
+    );
+  }
+
+  Widget _scoreChip(String title, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.teal.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text("$title: $value", style: const TextStyle(fontSize: 12)),
+    );
+  }
+
   // ======================
   // NEXT BUTTON
   // ======================

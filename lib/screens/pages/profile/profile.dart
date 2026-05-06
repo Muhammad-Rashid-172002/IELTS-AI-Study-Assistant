@@ -176,7 +176,7 @@ class _ProfileState extends State<Profile> {
                           _tile(Icons.lock_outline, "Privacy Policy", () {
                             launchUrl(
                               Uri.parse(
-                                "hhttps://ielts-privacy-police.vercel.app/",
+                                "https://ielts-privacy-police.vercel.app/",
                               ),
                             );
                           }),
