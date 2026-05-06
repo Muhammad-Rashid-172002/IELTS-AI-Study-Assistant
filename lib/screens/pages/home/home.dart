@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fyproject/resources/bottom_navigation_bar/botton_navigation.dart';
 import 'package:fyproject/screens/Full_Mock_Test/Full_mock_test.dart';
-import 'package:fyproject/screens/Vocabulary_Builder/VocabularyBuilder.dart';
 import 'package:fyproject/screens/pages/Listening_Practice/ListeningPractice.dart';
 import 'package:fyproject/screens/pages/Reading_Practice/ReadingPractice.dart';
 import 'package:fyproject/screens/pages/Speaking_Practice/SpeakingPractice.dart';
@@ -30,7 +29,7 @@ class _HomeState extends State<Home> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FB),
-      bottomNavigationBar:  BottomNavigation(index: 0, ),
+      bottomNavigationBar: BottomNavigation(index: 0),
 
       body: SafeArea(
         child: SingleChildScrollView(
@@ -157,7 +156,7 @@ class _HomeState extends State<Home> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => const SpeakingProUI(),
+                                  builder: (_) => const SpeakingPractice(),
                                 ),
                               );
                               // Get.snackbar(

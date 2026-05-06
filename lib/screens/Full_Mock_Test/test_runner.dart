@@ -19,10 +19,10 @@ class _TestRunnerState extends State<TestRunner> {
   int currentSection = 0;
 
   final List<Widget> sections = [
-  //  const ListeningPractice(),
+    const ListeningPractice(),
     const ReadingPractice(),
     const WritingChecker(),
-  //  const SpeakingPractice(),
+    const SpeakingPractice(),
   ];
 
   void nextSection() {

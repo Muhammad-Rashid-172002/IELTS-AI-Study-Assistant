@@ -49,56 +49,190 @@ class _FullMockTestState extends State<FullMockTest>
   // =====================================================
   // UI
   // =====================================================
+
   @override
   Widget build(BuildContext context) {
+    final double headerHeight = 240;
+
     return Scaffold(
       backgroundColor: const Color(0xffeef1f7),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _topHeader(),
-            const SizedBox(height: 20),
-            _progressCard(),
-            const SizedBox(height: 20),
-            _mainCard(),
-            const SizedBox(height: 10),
+      body: Stack(
+        children: [
+          // 🔵 HEADER
+          _topHeader(),
 
-            _sectionTile(
-              "Listening",
-              Icons.headphones,
-              "30 min • 40 Q",
-              Colors.blue,
-            ),
-            _sectionTile(
-              "Reading",
-              Icons.menu_book,
-              "15 min • 5 Q",
-              Colors.purple,
-              onTap: () {
-                Get.to(() => const ReadingPractice());
-              },
-            ),
-            _sectionTile(
-              "Writing",
-              Icons.edit,
-              "60 min • 2 Q",
-              Colors.pink,
-              onTap: () {
-                Get.to(() => const WritingChecker());
-              },
-            ),
-            _sectionTile("Speaking", Icons.mic, "15 min • 3 Q", Colors.teal),
+          // 📜 CONTENT
+          SingleChildScrollView(
+            child: Column(
+              children: [
+                // 🔥 Space equal to header
+                SizedBox(height: headerHeight - 60),
 
-            const SizedBox(height: 20),
-            _startButton(),
-            const SizedBox(height: 20),
-            _beforeStartCard(),
-            const SizedBox(height: 30),
-          ],
-        ),
+                // 🧾 Main Card (Overlapping)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _mainCard(),
+                ),
+
+                const SizedBox(height: 20),
+
+                // 📚 Sections
+                _sectionTile(
+                  "Listening",
+                  Icons.headphones,
+                  "30 min • 40 Q",
+                  Colors.blue,
+                  onTap: () => Get.to(() => const ListeningPractice()),
+                ),
+
+                _sectionTile(
+                  "Reading",
+                  Icons.menu_book,
+                  "15 min • 5 Q",
+                  Colors.purple,
+                  onTap: () => Get.to(() => const ReadingPractice()),
+                ),
+
+                _sectionTile(
+                  "Writing",
+                  Icons.edit,
+                  "60 min • 2 Q",
+                  Colors.pink,
+                  onTap: () => Get.to(() => const WritingChecker()),
+                ),
+
+                _sectionTile(
+                  "Speaking",
+                  Icons.mic,
+                  "15 min • 3 Q",
+                  Colors.teal,
+                  onTap: () => Get.to(() => const SpeakingPractice()),
+                ),
+
+                const SizedBox(height: 20),
+
+                _startButton(),
+
+                const SizedBox(height: 20),
+
+                _beforeStartCard(),
+
+                const SizedBox(height: 40),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
+  // Widget mockTestScreen() {
+  //   return Scaffold(
+  //     backgroundColor: const Color(0xfff5f6fa),
+  //     body: Stack(
+  //       children: [
+  //         // 🔵 Top Header
+  //         _topHeader(),
+
+  //         // ⚪ Card Section
+  //         Positioned(
+  //           top: 180, // overlap effect
+  //           left: 20,
+  //           right: 20,
+  //           child: Container(
+  //             padding: const EdgeInsets.all(20),
+  //             decoration: BoxDecoration(
+  //               color: Colors.white,
+  //               borderRadius: BorderRadius.circular(25),
+  //               boxShadow: [
+  //                 BoxShadow(
+  //                   color: Colors.black12,
+  //                   blurRadius: 10,
+  //                   offset: Offset(0, 5),
+  //                 ),
+  //               ],
+  //             ),
+  //             child: Column(
+  //               crossAxisAlignment: CrossAxisAlignment.start,
+  //               children: [
+  //                 // Title Row
+  //                 Row(
+  //                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  //                   children: [
+  //                     Column(
+  //                       crossAxisAlignment: CrossAxisAlignment.start,
+  //                       children: const [
+  //                         Text(
+  //                           "Academic IELTS",
+  //                           style: TextStyle(
+  //                             fontSize: 20,
+  //                             fontWeight: FontWeight.bold,
+  //                           ),
+  //                         ),
+  //                         SizedBox(height: 5),
+  //                         Text(
+  //                           "Practice Test #12",
+  //                           style: TextStyle(color: Colors.grey),
+  //                         ),
+  //                       ],
+  //                     ),
+  //                     Column(
+  //                       children: const [
+  //                         Row(
+  //                           children: [
+  //                             Icon(Icons.access_time, size: 18),
+  //                             SizedBox(width: 5),
+  //                             Text("165 min"),
+  //                           ],
+  //                         ),
+  //                         SizedBox(height: 5),
+  //                         Text(
+  //                           "Total Duration",
+  //                           style: TextStyle(color: Colors.grey),
+  //                         ),
+  //                       ],
+  //                     ),
+  //                   ],
+  //                 ),
+
+  //                 const SizedBox(height: 20),
+
+  //                 // Instructions Box
+  //                 Container(
+  //                   padding: const EdgeInsets.all(15),
+  //                   decoration: BoxDecoration(
+  //                     color: const Color(0xffeef1f5),
+  //                     borderRadius: BorderRadius.circular(15),
+  //                   ),
+  //                   child: Column(
+  //                     crossAxisAlignment: CrossAxisAlignment.start,
+  //                     children: const [
+  //                       Row(
+  //                         children: [
+  //                           Icon(Icons.description),
+  //                           SizedBox(width: 8),
+  //                           Text(
+  //                             "Instructions",
+  //                             style: TextStyle(fontWeight: FontWeight.bold),
+  //                           ),
+  //                         ],
+  //                       ),
+  //                       SizedBox(height: 10),
+
+  //                       Text("• Complete all four sections in order"),
+  //                       Text("• Time limit applies to each section"),
+  //                       Text("• You can review answers before submitting"),
+  //                       Text("• Results will be available immediately after"),
+  //                     ],
+  //                   ),
+  //                 ),
+  //               ],
+  //             ),
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   // =====================================================
   // 🔥 HEADER
@@ -107,7 +241,6 @@ class _FullMockTestState extends State<FullMockTest>
     return Container(
       height: 240,
       width: double.infinity,
-      padding: const EdgeInsets.only(top: 60, left: 20, right: 20),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           colors: [Color(0xff4a00e0), Color(0xff8e2de2)],
@@ -117,114 +250,160 @@ class _FullMockTestState extends State<FullMockTest>
           bottomRight: Radius.circular(40),
         ),
       ),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: () => Get.back(),
-            child: const CircleAvatar(
-              backgroundColor: Colors.white24,
-              child: Icon(Icons.arrow_back, color: Colors.white),
-            ),
-          ),
-          const SizedBox(width: 20),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Full Mock Test",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                  ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            children: [
+              GestureDetector(
+                onTap: () => Get.back(),
+                child: const CircleAvatar(
+                  backgroundColor: Colors.white24,
+                  child: Icon(Icons.arrow_back, color: Colors.white),
                 ),
-                SizedBox(height: 6),
-                Text(
-                  "Complete IELTS Simulation",
-                  style: TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(width: 20),
+
+              const Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Full Mock Test",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      "Complete IELTS Simulation",
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+
+              const Icon(Icons.workspace_premium, color: Colors.white),
+            ],
           ),
-          const Icon(Icons.workspace_premium, color: Colors.white),
-        ],
+        ),
       ),
     );
   }
 
-  // =====================================================
   // 📊 PROGRESS CARD
   // =====================================================
-  Widget _progressCard() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "Your Readiness",
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 10),
+  // Widget _progressCard() {
+  //   return Container(
+  //     margin: const EdgeInsets.symmetric(horizontal: 16),
+  //     padding: const EdgeInsets.all(18),
+  //     decoration: BoxDecoration(
+  //       color: Colors.white,
+  //       borderRadius: BorderRadius.circular(22),
+  //     ),
+  //     child: Column(
+  //       crossAxisAlignment: CrossAxisAlignment.start,
+  //       children: [
+  //         const Text(
+  //           "Your Readiness",
+  //           style: TextStyle(fontWeight: FontWeight.bold),
+  //         ),
+  //         const SizedBox(height: 10),
 
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: LinearProgressIndicator(
-              value: 0.7,
-              minHeight: 10,
-              backgroundColor: Colors.grey[200],
-              color: Colors.deepPurple,
-            ),
-          ),
+  //         ClipRRect(
+  //           borderRadius: BorderRadius.circular(10),
+  //           child: LinearProgressIndicator(
+  //             value: 0.7,
+  //             minHeight: 10,
+  //             backgroundColor: Colors.grey[200],
+  //             color: Colors.deepPurple,
+  //           ),
+  //         ),
 
-          const SizedBox(height: 6),
-          const Text("70% Ready - Keep practicing 💪"),
-        ],
-      ),
-    );
-  }
+  //         const SizedBox(height: 6),
+  //         const Text("70% Ready - Keep practicing 💪"),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   // =====================================================
   // 📦 MAIN CARD
   // =====================================================
   Widget _mainCard() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: BorderRadius.circular(25),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 10,
+            offset: Offset(0, 5),
+          ),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Expanded(
-            child: Column(
+          // Title Row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    "Academic IELTS",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 5),
+                
+                ],
+              ),
+          
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // Instructions
+          Container(
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(
+              color: const Color(0xffeef1f5),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  "Academic IELTS",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                Row(
+                  children: [
+                    Icon(Icons.description),
+                    SizedBox(width: 8),
+                    Text(
+                      "Instructions",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
                 ),
-                Text("Practice Test #12"),
+                SizedBox(height: 10),
+                Text("• Complete all four sections in order"),
+                Text("• Time limit applies to each section"),
+                Text("• Review answers before submitting"),
+                Text("• Results available instantly"),
               ],
             ),
           ),
-          Column(children: const [Icon(Icons.access_time), Text("165 min")]),
         ],
       ),
     );
-  }
+  } // =====================================================
 
-  // =====================================================
   // 🎯 SECTION TILE
   // =====================================================
   Widget _sectionTile(
