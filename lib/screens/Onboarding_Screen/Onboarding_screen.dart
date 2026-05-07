@@ -87,7 +87,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
               ),
 
-              /// 📄 PAGES
+              ///  PAGES
               Expanded(
                 child: PageView.builder(
                   controller: _controller,
@@ -101,7 +101,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          /// 🖼 IMAGE
+                          ///  IMAGE
                           AnimatedContainer(
                             duration: const Duration(milliseconds: 400),
                             height: currentIndex == index ? 280 : 240,
@@ -112,7 +112,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
                           const SizedBox(height: 40),
 
-                          /// 📝 TITLE
+                          /// TITLE
                           Text(
                             onboardingData[index]["title"]!,
                             textAlign: TextAlign.center,
@@ -125,7 +125,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
                           const SizedBox(height: 16),
 
-                          /// 📄 DESC
+                          ///  DESC
                           Text(
                             onboardingData[index]["desc"]!,
                             textAlign: TextAlign.center,
@@ -142,7 +142,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
               ),
 
-              /// 🔘 INDICATOR (MODERN)
+              ///  INDICATOR (MODERN)
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(
@@ -164,13 +164,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
               const SizedBox(height: 30),
 
-              /// 🚀 NEXT BUTTON
+              ///  NEXT BUTTON
               Padding(
                 padding: const EdgeInsets.all(20.0),
                 child: RoundButton(
                   title: currentIndex == onboardingData.length - 1
                       ? "Get Started"
                       : "Next",
+                      isLoading: false,
                   onPress: nextPage,
                 ),
               ),

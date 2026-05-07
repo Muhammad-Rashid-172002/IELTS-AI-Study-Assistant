@@ -1,14 +1,4 @@
-// import 'package:flutter/material.dart';
-// import 'package:google_fonts/google_fonts.dart';
-//
-// class AppTheme {
-//   static final light = ThemeData(
-//     useMaterial3: true,
-//     brightness: Brightness.light,
-//     colorSchemeSeed: Colors.blue,
-//     fontFamily: GoogleFonts.inter().fontFamily,
-//   );
-// }
+
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';

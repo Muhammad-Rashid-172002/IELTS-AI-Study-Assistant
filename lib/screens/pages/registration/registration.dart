@@ -181,8 +181,9 @@ class _RegistrationState extends State<Registration> {
                         /// BUTTON
                         Obx(
                           () => RoundButton(
-                            loading: firebaseServices.loadingRegistration.value,
+                           
                             title: "Sign Up",
+                            isLoading: firebaseServices.loadingRegistration.value,
                             onPress: () {
                               if (!formKey.currentState!.validate()) return;
 

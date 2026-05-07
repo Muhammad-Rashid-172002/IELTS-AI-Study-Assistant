@@ -12,7 +12,7 @@ class RoundButton extends StatelessWidget {
     required this.title,
     required this.onPress,
     this.width = double.infinity,
-    this.height = 54,
+    this.height = 54, required bool isLoading,
   });
 
   @override

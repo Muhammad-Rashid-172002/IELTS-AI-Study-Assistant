@@ -23,7 +23,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
     super.dispose();
   }
 
-  /// 🔐 PASSWORD RESET FUNCTION
+  ///  PASSWORD RESET FUNCTION
   Future<void> passwordReset() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -95,7 +95,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
 
                 const SizedBox(height: 30),
 
-                /// 🔵 ICON
+                ///  ICON
                 Container(
                   height: 80,
                   width: 80,
@@ -135,7 +135,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
 
                 const SizedBox(height: 40),
 
-                /// 📦 CARD
+                ///  CARD
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -174,7 +174,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
 
                         const SizedBox(height: 30),
 
-                        /// 🚀 BUTTON
+                        ///  BUTTON
                         SizedBox(
                           width: double.infinity,
                           height: 50,
@@ -207,7 +207,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
 
                 const SizedBox(height: 30),
 
-                /// 🔙 BACK BUTTON
+                /// BACK BUTTON
                 TextButton(
                   onPressed: () => Get.back(),
                   child: Text(
@@ -226,7 +226,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
     );
   }
 
-  /// ✨ CUSTOM TEXT FIELD
+  ///  CUSTOM TEXT FIELD
   Widget customTextField({
     required TextEditingController controller,
     required String label,

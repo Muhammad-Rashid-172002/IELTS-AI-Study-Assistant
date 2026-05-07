@@ -46,9 +46,9 @@ class _FullMockTestState extends State<FullMockTest>
     super.dispose();
   }
 
-  // =====================================================
+
   // UI
-  // =====================================================
+
 
   @override
   Widget build(BuildContext context) {
@@ -58,17 +58,17 @@ class _FullMockTestState extends State<FullMockTest>
       backgroundColor: const Color(0xffeef1f7),
       body: Stack(
         children: [
-          // 🔵 HEADER
+          //  HEADER
           _topHeader(),
 
-          // 📜 CONTENT
+          //  CONTENT
           SingleChildScrollView(
             child: Column(
               children: [
-                // 🔥 Space equal to header
+                //  Space equal to header
                 SizedBox(height: headerHeight - 60),
 
-                // 🧾 Main Card (Overlapping)
+                // Main Card (Overlapping)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: _mainCard(),
@@ -76,7 +76,7 @@ class _FullMockTestState extends State<FullMockTest>
 
                 const SizedBox(height: 20),
 
-                // 📚 Sections
+                //  Sections
                 _sectionTile(
                   "Listening",
                   Icons.headphones,
@@ -130,10 +130,10 @@ class _FullMockTestState extends State<FullMockTest>
   //     backgroundColor: const Color(0xfff5f6fa),
   //     body: Stack(
   //       children: [
-  //         // 🔵 Top Header
+  //         //  Top Header
   //         _topHeader(),
 
-  //         // ⚪ Card Section
+  //         //  Card Section
   //         Positioned(
   //           top: 180, // overlap effect
   //           left: 20,
@@ -234,9 +234,9 @@ class _FullMockTestState extends State<FullMockTest>
   //   );
   // }
 
-  // =====================================================
-  // 🔥 HEADER
-  // =====================================================
+
+  //  HEADER
+
   Widget _topHeader() {
     return Container(
       height: 240,
@@ -294,7 +294,7 @@ class _FullMockTestState extends State<FullMockTest>
     );
   }
 
-  // 📊 PROGRESS CARD
+  //  PROGRESS CARD
   // =====================================================
   // Widget _progressCard() {
   //   return Container(
@@ -324,15 +324,15 @@ class _FullMockTestState extends State<FullMockTest>
   //         ),
 
   //         const SizedBox(height: 6),
-  //         const Text("70% Ready - Keep practicing 💪"),
+  //         const Text("70% Ready - Keep practicing "),
   //       ],
   //     ),
   //   );
   // }
 
-  // =====================================================
-  // 📦 MAIN CARD
-  // =====================================================
+
+  //  MAIN CARD
+
   Widget _mainCard() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -402,10 +402,10 @@ class _FullMockTestState extends State<FullMockTest>
         ],
       ),
     );
-  } // =====================================================
+  } 
 
-  // 🎯 SECTION TILE
-  // =====================================================
+  //  SECTION TILE
+
   Widget _sectionTile(
     String title,
     IconData icon,

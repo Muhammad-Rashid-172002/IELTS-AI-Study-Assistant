@@ -47,6 +47,7 @@ class _TestRunnerState extends State<TestRunner> {
             child: RoundButton(
               onPress: nextSection,
               title: currentSection == 3 ? "Finish Test" : "Next Section",
+              isLoading: false,
             ),
           )
         ],

@@ -27,7 +27,7 @@ class _BottomNavigationState extends State<BottomNavigation> {
 
   final List<String> labels = ["Home", "Progress", "Profile"];
 
-  static const Color activeColor = Color(0xFF007AFF); // iOS blue
+  static const Color activeColor = Color(0xFF007AFF); 
   static const Color inactiveColor = Colors.grey;
 
   @override
