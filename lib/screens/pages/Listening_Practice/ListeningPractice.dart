@@ -25,6 +25,7 @@ class _ListeningPracticeState extends State<ListeningPractice> {
   bool generated = false;
   bool showResult = false;
   bool isPlaying = false;
+  bool isLoading = false;
 
   int score = 0;
 
@@ -37,7 +38,8 @@ class _ListeningPracticeState extends State<ListeningPractice> {
     });
   }
 
-  // ================= GENERATE =================
+  // generateListeningTest
+
   Future<void> generateListeningTest() async {
     ieltsController.isLoading.value = true;
 
@@ -52,12 +54,12 @@ class _ListeningPracticeState extends State<ListeningPractice> {
       });
     } catch (e) {
       Get.snackbar("Error", "Failed to generate test");
+    } finally {
+      ieltsController.isLoading.value = false;
     }
-
-    ieltsController.isLoading.value = false;
   }
 
-  // ================= PARSE =================
+  //  PARSE
   void parseListeningResponse(String response) {
     questions.clear();
     selectedAnswers.clear();
@@ -98,7 +100,7 @@ class _ListeningPracticeState extends State<ListeningPractice> {
     }
   }
 
-  // ================= AUDIO =================
+  //  AUDIO
   Future<void> playAudio() async {
     if (audioScript.isEmpty) return;
 
@@ -156,14 +158,14 @@ class _ListeningPracticeState extends State<ListeningPractice> {
         .doc(user.uid)
         .collection("listening_results")
         .add({
-      "score": score,
-      "band": calculateBandScore(),
-      "total": questions.length,
-      "timestamp": FieldValue.serverTimestamp(),
-    });
+          "score": score,
+          "band": calculateBandScore(),
+          "total": questions.length,
+          "timestamp": FieldValue.serverTimestamp(),
+        });
   }
 
-  // ================= UI =================
+  //  UI
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -177,7 +179,13 @@ class _ListeningPracticeState extends State<ListeningPractice> {
             if (!generated)
               Padding(
                 padding: const EdgeInsets.all(20.0),
-                child: RoundButton(title: "Generate Test", onPress: generateListeningTest),
+                child: Obx(
+                  () => RoundButton(
+                    title: "Generate Test",
+                    isLoading: ieltsController.isLoading.value,
+                    onPress: generateListeningTest,
+                  ),
+                ),
               ),
 
             if (generated)
@@ -201,67 +209,65 @@ class _ListeningPracticeState extends State<ListeningPractice> {
     );
   }
 
-  // ================= HEADER =================
-Widget _header(BuildContext context) {
-  return Container(
-    padding: const EdgeInsets.all(20),
-    decoration: const BoxDecoration(
-      gradient: LinearGradient(
-        colors: [Color(0xff2F6BFF), Color(0xff7B2CFF)],
-      ),
-      borderRadius: BorderRadius.vertical(
-        bottom: Radius.circular(30),
-      ),
-    ),
-    child: Row(
-      children: [
-        // 🔥 CUSTOM BACK BUTTON
-        GestureDetector(
-          onTap: () {
-            if (Navigator.canPop(context)) {
-              Navigator.pop(context);
-            }
-          },
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(
-              Icons.arrow_back,
-              color: Colors.white,
-              size: 20,
-            ),
-          ),
+  // ================= HEADER 
+  Widget _header(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xff2F6BFF), Color(0xff7B2CFF)],
         ),
-
-        const SizedBox(width: 12),
-
-        // 🔥 TITLE
-        const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Listening Practice",
-              style: TextStyle(
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
+      ),
+      child: Row(
+        children: [
+          // 🔥 CUSTOM BACK BUTTON
+          GestureDetector(
+            onTap: () {
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              }
+            },
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.arrow_back,
                 color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+                size: 20,
               ),
             ),
-            Text(
-              "Section 1 - Social Context",
-              style: TextStyle(color: Colors.white70),
-            ),
-          ],
-        ),
-      ],
-    ),
-  );
-}
+          ),
 
-  // ================= AUDIO CARD =================
+          const SizedBox(width: 12),
+
+          //  TITLE
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Listening Practice",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                "Section 1 - Social Context",
+                style: TextStyle(color: Colors.white70),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  //  AUDIO CARD 
   Widget _audioCard() {
     return Container(
       margin: const EdgeInsets.all(16),
@@ -278,8 +284,10 @@ Widget _header(BuildContext context) {
             children: const [
               Icon(Icons.volume_up, color: Colors.white),
               SizedBox(width: 10),
-              Text("Audio Track 1",
-                  style: TextStyle(color: Colors.white, fontSize: 18)),
+              Text(
+                "Audio Track 1",
+                style: TextStyle(color: Colors.white, fontSize: 18),
+              ),
             ],
           ),
           const SizedBox(height: 20),
@@ -290,31 +298,32 @@ Widget _header(BuildContext context) {
               size: 50,
             ),
             onPressed: isPlaying ? stopAudio : playAudio,
-          )
+          ),
         ],
       ),
     );
   }
 
-  // ================= PROGRESS =================
+  //  PROGRESS 
   Widget _progress() {
-    int answered =
-        selectedAnswers.where((e) => e != null).length;
+    int answered = selectedAnswers.where((e) => e != null).length;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text("Questions",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            "Questions",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
           Text("$answered of ${questions.length} answered"),
         ],
       ),
     );
   }
 
-  // ================= QUESTIONS =================
+  //  QUESTIONS 
   Widget _questions() {
     return Column(
       children: List.generate(questions.length, (i) {
@@ -331,8 +340,10 @@ Widget _header(BuildContext context) {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(q["question"],
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(
+                q["question"],
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
 
               ...List.generate(4, (index) {
                 return RadioListTile<int>(
@@ -345,7 +356,7 @@ Widget _header(BuildContext context) {
                   },
                   title: Text(q["options"][index]),
                 );
-              })
+              }),
             ],
           ),
         );
@@ -353,7 +364,7 @@ Widget _header(BuildContext context) {
     );
   }
 
-  // ================= SUBMIT =================
+  //  SUBMIT 
   Widget _submitButton() {
     return GestureDetector(
       onTap: submitAnswers,
@@ -367,14 +378,16 @@ Widget _header(BuildContext context) {
           borderRadius: BorderRadius.circular(30),
         ),
         child: const Center(
-          child: Text("Submit Answers",
-              style: TextStyle(color: Colors.white, fontSize: 16)),
+          child: Text(
+            "Submit Answers",
+            style: TextStyle(color: Colors.white, fontSize: 16),
+          ),
         ),
       ),
     );
   }
 
-  // ================= RESULT =================
+  //  RESULT 
   Widget _resultCard() {
     double band = calculateBandScore();
 
@@ -387,17 +400,24 @@ Widget _header(BuildContext context) {
       ),
       child: Column(
         children: [
-          const Text("Your Band Score",
-              style: TextStyle(color: Colors.white70)),
+          const Text(
+            "Your Band Score",
+            style: TextStyle(color: Colors.white70),
+          ),
           const SizedBox(height: 10),
-          Text(band.toString(),
-              style: const TextStyle(
-                  fontSize: 40,
-                  color: Colors.greenAccent,
-                  fontWeight: FontWeight.bold)),
+          Text(
+            band.toString(),
+            style: const TextStyle(
+              fontSize: 40,
+              color: Colors.greenAccent,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 10),
-          Text("Score: $score / ${questions.length}",
-              style: const TextStyle(color: Colors.white)),
+          Text(
+            "Score: $score / ${questions.length}",
+            style: const TextStyle(color: Colors.white),
+          ),
         ],
       ),
     );

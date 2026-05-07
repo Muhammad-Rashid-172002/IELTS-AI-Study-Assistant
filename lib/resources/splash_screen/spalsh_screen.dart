@@ -20,7 +20,7 @@ class _SplashscreenState extends State<Splashscreen>
   void initState() {
     super.initState();
 
-    /// 🔥 Animation
+    ///  Animation
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -31,7 +31,7 @@ class _SplashscreenState extends State<Splashscreen>
 
     _controller.forward();
 
-    /// ⏳ Navigate after delay
+    ///  Navigate after delay
     Timer(const Duration(seconds: 3), () {
       splashService.isLogin(context);
     });
@@ -49,7 +49,7 @@ class _SplashscreenState extends State<Splashscreen>
       body: FadeTransition(
         opacity: _fadeAnimation,
 
-        /// 🌈 BACKGROUND
+        ///  BACKGROUND
         child: Container(
           width: double.infinity,
           decoration: const BoxDecoration(
@@ -66,7 +66,7 @@ class _SplashscreenState extends State<Splashscreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              /// 🔥 LOGO WITH GLOW
+              ///  LOGO WITH GLOW
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -87,7 +87,7 @@ class _SplashscreenState extends State<Splashscreen>
 
               const SizedBox(height: 25),
 
-              /// 📚 APP NAME
+              ///  APP NAME
               const Text(
                 "IELTS Master",
                 style: TextStyle(
@@ -99,7 +99,7 @@ class _SplashscreenState extends State<Splashscreen>
 
               const SizedBox(height: 6),
 
-              /// ✍️ TAGLINE
+              ///  TAGLINE
               const Text(
                 "Prepare • Practice • Succeed",
                 style: TextStyle(
@@ -110,7 +110,7 @@ class _SplashscreenState extends State<Splashscreen>
 
               const SizedBox(height: 40),
 
-              /// ⏳ LOADING INDICATOR
+              ///  LOADING INDICATOR
               const CircularProgressIndicator(
                 color: Colors.white,
                 strokeWidth: 2,

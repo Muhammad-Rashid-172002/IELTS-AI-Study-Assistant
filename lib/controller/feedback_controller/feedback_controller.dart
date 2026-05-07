@@ -4,10 +4,10 @@ import 'package:get/get.dart';
 class IELTSController extends GetxController {
   final AIService api = AIService();
 
-  // 🔄 Loading state
+  //  Loading state
   var isLoading = false.obs;
 
-  // 📊 Outputs
+  //  Outputs
   var writingFeedback = "".obs;
   var speakingFeedback = "".obs;
   var readingHelp = "".obs;
@@ -17,9 +17,9 @@ class IELTSController extends GetxController {
   var vocabWords = [].obs;
   var currentIndex = 0.obs;
 
-  // ==========================
-  // ✍️ WRITING TASK FEEDBACK
-  // ==========================
+
+  //  WRITING TASK FEEDBACK
+
   Future<void> getWritingFeedback(String text, String taskType) async {
     isLoading.value = true;
 
@@ -42,15 +42,15 @@ $text
 
       writingFeedback.value = await api.feedback(prompt, "writing");
     } catch (e) {
-      writingFeedback.value = "⚠️ Error: Server busy. Please try again.";
+      writingFeedback.value = " Error: Server busy. Please try again.";
     }
 
     isLoading.value = false;
   }
 
-  // ==========================
-  // 🎤 SPEAKING FEEDBACK
-  // ==========================
+
+  //  SPEAKING FEEDBACK
+
   Future<void> getSpeakingFeedback(String speechText) async {
     isLoading.value = true;
 
@@ -73,15 +73,15 @@ $speechText
 
       speakingFeedback.value = await api.feedback(prompt, "speaking");
     } catch (e) {
-      speakingFeedback.value = "⚠️ Speaking evaluation failed. Try again.";
+      speakingFeedback.value = " Speaking evaluation failed. Try again.";
     }
 
     isLoading.value = false;
   }
 
-  // ==========================
-  // 📖 READING HELP
-  // ==========================
+
+  //  READING HELP
+
   Future<void> getReadingHelp(String passage, String question) async {
     isLoading.value = true;
 
@@ -104,15 +104,15 @@ Explain:
 
       readingHelp.value = await api.feedback(prompt, "reading");
     } catch (e) {
-      readingHelp.value = "⚠️ Reading help not available.";
+      readingHelp.value = " Reading help not available.";
     }
 
     isLoading.value = false;
   }
 
-  // ==========================
-  // 🎧 LISTENING HELP
-  // ==========================
+ 
+  //  LISTENING HELP
+
   Future<void> getListeningHelp(String transcript, String question) async {
     isLoading.value = true;
 
@@ -135,15 +135,15 @@ Provide:
 
       listeningHelp.value = await api.feedback(prompt, "listening");
     } catch (e) {
-      listeningHelp.value = "⚠️ Listening help failed.";
+      listeningHelp.value = " Listening help failed.";
     }
 
     isLoading.value = false;
   }
 
-  // ==========================
-  // 📚 VOCABULARY BUILDER
-  // ==========================
+
+  //  VOCABULARY BUILDER
+
   Future<void> getVocabulary(String text) async {
     isLoading.value = true;
 
@@ -163,15 +163,15 @@ $text
 
       vocabularyHelp.value = await api.feedback(prompt, "vocabulary");
     } catch (e) {
-      vocabularyHelp.value = "⚠️ Vocabulary service unavailable.";
+      vocabularyHelp.value = " Vocabulary service unavailable.";
     }
 
     isLoading.value = false;
   }
 
-  // ==========================
-  // 📈 BAND SCORE ESTIMATION
-  // ==========================
+ 
+  //  BAND SCORE ESTIMATION
+
   Future<void> estimateBand(String text) async {
     isLoading.value = true;
 
@@ -191,7 +191,7 @@ $text
 
       bandScore.value = await api.feedback(prompt, "band");
     } catch (e) {
-      bandScore.value = "⚠️ Could not estimate band score.";
+      bandScore.value = " Could not estimate band score.";
     }
 
     isLoading.value = false;
