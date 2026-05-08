@@ -74,7 +74,7 @@ class _ProfileState extends State<Profile> {
 
         body: CustomScrollView(
           slivers: [
-            /// 🔥 APP STORE STYLE HEADER
+            ///  APP STORE STYLE HEADER
             SliverAppBar(
               expandedHeight: 260,
               pinned: true,
@@ -133,7 +133,7 @@ class _ProfileState extends State<Profile> {
               ),
             ),
 
-            /// 🔽 CONTENT
+            ///  CONTENT
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -162,7 +162,7 @@ class _ProfileState extends State<Profile> {
 
                     const SizedBox(height: 20),
 
-                    /// ⚡ ACTIONS
+                    ///  ACTIONS
                     _glassCard(
                       child: Column(
                         children: [
@@ -176,7 +176,7 @@ class _ProfileState extends State<Profile> {
                           _tile(Icons.lock_outline, "Privacy Policy", () {
                             launchUrl(
                               Uri.parse(
-                                "https://ielts-privacy-police.vercel.app/",
+                                "hhttps://ielts-privacy-police.vercel.app/",
                               ),
                             );
                           }),
@@ -191,7 +191,7 @@ class _ProfileState extends State<Profile> {
 
                     const SizedBox(height: 20),
 
-                    /// 🚪 LOGOUT
+                    ///  LOGOUT
                     GestureDetector(
                       onTap: _logout,
                       child: Container(
@@ -222,7 +222,7 @@ class _ProfileState extends State<Profile> {
     });
   }
 
-  /// ✨ GLASS CARD
+  ///  GLASS CARD
   Widget _glassCard({required Widget child}) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
@@ -240,7 +240,7 @@ class _ProfileState extends State<Profile> {
     );
   }
 
-  /// 🔹 FIELD
+  /// FIELD
   Widget _buildField(controller, label, enabled) {
     return TextField(
       controller: controller,
@@ -257,7 +257,7 @@ class _ProfileState extends State<Profile> {
     );
   }
 
-  /// 🔵 PRIMARY BUTTON
+  ///  PRIMARY BUTTON
   Widget _primaryButton(String text, VoidCallback onTap) {
     return ElevatedButton(
       onPressed: isSaving ? null : onTap,
@@ -272,7 +272,7 @@ class _ProfileState extends State<Profile> {
     );
   }
 
-  /// ⚪ OUTLINE BUTTON
+  ///  OUTLINE BUTTON
   Widget _outlineButton(String text, VoidCallback onTap) {
     return OutlinedButton(
       onPressed: onTap,
@@ -284,7 +284,7 @@ class _ProfileState extends State<Profile> {
     );
   }
 
-  /// 🔹 TILE
+  ///  TILE
   Widget _tile(IconData icon, String title, VoidCallback onTap) {
     return ListTile(
       onTap: onTap,
