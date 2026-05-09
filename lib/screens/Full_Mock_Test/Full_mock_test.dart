@@ -51,24 +51,22 @@ class _FullMockTestState extends State<FullMockTest>
 
 
   @override
-  Widget build(BuildContext context) {
-    final double headerHeight = 240;
+Widget build(BuildContext context) {
+//  final double headerHeight = 240;
 
-    return Scaffold(
-      backgroundColor: const Color(0xffeef1f7),
-      body: Stack(
+  return Scaffold(
+    backgroundColor: const Color(0xffeef1f7),
+    body: SingleChildScrollView(
+      child: Column(
         children: [
-          //  HEADER
+          // HEADER (NOW SCROLLABLE)
           _topHeader(),
 
-          //  CONTENT
-          SingleChildScrollView(
+          // CONTENT
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
             child: Column(
               children: [
-                //  Space equal to header
-                SizedBox(height: headerHeight - 60),
-
-                // Main Card (Overlapping)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: _mainCard(),
@@ -76,7 +74,6 @@ class _FullMockTestState extends State<FullMockTest>
 
                 const SizedBox(height: 20),
 
-                //  Sections
                 _sectionTile(
                   "Listening",
                   Icons.headphones,
@@ -110,21 +107,18 @@ class _FullMockTestState extends State<FullMockTest>
                 ),
 
                 const SizedBox(height: 20),
-
                 _startButton(),
-
                 const SizedBox(height: 20),
-
                 _beforeStartCard(),
-
                 const SizedBox(height: 40),
               ],
             ),
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
   // Widget mockTestScreen() {
   //   return Scaffold(
   //     backgroundColor: const Color(0xfff5f6fa),
