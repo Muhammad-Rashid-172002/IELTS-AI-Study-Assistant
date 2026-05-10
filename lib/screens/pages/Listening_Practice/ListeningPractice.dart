@@ -1,5 +1,6 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:fyproject/screens/widgets/botton/round_botton.dart';
 import 'package:get/get.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -35,6 +36,31 @@ class _ListeningPracticeState extends State<ListeningPractice> {
 
     flutterTts.setCompletionHandler(() {
       setState(() => isPlaying = false);
+    });
+  }
+
+  Timer? countdownTimer;
+
+  int totalSeconds = 1800; // 30 minutes
+
+  String get formattedTime {
+    int minutes = totalSeconds ~/ 60;
+    int seconds = totalSeconds % 60;
+
+    return "${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}";
+  }
+
+  void startCountdown() {
+    countdownTimer?.cancel();
+
+    countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (totalSeconds > 0) {
+        setState(() {
+          totalSeconds--;
+        });
+      } else {
+        timer.cancel();
+      }
     });
   }
 
@@ -110,11 +136,17 @@ class _ListeningPracticeState extends State<ListeningPractice> {
     await flutterTts.setSpeechRate(0.45);
 
     setState(() => isPlaying = true);
+
+    startCountdown();
+
     await flutterTts.speak(audioScript);
   }
 
   Future<void> stopAudio() async {
     await flutterTts.stop();
+
+    countdownTimer?.cancel();
+
     setState(() => isPlaying = false);
   }
 
@@ -180,10 +212,39 @@ class _ListeningPracticeState extends State<ListeningPractice> {
               Padding(
                 padding: const EdgeInsets.all(20.0),
                 child: Obx(
-                  () => RoundButton(
-                    title: "Generate Test",
-                    isLoading: ieltsController.isLoading.value,
-                    onPress: generateListeningTest,
+                  () => GestureDetector(
+                    onTap: ieltsController.isLoading.value
+                        ? null
+                        : generateListeningTest,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xff2F6BFF), Color(0xff7B2CFF)],
+                        ),
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: Center(
+                        child: ieltsController.isLoading.value
+                            ? const SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2.5,
+                                ),
+                              )
+                            : const Text(
+                                "Generate Test",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -209,56 +270,111 @@ class _ListeningPracticeState extends State<ListeningPractice> {
     );
   }
 
-  //  HEADER 
+  //  HEADER
   Widget _header(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(18, 50, 18, 24),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           colors: [Color(0xff2F6BFF), Color(0xff7B2CFF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(35),
+          bottomRight: Radius.circular(35),
+        ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          //  CUSTOM BACK BUTTON
-          GestureDetector(
-            onTap: () {
-              if (Navigator.canPop(context)) {
-                Navigator.pop(context);
-              }
-            },
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.arrow_back,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 12),
-
-          //  TITLE
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          // TOP BAR
+          Row(
             children: [
-              Text(
-                "Listening Practice",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+              // BACK BUTTON
+              GestureDetector(
+                onTap: () {
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(
+                    Icons.arrow_back_ios_new,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                 ),
               ),
-              Text(
-                "Section 1 - Social Context",
-                style: TextStyle(color: Colors.white70),
+
+              const SizedBox(width: 14),
+
+              // TITLE
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Listening Practice",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 23,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    SizedBox(height: 4),
+
+                    Text(
+                      " Social Context",
+                      style: TextStyle(color: Colors.white70, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+
+              // HEADPHONE ICON
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.headphones,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 28),
+
+          // INFO SECTION
+          Row(
+            children: [
+              Expanded(
+                child: _listeningInfoCard(
+                  Icons.timer_outlined,
+                  "Duration",
+                  formattedTime,
+                ),
+              ),
+
+              const SizedBox(width: 12),
+
+              Expanded(
+                child: _listeningInfoCard(
+                  Icons.multitrack_audio,
+                  "Audio",
+                  "AI Generated",
+                ),
               ),
             ],
           ),
@@ -267,7 +383,56 @@ class _ListeningPracticeState extends State<ListeningPractice> {
     );
   }
 
-  //  AUDIO CARD 
+  Widget _listeningInfoCard(IconData icon, String title, String value) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: Colors.white, size: 22),
+          ),
+
+          const SizedBox(width: 12),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+
+                const SizedBox(height: 4),
+
+                Text(
+                  value,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  } //  AUDIO CARD
+
   Widget _audioCard() {
     return Container(
       margin: const EdgeInsets.all(16),
@@ -304,7 +469,7 @@ class _ListeningPracticeState extends State<ListeningPractice> {
     );
   }
 
-  //  PROGRESS 
+  //  PROGRESS
   Widget _progress() {
     int answered = selectedAnswers.where((e) => e != null).length;
 
@@ -323,7 +488,7 @@ class _ListeningPracticeState extends State<ListeningPractice> {
     );
   }
 
-  //  QUESTIONS 
+  //  QUESTIONS
   Widget _questions() {
     return Column(
       children: List.generate(questions.length, (i) {
@@ -364,7 +529,7 @@ class _ListeningPracticeState extends State<ListeningPractice> {
     );
   }
 
-  //  SUBMIT 
+  //  SUBMIT
   Widget _submitButton() {
     return GestureDetector(
       onTap: submitAnswers,
@@ -387,7 +552,7 @@ class _ListeningPracticeState extends State<ListeningPractice> {
     );
   }
 
-  //  RESULT 
+  //  RESULT
   Widget _resultCard() {
     double band = calculateBandScore();
 

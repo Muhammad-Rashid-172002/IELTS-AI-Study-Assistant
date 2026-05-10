@@ -100,50 +100,51 @@ class _ReadingPracticeState extends State<ReadingPractice> {
   }
 
   // ================= FIREBASE =================
-Future<void> saveResultToFirebase() async {
-  final user = auth.currentUser;
+  Future<void> saveResultToFirebase() async {
+    final user = auth.currentUser;
 
-  if (user == null) {
-    print("❌ No user logged in");
-    return;
-  }
+    if (user == null) {
+      print("❌ No user logged in");
+      return;
+    }
 
-  print("👤 User ID: ${user.uid}");
-  print("📊 Score: $score");
-  print("📊 Total Questions: ${questions.length}");
-  print("📖 Passage: $passage");
-  print("❓ Questions: $questions");
-  print("✅ Selected Answers: $selectedAnswers");
+    print("👤 User ID: ${user.uid}");
+    print("📊 Score: $score");
+    print("📊 Total Questions: ${questions.length}");
+    print("📖 Passage: $passage");
+    print("❓ Questions: $questions");
+    print("✅ Selected Answers: $selectedAnswers");
 
-  try {
-    final docRef = await firestore
-        .collection("users")
-        .doc(user.uid)
-        .collection("reading_results")
-        .add({
+    try {
+      final docRef = await firestore
+          .collection("users")
+          .doc(user.uid)
+          .collection("reading_results")
+          .add({
+            "score": score,
+            "total": questions.length,
+            "passage": passage,
+            "questions": questions,
+            "answers": selectedAnswers,
+            "timestamp": FieldValue.serverTimestamp(),
+          });
+
+      print("✅ Data saved successfully!");
+      print("📄 Document ID: ${docRef.id}");
+    } catch (e) {
+      print("❌ Error saving to Firebase: $e");
+    }
+    final data = {
       "score": score,
       "total": questions.length,
       "passage": passage,
       "questions": questions,
       "answers": selectedAnswers,
-      "timestamp": FieldValue.serverTimestamp(),
-    });
+    };
 
-    print("✅ Data saved successfully!");
-    print("📄 Document ID: ${docRef.id}");
-  } catch (e) {
-    print("❌ Error saving to Firebase: $e");
+    print("📦 FULL DATA: $data");
   }
-  final data = {
-  "score": score,
-  "total": questions.length,
-  "passage": passage,
-  "questions": questions,
-  "answers": selectedAnswers,
-};
 
-print("📦 FULL DATA: $data");
-}
   // ================= UI =================
   @override
   Widget build(BuildContext context) {
@@ -157,8 +158,8 @@ print("📦 FULL DATA: $data");
               child: isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : generated
-                      ? _body()
-                      : _generateButton(),
+                  ? _body()
+                  : _generateButton(),
             ),
           ],
         ),
@@ -169,67 +170,156 @@ print("📦 FULL DATA: $data");
   // ================= HEADER =================
   Widget _header() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(18, 50, 18, 25),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF7B1FA2), Color(0xFFE040FB)],
+          colors: [Color(0xFF7B1FA2), Color(0xFFC2185B)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(35),
+          bottomRight: Radius.circular(35),
+        ),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // TOP BAR
           Row(
             children: [
               GestureDetector(
                 onTap: () => Get.back(),
-                child: const CircleAvatar(
-                  backgroundColor: Colors.white24,
-                  child: Icon(Icons.arrow_back, color: Colors.white),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(
+                    Icons.arrow_back_ios_new,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                 ),
               ),
-              const SizedBox(width: 10),
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("Reading Practice",
-                      style: TextStyle(color: Colors.white, fontSize: 18)),
-                  Text("Academic Reading - Passage 1",
-                      style: TextStyle(color: Colors.white70)),
-                ],
-              )
-            ],
-          ),
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white24,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
+
+              const SizedBox(width: 14),
+
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.timer, color: Colors.white),
-                    const SizedBox(width: 8),
-                    Text(timeFormatted,
-                        style: const TextStyle(color: Colors.white)),
+                    Text(
+                      "Reading Practice",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 23,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    SizedBox(height: 4),
+
+                    Text(
+                      "Academic Reading - Passage 1",
+                      style: TextStyle(color: Colors.white70, fontSize: 13),
+                    ),
                   ],
                 ),
-                Text(
-                  "Q ${currentQuestion + 1}/${questions.length}",
-                  style: const TextStyle(color: Colors.white),
-                )
-              ],
-            ),
-          )
+              ),
+
+              // BOOK ICON
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.menu_book_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 28),
+
+          // INFO CARDS
+          Row(
+            children: [
+              Expanded(
+                child: _readingInfoCard(
+                  Icons.timer_outlined,
+                  "Time Left",
+                  timeFormatted,
+                ),
+              ),
+
+              const SizedBox(width: 12),
+
+              Expanded(
+                child: _readingInfoCard(
+                  Icons.quiz_outlined,
+                  "Questions",
+                  "${currentQuestion + 1}/${questions.length}",
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  // ================= BODY =================
+  Widget _readingInfoCard(IconData icon, String title, String value) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: Colors.white, size: 22),
+          ),
+
+          const SizedBox(width: 12),
+
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+
+              const SizedBox(height: 4),
+
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  } // ================= BODY =================
+
   Widget _body() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -240,7 +330,7 @@ print("📦 FULL DATA: $data");
           _questionCard(),
           const SizedBox(height: 20),
           _submitButton(),
-          if (showResult) _resultCard()
+          if (showResult) _resultCard(),
         ],
       ),
     );
@@ -254,8 +344,10 @@ print("📦 FULL DATA: $data");
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("📖 Passage",
-              style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text(
+            "📖 Passage",
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 10),
           Text(passage, style: const TextStyle(height: 1.5)),
         ],
@@ -273,9 +365,10 @@ print("📦 FULL DATA: $data");
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Q${currentQuestion + 1}. ${q["question"]}",
-              style:
-                  const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          Text(
+            "Q${currentQuestion + 1}. ${q["question"]}",
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
           const SizedBox(height: 10),
 
           ...List.generate(4, (i) {
@@ -305,7 +398,7 @@ print("📦 FULL DATA: $data");
                       color: Colors.purple,
                     ),
                     const SizedBox(width: 10),
-                    Expanded(child: Text(q["options"][i]))
+                    Expanded(child: Text(q["options"][i])),
                   ],
                 ),
               ),
@@ -319,16 +412,16 @@ print("📦 FULL DATA: $data");
             children: [
               if (currentQuestion > 0)
                 TextButton(
-                    onPressed: () =>
-                        setState(() => currentQuestion--),
-                    child: const Text("Previous")),
+                  onPressed: () => setState(() => currentQuestion--),
+                  child: const Text("Previous"),
+                ),
               if (currentQuestion < questions.length - 1)
                 TextButton(
-                    onPressed: () =>
-                        setState(() => currentQuestion++),
-                    child: const Text("Next")),
+                  onPressed: () => setState(() => currentQuestion++),
+                  child: const Text("Next"),
+                ),
             ],
-          )
+          ),
         ],
       ),
     );
@@ -336,11 +429,52 @@ print("📦 FULL DATA: $data");
 
   // ================= SUBMIT =================
   Widget _submitButton() {
-    return SizedBox(
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       width: double.infinity,
+      height: 58,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF7B1FA2), Color(0xFFC2185B)],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.purple.withOpacity(0.25),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
       child: ElevatedButton(
         onPressed: submitAnswers,
-        child: const Text("Submit"),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+          ),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.check_circle_outline, color: Colors.white),
+
+            SizedBox(width: 10),
+
+            Text(
+              "Submit Answers",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -353,66 +487,67 @@ print("📦 FULL DATA: $data");
       decoration: _card(),
       child: Column(
         children: [
-          const Text("Result",
-              style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text("Result", style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 10),
-          Text("$score / ${questions.length}",
-              style: const TextStyle(fontSize: 22)),
+          Text(
+            "$score / ${questions.length}",
+            style: const TextStyle(fontSize: 22),
+          ),
         ],
       ),
     );
   }
 
   // ================= GENERATE BUTTON =================
-Widget _generateButton() {
-  return Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
-    child: Center(
-      child: GestureDetector(
-        onTap: generateAIReadingTest,
-        child: Container(
-          height: 55,
-          padding: const EdgeInsets.symmetric(horizontal: 28),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF7B1FA2), Color(0xFFE040FB)],
-            ),
-            borderRadius: BorderRadius.circular(30),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF7B1FA2).withOpacity(0.4),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
+  Widget _generateButton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+      child: Center(
+        child: GestureDetector(
+          onTap: generateAIReadingTest,
+          child: Container(
+            height: 55,
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF7B1FA2), Color(0xFFE040FB)],
               ),
-            ],
-          ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.play_arrow, color: Colors.white),
-              SizedBox(width: 8),
-              Text(
-                "Start AI Reading Test",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF7B1FA2).withOpacity(0.4),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
                 ),
-              ),
-            ],
+              ],
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.play_arrow, color: Colors.white),
+                SizedBox(width: 8),
+                Text(
+                  "Start AI Reading Test",
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
-}  // ================= CARD =================
+    );
+  } // ================= CARD =================
+
   BoxDecoration _card() {
     return BoxDecoration(
       color: Colors.white,
       borderRadius: BorderRadius.circular(16),
       boxShadow: [
-        BoxShadow(
-            blurRadius: 10, color: Colors.black.withOpacity(0.05)),
+        BoxShadow(blurRadius: 10, color: Colors.black.withOpacity(0.05)),
       ],
     );
   }
