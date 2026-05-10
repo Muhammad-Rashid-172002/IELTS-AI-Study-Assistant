@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:fyproject/services/ai_service.dart';
+import 'package:get/get_core/src/get_main.dart';
+import 'package:get/get_navigation/src/extension_navigation.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -29,9 +32,9 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
   final AudioRecorder recorder = AudioRecorder();
   String? audioPath;
 
-  // ======================
-  // 🔥 AI TOPIC GENERATOR
-  // ======================
+
+  //  AI TOPIC GENERATOR
+  
   final ai = AIService();
 
   Future<void> generateTopic() async {
@@ -45,14 +48,17 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
     speakQuestion();
   }
 
-  // ======================
-  // 🎤 START RECORDING
-  // ======================
-  Future<void> startRecording() async {
+  //  START RECORDING
+
+ Future<void> startRecording() async {
+  try {
     bool speechAvailable = await speech.initialize();
     bool micPermission = await recorder.hasPermission();
 
-    if (!speechAvailable || !micPermission) return;
+    if (!speechAvailable || !micPermission) {
+      debugPrint("Permission denied");
+      return;
+    }
 
     setState(() {
       isRecording = true;
@@ -60,33 +66,44 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
       transcript = "";
     });
 
-    // 🎤 Speech-to-text
     speech.listen(
       onResult: (res) {
-        setState(() => transcript = res.recognizedWords);
+        setState(() {
+          transcript = res.recognizedWords;
+        });
       },
     );
 
-    // 🎧 File path
-    audioPath =
-        '/storage/emulated/0/Download/speaking_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    // SAFE STORAGE PATH
+    final dir = await getApplicationDocumentsDirectory();
 
-    // 🎧 Start recording (v6 syntax)
+    audioPath =
+        '${dir.path}/speaking_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
     await recorder.start(
-      const RecordConfig(encoder: AudioEncoder.aacLc),
+      const RecordConfig(
+        encoder: AudioEncoder.aacLc,
+      ),
       path: audioPath!,
     );
 
-    // ⏱ Timer
-    timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      setState(() => seconds++);
-    });
+    timer = Timer.periodic(
+      const Duration(seconds: 1),
+      (t) {
+        setState(() {
+          seconds++;
+        });
+      },
+    );
+  } catch (e) {
+    debugPrint("Recording Error: $e");
   }
+}
 
-  // ======================
-  // 🛑 STOP RECORDING
-  // ======================
-  Future<void> stopRecording() async {
+  //  STOP RECORDING
+  
+Future<void> stopRecording() async {
+  try {
     timer?.cancel();
 
     await speech.stop();
@@ -98,16 +115,20 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
       audioPath = path;
     });
 
-    await analyzeSpeaking();
+    if (transcript.isNotEmpty) {
+      await analyzeSpeaking();
+    }
+  } catch (e) {
+    debugPrint("Stop Error: $e");
   }
+}
 
-  // ======================
-  // 🤖 AI ANALYSIS
-  // ======================
+  //  AI ANALYSIS
+  
   Future<void> analyzeSpeaking() async {
     final ai = AIService();
 
-    // ✅ TEXT-BASED EVALUATION (fast + stable)
+    //  TEXT-BASED EVALUATION (fast + stable)
     final result = await ai.evaluateSpeaking(transcript, seconds);
 
     band = result["band"] ?? "0";
@@ -157,9 +178,9 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
         });
   }
 
-  // ======================
-  // 🔥 FIREBASE SAVE
-  // ======================
+  
+  // FIREBASE SAVE
+  
   Future<void> saveToFirebase() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -177,9 +198,8 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
         });
   }
 
-  // ======================
-  // 📂 LOAD RECORDINGS
-  // ======================
+  //  LOAD RECORDINGS
+  
   void loadRecordings() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -196,9 +216,9 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
     });
   }
 
-  // ======================
-  // 🔊 SPEAK QUESTION
-  // ======================
+  
+  //  SPEAK QUESTION
+  
   Future speakQuestion() async {
     await tts.speak(topic);
   }
@@ -210,9 +230,9 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
     loadRecordings();
   }
 
-  // ======================
+
   // UI
-  // ======================
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -221,7 +241,7 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _header(),
+            _topHeader(),
             const SizedBox(height: 20),
             _topicCard(),
             const SizedBox(height: 20),
@@ -236,79 +256,164 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
     );
   }
 
-  // ======================
   // HEADER (MATCH IMAGE)
-  // ======================
-  Widget _header() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 25),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0F9D8A), Color(0xFF0A7C6F)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.15),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
+ 
+Widget _topHeader() {
+  return Container(
+    padding: const EdgeInsets.fromLTRB(16, 50, 16, 22),
+    decoration: const BoxDecoration(
+      gradient: LinearGradient(
+        colors: [
+          Color(0xFF14B8A6),
+          Color(0xFF0F766E),
         ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Top Row
-          Row(
-            children: [
-              GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.arrow_back,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                "Speaking Practice",
-                style: TextStyle(
+      borderRadius: BorderRadius.only(
+        bottomLeft: Radius.circular(30),
+        bottomRight: Radius.circular(30),
+      ),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // TOP BAR
+        Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: Colors.white24,
+              child: IconButton(
+                icon: const Icon(
+                  Icons.arrow_back,
                   color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
                 ),
+                onPressed: () => Get.back(),
               ),
-            ],
-          ),
-
-          const SizedBox(height: 18),
-
-          Text(
-            "Improve fluency, pronunciation & confidence",
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.75),
-              fontSize: 12,
             ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  // ======================
-  // TOPIC CARD
-  // ======================
-  Widget _topicCard() {
+            const SizedBox(width: 10),
+
+            const Text(
+              "Speaking",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const Spacer(),
+
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.mic,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 12),
+
+        const Text(
+          "IELTS Speaking Practice",
+          style: TextStyle(
+            color: Colors.white70,
+            fontSize: 14,
+          ),
+        ),
+
+        const SizedBox(height: 22),
+
+        // INFO CARDS
+        Row(
+          children: [
+            Expanded(
+              child: _infoCard(
+                "Duration",
+                "$seconds sec",
+                Icons.timer,
+              ),
+            ),
+
+            const SizedBox(width: 10),
+
+            Expanded(
+              child: _infoCard(
+                "AI Score",
+                band.isEmpty ? "--" : band,
+                Icons.auto_graph,
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _infoCard(
+  String title,
+  String value,
+  IconData icon,
+) {
+  return Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(0.15),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.white24,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(
+            icon,
+            color: Colors.white,
+            size: 22,
+          ),
+        ),
+
+        const SizedBox(width: 12),
+
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+              ),
+            ),
+
+            const SizedBox(height: 4),
+
+            Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}  Widget _topicCard() {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -319,7 +424,7 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            "Topic Card",
+            "Topic ",
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 10),
@@ -334,9 +439,8 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
     );
   }
 
-  // ======================
-  // MIC UI (LIKE IMAGE)
-  // ======================
+  // MIC UI 
+  
   Widget _micSection() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -346,7 +450,7 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
       ),
       child: Column(
         children: [
-          // 🎤 MIC ICON (JUST VISUAL)
+          //  MIC ICON (JUST VISUAL)
           CircleAvatar(
             radius: 55,
             backgroundColor: isRecording
@@ -371,7 +475,7 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
 
           const SizedBox(height: 20),
 
-          // ✅ START BUTTON
+          //  START BUTTON
           if (!isRecording)
             SizedBox(
               width: double.infinity,

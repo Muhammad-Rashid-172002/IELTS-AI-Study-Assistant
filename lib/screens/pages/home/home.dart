@@ -6,6 +6,7 @@ import 'package:fyproject/screens/pages/Reading_Practice/ReadingPractice.dart';
 import 'package:fyproject/screens/pages/Speaking_Practice/SpeakingPractice.dart';
 import 'package:fyproject/screens/pages/Writing_Checker/WritingChecker.dart';
 import 'package:fyproject/screens/widgets/add_fire_pulse/fire_animation.dart';
+import 'package:fyproject/services/StreakService.dart';
 import 'package:get/get.dart';
 
 import '../../../controller/firebase_services/firebase_services.dart';
@@ -22,7 +23,8 @@ class _HomeState extends State<Home> {
   void initState() {
     super.initState();
     final services = Get.find<FirebaseServices>();
-    services.loadUserProfile(); // ensure listener starts
+    services.loadUserProfile();
+    StreakService.updateUserStreak();
   }
 
   @override
@@ -65,10 +67,7 @@ class _HomeState extends State<Home> {
 
               const SizedBox(height: 14),
 
-              // =====================================================
               //                     MODULE CARDS
-              // =====================================================
-              /// ================= GRID (2 per row) =================
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 child: Column(
@@ -203,7 +202,7 @@ class _HomeState extends State<Home> {
                     _moduleCard1(
                       title: "Full Mock Test",
                       subtitle: "Take a full IELTS test simulation with timer",
-                      color: Colors.black, // 🔥 full black card
+                      color: Colors.black,
                       tag: "Exam Mode",
                       icon: Icons.assignment,
                       onTap: () {
@@ -226,14 +225,13 @@ class _HomeState extends State<Home> {
     );
   }
 
-  // =====================================================
   //                     HEADER WIDGET
-  // =====================================================
+
   Widget _buildHeader() {
     final FirebaseServices services = Get.find<FirebaseServices>();
     final data = services.userData;
 
-    final int streak = data['streak'] ?? 1;
+    final int streak = data['streak'] ?? 0;
     final String? userName = data['name'];
     final String? userPhoto = data['profileImage'];
 
@@ -290,7 +288,7 @@ class _HomeState extends State<Home> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    "Welcome back 👋",
+                    "Welcome back!",
                     style: TextStyle(color: Colors.white70),
                   ),
                   Text(
@@ -308,7 +306,7 @@ class _HomeState extends State<Home> {
 
           const SizedBox(height: 20),
 
-          /// 🔥 GLASS STREAK CARD
+          /// GLASS STREAK CARD
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -326,7 +324,7 @@ class _HomeState extends State<Home> {
                       style: TextStyle(color: Colors.white70),
                     ),
                     Text(
-                      "$streak Days 🔥",
+                      "$streak Days ",
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 22,
@@ -359,10 +357,10 @@ class _HomeState extends State<Home> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(12), // 🔥 size kam kiya
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          color: isDark ? color : Colors.white, // 🔥 full black card
+          color: isDark ? color : Colors.white,
           boxShadow: [
             BoxShadow(
               color: isDark
@@ -379,18 +377,14 @@ class _HomeState extends State<Home> {
           children: [
             /// ICON
             Container(
-              padding: const EdgeInsets.all(10), // 🔥 small
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: isDark
                     ? Colors.white.withOpacity(0.1)
                     : color.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(
-                icon,
-                color: isDark ? Colors.white : color,
-                size: 20, // 🔥 small icon
-              ),
+              child: Icon(icon, color: isDark ? Colors.white : color, size: 20),
             ),
 
             const SizedBox(height: 10),
@@ -400,7 +394,7 @@ class _HomeState extends State<Home> {
               title,
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                fontSize: 14, // 🔥 small text
+                fontSize: 14,
                 color: isDark ? Colors.white : Colors.black,
               ),
             ),
