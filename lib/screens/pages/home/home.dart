@@ -30,6 +30,7 @@ class _HomeState extends State<Home> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      
       backgroundColor: const Color(0xFFF4F7FB),
       bottomNavigationBar: BottomNavigation(index: 0),
 

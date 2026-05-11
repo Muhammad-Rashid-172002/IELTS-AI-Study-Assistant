@@ -1,7 +1,7 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 import '../../../../controller/firebase_services/firebase_services.dart';
 import '../../../../resources/bottom_navigation_bar/botton_navigation.dart';
 import '../../../../resources/routes/routes_names.dart';
@@ -16,9 +16,9 @@ class Profile extends StatefulWidget {
 class _ProfileState extends State<Profile> {
   final FirebaseServices services = Get.find<FirebaseServices>();
 
-  final nameC = TextEditingController();
-  final emailC = TextEditingController();
-  final phoneC = TextEditingController();
+  final TextEditingController nameC = TextEditingController();
+  final TextEditingController emailC = TextEditingController();
+  final TextEditingController phoneC = TextEditingController();
 
   bool isEditing = false;
   bool isSaving = false;
@@ -26,36 +26,57 @@ class _ProfileState extends State<Profile> {
   @override
   void initState() {
     super.initState();
-    services.loadUserProfile().then((_) => _fillFields());
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await services.loadUserProfile();
+      _fillFields();
+      setState(() {});
+    });
   }
 
   void _fillFields() {
     final data = services.userData;
-    nameC.text = data['name'] ?? '';
-    emailC.text = data['email'] ?? '';
-    phoneC.text = data['phone'] ?? '';
-    setState(() {});
+
+    nameC.text = data['name']?.toString() ?? '';
+    emailC.text = data['email']?.toString() ?? '';
+    phoneC.text = data['phone']?.toString() ?? '';
   }
 
   Future<void> _saveChanges() async {
-    setState(() => isSaving = true);
+    try {
+      setState(() {
+        isSaving = true;
+      });
 
-    await services.updateFirestoreProfile(
-      name: nameC.text.trim(),
-      phone: phoneC.text.trim(),
-    );
+      await services.updateFirestoreProfile(
+        name: nameC.text.trim(),
+        phone: phoneC.text.trim(),
+      );
 
-    Get.snackbar(
-      "Success",
-      "Profile updated",
-      backgroundColor: Colors.black87,
-      colorText: Colors.white,
-    );
+      setState(() {
+        isSaving = false;
+        isEditing = false;
+      });
 
-    setState(() {
-      isSaving = false;
-      isEditing = false;
-    });
+      Get.snackbar(
+        "Success",
+        "Profile updated successfully",
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } catch (e) {
+      setState(() {
+        isSaving = false;
+      });
+
+      Get.snackbar(
+        "Error",
+        e.toString(),
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
   }
 
   Future<void> _logout() async {
@@ -63,155 +84,307 @@ class _ProfileState extends State<Profile> {
     Get.offAllNamed(RoutesName.login);
   }
 
+  Future<void> _openUrl(String url) async {
+    final Uri uri = Uri.parse(url);
+
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      Get.snackbar(
+        "Error",
+        "Could not launch URL",
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    nameC.dispose();
+    emailC.dispose();
+    phoneC.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Obx(() {
       final data = services.userData;
 
+      final profileImage =
+          (data['profileImage'] != null &&
+              data['profileImage'].toString().isNotEmpty)
+          ? data['profileImage'].toString()
+          : "https://cdn-icons-png.flaticon.com/512/149/149071.png";
+
       return Scaffold(
-        backgroundColor: const Color(0xfff5f5f7),
-        bottomNavigationBar: BottomNavigation(index: 2),
+        backgroundColor: const Color(0xfff5f7fb),
+
+        bottomNavigationBar: const BottomNavigation(index: 2),
 
         body: CustomScrollView(
           slivers: [
-            ///  APP STORE STYLE HEADER
+            /// HEADER
             SliverAppBar(
-              expandedHeight: 260,
+              expandedHeight: 320,
               pinned: true,
-              backgroundColor: Colors.transparent,
+              elevation: 0,
+              backgroundColor: const Color(0xff0f172a),
+
               flexibleSpace: FlexibleSpaceBar(
-                background: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    /// Background Gradient
-                    Container(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Color(0xff1d1d1f), Color(0xff2c2c2e)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                      ),
+                background: Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Color(0xff0f172a),
+                        Color(0xff1e293b),
+                        Color(0xff334155),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
+                  ),
 
-                    /// Blur Effect
-                    BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                      child: Container(color: Colors.black.withOpacity(0.2)),
-                    ),
-
-                    /// Profile Info
-                    Column(
+                  child: SafeArea(
+                    child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        CircleAvatar(
-                          radius: 50,
-                          backgroundImage: NetworkImage(
-                            (data['profileImage'] != null &&
-                                    data['profileImage'].toString().isNotEmpty)
-                                ? data['profileImage']
-                                : "https://cdn-icons-png.flaticon.com/512/149/149071.png",
-                          ),
+                        /// PROFILE IMAGE
+                        Stack(
+                          alignment: Alignment.bottomRight,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white24,
+                                  width: 2,
+                                ),
+                              ),
+
+                              child: CircleAvatar(
+                                radius: 55,
+                                backgroundColor: Colors.white,
+                                backgroundImage: NetworkImage(profileImage),
+                              ),
+                            ),
+
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.15),
+                                    blurRadius: 10,
+                                  ),
+                                ],
+                              ),
+
+                              child: const Icon(
+                                Icons.camera_alt_rounded,
+                                size: 18,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 12),
+
+                        const SizedBox(height: 18),
+
+                        /// NAME
                         Text(
-                          nameC.text,
+                          nameC.text.isEmpty ? "User Name" : nameC.text,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
+
+                        const SizedBox(height: 8),
+
+                        /// EMAIL
                         Text(
-                          emailC.text,
-                          style: const TextStyle(color: Colors.white60),
+                          emailC.text.isEmpty
+                              ? "example@gmail.com"
+                              : emailC.text,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 15,
+                          ),
                         ),
+
+                        const SizedBox(height: 20),
+
+                        /// BADGE
+                        // Container(
+                        //   padding: const EdgeInsets.symmetric(
+                        //     horizontal: 18,
+                        //     vertical: 8,
+                        //   ),
+
+                        //   decoration: BoxDecoration(
+                        //     color: Colors.white.withOpacity(0.12),
+                        //     borderRadius: BorderRadius.circular(30),
+                        //   ),
+
+                        //   child: const Text(
+                        //     "Premium Student",
+                        //     style: TextStyle(
+                        //       color: Colors.white,
+                        //       fontWeight: FontWeight.w600,
+                        //     ),
+                        //   ),
+                        // ),
                       ],
                     ),
+                  ),
+                ),
+              ),
+            ),
+
+            /// STATS
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+
+                child: Row(
+                  children: [
+                    Expanded(child: _statsCard("12", "Tests")),
+
+                    const SizedBox(width: 12),
+
+                    Expanded(child: _statsCard("7.5", "Band")),
+
+                    const SizedBox(width: 12),
+
+                    Expanded(child: _statsCard("28", "Days")),
                   ],
                 ),
               ),
             ),
 
-            ///  CONTENT
+            /// MAIN CONTENT
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+
                 child: Column(
                   children: [
-                    /// ✨ GLASS CARD
+                    /// PROFILE CARD
                     _glassCard(
                       child: Column(
                         children: [
-                          _buildField(nameC, "Full Name", isEditing),
-                          const SizedBox(height: 12),
-                          _buildField(emailC, "Email", false),
-                          const SizedBox(height: 12),
-                          _buildField(phoneC, "Phone", isEditing),
-                          const SizedBox(height: 20),
+                          _buildField(
+                            controller: nameC,
+                            label: "Full Name",
+                            icon: Icons.person_outline_rounded,
+                            enabled: isEditing,
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          _buildField(
+                            controller: emailC,
+                            label: "Email",
+                            icon: Icons.email_outlined,
+                            enabled: false,
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          _buildField(
+                            controller: phoneC,
+                            label: "Phone Number",
+                            icon: Icons.phone_outlined,
+                            enabled: isEditing,
+                          ),
+
+                          const SizedBox(height: 24),
 
                           isEditing
                               ? _primaryButton("Save Changes", _saveChanges)
-                              : _outlineButton(
-                                  "Edit Profile",
-                                  () => setState(() => isEditing = true),
-                                ),
+                              : _outlineButton("Edit Profile", () {
+                                  setState(() {
+                                    isEditing = true;
+                                  });
+                                }),
                         ],
                       ),
                     ),
 
                     const SizedBox(height: 20),
 
-                    ///  ACTIONS
+                    /// ACTIONS CARD
                     _glassCard(
                       child: Column(
                         children: [
-                          _tile(Icons.help_outline, "Help & Support", () {
-                            launchUrl(
-                              Uri.parse(
+                          _tile(
+                            Icons.help_outline_rounded,
+                            "Help & Support",
+                            () {
+                              _openUrl(
                                 "https://ielts-support-portal.vercel.app/",
-                              ),
-                            );
-                          }),
-                          _tile(Icons.lock_outline, "Privacy Policy", () {
-                            launchUrl(
-                              Uri.parse(
-                                "hhttps://ielts-privacy-police.vercel.app/",
-                              ),
-                            );
-                          }),
-                          _tile(Icons.info_outline, "About App", () {
-                            launchUrl(
-                              Uri.parse("https://ieltsabout.vercel.app/"),
-                            );
+                              );
+                            },
+                          ),
+
+                          _tile(
+                            Icons.lock_outline_rounded,
+                            "Privacy Policy",
+                            () {
+                              _openUrl(
+                                "https://ielts-privacy-police.vercel.app/",
+                              );
+                            },
+                          ),
+
+                          _tile(Icons.info_outline_rounded, "About App", () {
+                            _openUrl("https://ieltsabout.vercel.app/");
                           }),
                         ],
                       ),
                     ),
 
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 28),
 
-                    ///  LOGOUT
-                    GestureDetector(
-                      onTap: _logout,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          color: Colors.red,
+                    /// LOGOUT BUTTON
+                    SizedBox(
+                      width: double.infinity,
+                      height: 58,
+
+                      child: ElevatedButton.icon(
+                        onPressed: _logout,
+
+                        icon: const Icon(
+                          Icons.logout_rounded,
+                          color: Colors.white,
                         ),
-                        child: const Center(
-                          child: Text(
-                            "Logout",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
+
+                        label: const Text(
+                          "Logout",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xffef4444),
+
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
                           ),
                         ),
                       ),
                     ),
+
+                    const SizedBox(height: 40),
                   ],
                 ),
               ),
@@ -222,75 +395,213 @@ class _ProfileState extends State<Profile> {
     });
   }
 
-  ///  GLASS CARD
-  Widget _glassCard({required Widget child}) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.7),
-            borderRadius: BorderRadius.circular(20),
+  /// STATS CARD
+  Widget _statsCard(String value, String title) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
           ),
-          child: child,
-        ),
+        ],
+      ),
+
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Color(0xff0f172a),
+            ),
+          ),
+
+          const SizedBox(height: 6),
+
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.grey,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  /// FIELD
-  Widget _buildField(controller, label, enabled) {
+  /// GLASS CARD
+  Widget _glassCard({required Widget child}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            spreadRadius: 2,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+
+      child: child,
+    );
+  }
+
+  /// TEXT FIELD
+  Widget _buildField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    required bool enabled,
+  }) {
     return TextField(
       controller: controller,
       enabled: enabled,
+
+      style: const TextStyle(fontWeight: FontWeight.w500),
+
       decoration: InputDecoration(
         labelText: label,
+
+        prefixIcon: Icon(icon, color: Colors.black54),
+
         filled: true,
-        fillColor: Colors.white,
+        fillColor: const Color(0xfff8fafc),
+
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 18,
+        ),
+
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(18),
           borderSide: BorderSide.none,
+        ),
+
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: BorderSide.none,
+        ),
+
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: const BorderSide(color: Colors.black, width: 1.2),
         ),
       ),
     );
   }
 
-  ///  PRIMARY BUTTON
+  /// PRIMARY BUTTON
   Widget _primaryButton(String text, VoidCallback onTap) {
-    return ElevatedButton(
-      onPressed: isSaving ? null : onTap,
-      style: ElevatedButton.styleFrom(
-        minimumSize: const Size(double.infinity, 50),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        backgroundColor: Colors.black,
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+
+      child: ElevatedButton(
+        onPressed: isSaving ? null : onTap,
+
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.black,
+
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+        ),
+
+        child: isSaving
+            ? const SizedBox(
+                height: 24,
+                width: 24,
+
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2.5,
+                ),
+              )
+            : Text(
+                text,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
       ),
-      child: isSaving
-          ? const CircularProgressIndicator(color: Colors.white)
-          : Text(text),
     );
   }
 
-  ///  OUTLINE BUTTON
+  /// OUTLINE BUTTON
   Widget _outlineButton(String text, VoidCallback onTap) {
-    return OutlinedButton(
-      onPressed: onTap,
-      style: OutlinedButton.styleFrom(
-        minimumSize: const Size(double.infinity, 50),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+
+      child: OutlinedButton(
+        onPressed: onTap,
+
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: Colors.black),
+
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+        ),
+
+        child: Text(
+          text,
+          style: const TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
-      child: Text(text),
     );
   }
 
-  ///  TILE
+  /// TILE
   Widget _tile(IconData icon, String title, VoidCallback onTap) {
-    return ListTile(
-      onTap: onTap,
-      leading: Icon(icon),
-      title: Text(title),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+
+      decoration: BoxDecoration(
+        color: const Color(0xfff8fafc),
+        borderRadius: BorderRadius.circular(18),
+      ),
+
+      child: ListTile(
+        onTap: onTap,
+
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+
+          decoration: BoxDecoration(
+            color: Colors.black,
+            borderRadius: BorderRadius.circular(12),
+          ),
+
+          child: Icon(icon, color: Colors.white, size: 20),
+        ),
+
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+
+        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+      ),
     );
   }
 }
