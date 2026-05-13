@@ -30,7 +30,6 @@ class _HomeState extends State<Home> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      
       backgroundColor: const Color(0xFFF4F7FB),
       bottomNavigationBar: BottomNavigation(index: 0),
 
@@ -79,7 +78,7 @@ class _HomeState extends State<Home> {
                           child: _moduleCard(
                             title: "Listening",
                             subtitle: "AI listening",
-                            color: const Color(0xFFFFA726),
+                            
                             tag: "AI",
                             icon: Icons.mic,
                             onTap: () {
@@ -89,17 +88,7 @@ class _HomeState extends State<Home> {
                                   builder: (_) => const ListeningPractice(),
                                 ),
                               );
-                              // Get.snackbar(
-                              //   "Coming Soon ",
-                              //   "This feature will be available soon",
-                              //   snackPosition: SnackPosition.TOP,
-                              //   backgroundColor: Colors.black87,
-                              //   colorText: Colors.white,
-                              //   margin: const EdgeInsets.all(10),
-                              //   borderRadius: 10,
-                              //   duration: const Duration(seconds: 2),
-                              // );
-                            },
+                            }, startColor: Color(0xff2F6BFF), endColor: Color(0xff7B2CFF)
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -107,7 +96,7 @@ class _HomeState extends State<Home> {
                           child: _moduleCard(
                             title: "Reading",
                             subtitle: "Passage practice",
-                            color: const Color(0xFF2ECC9A),
+                           
                             tag: "IELTS",
                             icon: Icons.menu_book,
                             onTap: () {
@@ -117,7 +106,7 @@ class _HomeState extends State<Home> {
                                   builder: (_) => const ReadingPractice(),
                                 ),
                               );
-                            },
+                            }, startColor: Color(0xFF7B1FA2), endColor: Color(0xFFC2185B),
                           ),
                         ),
                       ],
@@ -131,7 +120,7 @@ class _HomeState extends State<Home> {
                           child: _moduleCard(
                             title: "Writing",
                             subtitle: "AI writing checker",
-                            color: const Color(0xFF8E44FF),
+                           
                             tag: "AI",
                             icon: Icons.edit_note,
                             onTap: () {
@@ -141,7 +130,7 @@ class _HomeState extends State<Home> {
                                   builder: (_) => const WritingChecker(),
                                 ),
                               );
-                            },
+                            }, startColor:  Color(0xFFFF2D8D),  endColor: Color(0xFFD0005B),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -149,7 +138,8 @@ class _HomeState extends State<Home> {
                           child: _moduleCard(
                             title: "Speaking",
                             subtitle: "AI speaking",
-                            color: const Color(0xFFFFA726),
+                              startColor: Color(0xFF14B8A6),
+                              endColor: Color(0xFF0F766E),
                             tag: "AI",
                             icon: Icons.mic,
                             onTap: () {
@@ -434,7 +424,8 @@ class _HomeState extends State<Home> {
     required String title,
     required String subtitle,
     required IconData icon,
-    required Color color,
+    required Color startColor,
+    required Color endColor,
     required String tag,
     required VoidCallback onTap,
   }) {
@@ -447,7 +438,7 @@ class _HomeState extends State<Home> {
           color: Colors.white,
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.15),
+              color: startColor.withOpacity(0.15),
               blurRadius: 12,
               offset: const Offset(0, 5),
             ),
@@ -461,10 +452,10 @@ class _HomeState extends State<Home> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.15),
+                color: startColor.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: color),
+              child: Icon(icon, color: startColor),
             ),
 
             const SizedBox(height: 12),
@@ -488,7 +479,7 @@ class _HomeState extends State<Home> {
             /// BUTTON
             Align(
               alignment: Alignment.bottomRight,
-              child: Icon(Icons.arrow_forward, color: color),
+              child: Icon(Icons.arrow_forward, color: endColor),
             ),
           ],
         ),

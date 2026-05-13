@@ -26,128 +26,154 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
   String topic = "Loading topic...";
   int seconds = 0;
   Timer? timer;
+  bool isGeneratingTopic = false;
+  bool isAnalyzing = false;
 
   List recordings = [];
   String band = "";
   final AudioRecorder recorder = AudioRecorder();
   String? audioPath;
 
-
   //  AI TOPIC GENERATOR
-  
+
   final ai = AIService();
 
   Future<void> generateTopic() async {
-    final data = await ai.generateSpeakingTopic();
+    if (isGeneratingTopic) return;
 
-    setState(() {
-      topic =
-          "${data["topic"]}\n\n• ${data["points"][0]}\n• ${data["points"][1]}\n• ${data["points"][2]}\n• ${data["points"][3]}";
-    });
+    isGeneratingTopic = true;
 
-    speakQuestion();
+    try {
+      final data = await ai.generateSpeakingTopic();
+
+      if (!mounted) return;
+
+      setState(() {
+        topic =
+            "${data["topic"]}\n\n"
+            "• ${data["points"][0]}\n"
+            "• ${data["points"][1]}\n"
+            "• ${data["points"][2]}\n"
+            "• ${data["points"][3]}";
+      });
+
+      await speakQuestion();
+    } catch (e) {
+      debugPrint("TOPIC ERROR: $e");
+    } finally {
+      isGeneratingTopic = false;
+    }
   }
 
   //  START RECORDING
 
- Future<void> startRecording() async {
-  try {
-    bool speechAvailable = await speech.initialize();
-    bool micPermission = await recorder.hasPermission();
+  Future<void> startRecording() async {
+    try {
+      bool speechAvailable = await speech.initialize();
+      bool micPermission = await recorder.hasPermission();
 
-    if (!speechAvailable || !micPermission) {
-      debugPrint("Permission denied");
-      return;
-    }
+      if (!speechAvailable || !micPermission) {
+        debugPrint("Permission denied");
+        return;
+      }
+
+      setState(() {
+        isRecording = true;
+        seconds = 0;
+        transcript = "";
+      });
+
+   speech.listen(
+  partialResults: false,
+  onResult: (res) {
+    if (!mounted) return;
 
     setState(() {
-      isRecording = true;
-      seconds = 0;
-      transcript = "";
+      transcript = res.recognizedWords;
     });
+  },
+);
 
-    speech.listen(
-      onResult: (res) {
-        setState(() {
-          transcript = res.recognizedWords;
-        });
-      },
-    );
+      // SAFE STORAGE PATH
+      final dir = await getApplicationDocumentsDirectory();
 
-    // SAFE STORAGE PATH
-    final dir = await getApplicationDocumentsDirectory();
+      audioPath =
+          '${dir.path}/speaking_${DateTime.now().millisecondsSinceEpoch}.m4a';
 
-    audioPath =
-        '${dir.path}/speaking_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await recorder.start(
+        const RecordConfig(encoder: AudioEncoder.aacLc),
+        path: audioPath!,
+      );
 
-    await recorder.start(
-      const RecordConfig(
-        encoder: AudioEncoder.aacLc,
-      ),
-      path: audioPath!,
-    );
-
-    timer = Timer.periodic(
-      const Duration(seconds: 1),
-      (t) {
+      timer = Timer.periodic(const Duration(seconds: 1), (t) {
         setState(() {
           seconds++;
         });
-      },
-    );
-  } catch (e) {
-    debugPrint("Recording Error: $e");
+      });
+    } catch (e) {
+      debugPrint("Recording Error: $e");
+    }
   }
-}
 
   //  STOP RECORDING
-  
-Future<void> stopRecording() async {
-  try {
-    timer?.cancel();
 
-    await speech.stop();
+  Future<void> stopRecording() async {
+    try {
+      timer?.cancel();
 
-    final path = await recorder.stop();
+      await speech.stop();
 
-    setState(() {
-      isRecording = false;
-      audioPath = path;
-    });
+      final path = await recorder.stop();
 
-    if (transcript.isNotEmpty) {
-      await analyzeSpeaking();
+      setState(() {
+        isRecording = false;
+        audioPath = path;
+      });
+
+      if (transcript.trim().isNotEmpty && !isAnalyzing) {
+        await analyzeSpeaking();
+      }
+    } catch (e) {
+      debugPrint("Stop Error: $e");
     }
-  } catch (e) {
-    debugPrint("Stop Error: $e");
   }
-}
 
   //  AI ANALYSIS
-  
+
   Future<void> analyzeSpeaking() async {
-    final ai = AIService();
+    if (isAnalyzing) return;
 
-    //  TEXT-BASED EVALUATION (fast + stable)
-    final result = await ai.evaluateSpeaking(transcript, seconds);
+    isAnalyzing = true;
 
-    band = result["band"] ?? "0";
+    try {
+      final result = await ai.evaluateSpeaking(transcript, seconds);
 
-    final fluency = result["fluency"] ?? "";
-    final lexical = result["lexical"] ?? "";
-    final grammar = result["grammar"] ?? "";
-    final pronunciation = result["pronunciation"] ?? "";
-    final improvement = result["improvement"] ?? "";
+      if (!mounted) return;
 
-    await saveToFirebaseExtra(
-      fluency,
-      lexical,
-      grammar,
-      pronunciation,
-      improvement,
-    );
+      setState(() {
+        band = result["band"] ?? "0";
+      });
 
-    loadRecordings();
+      final fluency = result["fluency"] ?? "";
+      final lexical = result["lexical"] ?? "";
+      final grammar = result["grammar"] ?? "";
+      final pronunciation = result["pronunciation"] ?? "";
+      final improvement = result["improvement"] ?? "";
+
+      await saveToFirebaseExtra(
+        fluency,
+        lexical,
+        grammar,
+        pronunciation,
+        improvement,
+      );
+
+      loadRecordings();
+    } catch (e) {
+      debugPrint("ANALYZE ERROR: $e");
+    } finally {
+      isAnalyzing = false;
+    }
   }
 
   Future<void> saveToFirebaseExtra(
@@ -178,9 +204,8 @@ Future<void> stopRecording() async {
         });
   }
 
-  
   // FIREBASE SAVE
-  
+
   Future<void> saveToFirebase() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -199,7 +224,7 @@ Future<void> stopRecording() async {
   }
 
   //  LOAD RECORDINGS
-  
+
   void loadRecordings() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -216,9 +241,8 @@ Future<void> stopRecording() async {
     });
   }
 
-  
   //  SPEAK QUESTION
-  
+
   Future speakQuestion() async {
     await tts.speak(topic);
   }
@@ -230,190 +254,151 @@ Future<void> stopRecording() async {
     loadRecordings();
   }
 
-
   // UI
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF3F6FB),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _topHeader(),
-            const SizedBox(height: 20),
-            _topicCard(),
-            const SizedBox(height: 20),
-            _micSection(),
-            const SizedBox(height: 20),
-            _recordings(),
-            const SizedBox(height: 20),
-            _nextButton(),
-          ],
-        ),
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              _topHeader(),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 20),
+                      _topicCard(),
+                      const SizedBox(height: 20),
+                      _micSection(),
+                      const SizedBox(height: 20),
+                      _recordings(),
+                      const SizedBox(height: 20),
+                      _nextButton(),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  // HEADER (MATCH IMAGE)
- 
-Widget _topHeader() {
-  return Container(
-    padding: const EdgeInsets.fromLTRB(16, 50, 16, 22),
-    decoration: const BoxDecoration(
-      gradient: LinearGradient(
-        colors: [
-          Color(0xFF14B8A6),
-          Color(0xFF0F766E),
-        ],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
+  Widget _topHeader() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 50, 16, 20),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF14B8A6), Color(0xFF0F766E)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(30),
+          bottomRight: Radius.circular(30),
+        ),
       ),
-      borderRadius: BorderRadius.only(
-        bottomLeft: Radius.circular(30),
-        bottomRight: Radius.circular(30),
-      ),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // TOP BAR
-        Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: Colors.white24,
-              child: IconButton(
-                icon: const Icon(
-                  Icons.arrow_back,
-                  color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: Colors.white.withOpacity(0.2),
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  onPressed: () => Get.back(),
                 ),
-                onPressed: () => Get.back(),
               ),
-            ),
-
-            const SizedBox(width: 10),
-
-            const Text(
-              "Speaking",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
+              const SizedBox(width: 10),
+              const Text(
+                "Speaking",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-
-            const Spacer(),
-
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.mic,
-                color: Colors.white,
-                size: 22,
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 12),
-
-        const Text(
-          "IELTS Speaking Practice",
-          style: TextStyle(
-            color: Colors.white70,
-            fontSize: 14,
+            ],
           ),
-        ),
+          const SizedBox(height: 10),
+          const Text("Speaking", style: TextStyle(color: Colors.white70)),
 
-        const SizedBox(height: 22),
+          const SizedBox(height: 20),
 
-        // INFO CARDS
-        Row(
-          children: [
-            Expanded(
-              child: _infoCard(
-                "Duration",
-                "$seconds sec",
-                Icons.timer,
+          Row(
+            children: [
+              Expanded(
+                child: _infoCard("Duration", "$seconds sec", Icons.timer),
               ),
-            ),
 
-            const SizedBox(width: 10),
+              const SizedBox(width: 10),
 
-            Expanded(
-              child: _infoCard(
-                "AI Score",
-                band.isEmpty ? "--" : band,
-                Icons.auto_graph,
+              Expanded(
+                child: _infoCard(
+                  "AI Score",
+                  band.isEmpty ? "--" : band,
+                  Icons.auto_graph,
+                ),
               ),
-            ),
-          ],
-        ),
-      ],
-    ),
-  );
-}
-
-Widget _infoCard(
-  String title,
-  String value,
-  IconData icon,
-) {
-  return Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: Colors.white.withOpacity(0.15),
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Colors.white24,
-            borderRadius: BorderRadius.circular(14),
+            ],
           ),
-          child: Icon(
-            icon,
-            color: Colors.white,
-            size: 22,
+        ],
+      ),
+    );
+  }
+
+  Widget _infoCard(String title, String value, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: Colors.white, size: 22),
           ),
-        ),
 
-        const SizedBox(width: 12),
+          const SizedBox(width: 12),
 
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
               ),
-            ),
 
-            const SizedBox(height: 4),
+              const SizedBox(height: 4),
 
-            Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-          ],
-        ),
-      ],
-    ),
-  );
-}  Widget _topicCard() {
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _topicCard() {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -439,8 +424,8 @@ Widget _infoCard(
     );
   }
 
-  // MIC UI 
-  
+  // MIC UI
+
   Widget _micSection() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -480,7 +465,7 @@ Widget _infoCard(
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: startRecording,
+                onPressed: isAnalyzing ? null : startRecording,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.teal,
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -496,12 +481,12 @@ Widget _infoCard(
               ),
             ),
 
-          // 🛑 STOP BUTTON
+          //  STOP BUTTON
           if (isRecording)
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: stopRecording,
+                onPressed: isAnalyzing ? null : stopRecording,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red,
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -519,7 +504,7 @@ Widget _infoCard(
         ],
       ),
     );
-  } // ======================
+  } 
 
   // RECORDINGS
   // ======================
@@ -602,7 +587,7 @@ Widget _infoCard(
                 // IMPROVEMENT
                 if (e['improvement'] != null)
                   Text(
-                    "💡 ${e['improvement']}",
+                    " ${e['improvement']}",
                     style: const TextStyle(color: Colors.grey, fontSize: 12),
                   ),
               ],
@@ -636,7 +621,7 @@ Widget _infoCard(
         borderRadius: BorderRadius.circular(30),
       ),
       child: ElevatedButton(
-        onPressed: generateTopic,
+        onPressed: isGeneratingTopic ? null : generateTopic,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,

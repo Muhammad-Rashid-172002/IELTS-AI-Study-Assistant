@@ -17,7 +17,7 @@ void main()async{
     options: DefaultFirebaseOptions.currentPlatform,
   );
   //My Api is Expired
-  Gemini.init(apiKey: AppKeys.geminiApiKey);  // <--- USE YOUR KEY SAFELY
+  Gemini.init(apiKey: AppKeys.geminiApiKey);  
   // Register all controllers globally
   Get.put(IELTSController(), permanent: true);
   Get.put(FirebaseServices(),permanent: true);
