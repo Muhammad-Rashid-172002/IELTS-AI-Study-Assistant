@@ -1,10 +1,15 @@
+import 'dart:ffi';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:fyproject/services/image_picker.dart';
 import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../controller/firebase_services/firebase_services.dart';
 import '../../../../resources/bottom_navigation_bar/botton_navigation.dart';
 import '../../../../resources/routes/routes_names.dart';
+import 'dart:ui' as ui;
 
 class Profile extends StatefulWidget {
   const Profile({super.key});
@@ -22,6 +27,7 @@ class _ProfileState extends State<Profile> {
 
   bool isEditing = false;
   bool isSaving = false;
+  String? selectedImagePath;
 
   @override
   void initState() {
@@ -167,32 +173,57 @@ class _ProfileState extends State<Profile> {
                               child: CircleAvatar(
                                 radius: 55,
                                 backgroundColor: Colors.white,
-                                backgroundImage: NetworkImage(profileImage),
+
+                                /// IMAGE SHOW
+                                backgroundImage: selectedImagePath != null
+                                    ? FileImage(File(selectedImagePath!))
+                                    : NetworkImage(profileImage)
+                                          as ImageProvider,
                               ),
                             ),
 
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.15),
-                                    blurRadius: 10,
-                                  ),
-                                ],
-                              ),
+                            /// CAMERA BUTTON
+                            GestureDetector(
+                              onTap: () async {
+                                File? image =
+                                    await ImagePickerHelper.showImagePicker(
+                                      context,
+                                    );
 
-                              child: const Icon(
-                                Icons.camera_alt_rounded,
-                                size: 18,
-                                color: Colors.black,
+                                if (image != null) {
+                                  setState(() {
+                                    selectedImagePath = image.path;
+                                  });
+
+                                  print(image.path);
+
+                                  // upload firebase
+                                  // await services.updateProfileImage(image);
+                                }
+                              },
+
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.15),
+                                      blurRadius: 10,
+                                    ),
+                                  ],
+                                ),
+
+                                child: const Icon(
+                                  Icons.camera_alt_rounded,
+                                  size: 18,
+                                  color: Colors.black,
+                                ),
                               ),
                             ),
                           ],
                         ),
-
                         const SizedBox(height: 18),
 
                         /// NAME
@@ -248,25 +279,25 @@ class _ProfileState extends State<Profile> {
             ),
 
             /// STATS
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
+            // SliverToBoxAdapter(
+            //   child: Padding(
+            //     padding: const EdgeInsets.all(16),
 
-                child: Row(
-                  children: [
-                    Expanded(child: _statsCard("12", "Tests")),
+            //     child: Row(
+            //       children: [
+            //         Expanded(child: _statsCard("12", "Tests")),
 
-                    const SizedBox(width: 12),
+            //         const SizedBox(width: 12),
 
-                    Expanded(child: _statsCard("7.5", "Band")),
+            //         Expanded(child: _statsCard("7.5", "Band")),
 
-                    const SizedBox(width: 12),
+            //         const SizedBox(width: 12),
 
-                    Expanded(child: _statsCard("28", "Days")),
-                  ],
-                ),
-              ),
-            ),
+            //         Expanded(child: _statsCard("28", "Days")),
+            //       ],
+            //     ),
+            //   ),
+            // ),
 
             /// MAIN CONTENT
             SliverToBoxAdapter(
@@ -275,6 +306,8 @@ class _ProfileState extends State<Profile> {
 
                 child: Column(
                   children: [
+                    SizedBox(height: 10),
+
                     /// PROFILE CARD
                     _glassCard(
                       child: Column(
@@ -356,9 +389,137 @@ class _ProfileState extends State<Profile> {
                     SizedBox(
                       width: double.infinity,
                       height: 58,
-
                       child: ElevatedButton.icon(
-                        onPressed: _logout,
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            barrierDismissible: true,
+                            builder: (context) {
+                              return Dialog(
+                                backgroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(28),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(24),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      /// ICON
+                                      Container(
+                                        padding: const EdgeInsets.all(18),
+                                        decoration: BoxDecoration(
+                                          color: const Color(
+                                            0xffef4444,
+                                          ).withOpacity(0.12),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.logout_rounded,
+                                          color: Color(0xffef4444),
+                                          size: 38,
+                                        ),
+                                      ),
+
+                                      const SizedBox(height: 20),
+
+                                      /// TITLE
+                                      const Text(
+                                        "Logout Account?",
+                                        style: TextStyle(
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+
+                                      const SizedBox(height: 10),
+
+                                      /// SUBTITLE
+                                      const Text(
+                                        "Are you sure you want to logout from your account?",
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: Colors.grey,
+                                          fontSize: 15,
+                                          height: 1.5,
+                                        ),
+                                      ),
+
+                                      const SizedBox(height: 28),
+
+                                      /// BUTTONS
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: OutlinedButton(
+                                              onPressed: () {
+                                                Navigator.pop(context);
+                                              },
+                                              style: OutlinedButton.styleFrom(
+                                                minimumSize:
+                                                    const ui.Size.fromHeight(
+                                                      52,
+                                                    ),
+                                                side: BorderSide(
+                                                  color: Colors.grey.shade300,
+                                                ),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(16),
+                                                ),
+                                              ),
+                                              child: const Text(
+                                                "Cancel",
+                                                style: TextStyle(
+                                                  color: Colors.black87,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+
+                                          const SizedBox(width: 14),
+
+                                          Expanded(
+                                            child: ElevatedButton(
+                                              onPressed: () async {
+                                                Navigator.pop(context);
+
+                                                /// LOGOUT FUNCTION
+                                                _logout();
+                                              },
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: const Color(
+                                                  0xffef4444,
+                                                ),
+                                                minimumSize:
+                                                    const ui.Size.fromHeight(
+                                                      52,
+                                                    ),
+                                                elevation: 0,
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(16),
+                                                ),
+                                              ),
+                                              child: const Text(
+                                                "Logout",
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        },
 
                         icon: const Icon(
                           Icons.logout_rounded,
@@ -376,7 +537,7 @@ class _ProfileState extends State<Profile> {
 
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xffef4444),
-
+                          elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(18),
                           ),

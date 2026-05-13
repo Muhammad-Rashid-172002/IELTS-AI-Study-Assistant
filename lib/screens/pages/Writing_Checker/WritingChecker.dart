@@ -44,6 +44,11 @@ class _WritingCheckerState extends State<WritingChecker> {
     _timer?.cancel();
 
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
       if (totalSeconds > 0) {
         setState(() {
           totalSeconds--;
@@ -74,13 +79,29 @@ class _WritingCheckerState extends State<WritingChecker> {
     try {
       final t = await ai.generateWritingTopic("2");
 
+      if (!mounted) return;
+
       setState(() {
         topic = t;
         isTopicLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
+
+      String message = "Failed to load topic";
+
+      final error = e.toString();
+
+      if (error.contains("429")) {
+        message = "API rate limit exceeded. Please wait.";
+      } else if (error.contains("SocketException")) {
+        message = "No internet connection.";
+      }
+
+      Get.snackbar("Error", message, snackPosition: SnackPosition.BOTTOM);
+
       setState(() {
-        topic = "Failed to load topic";
+        topic = message;
         isTopicLoading = false;
       });
     }
@@ -273,6 +294,7 @@ class _WritingCheckerState extends State<WritingChecker> {
       ),
     );
   }
+  
 
   // ---------------- BUTTON ----------------
   Widget _checkButton() {
@@ -320,37 +342,73 @@ class _WritingCheckerState extends State<WritingChecker> {
   // ---------------- AI + FIREBASE ----------------
   Future<void> _checkEssay() async {
     if (_essayController.text.trim().isEmpty) {
-      Get.snackbar("Error", "Write essay first");
+      Get.snackbar(
+        "Error",
+        "Write essay first",
+        snackPosition: SnackPosition.BOTTOM,
+      );
       return;
     }
 
     if (wordCount < 250) {
-      Get.snackbar("Too Short", "Minimum 250 words required");
+      Get.snackbar(
+        "Too Short",
+        "Minimum 250 words required",
+        snackPosition: SnackPosition.BOTTOM,
+      );
       return;
     }
 
-    _timer?.cancel(); // ⬅️ STOP TIMER
+    _timer?.cancel();
 
-    setState(() => isLoading = true);
+    if (!mounted) return;
+
+    setState(() {
+      isLoading = true;
+    });
 
     try {
       final result = await ai.evaluateWriting(_essayController.text, "2");
 
-      bandScore = result["band"] ?? "0";
-      taskResponse = result["task_response"] ?? "";
-      coherence = result["coherence"] ?? "";
-      lexical = result["lexical"] ?? "";
-      grammar = result["grammar"] ?? "";
-      improvement = result["improvement"] ?? "";
+      if (!mounted) return;
+
+      setState(() {
+        bandScore = result["band"] ?? "0";
+        taskResponse = result["task_response"] ?? "";
+        coherence = result["coherence"] ?? "";
+        lexical = result["lexical"] ?? "";
+        grammar = result["grammar"] ?? "";
+        improvement = result["improvement"] ?? "";
+      });
 
       await _saveToFirebase();
 
-      setState(() {});
+      Get.snackbar(
+        "Success",
+        "Essay checked successfully",
+        snackPosition: SnackPosition.TOP,
+      );
     } catch (e) {
-      Get.snackbar("Error", "AI failed");
-    }
+      String message = "AI failed";
 
-    setState(() => isLoading = false);
+      final error = e.toString();
+
+      if (error.contains("429")) {
+        message = "Too many requests. Please wait and try again.";
+      } else if (error.contains("SocketException")) {
+        message = "No internet connection.";
+      } else if (error.contains("timeout")) {
+        message = "Request timeout. Try again.";
+      }
+
+      Get.snackbar("Error", message, snackPosition: SnackPosition.BOTTOM);
+    } finally {
+      if (!mounted) return;
+
+      setState(() {
+        isLoading = false;
+      });
+    }
   }
 
   // ---------------- FIREBASE ----------------

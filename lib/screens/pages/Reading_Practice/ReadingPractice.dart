@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:fyproject/services/ai_service.dart';
 import 'package:get/get.dart';
@@ -150,19 +151,21 @@ class _ReadingPracticeState extends State<ReadingPractice> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FB),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _header(),
-            Expanded(
-              child: isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : generated
-                  ? _body()
-                  : _generateButton(),
-            ),
-          ],
-        ),
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              _header(),
+              Expanded(
+                child: isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : generated
+                    ? _body()
+                    : _generateButton(),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -170,7 +173,7 @@ class _ReadingPracticeState extends State<ReadingPractice> {
   // ================= HEADER =================
   Widget _header() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 50, 18, 25),
+      padding: const EdgeInsets.fromLTRB(16, 50, 16, 20),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           colors: [Color(0xFF7B1FA2), Color(0xFFC2185B)],

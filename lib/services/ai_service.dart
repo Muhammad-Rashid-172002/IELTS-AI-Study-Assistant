@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io';
+
 import 'package:flutter_gemini/flutter_gemini.dart';
 
 class AIService {
@@ -11,7 +11,7 @@ class AIService {
     }
   }
 
-  final gemini = Gemini.instance;
+  static final Gemini gemini = Gemini.instance;
 
   // Clean latex / symbols
   String _clean(String s) {
@@ -23,124 +23,167 @@ class AIService {
         .trim();
   }
 
-  // UNIVERSAL SAFE CALL WITH RETRY (fixes 429)
+  static bool _isRequestRunning = false;
+
   Future<T> _safeCall<T>(Future<T> Function() fn) async {
-    int attempts = 0;
-
-    while (attempts < 5) {
-      try {
-        return await fn().timeout(Duration(seconds: 20));
-      } catch (e) {
-        final error = e.toString();
-
-        if (error.contains("429")) {
-          attempts++;
-          await Future.delayed(Duration(seconds: attempts * 2));
-          continue;
-        }
-
-        rethrow;
-      }
+    // prevent parallel requests
+    if (_isRequestRunning) {
+      throw Exception("Please wait. Previous request still running.");
     }
 
-    throw Exception("Server busy. Try again.");
+    _isRequestRunning = true;
+
+    int attempts = 0;
+
+    try {
+      while (attempts < 3) {
+        try {
+          // SMALL DELAY between requests
+          await Future.delayed(const Duration(seconds: 2));
+
+          return await fn().timeout(const Duration(seconds: 30));
+        } catch (e) {
+          print("GEMINI ERROR: $e");
+
+          final error = e.toString();
+
+          // RATE LIMIT
+          if (error.contains("429")) {
+            attempts++;
+
+            final wait = Duration(seconds: attempts * 15);
+
+            print("Retrying after $wait");
+
+            await Future.delayed(wait);
+
+            continue;
+          }
+
+          // SERVER ERRORS
+          if (error.contains("500") || error.contains("503")) {
+            attempts++;
+
+            await Future.delayed(Duration(seconds: attempts * 10));
+
+            continue;
+          }
+
+          // INTERNET
+          if (error.contains("SocketException")) {
+            throw Exception("No internet connection");
+          }
+
+          // TIMEOUT
+          if (error.contains("TimeoutException")) {
+            throw Exception("Request timeout");
+          }
+
+          rethrow;
+        }
+      }
+
+      throw Exception("Gemini API limit exceeded. Try again later.");
+    } finally {
+      _isRequestRunning = false;
+    }
   }
 
   // ---------------- TEXT SUMMARIZER ----------------
-  Future<String> summarizeText(
-    String text, {
-    String length = "Medium",
-    bool bullets = false,
-  }) async {
-    final prompt =
-        """
-Summarize the following text in plain English.
+//   Future<String> summarizeText(
+//     String text, {
+//     String length = "Medium",
+//     bool bullets = false,
+//   }) async {
+//     final prompt =
+//         """
+// Summarize the following text in plain English.
 
-Rules:
-- No LaTeX or \$ symbols.
-- Length: $length
-- Bullet Points: $bullets
+// Rules:
+// - No LaTeX or \$ symbols.
+// - Length: $length
+// - Bullet Points: $bullets
 
-TEXT:
-$text
-""";
+// TEXT:
+// $text
+// """;
 
-    final res = await _safeCall(() => gemini.text(prompt));
-    return _clean(res?.output ?? "No summary generated.");
-  }
+//     final res = await _safeCall(() => gemini.text(prompt));
+//     return _clean(res?.output ?? "No summary generated.");
+//   }
 
   // ---------------- IMAGE SUMMARIZER ----------------
-  Future<String> summarizeImage(File imageFile) async {
-    final bytes = await imageFile.readAsBytes();
+  // Future<String> summarizeImage(File imageFile) async {
+  //   final bytes = await imageFile.readAsBytes();
 
-    final response = await _safeCall(
-      () => gemini.textAndImage(
-        text: "Summarize the image using plain English only.",
-        images: [bytes],
-      ),
-    );
+  //   final response = await _safeCall(
+  //     () => gemini.textAndImage(
+  //       text: "Summarize the image using plain English only.",
+  //       images: [bytes],
+  //     ),
+  //   );
 
-    return _clean(response?.output ?? "No image summary.");
-  }
+  //   return _clean(response?.output ?? "No image summary.");
+  // }
 
   // ---------------- MCQ GENERATOR ----------------
-  Future<Map<String, dynamic>> generateMCQ(
-    String text,
-    String difficulty,
-    String focus,
-  ) async {
-    final prompt =
-        """
-Generate ONE MCQ based on this study material.
+//   Future<Map<String, dynamic>> generateMCQ(
+//     String text,
+//     String difficulty,
+//     String focus,
+//   ) async {
+//     final prompt =
+//         """
+// Generate ONE MCQ based on this study material.
 
-Difficulty: $difficulty
-Focus: $focus
+// Difficulty: $difficulty
+// Focus: $focus
 
-Return ONLY this JSON format:
+// Return ONLY this JSON format:
 
-{
-  "question": "",
-  "options": ["", "", "", ""],
-  "answer": ""
-}
+// {
+//   "question": "",
+//   "options": ["", "", "", ""],
+//   "answer": ""
+// }
 
-TEXT:
-$text
-""";
+// TEXT:
+// $text
+// """;
 
-    final res = await _safeCall(() => gemini.text(prompt));
-    final raw = res?.output ?? "{}";
+//     final res = await _safeCall(() => gemini.text(prompt));
+//     final raw = res?.output ?? "{}";
 
-    try {
-      return jsonDecode(raw);
-    } catch (e) {
-      return {
-        "question": "MCQ generation failed.",
-        "options": ["-", "-", "-", "-"],
-        "answer": "-",
-      };
-    }
-  }
+//     try {
+//       return jsonDecode(raw);
+//     } catch (e) {
+//       return {
+//         "question": "MCQ generation failed.",
+//         "options": ["-", "-", "-", "-"],
+//         "answer": "-",
+//       };
+//     }
+//   }
 
   // ---------------- MATH SOLVER ----------------
-  Future<String> solveMath(String query) async {
-    final prompt =
-        """
-Solve this math problem step-by-step.
+//   Future<String> solveMath(String query) async {
+//     final prompt =
+//         """
+// Solve this math problem step-by-step.
 
-Rules:
-- No LaTeX
-- No \$ symbols
-- Explain clearly like a teacher
-- End with: "Answer: <final>"
+// Rules:
+// - No LaTeX
+// - No \$ symbols
+// - Explain clearly like a teacher
+// - End with: "Answer: <final>"
 
-Problem:
-$query
-""";
+// Problem:
+// $query
+// """;
 
-    final res = await _safeCall(() => gemini.text(prompt));
-    return _clean(res?.output ?? "No solution generated.");
-  }
+//     final res = await _safeCall(() => gemini.text(prompt));
+//     return _clean(res?.output ?? "No solution generated.");
+//   }
 
   // ---------------- FEEDBACK generator ----------------
   Future<String> feedback(String text, String category) async {
@@ -307,11 +350,9 @@ $text
 
   Future<Map<String, dynamic>> generateReadingTest() async {
     final prompt = """
-You are an IELTS Reading examiner.
+Generate IELTS Reading test.
 
-Generate a reading test.
-
-Return ONLY JSON:
+Return ONLY valid JSON:
 
 {
   "passage": "",
@@ -325,17 +366,35 @@ Return ONLY JSON:
 }
 
 Rules:
-- 1 short passage (120-180 words)
+- 1 passage
 - 5 MCQs
-- answer must be index (0,1,2,3)
-- No explanation
+- no markdown
 """;
 
-    final res = await _safeCall(() => gemini.text(prompt));
-
     try {
-      return jsonDecode(res?.output ?? "{}");
+      final res = await _safeCall(() => gemini.text(prompt));
+
+      final data = _parseJson(res?.output ?? "{}");
+
+      if (data["questions"] == null) {
+        throw Exception("Invalid AI response");
+      }
+
+      return data;
     } catch (e) {
+      print("READING ERROR: $e");
+
+      return {"passage": "", "questions": []};
+    }
+  }
+
+  Map<String, dynamic> _parseJson(String raw) {
+    try {
+      raw = raw.replaceAll("```json", "").replaceAll("```", "").trim();
+
+      return jsonDecode(raw);
+    } catch (e) {
+      print("JSON PARSE ERROR: $e");
       return {};
     }
   }
@@ -368,7 +427,7 @@ Rules:
     final res = await _safeCall(() => gemini.text(prompt));
 
     try {
-      return jsonDecode(res?.output ?? "{}");
+      return _parseJson(res?.output ?? "{}");
     } catch (e) {
       return {};
     }
@@ -489,58 +548,35 @@ Return ONLY JSON:
   // ---------------- LISTENING TEST GENERATOR ----------------
   Future<String> generateListeningTest() async {
     final prompt = """
-You are an IELTS Listening examiner.
+Create IELTS Listening Section 1.
 
-Generate a realistic IELTS Listening Section 1 test.
-
-Requirements:
-- 2 speakers (Customer and Receptionist)
-- Natural conversation (include names, dates, numbers)
-- Simple English
-- Around 120-150 words
-
-Format EXACTLY like this:
+Format:
 
 TRANSCRIPT:
 Customer: ...
 Receptionist: ...
 
 QUESTIONS:
-1. What is the main purpose of the call?
+1. ...
 A) ...
 B) ...
 C) ...
 D) ...
 ANSWER: A
 
-2. Where does the receptionist work?
-A) ...
-B) ...
-C) ...
-D) ...
-ANSWER: B
-
-3. What time is the meeting?
-A) ...
-B) ...
-C) ...
-D) ...
-ANSWER: C
-
-4. How many people will attend?
-A) ...
-B) ...
-C) ...
-D) ...
-ANSWER: D
-
 Rules:
-- No JSON
-- No explanation
-- Only this format
+- natural English
+- short
+- no JSON
 """;
 
-    final res = await _safeCall(() => gemini.text(prompt));
-    return _clean(res?.output ?? "Failed to generate listening test.");
+    try {
+      final res = await _safeCall(() => gemini.text(prompt));
+
+      return _clean(res?.output ?? "");
+    } catch (e) {
+      print("LISTENING ERROR: $e");
+      return "Failed to generate listening test.";
+    }
   }
 }

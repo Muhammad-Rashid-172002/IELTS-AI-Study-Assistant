@@ -80,6 +80,7 @@ class _ListeningPracticeState extends State<ListeningPractice> {
       });
     } catch (e) {
       Get.snackbar("Error", "Failed to generate test");
+      print(e);
     } finally {
       ieltsController.isLoading.value = false;
     }
@@ -202,70 +203,72 @@ class _ListeningPracticeState extends State<ListeningPractice> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xffF4F6FA),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _header(context),
-            const SizedBox(height: 10),
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              _header(context),
+              const SizedBox(height: 10),
 
-            if (!generated)
-              Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Obx(
-                  () => GestureDetector(
-                    onTap: ieltsController.isLoading.value
-                        ? null
-                        : generateListeningTest,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xff2F6BFF), Color(0xff7B2CFF)],
+              if (!generated)
+                Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Obx(
+                    () => GestureDetector(
+                      onTap: ieltsController.isLoading.value
+                          ? null
+                          : generateListeningTest,
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xff2F6BFF), Color(0xff7B2CFF)],
+                          ),
+                          borderRadius: BorderRadius.circular(30),
                         ),
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      child: Center(
-                        child: ieltsController.isLoading.value
-                            ? const SizedBox(
-                                height: 24,
-                                width: 24,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2.5,
+                        child: Center(
+                          child: ieltsController.isLoading.value
+                              ? const SizedBox(
+                                  height: 24,
+                                  width: 24,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2.5,
+                                  ),
+                                )
+                              : const Text(
+                                  "Generate Test",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                              )
-                            : const Text(
-                                "Generate Test",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
 
-            if (generated)
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      _audioCard(),
-                      _progress(),
-                      _questions(),
-                      const SizedBox(height: 20),
-                      _submitButton(),
-                      if (showResult) _resultCard(),
-                    ],
+              if (generated)
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        _audioCard(),
+                        _progress(),
+                        _questions(),
+                        const SizedBox(height: 20),
+                        _submitButton(),
+                        if (showResult) _resultCard(),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -273,7 +276,7 @@ class _ListeningPracticeState extends State<ListeningPractice> {
   //  HEADER
   Widget _header(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 50, 18, 24),
+      padding: const EdgeInsets.fromLTRB(16, 50, 16, 20),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           colors: [Color(0xff2F6BFF), Color(0xff7B2CFF)],
