@@ -1,10 +1,9 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:fyproject/services/ai_service.dart';
-import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
+import 'package:fyproject/services/ai_service.dart';
 
 class ReadingPractice extends StatefulWidget {
   const ReadingPractice({super.key});
@@ -16,27 +15,37 @@ class ReadingPractice extends StatefulWidget {
 class _ReadingPracticeState extends State<ReadingPractice> {
   final AIService ai = AIService();
 
-  List questions = [];
-  List<int?> selectedAnswers = [];
-
+  String title = "";
   String passage = "";
+
+  List<Map<String, dynamic>> questions = [];
+  List<String?> selectedAnswers = [];
 
   bool isLoading = false;
   bool generated = false;
   bool showResult = false;
 
   int score = 0;
-
-  // ⏱ TIMER
-  int totalSeconds = 900; // 15 min
-  Timer? timer;
-
   int currentQuestion = 0;
 
-  final FirebaseFirestore firestore = FirebaseFirestore.instance;
-  final FirebaseAuth auth = FirebaseAuth.instance;
+  int totalSeconds = 1200;
+  Timer? timer;
 
-  // ============== GENERATE
+  Color get primary => const Color(0xff7C3AED);
+  Color get secondary => const Color(0xffEC4899);
+  Color get bg => const Color(0xffF6F8FC);
+
+  String get timeFormatted {
+    final min = totalSeconds ~/ 60;
+    final sec = totalSeconds % 60;
+    return "${min.toString().padLeft(2, '0')}:${sec.toString().padLeft(2, '0')}";
+  }
+
+  @override
+  void dispose() {
+    timer?.cancel();
+    super.dispose();
+  }
 
   Future<void> generateAIReadingTest() async {
     setState(() {
@@ -44,230 +53,243 @@ class _ReadingPracticeState extends State<ReadingPractice> {
       generated = false;
       showResult = false;
       score = 0;
-      totalSeconds = 900;
+      currentQuestion = 0;
+      totalSeconds = 1200;
     });
 
     try {
       final data = await ai.generateReadingTest();
 
-      passage = data["passage"];
-      questions = data["questions"];
-      selectedAnswers = List.generate(questions.length, (_) => null);
+      final qList = List<Map<String, dynamic>>.from(data["questions"] ?? []);
+
+      setState(() {
+        title = data["title"] ?? "IELTS Academic Reading";
+        passage = data["passage"] ?? "";
+        questions = qList;
+        selectedAnswers = List.generate(qList.length, (_) => null);
+        generated = true;
+      });
 
       startTimer();
-
-      generated = true;
     } catch (e) {
-      Get.snackbar("Error", "AI failed");
+      _showInternetDialog(
+        title: "Reading Test Failed",
+        message:
+            "Your internet connection is not working properly, or the AI service is unavailable. Please check your network and try again.",
+        retry: generateAIReadingTest,
+      );
+    } finally {
+      if (mounted) setState(() => isLoading = false);
     }
-
-    setState(() => isLoading = false);
   }
 
-  // ================= TIMER =================
   void startTimer() {
     timer?.cancel();
 
-    timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (totalSeconds == 0) {
-        t.cancel();
-        submitAnswers();
-      } else {
+    timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+
+      if (totalSeconds > 0) {
         setState(() => totalSeconds--);
+      } else {
+        timer?.cancel();
+        submitAnswers();
       }
     });
   }
 
-  String get timeFormatted {
-    int min = totalSeconds ~/ 60;
-    int sec = totalSeconds % 60;
-    return "${min.toString().padLeft(2, '0')}:${sec.toString().padLeft(2, '0')}";
-  }
+  Future<void> submitAnswers() async {
+    if (questions.isEmpty) return;
 
-  // ================= SUBMIT =================
-  void submitAnswers() async {
     timer?.cancel();
 
-    score = 0;
+    int correct = 0;
+
     for (int i = 0; i < questions.length; i++) {
-      if (selectedAnswers[i] == questions[i]["answer"]) {
-        score++;
+      final correctAnswer = questions[i]["answer"].toString().trim().toLowerCase();
+      final userAnswer = selectedAnswers[i]?.trim().toLowerCase();
+
+      if (userAnswer == correctAnswer) {
+        correct++;
       }
     }
 
-    setState(() => showResult = true);
+    setState(() {
+      score = correct;
+      showResult = true;
+    });
 
     await saveResultToFirebase();
   }
 
-  // ================= FIREBASE =================
+  double calculateBandScore() {
+    if (questions.isEmpty) return 0;
+
+    final percent = score / questions.length;
+
+    if (percent >= 0.95) return 9.0;
+    if (percent >= 0.85) return 8.0;
+    if (percent >= 0.75) return 7.0;
+    if (percent >= 0.65) return 6.5;
+    if (percent >= 0.55) return 6.0;
+    if (percent >= 0.45) return 5.5;
+    if (percent >= 0.35) return 5.0;
+    return 4.0;
+  }
+
   Future<void> saveResultToFirebase() async {
-    final user = auth.currentUser;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
 
-    if (user == null) {
-      print("❌ No user logged in");
-      return;
-    }
-
-    print("👤 User ID: ${user.uid}");
-    print("📊 Score: $score");
-    print("📊 Total Questions: ${questions.length}");
-    print("📖 Passage: $passage");
-    print("❓ Questions: $questions");
-    print("✅ Selected Answers: $selectedAnswers");
-
-    try {
-      final docRef = await firestore
-          .collection("users")
-          .doc(user.uid)
-          .collection("reading_results")
-          .add({
-            "score": score,
-            "total": questions.length,
-            "passage": passage,
-            "questions": questions,
-            "answers": selectedAnswers,
-            "timestamp": FieldValue.serverTimestamp(),
-          });
-
-      print("✅ Data saved successfully!");
-      print("📄 Document ID: ${docRef.id}");
-    } catch (e) {
-      print("❌ Error saving to Firebase: $e");
-    }
-    final data = {
-      "score": score,
-      "total": questions.length,
+    await FirebaseFirestore.instance
+        .collection("users")
+        .doc(user.uid)
+        .collection("reading_results")
+        .add({
+      "title": title,
       "passage": passage,
       "questions": questions,
       "answers": selectedAnswers,
-    };
-
-    print("📦 FULL DATA: $data");
+      "score": score,
+      "total": questions.length,
+      "band": calculateBandScore(),
+      "createdAt": FieldValue.serverTimestamp(),
+    });
   }
 
-  // ================= UI =================
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FB),
-      body: Stack(
-        children: [
-          Column(
-            children: [
-              _header(),
-              Expanded(
-                child: isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : generated
-                    ? _body()
-                    : _generateButton(),
-              ),
-            ],
+  void _showInternetDialog({
+    required String title,
+    required String message,
+    required VoidCallback retry,
+  }) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: Row(
+          children: [
+            Icon(Icons.wifi_off_rounded, color: primary),
+            const SizedBox(width: 10),
+            Expanded(child: Text(title)),
+          ],
+        ),
+        content: Text(message, style: const TextStyle(height: 1.4)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Close"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              retry();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primary,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text("Retry"),
           ),
         ],
       ),
     );
   }
 
-  // ================= HEADER =================
+  void _showSnack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: bg,
+      body: Column(
+        children: [
+          _header(),
+          Expanded(
+            child: isLoading
+                ? _loadingBody()
+                : generated
+                    ? _body()
+                    : _startBody(),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _header() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 50, 16, 20),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF7B1FA2), Color(0xFFC2185B)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+      padding: const EdgeInsets.fromLTRB(18, 52, 18, 24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [primary, secondary]),
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(34),
+          bottomRight: Radius.circular(34),
         ),
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(35),
-          bottomRight: Radius.circular(35),
-        ),
+        boxShadow: [
+          BoxShadow(
+            color: primary.withOpacity(0.25),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // TOP BAR
           Row(
             children: [
-              GestureDetector(
-                onTap: () => Get.back(),
-                child: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.18),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Icon(
-                    Icons.arrow_back_ios_new,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ),
+              _circleButton(
+                icon: Icons.arrow_back_ios_new,
+                onTap: () => Navigator.pop(context),
               ),
-
               const SizedBox(width: 14),
-
               const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      "Reading Practice",
+                      "IELTS Reading",
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 23,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
-
                     SizedBox(height: 4),
-
                     Text(
-                      "Academic Reading - Passage 1",
+                      "Academic passage practice",
                       style: TextStyle(color: Colors.white70, fontSize: 13),
                     ),
                   ],
                 ),
               ),
-
-              // BOOK ICON
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.menu_book_rounded,
-                  color: Colors.white,
-                  size: 24,
-                ),
+              _circleButton(
+                icon: Icons.menu_book_rounded,
+                onTap: () {},
               ),
             ],
           ),
-
-          const SizedBox(height: 28),
-
-          // INFO CARDS
+          const SizedBox(height: 24),
           Row(
             children: [
               Expanded(
-                child: _readingInfoCard(
-                  Icons.timer_outlined,
-                  "Time Left",
-                  timeFormatted,
+                child: _infoCard(
+                  title: "Time Left",
+                  value: timeFormatted,
+                  icon: Icons.timer_outlined,
                 ),
               ),
-
               const SizedBox(width: 12),
-
               Expanded(
-                child: _readingInfoCard(
-                  Icons.quiz_outlined,
-                  "Questions",
-                  "${currentQuestion + 1}/${questions.length}",
+                child: _infoCard(
+                  title: "Questions",
+                  value: questions.isEmpty
+                      ? "0"
+                      : "${currentQuestion + 1}/${questions.length}",
+                  icon: Icons.quiz_outlined,
                 ),
               ),
             ],
@@ -277,51 +299,175 @@ class _ReadingPracticeState extends State<ReadingPractice> {
     );
   }
 
-  Widget _readingInfoCard(IconData icon, String title, String value) {
+  Widget _circleButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: Container(
+        height: 46,
+        width: 46,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.16),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withOpacity(0.12)),
+        ),
+        child: Icon(icon, color: Colors.white, size: 21),
+      ),
+    );
+  }
+
+  Widget _infoCard({
+    required String title,
+    required String value,
+    required IconData icon,
+  }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.15),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
       ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white24,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(icon, color: Colors.white, size: 22),
-          ),
-
-          const SizedBox(width: 12),
-
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
-              ),
-
-              const SizedBox(height: 4),
-
-              Text(
-                value,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+          Icon(icon, color: Colors.white),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                const SizedBox(height: 3),
+                Text(
+                  value,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
     );
-  } // ================= BODY =================
+  }
+
+  Widget _loadingBody() {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        margin: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(26),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(color: primary),
+            const SizedBox(height: 18),
+            const Text(
+              "Generating IELTS Reading Test...",
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              "AI is creating a passage and questions.",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Color(0xff6B7280)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _startBody() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          const SizedBox(height: 26),
+          _whiteCard(
+            child: Column(
+              children: [
+                Container(
+                  height: 86,
+                  width: 86,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [primary, secondary]),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.auto_stories_rounded, color: Colors.white, size: 44),
+                ),
+                const SizedBox(height: 18),
+                const Text(
+                  "Start Reading Practice",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xff111827),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "Generate a real IELTS-style reading passage with MCQ and True/False/Not Given questions.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    height: 1.5,
+                    color: Color(0xff6B7280),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _featureTile(Icons.article_outlined, "Academic IELTS passage"),
+                _featureTile(Icons.quiz_outlined, "Mixed question types"),
+                _featureTile(Icons.workspace_premium_outlined, "Score and estimated band"),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          _gradientButton(
+            text: "Start AI Reading Test",
+            icon: Icons.play_arrow_rounded,
+            onTap: generateAIReadingTest,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _featureTile(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Icon(icon, color: primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: Color(0xff374151),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _body() {
     return SingleChildScrollView(
@@ -329,100 +475,213 @@ class _ReadingPracticeState extends State<ReadingPractice> {
       child: Column(
         children: [
           _passageCard(),
-          const SizedBox(height: 20),
-          _questionCard(),
-          const SizedBox(height: 20),
-          _submitButton(),
-          if (showResult) _resultCard(),
+          const SizedBox(height: 16),
+          _progressCard(),
+          const SizedBox(height: 16),
+          if (questions.isNotEmpty) _questionCard(),
+          const SizedBox(height: 16),
+          _gradientButton(
+            text: "Submit Answers",
+            icon: Icons.done_all_rounded,
+            onTap: submitAnswers,
+          ),
+          if (showResult) ...[
+            const SizedBox(height: 18),
+            _resultCard(),
+          ],
         ],
       ),
     );
   }
 
-  // ================= PASSAGE =================
   Widget _passageCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: _card(),
+    return _whiteCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "📖 Passage",
-            style: TextStyle(fontWeight: FontWeight.bold),
+          _cardTitle(Icons.menu_book_rounded, title.isEmpty ? "Reading Passage" : title),
+          const SizedBox(height: 12),
+          Text(
+            passage,
+            style: const TextStyle(
+              height: 1.6,
+              color: Color(0xff374151),
+              fontSize: 15,
+            ),
           ),
-          const SizedBox(height: 10),
-          Text(passage, style: const TextStyle(height: 1.5)),
         ],
       ),
     );
   }
 
-  // ================= QUESTION =================
-  Widget _questionCard() {
-    final q = questions[currentQuestion];
+  Widget _progressCard() {
+    final answered = selectedAnswers.where((e) => e != null).length;
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: _card(),
+      decoration: BoxDecoration(
+        color: const Color(0xff111827),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.assignment_turned_in_outlined, color: Colors.white),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              "$answered of ${questions.length} answered",
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+            ),
+          ),
+          Text(
+            "${questions.isEmpty ? 0 : ((answered / questions.length) * 100).round()}%",
+            style: const TextStyle(
+              color: Color(0xffF9A8D4),
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _questionCard() {
+    final q = questions[currentQuestion];
+    final options = List<String>.from(q["options"] ?? []);
+    final correctAnswer = q["answer"]?.toString();
+
+    return _whiteCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "Q${currentQuestion + 1}. ${q["question"]}",
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            "Question ${currentQuestion + 1}",
+            style: TextStyle(
+              color: primary,
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+            ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
+          Text(
+            q["question"]?.toString() ?? "",
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w900,
+              height: 1.4,
+              color: Color(0xff111827),
+            ),
+          ),
+          const SizedBox(height: 14),
 
-          ...List.generate(4, (i) {
-            return GestureDetector(
-              onTap: () {
-                setState(() {
-                  selectedAnswers[currentQuestion] = i;
-                });
-              },
+          ...options.map((option) {
+            final isSelected = selectedAnswers[currentQuestion] == option;
+            final isCorrect = showResult && correctAnswer == option;
+            final isWrong = showResult && isSelected && !isCorrect;
+
+            return InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: showResult
+                  ? null
+                  : () {
+                      setState(() {
+                        selectedAnswers[currentQuestion] = option;
+                      });
+                    },
               child: Container(
                 margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(13),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
+                  color: isCorrect
+                      ? Colors.green.withOpacity(0.12)
+                      : isWrong
+                          ? Colors.red.withOpacity(0.10)
+                          : isSelected
+                              ? primary.withOpacity(0.10)
+                              : const Color(0xffF9FAFB),
+                  borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: selectedAnswers[currentQuestion] == i
-                        ? Colors.purple
-                        : Colors.grey.shade300,
+                    color: isCorrect
+                        ? Colors.green
+                        : isWrong
+                            ? Colors.redAccent
+                            : isSelected
+                                ? primary
+                                : const Color(0xffE5E7EB),
                   ),
                 ),
                 child: Row(
                   children: [
                     Icon(
-                      selectedAnswers[currentQuestion] == i
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_off,
-                      color: Colors.purple,
+                      isCorrect
+                          ? Icons.check_circle
+                          : isWrong
+                              ? Icons.cancel
+                              : isSelected
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_off,
+                      color: isCorrect
+                          ? Colors.green
+                          : isWrong
+                              ? Colors.redAccent
+                              : isSelected
+                                  ? primary
+                                  : Colors.grey,
                     ),
                     const SizedBox(width: 10),
-                    Expanded(child: Text(q["options"][i])),
+                    Expanded(
+                      child: Text(
+                        option,
+                        style: const TextStyle(
+                          color: Color(0xff374151),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
             );
           }),
 
-          const SizedBox(height: 10),
+          if (showResult && q["explanation"] != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xffEFF6FF),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                "Explanation: ${q["explanation"]}",
+                style: const TextStyle(color: Color(0xff1E40AF), height: 1.4),
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 14),
 
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              if (currentQuestion > 0)
-                TextButton(
-                  onPressed: () => setState(() => currentQuestion--),
-                  child: const Text("Previous"),
+              Expanded(
+                child: _smallButton(
+                  text: "Previous",
+                  icon: Icons.arrow_back_rounded,
+                  onTap: currentQuestion > 0
+                      ? () => setState(() => currentQuestion--)
+                      : null,
                 ),
-              if (currentQuestion < questions.length - 1)
-                TextButton(
-                  onPressed: () => setState(() => currentQuestion++),
-                  child: const Text("Next"),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _smallButton(
+                  text: currentQuestion == questions.length - 1 ? "Last" : "Next",
+                  icon: Icons.arrow_forward_rounded,
+                  onTap: currentQuestion < questions.length - 1
+                      ? () => setState(() => currentQuestion++)
+                      : null,
                 ),
+              ),
             ],
           ),
         ],
@@ -430,50 +689,114 @@ class _ReadingPracticeState extends State<ReadingPractice> {
     );
   }
 
-  // ================= SUBMIT =================
-  Widget _submitButton() {
+  Widget _resultCard() {
+    final band = calculateBandScore();
+
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       width: double.infinity,
-      height: 58,
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF7B1FA2), Color(0xFFC2185B)],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
+          colors: [Color(0xff111827), Color(0xff1F2937)],
         ),
-        borderRadius: BorderRadius.circular(30),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.purple.withOpacity(0.25),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: Column(
+        children: [
+          const Text(
+            "Estimated IELTS Band",
+            style: TextStyle(color: Colors.white70),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            band.toStringAsFixed(1),
+            style: const TextStyle(
+              color: Color(0xffF9A8D4),
+              fontSize: 52,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Score: $score / ${questions.length}",
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 18),
+          _gradientButton(
+            text: "Generate New Test",
+            icon: Icons.refresh_rounded,
+            onTap: generateAIReadingTest,
           ),
         ],
       ),
-      child: ElevatedButton(
-        onPressed: submitAnswers,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(30),
+    );
+  }
+
+  Widget _whiteCard({required Widget child}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _cardTitle(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, color: primary),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w900,
+              color: Color(0xff111827),
+            ),
           ),
         ),
-        child: const Row(
+      ],
+    );
+  }
+
+  Widget _smallButton({
+    required String text,
+    required IconData icon,
+    required VoidCallback? onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 13),
+        decoration: BoxDecoration(
+          color: onTap == null ? const Color(0xffF3F4F6) : primary.withOpacity(0.10),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: onTap == null ? const Color(0xffE5E7EB) : primary.withOpacity(0.25),
+          ),
+        ),
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.check_circle_outline, color: Colors.white),
-
-            SizedBox(width: 10),
-
+            Icon(icon, color: onTap == null ? Colors.grey : primary, size: 18),
+            const SizedBox(width: 6),
             Text(
-              "Submit Answers",
+              text,
               style: TextStyle(
-                color: Colors.white,
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5,
+                color: onTap == null ? Colors.grey : primary,
+                fontWeight: FontWeight.w900,
               ),
             ),
           ],
@@ -482,76 +805,44 @@ class _ReadingPracticeState extends State<ReadingPractice> {
     );
   }
 
-  // ================= RESULT =================
-  Widget _resultCard() {
-    return Container(
-      margin: const EdgeInsets.only(top: 20),
-      padding: const EdgeInsets.all(16),
-      decoration: _card(),
-      child: Column(
-        children: [
-          const Text("Result", style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 10),
-          Text(
-            "$score / ${questions.length}",
-            style: const TextStyle(fontSize: 22),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ================= GENERATE BUTTON =================
-  Widget _generateButton() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
-      child: Center(
-        child: GestureDetector(
-          onTap: generateAIReadingTest,
-          child: Container(
-            height: 55,
-            padding: const EdgeInsets.symmetric(horizontal: 28),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF7B1FA2), Color(0xFFE040FB)],
+  Widget _gradientButton({
+    required String text,
+    required IconData icon,
+    required VoidCallback? onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(22),
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(colors: [primary, secondary]),
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: [
+            BoxShadow(
+              color: primary.withOpacity(0.25),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.white),
+            const SizedBox(width: 10),
+            Text(
+              text,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
               ),
-              borderRadius: BorderRadius.circular(30),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF7B1FA2).withOpacity(0.4),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
-              ],
             ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.play_arrow, color: Colors.white),
-                SizedBox(width: 8),
-                Text(
-                  "Start AI Reading Test",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          ],
         ),
       ),
-    );
-  } // ================= CARD =================
-
-  BoxDecoration _card() {
-    return BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      boxShadow: [
-        BoxShadow(blurRadius: 10, color: Colors.black.withOpacity(0.05)),
-      ],
     );
   }
 }
