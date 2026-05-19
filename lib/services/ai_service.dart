@@ -328,57 +328,98 @@ Rules:
 """;
 
   return _text(prompt);
-  
-}
-  Future<Map<String, dynamic>> evaluateWriting({
-    required String text,
-    required String taskType,
-  }) async {
-    final prompt = """
-You are a certified IELTS Writing examiner.
 
-Evaluate this IELTS Writing Task $taskType answer using official IELTS band descriptors.
+}
+ Future<Map<String, dynamic>> evaluateWriting({
+  required String text,
+  required String taskType,
+}) async {
+  final isTask1 = taskType == "1";
+
+  final prompt = """
+You are an OFFICIAL IELTS Writing Examiner.
+
+Use the official IELTS Writing Band Descriptors (Updated May 2023).
+
+Strictly evaluate this IELTS Writing Task $taskType response.
+
+${isTask1
+      ? """
+TASK 1 CRITERIA:
+1. Task Achievement
+2. Coherence & Cohesion
+3. Lexical Resource
+4. Grammatical Range & Accuracy
+"""
+      : """
+TASK 2 CRITERIA:
+1. Task Response
+2. Coherence & Cohesion
+3. Lexical Resource
+4. Grammatical Range & Accuracy
+"""}
+
+IMPORTANT RULES:
+- Be a strict IELTS examiner
+- Give realistic IELTS band scores
+- Do NOT give high bands easily
+- Penalize grammar mistakes
+- Penalize weak vocabulary
+- Penalize missing overview in Task 1
+- Penalize weak opinion/development in Task 2
+- Penalize essays below required word count
+- Mention specific weaknesses
+- Mention strengths
+- Give actionable improvement tips
+- Use IELTS-style feedback
 
 Return ONLY valid JSON:
+
 {
-  "overall_band": "",
-  "task_achievement": {
-    "band": "",
+  "overall_band": "6.5",
+
+  "${isTask1 ? "task_achievement" : "task_response"}": {
+    "band": "6.0",
     "feedback": ""
   },
+
   "coherence_cohesion": {
-    "band": "",
+    "band": "6.0",
     "feedback": ""
   },
+
   "lexical_resource": {
-    "band": "",
+    "band": "6.0",
     "feedback": ""
   },
+
   "grammar": {
-    "band": "",
+    "band": "6.0",
     "feedback": ""
   },
-  "mistakes": ["", "", ""],
+
+  "strengths": [
+    "",
+    ""
+  ],
+
+  "mistakes": [
+    "",
+    "",
+    ""
+  ],
+
   "improved_version": "",
+
   "examiner_advice": ""
 }
 
-Rules:
-- Be strict
-- Give realistic band score from 0 to 9
-- Do not give high band easily
-- Mention grammar and vocabulary problems
-- Simple English
-- No markdown
-
-Candidate Answer:
+Candidate Response:
 $text
 """;
 
-    return _json(prompt);
-  }
-
-  Future<String> generateWritingIdeas(String topic) async {
+  return _json(prompt);
+}  Future<String> generateWritingIdeas(String topic) async {
     final prompt = """
 You are an IELTS Writing coach.
 
@@ -424,9 +465,8 @@ $text
   // =========================================================
   // IELTS SPEAKING
   // =========================================================
-
-  Future<Map<String, dynamic>> generateSpeakingTest() async {
-    final prompt = """
+Future<Map<String, dynamic>> generateSpeakingTest() async {
+  final prompt = """
 You are an IELTS Speaking examiner.
 
 Create a complete IELTS Speaking test.
@@ -435,7 +475,7 @@ Return ONLY valid JSON:
 {
   "part1": {
     "topic": "",
-    "questions": ["", "", "", ""]
+    "questions": ["", "", "", "", ""]
   },
   "part2": {
     "cue_card": "",
@@ -444,21 +484,24 @@ Return ONLY valid JSON:
     "speaking_time_minutes": 2
   },
   "part3": {
-    "questions": ["", "", "", ""]
+    "questions": ["", "", "", "", ""]
   }
 }
 
 Rules:
-- Real IELTS style
-- Natural questions
+- Real IELTS Speaking test style
+- Part 1 must be simple personal questions
+- Part 2 must be a cue card with 4 bullet points
+- Part 3 must be deeper discussion questions related to Part 2
+- Natural examiner language
 - No markdown
 """;
 
-    return _json(prompt);
-  }
+  return _json(prompt);
+}
 
-  Future<Map<String, dynamic>> generateSpeakingTopic() async {
-    final prompt = """
+Future<Map<String, dynamic>> generateSpeakingTopic() async {
+  final prompt = """
 You are an IELTS Speaking examiner.
 
 Generate ONE IELTS Speaking Part 2 cue card.
@@ -467,66 +510,88 @@ Return ONLY valid JSON:
 {
   "topic": "",
   "points": ["", "", "", ""],
-  "follow_up_questions": ["", "", ""]
+  "follow_up_questions": ["", "", "", ""]
 }
 
 Rules:
-- Real IELTS style
+- Real IELTS Part 2 cue card style
+- Topic should be common IELTS topic
+- Points must start with: what, when/where, why, how
+- Follow-up questions should be IELTS Part 3 style
 - No markdown
 """;
 
-    return _json(prompt);
-  }
+  return _json(prompt);
+}
 
-  Future<Map<String, dynamic>> evaluateSpeaking({
-    required String transcript,
-    required int durationSeconds,
-  }) async {
-    final prompt = """
-You are a certified IELTS Speaking examiner.
+Future<Map<String, dynamic>> evaluateSpeaking({
+  required String transcript,
+  required int durationSeconds,
+}) async {
+  final prompt = """
+You are an official IELTS Speaking examiner.
 
-Evaluate this speaking transcript.
+Use the official IELTS Speaking Band Descriptors.
+
+Evaluate the candidate based on these 4 criteria:
+1. Fluency and Coherence
+2. Lexical Resource
+3. Grammatical Range and Accuracy
+4. Pronunciation
+
+Important:
+- Be strict and realistic
+- Do not give high bands easily
+- Penalize very short answers
+- Penalize repetition, hesitation, weak vocabulary, grammar mistakes
+- If transcript is too short, band should be low
+- Mention strengths and weaknesses
+- Give actionable improvement advice
+- Since this is transcript-based, pronunciation must be estimated from clarity, naturalness, and speech flow. Mention that pronunciation is estimated.
 
 Return ONLY valid JSON:
 {
-  "overall_band": "",
+  "overall_band": "6.0",
+
   "fluency_coherence": {
-    "band": "",
+    "band": "6.0",
     "feedback": ""
   },
+
   "lexical_resource": {
-    "band": "",
+    "band": "6.0",
     "feedback": ""
   },
+
   "grammar": {
-    "band": "",
+    "band": "6.0",
     "feedback": ""
   },
+
   "pronunciation": {
-    "band": "",
+    "band": "6.0",
     "feedback": ""
   },
+
+  "strengths": ["", ""],
   "mistakes": ["", "", ""],
   "better_answer": "",
   "examiner_advice": ""
 }
 
-Rules:
-- Be strict
-- Realistic IELTS band
-- Duration: $durationSeconds seconds
-- Simple English
-- No markdown
+Speaking duration: $durationSeconds seconds
 
-Transcript:
+Candidate transcript:
 $transcript
 """;
 
-    return _json(prompt);
-  }
+  return _json(prompt);
+}
 
-  Future<List<String>> generateFollowUpQuestions(String topic) async {
-    final prompt = """
+Future<List<String>> generateFollowUpQuestions(String topic) async {
+  final prompt = """
+You are an IELTS Speaking examiner.
+
 Generate 5 IELTS Speaking Part 3 follow-up questions.
 
 Topic:
@@ -536,12 +601,16 @@ Return ONLY valid JSON:
 {
   "questions": ["", "", "", "", ""]
 }
+
+Rules:
+- Questions should be deeper and opinion-based
+- Use real IELTS Speaking Part 3 style
+- No markdown
 """;
 
-    final data = await _json(prompt);
-    return List<String>.from(data["questions"] ?? []);
-  }
-
+  final data = await _json(prompt);
+  return List<String>.from(data["questions"] ?? []);
+}
   // =========================================================
   // VOCABULARY / GRAMMAR
   // =========================================================

@@ -41,6 +41,11 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
   int seconds = 0;
   Timer? timer;
   String? audioPath;
+  Map<String, dynamic> speakingTest = {};
+  String selectedPart = "part2";
+
+  List<String> part1Questions = [];
+  List<String> part3Questions = [];
 
   List recordings = [];
 
@@ -51,7 +56,7 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
   @override
   void initState() {
     super.initState();
-    generateTopic();
+    generateFullSpeakingTest();
     loadRecordings();
   }
 
@@ -64,6 +69,46 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
     super.dispose();
   }
 
+  Future<void> generateFullSpeakingTest() async {
+  if (isGeneratingTopic) return;
+
+  setState(() => isGeneratingTopic = true);
+
+  try {
+    final data = await ai.generateSpeakingTest();
+
+    final part1 = data["part1"] as Map<String, dynamic>? ?? {};
+    final part2 = data["part2"] as Map<String, dynamic>? ?? {};
+    final part3 = data["part3"] as Map<String, dynamic>? ?? {};
+
+    setState(() {
+      speakingTest = data;
+
+      part1Questions = List<String>.from(part1["questions"] ?? []);
+      topicTitle = part2["cue_card"] ?? "Describe an interesting place.";
+      points = List<String>.from(part2["points"] ?? []);
+      part3Questions = List<String>.from(part3["questions"] ?? []);
+
+      selectedPart = "part2";
+
+      transcript = "";
+      band = "";
+      fluency = "";
+      lexical = "";
+      grammar = "";
+      pronunciation = "";
+      improvement = "";
+      seconds = 0;
+    });
+
+    await speakTopic();
+  } catch (e) {
+    _showInternetDialog();
+  } finally {
+    if (mounted) setState(() => isGeneratingTopic = false);
+  }
+}
+
   Future<void> generateTopic() async {
     if (isGeneratingTopic) return;
 
@@ -73,7 +118,8 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
       final data = await ai.generateSpeakingTopic();
 
       setState(() {
-        topicTitle = data["topic"] ?? "Describe an important event in your life.";
+        topicTitle =
+            data["topic"] ?? "Describe an important event in your life.";
         points = List<String>.from(data["points"] ?? []);
         followUps = List<String>.from(data["follow_up_questions"] ?? []);
         transcript = "";
@@ -127,7 +173,8 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
       );
 
       final dir = await getApplicationDocumentsDirectory();
-      audioPath = "${dir.path}/speaking_${DateTime.now().millisecondsSinceEpoch}.m4a";
+      audioPath =
+          "${dir.path}/speaking_${DateTime.now().millisecondsSinceEpoch}.m4a";
 
       await recorder.start(
         const RecordConfig(encoder: AudioEncoder.aacLc),
@@ -202,18 +249,18 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
         .doc(user.uid)
         .collection("speaking")
         .add({
-      "topic": topicTitle,
-      "points": points,
-      "transcript": transcript,
-      "band": band,
-      "duration": seconds,
-      "fluency": fluency,
-      "lexical": lexical,
-      "grammar": grammar,
-      "pronunciation": pronunciation,
-      "improvement": improvement,
-      "createdAt": FieldValue.serverTimestamp(),
-    });
+          "topic": topicTitle,
+          "points": points,
+          "transcript": transcript,
+          "band": band,
+          "duration": seconds,
+          "fluency": fluency,
+          "lexical": lexical,
+          "grammar": grammar,
+          "pronunciation": pronunciation,
+          "improvement": improvement,
+          "createdAt": FieldValue.serverTimestamp(),
+        });
   }
 
   Future<void> loadRecordings() async {
@@ -250,7 +297,7 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              generateTopic();
+             generateFullSpeakingTest();
             },
             child: const Text("Retry"),
           ),
@@ -261,10 +308,7 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
 
   void _showError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        behavior: SnackBarBehavior.floating,
-      ),
+      SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
     );
   }
 
@@ -290,9 +334,9 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
                   _history(),
                   const SizedBox(height: 20),
                   _gradientButton(
-                    text: isGeneratingTopic ? "Generating..." : "Next Speaking Topic",
+                    text: isGeneratingTopic ? "Generating..." : "New Speaking Test",
                     icon: Icons.refresh_rounded,
-                    onTap: isGeneratingTopic ? null : generateTopic,
+                    onTap: isGeneratingTopic ? null : generateFullSpeakingTest,
                     loading: isGeneratingTopic,
                   ),
                 ],
@@ -318,7 +362,10 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
         children: [
           Row(
             children: [
-              _circleButton(Icons.arrow_back_ios_new, () => Navigator.pop(context)),
+              _circleButton(
+                Icons.arrow_back_ios_new,
+                () => Navigator.pop(context),
+              ),
               const SizedBox(width: 14),
               const Expanded(
                 child: Column(
@@ -345,9 +392,17 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
           const SizedBox(height: 24),
           Row(
             children: [
-              Expanded(child: _infoCard("Duration", "$seconds sec", Icons.timer)),
+              Expanded(
+                child: _infoCard("Duration", "$seconds sec", Icons.timer),
+              ),
               const SizedBox(width: 12),
-              Expanded(child: _infoCard("Band", band.isEmpty ? "--" : band, Icons.auto_graph)),
+              Expanded(
+                child: _infoCard(
+                  "Band",
+                  band.isEmpty ? "--" : band,
+                  Icons.auto_graph,
+                ),
+              ),
             ],
           ),
         ],
@@ -386,7 +441,10 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                Text(
+                  title,
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
                 Text(
                   value,
                   style: const TextStyle(
@@ -402,12 +460,22 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
     );
   }
 
-  Widget _topicCard() {
-    return _whiteCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _cardTitle(Icons.topic_outlined, "Cue Card Topic"),
+ Widget _topicCard() {
+  return _whiteCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _partTabs(),
+        const SizedBox(height: 16),
+
+        if (selectedPart == "part1") ...[
+          _cardTitle(Icons.chat_bubble_outline, "Part 1 - Introduction"),
+          const SizedBox(height: 12),
+          ...part1Questions.map((q) => _questionTile(q)),
+        ],
+
+        if (selectedPart == "part2") ...[
+          _cardTitle(Icons.topic_outlined, "Part 2 - Cue Card"),
           const SizedBox(height: 12),
           Text(
             topicTitle,
@@ -418,28 +486,91 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
             ),
           ),
           const SizedBox(height: 12),
-          ...points.map(
-            (p) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.check_circle, color: primary, size: 19),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(p)),
-                ],
-              ),
-            ),
-          ),
+          ...points.map((p) => _questionTile(p)),
           const SizedBox(height: 8),
           const Text(
             "You have 1 minute to prepare and 2 minutes to speak.",
             style: TextStyle(color: Color(0xff6B7280)),
           ),
         ],
+
+        if (selectedPart == "part3") ...[
+          _cardTitle(Icons.forum_outlined, "Part 3 - Discussion"),
+          const SizedBox(height: 12),
+          ...part3Questions.map((q) => _questionTile(q)),
+        ],
+      ],
+    ),
+  );
+}
+Widget _partTabs() {
+  return Row(
+    children: [
+      Expanded(child: _partButton("Part 1", "part1")),
+      const SizedBox(width: 8),
+      Expanded(child: _partButton("Part 2", "part2")),
+      const SizedBox(width: 8),
+      Expanded(child: _partButton("Part 3", "part3")),
+    ],
+  );
+}
+
+Widget _partButton(String title, String value) {
+  final selected = selectedPart == value;
+
+  return InkWell(
+    borderRadius: BorderRadius.circular(16),
+    onTap: () {
+      setState(() {
+        selectedPart = value;
+        transcript = "";
+        seconds = 0;
+      });
+    },
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        gradient: selected
+            ? LinearGradient(colors: [primary, secondary])
+            : null,
+        color: selected ? null : const Color(0xffF3F4F6),
+        borderRadius: BorderRadius.circular(16),
       ),
-    );
-  }
+      child: Center(
+        child: Text(
+          title,
+          style: TextStyle(
+            color: selected ? Colors.white : Colors.grey,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+Widget _questionTile(String text) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.check_circle, color: primary, size: 19),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 15,
+              height: 1.4,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _recordCard() {
     return _whiteCard(
@@ -481,7 +612,9 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
           _gradientButton(
             text: isRecording ? "Stop Recording" : "Start Recording",
             icon: isRecording ? Icons.stop : Icons.mic,
-            onTap: isAnalyzing ? null : (isRecording ? stopRecording : startRecording),
+            onTap: isAnalyzing
+                ? null
+                : (isRecording ? stopRecording : startRecording),
             colors: isRecording
                 ? [Colors.redAccent, Colors.deepOrange]
                 : [primary, secondary],
@@ -495,10 +628,7 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
                 color: const Color(0xffF3F4F6),
                 borderRadius: BorderRadius.circular(18),
               ),
-              child: Text(
-                transcript,
-                style: const TextStyle(height: 1.4),
-              ),
+              child: Text(transcript, style: const TextStyle(height: 1.4)),
             ),
           ],
         ],
@@ -560,10 +690,7 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
         color: const Color(0xffF9FAFB),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Text(
-        "$title: $value",
-        style: const TextStyle(height: 1.4),
-      ),
+      child: Text("$title: $value", style: const TextStyle(height: 1.4)),
     );
   }
 
@@ -658,9 +785,7 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 15),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: colors ?? [primary, secondary],
-          ),
+          gradient: LinearGradient(colors: colors ?? [primary, secondary]),
           borderRadius: BorderRadius.circular(22),
         ),
         child: Center(
