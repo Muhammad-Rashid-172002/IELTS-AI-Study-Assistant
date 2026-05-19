@@ -131,8 +131,9 @@ class _WritingCheckerState extends State<WritingChecker> {
       setState(() {
         bandScore = result["overall_band"]?.toString() ?? "0";
 
-        taskAchievement =
-            result["task_achievement"]?["feedback"]?.toString() ?? "";
+        taskAchievement = selectedTask == "1"
+            ? (result["task_achievement"]?["feedback"]?.toString() ?? "")
+            : (result["task_response"]?["feedback"]?.toString() ?? "");
 
         coherence = result["coherence_cohesion"]?["feedback"]?.toString() ?? "";
 
@@ -484,85 +485,108 @@ class _WritingCheckerState extends State<WritingChecker> {
     );
   }
 
- Widget _topicCard() {
-  return _whiteCard(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _cardTitle(
-          Icons.lightbulb_outline,
-          "Writing Task $selectedTask Prompt",
-        ),
-        const SizedBox(height: 18),
+  Widget _topicCard() {
+    return _whiteCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _cardTitle(
+            Icons.lightbulb_outline,
+            "Writing Task $selectedTask Prompt",
+          ),
+          const SizedBox(height: 18),
 
-        if (isTopicLoading)
-          Center(child: CircularProgressIndicator(color: primary))
-        else
-          _buildFormattedPrompt(topic),
+          if (isTopicLoading)
+            Center(child: CircularProgressIndicator(color: primary))
+          else
+            _buildFormattedPrompt(topic),
 
-        const SizedBox(height: 16),
+          const SizedBox(height: 16),
 
-        Row(
-          children: [
-            Expanded(
-              child: _smallButton(
-                icon: Icons.refresh_rounded,
-                text: "New Topic",
-                onTap: isTopicLoading ? null : loadTopic,
+          Row(
+            children: [
+              Expanded(
+                child: _smallButton(
+                  icon: Icons.refresh_rounded,
+                  text: "New Topic",
+                  onTap: isTopicLoading ? null : loadTopic,
+                ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _smallButton(
-                icon: Icons.rule_rounded,
-                text: "Min $minWords words",
-                onTap: null,
+              const SizedBox(width: 10),
+              Expanded(
+                child: _smallButton(
+                  icon: Icons.rule_rounded,
+                  text: "Min $minWords words",
+                  onTap: null,
+                ),
               ),
-            ),
-          ],
-        ),
-      ],
-    ),
-  );
-}
-Widget _buildFormattedPrompt(String text) {
-  final lines = text.split('\n');
-
-  final normalLines = <String>[];
-  final tableLines = <String>[];
-
-  for (final line in lines) {
-    if (line.trim().startsWith('|')) {
-      tableLines.add(line.trim());
-    } else {
-      normalLines.add(line);
-    }
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      _boldText(normalLines.join('\n').trim()),
+  Widget _buildFormattedPrompt(String text) {
+    final lines = text.split('\n');
 
-      if (tableLines.length >= 2) ...[
-        const SizedBox(height: 18),
-        _markdownTable(tableLines),
+    final normalLines = <String>[];
+    final tableLines = <String>[];
+
+    for (final line in lines) {
+      if (line.trim().startsWith('|')) {
+        tableLines.add(line.trim());
+      } else {
+        normalLines.add(line);
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _boldText(normalLines.join('\n').trim()),
+
+        if (tableLines.length >= 2) ...[
+          const SizedBox(height: 18),
+          _markdownTable(tableLines),
+        ],
       ],
-    ],
-  );
-}
+    );
+  }
 
-Widget _boldText(String text) {
-  final spans = <TextSpan>[];
-  final regex = RegExp(r'\*\*(.*?)\*\*');
+  Widget _boldText(String text) {
+    final spans = <TextSpan>[];
+    final regex = RegExp(r'\*\*(.*?)\*\*');
 
-  int start = 0;
+    int start = 0;
 
-  for (final match in regex.allMatches(text)) {
-    if (match.start > start) {
+    for (final match in regex.allMatches(text)) {
+      if (match.start > start) {
+        spans.add(
+          TextSpan(
+            text: text.substring(start, match.start),
+            style: const TextStyle(
+              color: Color(0xff111827),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        );
+      }
+
       spans.add(
         TextSpan(
-          text: text.substring(start, match.start),
+          text: match.group(1),
+          style: TextStyle(color: primary, fontWeight: FontWeight.w900),
+        ),
+      );
+
+      start = match.end;
+    }
+
+    if (start < text.length) {
+      spans.add(
+        TextSpan(
+          text: text.substring(start),
           style: const TextStyle(
             color: Color(0xff111827),
             fontWeight: FontWeight.w600,
@@ -571,95 +595,72 @@ Widget _boldText(String text) {
       );
     }
 
-    spans.add(
-      TextSpan(
-        text: match.group(1),
-        style: TextStyle(
-          color: primary,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
-    );
-
-    start = match.end;
-  }
-
-  if (start < text.length) {
-    spans.add(
-      TextSpan(
-        text: text.substring(start),
-        style: const TextStyle(
-          color: Color(0xff111827),
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-
-  return RichText(
-    text: TextSpan(
-      children: spans,
-      style: const TextStyle(
-        fontSize: 16,
-        height: 1.7,
-        color: Color(0xff111827),
-      ),
+    return  RichText(
+  softWrap: true,
+  overflow: TextOverflow.visible,
+  text: TextSpan(
+    children: spans,
+    style: const TextStyle(
+      fontSize: 16,
+      height: 1.7,
+      color: Color(0xff111827),
     ),
-  );
-}
+  ),
+);
+  }
 
-Widget _markdownTable(List<String> lines) {
-  final rows = lines
-      .where((line) => !line.contains('---'))
-      .map((line) {
-        return line
-            .split('|')
-            .map((e) => e.trim())
-            .where((e) => e.isNotEmpty)
-            .toList();
-      })
-      .where((row) => row.isNotEmpty)
-      .toList();
+  Widget _markdownTable(List<String> lines) {
+    final rows = lines
+        .where((line) => !line.contains('---'))
+        .map((line) {
+          return line
+              .split('|')
+              .map((e) => e.trim())
+              .where((e) => e.isNotEmpty)
+              .toList();
+        })
+        .where((row) => row.isNotEmpty)
+        .toList();
 
-  return ClipRRect(
-    borderRadius: BorderRadius.circular(14),
-    child: Table(
-      border: TableBorder.all(color: const Color(0xffD1D5DB)),
-      columnWidths: const {
-        0: FlexColumnWidth(1.4),
-        1: FlexColumnWidth(),
-        2: FlexColumnWidth(),
-        3: FlexColumnWidth(),
-      },
-      children: List.generate(rows.length, (index) {
-        final isHeader = index == 0;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: Table(
+        border: TableBorder.all(color: const Color(0xffD1D5DB)),
+        columnWidths: const {
+          0: FlexColumnWidth(1.4),
+          1: FlexColumnWidth(),
+          2: FlexColumnWidth(),
+          3: FlexColumnWidth(),
+        },
+        children: List.generate(rows.length, (index) {
+          final isHeader = index == 0;
 
-        return TableRow(
-          decoration: BoxDecoration(
-            color: isHeader ? const Color(0xffF3F4F6) : Colors.white,
-          ),
-          children: rows[index].map((cell) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 12,
-              ),
-              child: Text(
-                cell,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: isHeader ? FontWeight.w900 : FontWeight.w700,
-                  color: const Color(0xff111827),
+          return TableRow(
+            decoration: BoxDecoration(
+              color: isHeader ? const Color(0xffF3F4F6) : Colors.white,
+            ),
+            children: rows[index].map((cell) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 12,
                 ),
-              ),
-            );
-          }).toList(),
-        );
-      }),
-    ),
-  );
-}
+                child: Text(
+                  cell,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: isHeader ? FontWeight.w900 : FontWeight.w700,
+                    color: const Color(0xff111827),
+                  ),
+                ),
+              );
+            }).toList(),
+          );
+        }),
+      ),
+    );
+  }
 
   Widget _essayCard() {
     return _whiteCard(
@@ -722,7 +723,10 @@ Widget _markdownTable(List<String> lines) {
       children: [
         _bandCard(),
         const SizedBox(height: 14),
-        _detailCard("Task Achievement", taskAchievement),
+        _detailCard(
+          selectedTask == "1" ? "Task Achievement" : "Task Response",
+          taskAchievement,
+        ),
         _detailCard("Coherence & Cohesion", coherence),
         _detailCard("Lexical Resource", lexical),
         _detailCard("Grammar Range & Accuracy", grammar),
