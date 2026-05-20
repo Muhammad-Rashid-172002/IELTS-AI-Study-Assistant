@@ -37,9 +37,9 @@ class _WritingCheckerState extends State<WritingChecker> {
 
   int get examTime => selectedTask == "1" ? 1200 : 2400;
 
-  Color get primary => const Color(0xffEC4899);
-  Color get secondary => const Color(0xff7C3AED);
-  Color get bg => const Color(0xffF6F8FC);
+  Color get primary => const Color(0xFF14B8A6);
+  Color get secondary => const Color(0xFF0F766E);
+  Color get bg => const Color(0xFF08111F);
 
   String get timeFormatted {
     final min = totalSeconds ~/ 60;
@@ -230,7 +230,7 @@ class _WritingCheckerState extends State<WritingChecker> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: const Color(0xFF08111F),
       body: Stack(
         children: [
           Column(
@@ -312,38 +312,38 @@ class _WritingCheckerState extends State<WritingChecker> {
     required VoidCallback onTap,
   }) {
     return InkWell(
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(22),
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           gradient: selected
               ? LinearGradient(colors: [primary, secondary])
               : null,
-          color: selected ? null : const Color(0xffF3F4F6),
-          borderRadius: BorderRadius.circular(18),
+          color: selected ? null : Colors.white.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(22),
           border: Border.all(
-            color: selected ? Colors.transparent : const Color(0xffE5E7EB),
+            color: selected
+                ? Colors.transparent
+                : Colors.white.withOpacity(0.10),
           ),
         ),
         child: Column(
           children: [
             Text(
               title,
-              style: TextStyle(
-                color: selected ? Colors.white : Colors.black,
+              style: const TextStyle(
+                color: Colors.white,
                 fontWeight: FontWeight.w900,
                 fontSize: 16,
               ),
             ),
-
             const SizedBox(height: 4),
-
             Text(
               subtitle,
               style: TextStyle(
-                color: selected ? Colors.white70 : Colors.grey,
+                color: Colors.white.withOpacity(0.65),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -356,19 +356,12 @@ class _WritingCheckerState extends State<WritingChecker> {
   Widget _header() {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 52, 18, 24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [primary, secondary]),
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(34),
-          bottomRight: Radius.circular(34),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF08111F), Color(0xFF102A43), Color(0xFF0F766E)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: primary.withOpacity(0.25),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
-        ],
       ),
       child: Column(
         children: [
@@ -565,8 +558,8 @@ class _WritingCheckerState extends State<WritingChecker> {
         spans.add(
           TextSpan(
             text: text.substring(start, match.start),
-            style: const TextStyle(
-              color: Color(0xff111827),
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.82),
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -595,18 +588,18 @@ class _WritingCheckerState extends State<WritingChecker> {
       );
     }
 
-    return  RichText(
-  softWrap: true,
-  overflow: TextOverflow.visible,
-  text: TextSpan(
-    children: spans,
-    style: const TextStyle(
-      fontSize: 16,
-      height: 1.7,
-      color: Color(0xff111827),
-    ),
-  ),
-);
+    return RichText(
+      softWrap: true,
+      overflow: TextOverflow.visible,
+      text: TextSpan(
+        children: spans,
+        style: const TextStyle(
+          fontSize: 16,
+          height: 1.7,
+          color: Color(0xff111827),
+        ),
+      ),
+    );
   }
 
   Widget _markdownTable(List<String> lines) {
@@ -625,7 +618,7 @@ class _WritingCheckerState extends State<WritingChecker> {
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
       child: Table(
-        border: TableBorder.all(color: const Color(0xffD1D5DB)),
+        border: TableBorder.all(color: Colors.white.withOpacity(0.12)),
         columnWidths: const {
           0: FlexColumnWidth(1.4),
           1: FlexColumnWidth(),
@@ -637,7 +630,9 @@ class _WritingCheckerState extends State<WritingChecker> {
 
           return TableRow(
             decoration: BoxDecoration(
-              color: isHeader ? const Color(0xffF3F4F6) : Colors.white,
+              color: isHeader
+                  ? primary.withOpacity(0.22)
+                  : Colors.white.withOpacity(0.06),
             ),
             children: rows[index].map((cell) {
               return Padding(
@@ -651,7 +646,7 @@ class _WritingCheckerState extends State<WritingChecker> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: isHeader ? FontWeight.w900 : FontWeight.w700,
-                    color: const Color(0xff111827),
+                    color: Colors.white,
                   ),
                 ),
               );
@@ -677,9 +672,10 @@ class _WritingCheckerState extends State<WritingChecker> {
             decoration: InputDecoration(
               hintText:
                   "Write your IELTS Task 2 essay here...\n\nIntroduction\nBody paragraph 1\nBody paragraph 2\nConclusion",
-              hintStyle: const TextStyle(color: Color(0xff9CA3AF)),
+              hintStyle: TextStyle(color: Colors.white.withOpacity(0.40)),
+              fillColor: Colors.white.withOpacity(0.08),
               filled: true,
-              fillColor: const Color(0xffF9FAFB),
+
               contentPadding: const EdgeInsets.all(16),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(18),
@@ -687,13 +683,19 @@ class _WritingCheckerState extends State<WritingChecker> {
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(18),
-                borderSide: const BorderSide(color: Color(0xffE5E7EB)),
+                borderSide: BorderSide(color: Colors.white.withOpacity(0.10)),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(18),
                 borderSide: BorderSide(color: primary, width: 1.4),
               ),
             ),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              height: 1.5,
+            ),
+            cursorColor: primary,
           ),
           const SizedBox(height: 12),
           LinearProgressIndicator(
@@ -759,8 +761,8 @@ class _WritingCheckerState extends State<WritingChecker> {
           Text(
             bandScore,
             style: const TextStyle(
-              color: Color(0xffF9A8D4),
-              fontSize: 52,
+              color: Color(0xFF86EFAC),
+              fontSize: 56,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -776,26 +778,24 @@ class _WritingCheckerState extends State<WritingChecker> {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: Colors.white.withOpacity(0.10)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _cardTitle(Icons.check_circle_outline, title),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Text(
             value,
-            style: const TextStyle(height: 1.45, color: Color(0xff374151)),
+            style: TextStyle(
+              height: 1.55,
+              color: Colors.white.withOpacity(0.78),
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ),
@@ -805,15 +805,16 @@ class _WritingCheckerState extends State<WritingChecker> {
   Widget _whiteCard({required Widget child}) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(26),
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.white.withOpacity(0.10)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
+            color: Colors.black.withOpacity(0.22),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
@@ -824,15 +825,22 @@ class _WritingCheckerState extends State<WritingChecker> {
   Widget _cardTitle(IconData icon, String title) {
     return Row(
       children: [
-        Icon(icon, color: primary, size: 22),
-        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: [primary, secondary]),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(icon, color: Colors.white, size: 20),
+        ),
+        const SizedBox(width: 10),
         Expanded(
           child: Text(
             title,
             style: const TextStyle(
-              fontSize: 17,
+              fontSize: 18,
               fontWeight: FontWeight.w900,
-              color: Color(0xff111827),
+              color: Colors.white,
             ),
           ),
         ),

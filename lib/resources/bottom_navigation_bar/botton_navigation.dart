@@ -1,10 +1,16 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+
 import '../routes/routes_names.dart';
 
 class BottomNavigation extends StatefulWidget {
   final int index;
-  const BottomNavigation({super.key, required this.index});
+
+  const BottomNavigation({
+    super.key,
+    required this.index,
+  });
 
   @override
   State<BottomNavigation> createState() => _BottomNavigationState();
@@ -14,21 +20,16 @@ class _BottomNavigationState extends State<BottomNavigation> {
   late int myIndex;
 
   final List<IconData> iconList = [
-    Icons.home_outlined,
-    Icons.bar_chart_outlined,
-    Icons.person_outline,
+    Icons.home_rounded,
+    Icons.bar_chart_rounded,
+    Icons.person_rounded,
   ];
 
-  final List<IconData> activeIconList = [
-    Icons.home,
-    Icons.bar_chart,
-    Icons.person,
+  final List<String> labels = [
+    "Home",
+    "Progress",
+    "Profile",
   ];
-
-  final List<String> labels = ["Home", "Progress", "Profile"];
-
-  static const Color activeColor = Color(0xFF007AFF); 
-  static const Color inactiveColor = Colors.grey;
 
   @override
   void initState() {
@@ -45,9 +46,11 @@ class _BottomNavigationState extends State<BottomNavigation> {
       case 0:
         Get.offAllNamed(RoutesName.home);
         break;
+
       case 1:
         Get.offAllNamed(RoutesName.progress);
         break;
+
       case 2:
         Get.offAllNamed(RoutesName.profile);
         break;
@@ -57,50 +60,104 @@ class _BottomNavigationState extends State<BottomNavigation> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 75,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(
-          top: BorderSide(color: Colors.grey.shade300, width: 0.6),
-        ),
-      ),
-      child: Row(
-        children: List.generate(iconList.length, (index) {
-          final isSelected = index == myIndex;
+      margin: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(30),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(
+            sigmaX: 18,
+            sigmaY: 18,
+          ),
+          child: Container(
+            height: 78,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.10),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.22),
+                  blurRadius: 25,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: List.generate(
+                iconList.length,
+                (index) {
+                  final isSelected = index == myIndex;
 
-          return Expanded(
-            child: InkWell(
-              onTap: () => onTap(index),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    child: Icon(
-                      isSelected ? activeIconList[index] : iconList[index],
-                      key: ValueKey(isSelected),
-                      size: 26,
-                      color: isSelected ? activeColor : inactiveColor,
+                  return GestureDetector(
+                    onTap: () => onTap(index),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: isSelected
+                            ? const LinearGradient(
+                                colors: [
+                                  Color(0xFF2DD4BF),
+                                  Color(0xFF14B8A6),
+                                ],
+                              )
+                            : null,
+                        borderRadius: BorderRadius.circular(22),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: const Color(0xFF14B8A6)
+                                      .withOpacity(0.45),
+                                  blurRadius: 18,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ]
+                            : [],
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            iconList[index],
+                            color: isSelected
+                                ? Colors.white
+                                : Colors.white.withOpacity(0.55),
+                            size: 24,
+                          ),
+
+                          AnimatedSize(
+                            duration: const Duration(milliseconds: 250),
+                            curve: Curves.easeInOut,
+                            child: isSelected
+                                ? Row(
+                                    children: [
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        labels[index],
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : const SizedBox(),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-
-                  const SizedBox(height: 4),
-
-                  Text(
-                    labels[index],
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: isSelected
-                          ? FontWeight.w600
-                          : FontWeight.normal,
-                      color: isSelected ? activeColor : inactiveColor,
-                    ),
-                  ),
-                ],
+                  );
+                },
               ),
             ),
-          );
-        }),
+          ),
+        ),
       ),
     );
   }

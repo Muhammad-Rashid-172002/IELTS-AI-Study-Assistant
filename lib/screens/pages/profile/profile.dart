@@ -1,4 +1,3 @@
-import 'dart:ffi';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -99,7 +98,7 @@ class _ProfileState extends State<Profile> {
       Get.snackbar(
         "Error",
         "Could not launch URL",
-        backgroundColor: Colors.red,
+        backgroundColor: const Color(0xffef4444),
         colorText: Colors.white,
       );
     }
@@ -125,8 +124,7 @@ class _ProfileState extends State<Profile> {
           : "https://cdn-icons-png.flaticon.com/512/149/149071.png";
 
       return Scaffold(
-        backgroundColor: const Color(0xfff5f7fb),
-
+        backgroundColor: const Color(0xFF08111F),
         bottomNavigationBar: const BottomNavigation(index: 2),
 
         body: CustomScrollView(
@@ -136,16 +134,15 @@ class _ProfileState extends State<Profile> {
               expandedHeight: 320,
               pinned: true,
               elevation: 0,
-              backgroundColor: const Color(0xff0f172a),
-
+              backgroundColor: const Color(0xff2563EB),
               flexibleSpace: FlexibleSpaceBar(
                 background: Container(
                   decoration: const BoxDecoration(
-                    gradient: LinearGradient(
+                    gradient: const LinearGradient(
                       colors: [
-                        Color(0xff0f172a),
-                        Color(0xff1e293b),
-                        Color(0xff334155),
+                        Color(0xFF08111F),
+                        Color(0xFF102A43),
+                        Color(0xFF0F766E),
                       ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
@@ -191,21 +188,43 @@ class _ProfileState extends State<Profile> {
                                     );
 
                                 if (image != null) {
-                                  setState(() {
-                                    selectedImagePath = image.path;
-                                  });
+                                  try {
+                                    setState(() {
+                                      selectedImagePath = image.path;
+                                      isSaving = true;
+                                    });
 
-                                  print(image.path);
+                                    await services.updateProfileImage(image);
+                                    await services.loadUserProfile();
 
-                                  // upload firebase
-                                  // await services.updateProfileImage(image);
+                                    setState(() {
+                                      selectedImagePath = null;
+                                      isSaving = false;
+                                    });
+
+                                    Get.snackbar(
+                                      "Success",
+                                      "Profile image updated successfully",
+                                      backgroundColor: Colors.green,
+                                      colorText: Colors.white,
+                                    );
+                                  } catch (e) {
+                                    setState(() => isSaving = false);
+
+                                    Get.snackbar(
+                                      "Error",
+                                      "Image upload failed. Please try again.",
+                                      backgroundColor: Colors.red,
+                                      colorText: Colors.white,
+                                    );
+                                  }
                                 }
                               },
 
                               child: Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
+                                  color: const Color(0xff2563EB),
                                   shape: BoxShape.circle,
                                   boxShadow: [
                                     BoxShadow(
@@ -218,7 +237,7 @@ class _ProfileState extends State<Profile> {
                                 child: const Icon(
                                   Icons.camera_alt_rounded,
                                   size: 18,
-                                  color: Colors.black,
+                                  color: Colors.white,
                                 ),
                               ),
                             ),
@@ -556,69 +575,66 @@ class _ProfileState extends State<Profile> {
     });
   }
 
-  /// STATS CARD
-  Widget _statsCard(String value, String title) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 20),
+  // /// STATS CARD
+  // Widget _statsCard(String value, String title) {
+  //   return Container(
+  //     padding: const EdgeInsets.symmetric(vertical: 20),
 
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
+  //     decoration: BoxDecoration(
+  //       color: Colors.white,
+  //       borderRadius: BorderRadius.circular(22),
 
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
+  //       boxShadow: [
+  //         BoxShadow(
+  //           color: Colors.black.withOpacity(0.05),
+  //           blurRadius: 12,
+  //           offset: const Offset(0, 6),
+  //         ),
+  //       ],
+  //     ),
 
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Color(0xff0f172a),
-            ),
-          ),
+  //     child: Column(
+  //       children: [
+  //         Text(
+  //           value,
+  //           style: const TextStyle(
+  //             fontSize: 24,
+  //             fontWeight: FontWeight.bold,
+  //             color: Color(0xff0f172a),
+  //           ),
+  //         ),
 
-          const SizedBox(height: 6),
+  //         const SizedBox(height: 6),
 
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.grey,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  //         Text(
+  //           title,
+  //           style: const TextStyle(
+  //             color: Colors.grey,
+  //             fontWeight: FontWeight.w500,
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   /// GLASS CARD
   Widget _glassCard({required Widget child}) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
-
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: Colors.white.withOpacity(0.10)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 20,
-            spreadRadius: 2,
-            offset: const Offset(0, 10),
+            color: Colors.black.withOpacity(0.22),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
-
       child: child,
     );
   }
@@ -633,35 +649,33 @@ class _ProfileState extends State<Profile> {
     return TextField(
       controller: controller,
       enabled: enabled,
-
-      style: const TextStyle(fontWeight: FontWeight.w500),
-
+      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+      cursorColor: const Color(0xFF2DD4BF),
       decoration: InputDecoration(
         labelText: label,
-
-        prefixIcon: Icon(icon, color: Colors.black54),
-
+        labelStyle: TextStyle(color: Colors.white.withOpacity(0.55)),
+        prefixIcon: Icon(icon, color: const Color(0xFF2DD4BF)),
         filled: true,
-        fillColor: const Color(0xfff8fafc),
-
+        fillColor: Colors.white.withOpacity(0.08),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 18,
         ),
-
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide.none,
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.10)),
         ),
-
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide.none,
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.10)),
         ),
-
+        disabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.08)),
+        ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: Colors.black, width: 1.2),
+          borderSide: const BorderSide(color: Color(0xFF2DD4BF), width: 1.4),
         ),
       ),
     );
@@ -669,64 +683,59 @@ class _ProfileState extends State<Profile> {
 
   /// PRIMARY BUTTON
   Widget _primaryButton(String text, VoidCallback onTap) {
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-
-      child: ElevatedButton(
-        onPressed: isSaving ? null : onTap,
-
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.black,
-
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+    return GestureDetector(
+      onTap: isSaving ? null : onTap,
+      child: Container(
+        height: 58,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF2DD4BF), Color(0xFF14B8A6), Color(0xFF0F766E)],
           ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF14B8A6).withOpacity(0.35),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
         ),
-
-        child: isSaving
-            ? const SizedBox(
-                height: 24,
-                width: 24,
-
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2.5,
+        child: Center(
+          child: isSaving
+              ? const CircularProgressIndicator(color: Colors.white)
+              : Text(
+                  text,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                  ),
                 ),
-              )
-            : Text(
-                text,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+        ),
       ),
     );
   }
 
   /// OUTLINE BUTTON
   Widget _outlineButton(String text, VoidCallback onTap) {
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-
-      child: OutlinedButton(
-        onPressed: onTap,
-
-        style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: Colors.black),
-
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 58,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFF2DD4BF)),
         ),
-
-        child: Text(
-          text,
-          style: const TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
+        child: Center(
+          child: Text(
+            text,
+            style: const TextStyle(
+              color: Color(0xFF2DD4BF),
+              fontWeight: FontWeight.w900,
+            ),
           ),
         ),
       ),
@@ -737,31 +746,36 @@ class _ProfileState extends State<Profile> {
   Widget _tile(IconData icon, String title, VoidCallback onTap) {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
-
       decoration: BoxDecoration(
-        color: const Color(0xfff8fafc),
+        color: Colors.white.withOpacity(0.08),
         borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withOpacity(0.10)),
       ),
-
       child: ListTile(
         onTap: onTap,
-
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         leading: Container(
           padding: const EdgeInsets.all(10),
-
           decoration: BoxDecoration(
-            color: Colors.black,
-            borderRadius: BorderRadius.circular(12),
+            gradient: const LinearGradient(
+              colors: [Color(0xFF2DD4BF), Color(0xFF14B8A6)],
+            ),
+            borderRadius: BorderRadius.circular(14),
           ),
-
           child: Icon(icon, color: Colors.white, size: 20),
         ),
-
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-
-        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+        title: Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        trailing: Icon(
+          Icons.arrow_forward_ios_rounded,
+          size: 16,
+          color: Colors.white.withOpacity(0.55),
+        ),
       ),
     );
   }

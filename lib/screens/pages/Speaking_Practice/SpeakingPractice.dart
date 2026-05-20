@@ -49,9 +49,9 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
 
   List recordings = [];
 
-  Color get primary => const Color(0xff14B8A6);
-  Color get secondary => const Color(0xff2563EB);
-  Color get bg => const Color(0xffF6F8FC);
+  Color get primary => const Color(0xFF14B8A6);
+  Color get secondary => const Color(0xFF0F766E);
+  Color get bg => const Color(0xFF08111F);
 
   @override
   void initState() {
@@ -70,44 +70,44 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
   }
 
   Future<void> generateFullSpeakingTest() async {
-  if (isGeneratingTopic) return;
+    if (isGeneratingTopic) return;
 
-  setState(() => isGeneratingTopic = true);
+    setState(() => isGeneratingTopic = true);
 
-  try {
-    final data = await ai.generateSpeakingTest();
+    try {
+      final data = await ai.generateSpeakingTest();
 
-    final part1 = data["part1"] as Map<String, dynamic>? ?? {};
-    final part2 = data["part2"] as Map<String, dynamic>? ?? {};
-    final part3 = data["part3"] as Map<String, dynamic>? ?? {};
+      final part1 = data["part1"] as Map<String, dynamic>? ?? {};
+      final part2 = data["part2"] as Map<String, dynamic>? ?? {};
+      final part3 = data["part3"] as Map<String, dynamic>? ?? {};
 
-    setState(() {
-      speakingTest = data;
+      setState(() {
+        speakingTest = data;
 
-      part1Questions = List<String>.from(part1["questions"] ?? []);
-      topicTitle = part2["cue_card"] ?? "Describe an interesting place.";
-      points = List<String>.from(part2["points"] ?? []);
-      part3Questions = List<String>.from(part3["questions"] ?? []);
+        part1Questions = List<String>.from(part1["questions"] ?? []);
+        topicTitle = part2["cue_card"] ?? "Describe an interesting place.";
+        points = List<String>.from(part2["points"] ?? []);
+        part3Questions = List<String>.from(part3["questions"] ?? []);
 
-      selectedPart = "part2";
+        selectedPart = "part2";
 
-      transcript = "";
-      band = "";
-      fluency = "";
-      lexical = "";
-      grammar = "";
-      pronunciation = "";
-      improvement = "";
-      seconds = 0;
-    });
+        transcript = "";
+        band = "";
+        fluency = "";
+        lexical = "";
+        grammar = "";
+        pronunciation = "";
+        improvement = "";
+        seconds = 0;
+      });
 
-    await speakTopic();
-  } catch (e) {
-    _showInternetDialog();
-  } finally {
-    if (mounted) setState(() => isGeneratingTopic = false);
+      await speakTopic();
+    } catch (e) {
+      _showInternetDialog();
+    } finally {
+      if (mounted) setState(() => isGeneratingTopic = false);
+    }
   }
-}
 
   Future<void> generateTopic() async {
     if (isGeneratingTopic) return;
@@ -201,13 +201,19 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
       });
 
       if (transcript.trim().isEmpty) {
-        _showError("No speech detected. Please speak clearly and try again.");
+       _showCustomError(
+  title: "No Speech Detected",
+  message: "Please speak clearly and try again.",
+);
         return;
       }
 
       await analyzeSpeaking();
     } catch (e) {
-      _showError("Failed to stop recording.");
+    _showCustomError(
+  title: "Recording Failed",
+  message: "Failed to stop recording. Please try again.",
+);
     }
   }
 
@@ -283,25 +289,147 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
   void _showInternetDialog() {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: const Text("Connection Problem"),
-        content: const Text(
-          "Your internet connection is not working properly. Please check your network and try again.",
+      barrierColor: Colors.black.withOpacity(0.75),
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: const Color(0xFF111827),
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: Colors.white.withOpacity(0.08)),
+            boxShadow: [
+              BoxShadow(
+                color: primary.withOpacity(0.28),
+                blurRadius: 28,
+                offset: const Offset(0, 14),
+              ),
+            ],
+          ),
+
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              /// ICON
+              Container(
+                height: 86,
+                width: 86,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(colors: [primary, secondary]),
+                  boxShadow: [
+                    BoxShadow(
+                      color: primary.withOpacity(0.45),
+                      blurRadius: 24,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.wifi_off_rounded,
+                  color: Colors.white,
+                  size: 42,
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              /// TITLE
+              const Text(
+                "Connection Problem",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+
+              const SizedBox(height: 14),
+
+              /// MESSAGE
+              Text(
+                "Your internet connection is not working properly or the AI speaking examiner is unavailable. Please check your network and try again.",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.70),
+                  fontSize: 14,
+                  height: 1.6,
+                ),
+              ),
+
+              const SizedBox(height: 28),
+
+              /// BUTTONS
+              Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.06),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.08),
+                          ),
+                        ),
+                        child: const Center(
+                          child: Text(
+                            "Close",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 12),
+
+                  Expanded(
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: () {
+                        Navigator.pop(context);
+                        generateFullSpeakingTest();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [primary, secondary],
+                          ),
+                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: [
+                            BoxShadow(
+                              color: primary.withOpacity(0.35),
+                              blurRadius: 18,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: const Center(
+                          child: Text(
+                            "Retry",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("OK"),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-             generateFullSpeakingTest();
-            },
-            child: const Text("Retry"),
-          ),
-        ],
       ),
     );
   }
@@ -315,7 +443,7 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: const Color(0xFF08111F),
       body: Column(
         children: [
           _header(),
@@ -334,7 +462,9 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
                   _history(),
                   const SizedBox(height: 20),
                   _gradientButton(
-                    text: isGeneratingTopic ? "Generating..." : "New Speaking Test",
+                    text: isGeneratingTopic
+                        ? "Generating..."
+                        : "New Speaking Test",
                     icon: Icons.refresh_rounded,
                     onTap: isGeneratingTopic ? null : generateFullSpeakingTest,
                     loading: isGeneratingTopic,
@@ -351,11 +481,11 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
   Widget _header() {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 52, 18, 24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [primary, secondary]),
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(34),
-          bottomRight: Radius.circular(34),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF08111F), Color(0xFF102A43), Color(0xFF0F766E)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
       ),
       child: Column(
@@ -460,117 +590,124 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
     );
   }
 
- Widget _topicCard() {
-  return _whiteCard(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _partTabs(),
-        const SizedBox(height: 16),
+  Widget _topicCard() {
+    return _whiteCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _partTabs(),
+          const SizedBox(height: 16),
 
-        if (selectedPart == "part1") ...[
-          _cardTitle(Icons.chat_bubble_outline, "Part 1 - Introduction"),
-          const SizedBox(height: 12),
-          ...part1Questions.map((q) => _questionTile(q)),
-        ],
+          if (selectedPart == "part1") ...[
+            _cardTitle(Icons.chat_bubble_outline, "Part 1 - Introduction"),
+            const SizedBox(height: 12),
+            ...part1Questions.map((q) => _questionTile(q)),
+          ],
 
-        if (selectedPart == "part2") ...[
-          _cardTitle(Icons.topic_outlined, "Part 2 - Cue Card"),
-          const SizedBox(height: 12),
-          Text(
-            topicTitle,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-              color: Color(0xff111827),
+          if (selectedPart == "part2") ...[
+            _cardTitle(Icons.topic_outlined, "Part 2 - Cue Card"),
+            const SizedBox(height: 12),
+            Text(
+              topicTitle,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          ...points.map((p) => _questionTile(p)),
-          const SizedBox(height: 8),
-          const Text(
-            "You have 1 minute to prepare and 2 minutes to speak.",
-            style: TextStyle(color: Color(0xff6B7280)),
-          ),
+            const SizedBox(height: 12),
+            ...points.map((p) => _questionTile(p)),
+            const SizedBox(height: 8),
+            Text(
+              "You have 1 minute to prepare and 2 minutes to speak.",
+              style: TextStyle(color: Colors.white.withOpacity(0.60)),
+            ),
+          ],
+
+          if (selectedPart == "part3") ...[
+            _cardTitle(Icons.forum_outlined, "Part 3 - Discussion"),
+            const SizedBox(height: 12),
+            ...part3Questions.map((q) => _questionTile(q)),
+          ],
         ],
-
-        if (selectedPart == "part3") ...[
-          _cardTitle(Icons.forum_outlined, "Part 3 - Discussion"),
-          const SizedBox(height: 12),
-          ...part3Questions.map((q) => _questionTile(q)),
-        ],
-      ],
-    ),
-  );
-}
-Widget _partTabs() {
-  return Row(
-    children: [
-      Expanded(child: _partButton("Part 1", "part1")),
-      const SizedBox(width: 8),
-      Expanded(child: _partButton("Part 2", "part2")),
-      const SizedBox(width: 8),
-      Expanded(child: _partButton("Part 3", "part3")),
-    ],
-  );
-}
-
-Widget _partButton(String title, String value) {
-  final selected = selectedPart == value;
-
-  return InkWell(
-    borderRadius: BorderRadius.circular(16),
-    onTap: () {
-      setState(() {
-        selectedPart = value;
-        transcript = "";
-        seconds = 0;
-      });
-    },
-    child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        gradient: selected
-            ? LinearGradient(colors: [primary, secondary])
-            : null,
-        color: selected ? null : const Color(0xffF3F4F6),
-        borderRadius: BorderRadius.circular(16),
       ),
-      child: Center(
-        child: Text(
-          title,
-          style: TextStyle(
-            color: selected ? Colors.white : Colors.grey,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-      ),
-    ),
-  );
-}
+    );
+  }
 
-Widget _questionTile(String text) {
-  return Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _partTabs() {
+    return Row(
       children: [
-        Icon(Icons.check_circle, color: primary, size: 19),
+        Expanded(child: _partButton("Part 1", "part1")),
         const SizedBox(width: 8),
-        Expanded(
+        Expanded(child: _partButton("Part 2", "part2")),
+        const SizedBox(width: 8),
+        Expanded(child: _partButton("Part 3", "part3")),
+      ],
+    );
+  }
+
+  Widget _partButton(String title, String value) {
+    final selected = selectedPart == value;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: () {
+        setState(() {
+          selectedPart = value;
+          transcript = "";
+          seconds = 0;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 13),
+        decoration: BoxDecoration(
+          gradient: selected
+              ? LinearGradient(colors: [primary, secondary])
+              : null,
+          color: selected ? null : Colors.white.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected
+                ? Colors.transparent
+                : Colors.white.withOpacity(0.10),
+          ),
+        ),
+        child: Center(
           child: Text(
-            text,
-            style: const TextStyle(
-              fontSize: 15,
-              height: 1.4,
-              fontWeight: FontWeight.w600,
+            title,
+            style: TextStyle(
+              color: selected ? Colors.white : Colors.white.withOpacity(0.55),
+              fontWeight: FontWeight.w900,
             ),
           ),
         ),
-      ],
-    ),
-  );
-}
+      ),
+    );
+  }
+
+  Widget _questionTile(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.check_circle, color: primary, size: 19),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 15,
+                height: 1.5,
+                fontWeight: FontWeight.w600,
+                color: Colors.white.withOpacity(0.82),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _recordCard() {
     return _whiteCard(
@@ -604,10 +741,17 @@ Widget _questionTile(String text) {
           const SizedBox(height: 14),
           Text(
             isRecording ? "Recording your answer..." : "Ready to record",
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
           ),
           const SizedBox(height: 4),
-          Text("$seconds sec", style: const TextStyle(color: Colors.grey)),
+          Text(
+            "$seconds sec",
+            style: TextStyle(color: Colors.white.withOpacity(0.55)),
+          ),
           const SizedBox(height: 18),
           _gradientButton(
             text: isRecording ? "Stop Recording" : "Start Recording",
@@ -625,10 +769,18 @@ Widget _questionTile(String text) {
               width: double.infinity,
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: const Color(0xffF3F4F6),
+                color: Colors.white.withOpacity(0.08),
                 borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white.withOpacity(0.10)),
               ),
-              child: Text(transcript, style: const TextStyle(height: 1.4)),
+              child: Text(
+                transcript,
+                style: TextStyle(
+                  height: 1.45,
+                  color: Colors.white.withOpacity(0.82),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ],
         ],
@@ -685,12 +837,20 @@ Widget _questionTile(String text) {
 
     return Container(
       margin: const EdgeInsets.only(top: 10),
-      padding: const EdgeInsets.all(13),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xffF9FAFB),
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withOpacity(0.10)),
       ),
-      child: Text("$title: $value", style: const TextStyle(height: 1.4)),
+      child: Text(
+        "$title: $value",
+        style: TextStyle(
+          height: 1.45,
+          color: Colors.white.withOpacity(0.82),
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 
@@ -702,7 +862,11 @@ Widget _questionTile(String text) {
       children: [
         const Text(
           "Recent Practice",
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w900,
+            color: Colors.white,
+          ),
         ),
         const SizedBox(height: 10),
         ...recordings.map((e) {
@@ -712,8 +876,9 @@ Widget _questionTile(String text) {
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
+              color: Colors.white.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withOpacity(0.10)),
             ),
             child: Row(
               children: [
@@ -724,7 +889,10 @@ Widget _questionTile(String text) {
                     data["topic"] ?? "Speaking Practice",
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
                 Chip(
@@ -742,15 +910,16 @@ Widget _questionTile(String text) {
   Widget _whiteCard({required Widget child}) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(26),
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.white.withOpacity(0.10)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
+            color: Colors.black.withOpacity(0.22),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
@@ -761,11 +930,24 @@ Widget _questionTile(String text) {
   Widget _cardTitle(IconData icon, String title) {
     return Row(
       children: [
-        Icon(icon, color: primary),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: [primary, secondary]),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(icon, color: Colors.white, size: 20),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+            ),
+          ),
         ),
       ],
     );
@@ -787,6 +969,13 @@ Widget _questionTile(String text) {
         decoration: BoxDecoration(
           gradient: LinearGradient(colors: colors ?? [primary, secondary]),
           borderRadius: BorderRadius.circular(22),
+          boxShadow: [
+            BoxShadow(
+              color: primary.withOpacity(0.30),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
         ),
         child: Center(
           child: loading
@@ -817,4 +1006,131 @@ Widget _questionTile(String text) {
       ),
     );
   }
+
+  //
+  void _showCustomError({
+  required String title,
+  required String message,
+}) {
+  showDialog(
+    context: context,
+    barrierColor: Colors.black.withOpacity(0.75),
+    builder: (_) => Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: const Color(0xFF111827),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.08),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.redAccent.withOpacity(0.25),
+              blurRadius: 28,
+              offset: const Offset(0, 14),
+            ),
+          ],
+        ),
+
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+
+            /// ICON
+            Container(
+              height: 84,
+              width: 84,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  colors: [
+                    Colors.redAccent,
+                    Colors.deepOrange,
+                  ],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.redAccent.withOpacity(0.40),
+                    blurRadius: 24,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.error_outline_rounded,
+                color: Colors.white,
+                size: 42,
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            /// TITLE
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
+            /// MESSAGE
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.70),
+                fontSize: 14,
+                height: 1.6,
+              ),
+            ),
+
+            const SizedBox(height: 28),
+
+            /// BUTTON
+            InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: () => Navigator.pop(context),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [
+                      Colors.redAccent,
+                      Colors.deepOrange,
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.redAccent.withOpacity(0.35),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: const Center(
+                  child: Text(
+                    "OK",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
 }

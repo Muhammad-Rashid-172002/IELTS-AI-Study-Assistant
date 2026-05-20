@@ -30,7 +30,7 @@ class _HomeState extends State<Home> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FB),
+      backgroundColor: const Color(0xFF08111F),
       bottomNavigationBar: BottomNavigation(index: 0),
 
       body: SafeArea(
@@ -45,21 +45,29 @@ class _HomeState extends State<Home> {
 
               //                     STUDY MODULES TEXT
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: const Column(
+                padding: const EdgeInsets.symmetric(horizontal: 22),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       "Study Modules",
                       style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: -0.5,
                       ),
                     ),
-                    SizedBox(height: 6),
+
+                    const SizedBox(height: 8),
+
                     Text(
-                      "Choose a tool to enhance your learning",
-                      style: TextStyle(fontSize: 14, color: Colors.black54),
+                      "Boost your IELTS band score with AI powered tools",
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.white.withOpacity(0.60),
+                        height: 1.5,
+                      ),
                     ),
                   ],
                 ),
@@ -78,7 +86,7 @@ class _HomeState extends State<Home> {
                           child: _moduleCard(
                             title: "Listening",
                             subtitle: "AI listening",
-                            
+
                             tag: "AI",
                             icon: Icons.mic,
                             onTap: () {
@@ -88,7 +96,9 @@ class _HomeState extends State<Home> {
                                   builder: (_) => const ListeningPractice(),
                                 ),
                               );
-                            }, startColor: Color(0xff2F6BFF), endColor: Color(0xff7B2CFF)
+                            },
+                            startColor: Color(0xff2F6BFF),
+                            endColor: Color(0xff7B2CFF),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -96,7 +106,7 @@ class _HomeState extends State<Home> {
                           child: _moduleCard(
                             title: "Reading",
                             subtitle: "Passage practice",
-                           
+
                             tag: "IELTS",
                             icon: Icons.menu_book,
                             onTap: () {
@@ -106,7 +116,9 @@ class _HomeState extends State<Home> {
                                   builder: (_) => const ReadingPractice(),
                                 ),
                               );
-                            }, startColor: Color(0xFF7B1FA2), endColor: Color(0xFFC2185B),
+                            },
+                            startColor: Color(0xFF7B1FA2),
+                            endColor: Color(0xFFC2185B),
                           ),
                         ),
                       ],
@@ -120,7 +132,7 @@ class _HomeState extends State<Home> {
                           child: _moduleCard(
                             title: "Writing",
                             subtitle: "AI writing checker",
-                           
+
                             tag: "AI",
                             icon: Icons.edit_note,
                             onTap: () {
@@ -130,7 +142,9 @@ class _HomeState extends State<Home> {
                                   builder: (_) => const WritingChecker(),
                                 ),
                               );
-                            }, startColor:  Color(0xFFFF2D8D),  endColor: Color(0xFFD0005B),
+                            },
+                            startColor: Color(0xFFFF2D8D),
+                            endColor: Color(0xFFD0005B),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -138,8 +152,8 @@ class _HomeState extends State<Home> {
                           child: _moduleCard(
                             title: "Speaking",
                             subtitle: "AI speaking",
-                              startColor: Color(0xFF14B8A6),
-                              endColor: Color(0xFF0F766E),
+                            startColor: Color(0xFF14B8A6),
+                            endColor: Color(0xFF0F766E),
                             tag: "AI",
                             icon: Icons.mic,
                             onTap: () {
@@ -215,7 +229,6 @@ class _HomeState extends State<Home> {
       ),
     );
   }
-
   //                     HEADER WIDGET
 
   Widget _buildHeader() {
@@ -228,102 +241,164 @@ class _HomeState extends State<Home> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
+      padding: const EdgeInsets.fromLTRB(22, 24, 22, 28),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xff4A00E0), Color(0xff8E2DE2)],
+          colors: [Color(0xFF08111F), Color(0xFF102A43), Color(0xFF0F766E)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(28),
-          bottomRight: Radius.circular(28),
         ),
       ),
 
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          /// TOP ROW
+          /// TOP BAR
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                "IELTS Master",
-                style: TextStyle(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "IELTS AI Master",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 30,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+
+                  const SizedBox(height: 6),
+
+                  Text(
+                    "AI Powered IELTS Preparation",
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.65),
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: Colors.white.withOpacity(0.10)),
+                ),
+                child: const Icon(
+                  Icons.notifications_none_rounded,
                   color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 28),
 
-          /// USER INFO
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: Colors.white,
-                backgroundImage: (userPhoto != null && userPhoto.isNotEmpty)
-                    ? NetworkImage(userPhoto)
-                    : null,
-                child: (userPhoto == null || userPhoto.isEmpty)
-                    ? const Icon(Icons.person, color: Colors.grey)
-                    : null,
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Welcome back!",
-                    style: TextStyle(color: Colors.white70),
+          /// USER CARD
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: Colors.white.withOpacity(0.10)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.18),
+                  blurRadius: 25,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 31,
+                  backgroundColor: Colors.white,
+                  backgroundImage: (userPhoto != null && userPhoto.isNotEmpty)
+                      ? NetworkImage(userPhoto)
+                      : null,
+                  child: (userPhoto == null || userPhoto.isEmpty)
+                      ? const Icon(Icons.person, color: Colors.grey)
+                      : null,
+                ),
+
+                const SizedBox(width: 14),
+
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Welcome Back 👋",
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.70),
+                          fontSize: 13,
+                        ),
+                      ),
+
+                      const SizedBox(height: 4),
+
+                      Text(
+                        userName ?? "IELTS Student",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    userName ?? "User",
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 22),
 
-          /// GLASS STREAK CARD
+          /// STREAK CARD
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(28),
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFF14B8A6).withOpacity(0.30),
+                  const Color(0xFF0F766E).withOpacity(0.18),
+                ],
+              ),
+              border: Border.all(color: Colors.white.withOpacity(0.10)),
             ),
+
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      "Study Streak",
-                      style: TextStyle(color: Colors.white70),
-                    ),
                     Text(
-                      "$streak Days ",
+                      "Study Streak",
+                      style: TextStyle(color: Colors.white.withOpacity(0.65)),
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    Text(
+                      "$streak Days",
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 28,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
                   ],
                 ),
+
                 FirePulseIcon(),
               ],
             ),
@@ -342,77 +417,73 @@ class _HomeState extends State<Home> {
     required String tag,
     required VoidCallback onTap,
   }) {
-    final bool isDark =
-        color == Colors.black || color == const Color(0xFF1C1C1E);
-
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: isDark ? color : Colors.white,
+          borderRadius: BorderRadius.circular(30),
+          gradient: const LinearGradient(
+            colors: [Color(0xFF111827), Color(0xFF1F2937)],
+          ),
+          border: Border.all(color: Colors.white12),
           boxShadow: [
             BoxShadow(
-              color: isDark
-                  ? Colors.black.withOpacity(0.3)
-                  : color.withOpacity(0.15),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: Colors.black.withOpacity(0.25),
+              blurRadius: 25,
+              offset: const Offset(0, 12),
             ),
           ],
         ),
 
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            /// ICON
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: isDark
-                    ? Colors.white.withOpacity(0.1)
-                    : color.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(10),
+                color: Colors.white.withOpacity(0.10),
+                borderRadius: BorderRadius.circular(18),
               ),
-              child: Icon(icon, color: isDark ? Colors.white : color, size: 20),
-            ),
-
-            const SizedBox(height: 10),
-
-            /// TITLE
-            Text(
-              title,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-                color: isDark ? Colors.white : Colors.black,
+              child: const Icon(
+                Icons.assignment,
+                color: Colors.white,
+                size: 28,
               ),
             ),
 
-            const SizedBox(height: 4),
+            const SizedBox(width: 18),
 
-            /// SUBTITLE
-            Text(
-              subtitle,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11,
-                color: isDark ? Colors.white70 : Colors.grey,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+
+                  const SizedBox(height: 6),
+
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.65),
+                      fontSize: 13,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
               ),
             ),
 
-            const SizedBox(height: 10),
-
-            /// BUTTON
-            Align(
-              alignment: Alignment.bottomRight,
-              child: Icon(
-                Icons.arrow_forward,
-                size: 18,
-                color: isDark ? Colors.white : color,
-              ),
+            const Icon(
+              Icons.arrow_forward_ios_rounded,
+              color: Colors.white,
+              size: 18,
             ),
           ],
         ),
@@ -432,15 +503,23 @@ class _HomeState extends State<Home> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          color: Colors.white,
+          borderRadius: BorderRadius.circular(30),
+
+          gradient: LinearGradient(
+            colors: [startColor.withOpacity(0.18), endColor.withOpacity(0.10)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+
+          border: Border.all(color: Colors.white.withOpacity(0.08)),
+
           boxShadow: [
             BoxShadow(
-              color: startColor.withOpacity(0.15),
-              blurRadius: 12,
-              offset: const Offset(0, 5),
+              color: startColor.withOpacity(0.18),
+              blurRadius: 24,
+              offset: const Offset(0, 12),
             ),
           ],
         ),
@@ -448,38 +527,66 @@ class _HomeState extends State<Home> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            /// ICON
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: startColor.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: startColor),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.10),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 24),
+                ),
+
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.10),
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: Text(
+                    tag,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 22),
 
-            /// TITLE
             Text(
               title,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
             ),
 
-            const SizedBox(height: 4),
+            const SizedBox(height: 8),
 
-            /// SUBTITLE
             Text(
               subtitle,
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.68),
+                fontSize: 13,
+                height: 1.4,
+              ),
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 20),
 
-            /// BUTTON
-            Align(
+            const Align(
               alignment: Alignment.bottomRight,
-              child: Icon(Icons.arrow_forward, color: endColor),
+              child: Icon(Icons.arrow_forward_rounded, color: Colors.white),
             ),
           ],
         ),

@@ -142,33 +142,47 @@ Rules:
   // IELTS READING
   // =========================================================
 
-  Future<Map<String, dynamic>> generateReadingTest({
-    String level = "Band 6 to 7",
-  }) async {
-    final prompt = """
-You are an IELTS Academic Reading test writer.
+Future<Map<String, dynamic>> generateReadingTest() async {
+  final prompt = """
+You are an IELTS Academic Reading examiner.
 
-Create ONE IELTS Reading passage and questions.
+Generate ONE realistic IELTS Academic Reading passage and mixed questions.
 
 Return ONLY valid JSON:
 {
   "title": "",
   "passage": "",
-  "time_limit_minutes": 20,
   "questions": [
     {
-      "id": 1,
-      "type": "mcq",
+      "type": "multiple_choice",
       "question": "",
       "options": ["A", "B", "C", "D"],
       "answer": "",
       "explanation": ""
     },
     {
-      "id": 2,
       "type": "true_false_not_given",
       "question": "",
       "options": ["True", "False", "Not Given"],
+      "answer": "",
+      "explanation": ""
+    },
+    {
+      "type": "yes_no_not_given",
+      "question": "",
+      "options": ["Yes", "No", "Not Given"],
+      "answer": "",
+      "explanation": ""
+    },
+    {
+      "type": "sentence_completion",
+      "question": "",
+      "answer": "",
+      "explanation": ""
+    },
+    {
+      "type": "short_answer",
+      "question": "",
       "answer": "",
       "explanation": ""
     }
@@ -176,18 +190,19 @@ Return ONLY valid JSON:
 }
 
 Rules:
-- Passage must be 500 to 700 words
-- Include 5 MCQs
-- Include 5 True False Not Given questions
+- Passage 600 to 900 words
 - Academic IELTS style
-- Level: $level
+- Create 10 questions total
+- Mix question types
+- MCQ must have options
+- True False Not Given must have options
+- Yes No Not Given must have options
+- Completion and short answer have no options
 - No markdown
 """;
 
-    return _json(prompt);
-  }
-
-  Future<Map<String, dynamic>> checkReadingAnswers({
+  return _json(prompt);
+} Future<Map<String, dynamic>> checkReadingAnswers({
     required List<Map<String, dynamic>> questions,
     required Map<String, String> userAnswers,
   }) async {
@@ -232,46 +247,77 @@ Rules:
   // IELTS LISTENING
   // =========================================================
 
-  Future<Map<String, dynamic>> generateListeningTest({
-    String section = "Section 1",
-  }) async {
-    final prompt = """
-You are an IELTS Listening test writer.
+Future<Map<String, dynamic>> generateListeningTest() async {
+  final prompt = """
+You are an IELTS Listening examiner.
 
-Create IELTS Listening $section.
+Create a REAL IELTS Listening test.
 
 Return ONLY valid JSON:
+
 {
-  "section": "$section",
-  "title": "",
-  "audio_script": "",
-  "time_limit_minutes": 10,
-  "questions": [
-    {
-      "id": 1,
-      "type": "mcq",
-      "question": "",
-      "options": ["A", "B", "C", "D"],
-      "answer": "",
-      "explanation": ""
-    }
-  ]
+  "part1": {
+    "title": "",
+    "audio_script": "",
+    "questions": [
+      {
+        "type": "form_completion",
+        "question": "",
+        "answer": ""
+      }
+    ]
+  },
+
+  "part2": {
+    "title": "",
+    "audio_script": "",
+    "questions": [
+      {
+        "type": "multiple_choice",
+        "question": "",
+        "options": ["A", "B", "C"],
+        "answer": ""
+      }
+    ]
+  },
+
+  "part3": {
+    "title": "",
+    "audio_script": "",
+    "questions": [
+      {
+        "type": "matching",
+        "question": "",
+        "options": ["A", "B", "C"],
+        "answer": ""
+      }
+    ]
+  },
+
+  "part4": {
+    "title": "",
+    "audio_script": "",
+    "questions": [
+      {
+        "type": "note_completion",
+        "question": "",
+        "answer": ""
+      }
+    ]
+  }
 }
 
 Rules:
-- Make the audio script natural
-- Section 1 should be daily conversation
-- Section 2 should be monologue
-- Section 3 should be academic conversation
-- Section 4 should be academic lecture
-- Create 10 questions
-- Mix MCQ and fill in the blank
+- Real IELTS Listening style
+- British English
+- Natural conversations
+- Include different IELTS question types
+- Use realistic names and places
 - No markdown
 """;
 
-    return _json(prompt);
-  }
-
+  return _json(prompt);
+}
   Future<Map<String, dynamic>> checkListeningAnswers({
     required List<Map<String, dynamic>> questions,
     required Map<String, String> userAnswers,

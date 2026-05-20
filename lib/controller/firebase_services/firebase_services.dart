@@ -1,11 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:intl/intl.dart';
-
+import 'package:firebase_storage/firebase_storage.dart';
 import '../../resources/routes/routes_names.dart';
 
 class FirebaseServices extends GetxController {
@@ -81,6 +82,31 @@ class FirebaseServices extends GetxController {
       loadingRegistration.value = false;
     }
   }
+
+Future<void> updateProfileImage(File imageFile) async {
+  if (user == null) return;
+
+  final ref = FirebaseStorage.instance
+      .ref()
+      .child("profile_images")
+      .child("${user!.uid}.jpg");
+
+  await ref.putFile(imageFile);
+
+  final imageUrl = await ref.getDownloadURL();
+
+  await FirebaseFirestore.instance
+      .collection("users")
+      .doc(user!.uid)
+      .update({
+    "profileImage": imageUrl,
+  });
+
+  await user!.updatePhotoURL(imageUrl);
+
+  userData["profileImage"] = imageUrl;
+  userData.refresh();
+}
 
   // LOGIN (EMAIL/PASSWORD)
 

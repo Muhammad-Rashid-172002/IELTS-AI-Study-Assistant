@@ -60,6 +60,7 @@ dependencies:
   record: ^6.2.0
   audioplayers: ^6.6.0
   path_provider: ^2.1.5
+  firebase_storage: ^13.4.1
 
 dev_dependencies:
   flutter_test:

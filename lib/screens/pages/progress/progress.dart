@@ -3,8 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:fyproject/resources/bottom_navigation_bar/botton_navigation.dart';
-import 'package:get/get_core/src/get_main.dart';
-import 'package:get/get_navigation/src/extension_navigation.dart';
 
 class ProgressScreen extends StatefulWidget {
   const ProgressScreen({super.key});
@@ -23,7 +21,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FC),
+      backgroundColor: const Color(0xFF08111F),
       bottomNavigationBar: BottomNavigation(index: 1),
       body: FutureBuilder<Map<String, double>>(
         future: _calculateAllModules(user.uid),
@@ -37,8 +35,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
           }
 
           if (snapshot.hasError) {
-            return Scaffold( 
-                 
+            return Scaffold(
               body: Center(
                 child: Text(
                   "Error: ${snapshot.error}",
@@ -51,7 +48,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
           if (!snapshot.hasData) {
             return const Scaffold(body: Center(child: Text("No Data Found")));
           }
- 
+
           final data = snapshot.data!;
 
           double listening = data["listening"]!;
@@ -78,12 +75,12 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: const [
-                          Text(
+                          const Text(
                             "Module Scores",
                             style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1B1D28),
+                              fontSize: 24,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
                             ),
                           ),
                           Icon(
@@ -103,7 +100,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
                               crossAxisCount: 2,
                               crossAxisSpacing: 14,
                               mainAxisSpacing: 14,
-
                               childAspectRatio: 0.82,
                             ),
                         children: [
@@ -111,25 +107,28 @@ class _ProgressScreenState extends State<ProgressScreen> {
                             title: "Listening",
                             score: listening,
                             icon: Icons.headphones_rounded,
-                            color: const Color(0xFF4CAF50),
+                            color: const Color(0xFF2DD4BF), // Teal
                           ),
+
                           _moduleCard(
                             title: "Reading",
                             score: reading,
                             icon: Icons.menu_book_rounded,
-                            color: const Color(0xFF2196F3),
+                            color: const Color(0xFF60A5FA), // Soft Blue
                           ),
+
                           _moduleCard(
                             title: "Writing",
                             score: writing,
                             icon: Icons.edit_note_rounded,
-                            color: const Color(0xFFFF9800),
+                            color: const Color(0xFFF59E0B), // Amber
                           ),
+
                           _moduleCard(
                             title: "Speaking",
                             score: speaking,
                             icon: Icons.mic_rounded,
-                            color: const Color(0xFFE91E63),
+                            color: const Color(0xFFF472B6), // Soft Pink
                           ),
                         ],
                       ),
@@ -309,7 +308,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                           horizontalInterval: 1,
                           getDrawingHorizontalLine: (value) {
                             return FlLine(
-                              color: Colors.grey.shade200,
+                              color: Colors.white.withOpacity(0.10),
                               strokeWidth: 1,
                             );
                           },
@@ -330,9 +329,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
                               getTitlesWidget: (value, meta) {
                                 return Text(
                                   value.toInt().toString(),
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.grey,
+                                    color: Colors.white.withOpacity(0.60),
                                   ),
                                 );
                               },
@@ -352,6 +351,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                     style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 14,
+                                      color: Colors.white,
                                     ),
                                   ),
                                 );
@@ -368,6 +368,67 @@ class _ProgressScreenState extends State<ProgressScreen> {
                         ],
                       ),
                     ),
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 10,
+                  ),
+                  padding: const EdgeInsets.all(22),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xff111827), Color(0xff1F2937)],
+                    ),
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "AI Performance Insight",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+
+                      const SizedBox(height: 14),
+
+                      Text(
+                        overall >= 7
+                            ? "Excellent progress. You're close to advanced IELTS level."
+                            : overall >= 6
+                            ? "Good improvement. Focus more on weak modules."
+                            : "Practice consistently to improve your IELTS band.",
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          height: 1.6,
+                          fontSize: 15,
+                        ),
+                      ),
+
+                      const SizedBox(height: 18),
+
+                      Row(
+                        children: [
+                          const Icon(Icons.auto_awesome, color: Colors.amber),
+
+                          const SizedBox(width: 8),
+
+                          Text(
+                            "Estimated Overall Band: ${overall.toStringAsFixed(1)}",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -419,11 +480,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
       padding: const EdgeInsets.fromLTRB(22, 65, 22, 35),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF6C63FF), Color(0xFF8E7CFF)],
+          colors: [Color(0xFF08111F), Color(0xFF102A43), Color(0xFF0F766E)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(35)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -433,25 +493,31 @@ class _ProgressScreenState extends State<ProgressScreen> {
             style: TextStyle(
               color: Colors.white,
               fontSize: 30,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w900,
             ),
           ),
-
           const SizedBox(height: 8),
-
-          const Text(
-            "Track your IELTS growth & performance",
-            style: TextStyle(color: Colors.white70, fontSize: 15),
+          Text(
+            "Track your IELTS growth & band score",
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.65),
+              fontSize: 15,
+            ),
           ),
-
           const SizedBox(height: 28),
-
           Container(
             padding: const EdgeInsets.all(22),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(28),
-              color: Colors.white.withOpacity(0.12),
-              border: Border.all(color: Colors.white.withOpacity(0.2)),
+              color: Colors.white.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: Colors.white.withOpacity(0.10)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.22),
+                  blurRadius: 24,
+                  offset: const Offset(0, 12),
+                ),
+              ],
             ),
             child: Row(
               children: [
@@ -459,36 +525,44 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        "Overall Band",
-                        style: TextStyle(color: Colors.white70, fontSize: 16),
-                      ),
-
-                      const SizedBox(height: 10),
-
                       Text(
-                        overall.toStringAsFixed(1) + " / 9",
+                        "Overall Band",
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.65),
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        "${overall.toStringAsFixed(1)} / 9",
                         style: const TextStyle(
                           fontSize: 52,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF86EFAC),
                         ),
                       ),
                     ],
                   ),
                 ),
-
                 Container(
-                  height: 90,
-                  width: 90,
+                  height: 92,
+                  width: 92,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.15),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF2DD4BF), Color(0xFF14B8A6)],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF14B8A6).withOpacity(0.35),
+                        blurRadius: 22,
+                      ),
+                    ],
                   ),
                   child: const Icon(
                     Icons.workspace_premium_rounded,
-                    color: Colors.amber,
-                    size: 48,
+                    color: Colors.white,
+                    size: 46,
                   ),
                 ),
               ],
@@ -511,13 +585,15 @@ class _ProgressScreenState extends State<ProgressScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: Colors.white.withOpacity(0.10)),
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(28),
+
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.10),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: color.withOpacity(0.18),
+            blurRadius: 22,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
@@ -530,7 +606,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.12),
+                  color: color.withOpacity(0.16),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(icon, color: color, size: 24),
@@ -544,7 +620,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   vertical: 5,
                 ),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.10),
+                  color: color.withOpacity(0.18),
                   borderRadius: BorderRadius.circular(30),
                 ),
                 child: Text(
@@ -597,7 +673,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 child: Text(
                   "/9",
                   style: TextStyle(
-                    color: Colors.grey,
+                    color: Colors.white,
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                   ),
@@ -615,11 +691,37 @@ class _ProgressScreenState extends State<ProgressScreen> {
           /// PROGRESS BAR
           ClipRRect(
             borderRadius: BorderRadius.circular(20),
-            child: LinearProgressIndicator(
-              value: score / 9,
-              minHeight: 10,
-              backgroundColor: color.withOpacity(0.10),
-              valueColor: AlwaysStoppedAnimation(color),
+            child: Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: LinearProgressIndicator(
+                    value: score / 9,
+                    minHeight: 10,
+                    backgroundColor: Colors.white.withOpacity(0.08),
+                    valueColor: AlwaysStoppedAnimation(color),
+                  ),
+                ),
+
+                Positioned.fill(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Container(
+                      width: 12,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.8),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: color.withOpacity(0.6),
+                            blurRadius: 10,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -634,13 +736,14 @@ class _ProgressScreenState extends State<ProgressScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: Colors.white.withOpacity(0.10)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
+            color: Colors.black.withOpacity(0.22),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
@@ -651,8 +754,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
             title,
             style: const TextStyle(
               fontSize: 21,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1B1D28),
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
             ),
           ),
           const SizedBox(height: 20),
@@ -693,13 +796,14 @@ class _ProgressScreenState extends State<ProgressScreen> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: Colors.white.withOpacity(0.10)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 15,
-            offset: const Offset(0, 6),
+            color: color.withOpacity(0.16),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
@@ -709,14 +813,12 @@ class _ProgressScreenState extends State<ProgressScreen> {
             height: 60,
             width: 60,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.12),
+              color: color.withOpacity(0.15),
               borderRadius: BorderRadius.circular(18),
             ),
             child: Icon(icon, color: color, size: 30),
           ),
-
           const SizedBox(width: 16),
-
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -724,16 +826,18 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 Text(
                   title,
                   style: const TextStyle(
+                    color: Colors.white,
                     fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
-
                 const SizedBox(height: 6),
-
                 Text(
                   subtitle,
-                  style: TextStyle(color: Colors.grey.shade700, height: 1.4),
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.65),
+                    height: 1.4,
+                  ),
                 ),
               ],
             ),
@@ -824,22 +928,15 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
       /// SPEAKING
       double speaking = 0;
-
       if (speakingSnap.docs.isNotEmpty) {
         final speakingBands = speakingSnap.docs.map((e) {
           try {
             final data = e.data();
 
-            final feedback = data["feedback"]?.toString() ?? "";
-
-            final match = RegExp(
-              r'"band":\s*"(\d+(\.\d+)?)"',
-            ).firstMatch(feedback);
-
-            return double.tryParse(match?.group(1) ?? "0") ?? 0;
+            return double.tryParse(data["band"]?.toString() ?? "0") ?? 0;
           } catch (e) {
             debugPrint("Speaking Error: $e");
-            return 0;
+            return 0.0;
           }
         }).toList();
 

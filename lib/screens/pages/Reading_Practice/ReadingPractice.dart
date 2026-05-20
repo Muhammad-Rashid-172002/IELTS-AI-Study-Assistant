@@ -31,9 +31,9 @@ class _ReadingPracticeState extends State<ReadingPractice> {
   int totalSeconds = 1200;
   Timer? timer;
 
-  Color get primary => const Color(0xff7C3AED);
-  Color get secondary => const Color(0xffEC4899);
-  Color get bg => const Color(0xffF6F8FC);
+  Color get primary => const Color(0xFF14B8A6);
+  Color get secondary => const Color(0xFF0F766E);
+  Color get bg => const Color(0xFF08111F);
 
   String get timeFormatted {
     final min = totalSeconds ~/ 60;
@@ -106,8 +106,18 @@ class _ReadingPracticeState extends State<ReadingPractice> {
     int correct = 0;
 
     for (int i = 0; i < questions.length; i++) {
-      final correctAnswer = questions[i]["answer"].toString().trim().toLowerCase();
-      final userAnswer = selectedAnswers[i]?.trim().toLowerCase();
+      final correctAnswer = questions[i]["answer"]
+          .toString()
+          .trim()
+          .toLowerCase()
+          .replaceAll(".", "")
+          .replaceAll(",", "");
+
+      final userAnswer = selectedAnswers[i]
+          ?.trim()
+          .toLowerCase()
+          .replaceAll(".", "")
+          .replaceAll(",", "");
 
       if (userAnswer == correctAnswer) {
         correct++;
@@ -146,15 +156,15 @@ class _ReadingPracticeState extends State<ReadingPractice> {
         .doc(user.uid)
         .collection("reading_results")
         .add({
-      "title": title,
-      "passage": passage,
-      "questions": questions,
-      "answers": selectedAnswers,
-      "score": score,
-      "total": questions.length,
-      "band": calculateBandScore(),
-      "createdAt": FieldValue.serverTimestamp(),
-    });
+          "title": title,
+          "passage": passage,
+          "questions": questions,
+          "answers": selectedAnswers,
+          "score": score,
+          "total": questions.length,
+          "band": calculateBandScore(),
+          "createdAt": FieldValue.serverTimestamp(),
+        });
   }
 
   void _showInternetDialog({
@@ -164,47 +174,155 @@ class _ReadingPracticeState extends State<ReadingPractice> {
   }) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: Row(
-          children: [
-            Icon(Icons.wifi_off_rounded, color: primary),
-            const SizedBox(width: 10),
-            Expanded(child: Text(title)),
-          ],
-        ),
-        content: Text(message, style: const TextStyle(height: 1.4)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Close"),
+      barrierColor: Colors.black.withOpacity(0.75),
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: const Color(0xFF111827),
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: Colors.white.withOpacity(0.08)),
+            boxShadow: [
+              BoxShadow(
+                color: primary.withOpacity(0.25),
+                blurRadius: 28,
+                offset: const Offset(0, 14),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              retry();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primary,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text("Retry"),
-          ),
-        ],
-      ),
-    );
-  }
 
-  void _showSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              /// ICON
+              Container(
+                height: 82,
+                width: 82,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(colors: [primary, secondary]),
+                  boxShadow: [
+                    BoxShadow(
+                      color: primary.withOpacity(0.45),
+                      blurRadius: 24,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.wifi_off_rounded,
+                  color: Colors.white,
+                  size: 42,
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              /// TITLE
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+
+              const SizedBox(height: 14),
+
+              /// MESSAGE
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.70),
+                  fontSize: 14,
+                  height: 1.6,
+                ),
+              ),
+
+              const SizedBox(height: 28),
+
+              /// BUTTONS
+              Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.06),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.08),
+                          ),
+                        ),
+                        child: const Center(
+                          child: Text(
+                            "Close",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 12),
+
+                  Expanded(
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: () {
+                        Navigator.pop(context);
+                        retry();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [primary, secondary],
+                          ),
+                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: [
+                            BoxShadow(
+                              color: primary.withOpacity(0.35),
+                              blurRadius: 18,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: const Center(
+                          child: Text(
+                            "Retry",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: const Color(0xFF08111F),
       body: Column(
         children: [
           _header(),
@@ -212,8 +330,8 @@ class _ReadingPracticeState extends State<ReadingPractice> {
             child: isLoading
                 ? _loadingBody()
                 : generated
-                    ? _body()
-                    : _startBody(),
+                ? _body()
+                : _startBody(),
           ),
         ],
       ),
@@ -222,30 +340,26 @@ class _ReadingPracticeState extends State<ReadingPractice> {
 
   Widget _header() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 52, 18, 24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [primary, secondary]),
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(34),
-          bottomRight: Radius.circular(34),
+      padding: const EdgeInsets.fromLTRB(20, 52, 20, 28),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF08111F), Color(0xFF102A43), Color(0xFF0F766E)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: primary.withOpacity(0.25),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
-        ],
       ),
+
       child: Column(
         children: [
           Row(
             children: [
               _circleButton(
-                icon: Icons.arrow_back_ios_new,
+                icon: Icons.arrow_back_ios_new_rounded,
                 onTap: () => Navigator.pop(context),
               ),
+
               const SizedBox(width: 14),
+
               const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -254,25 +368,27 @@ class _ReadingPracticeState extends State<ReadingPractice> {
                       "IELTS Reading",
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 24,
+                        fontSize: 28,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
+
                     SizedBox(height: 4),
+
                     Text(
-                      "Academic passage practice",
+                      "AI Academic Reading Practice",
                       style: TextStyle(color: Colors.white70, fontSize: 13),
                     ),
                   ],
                 ),
               ),
-              _circleButton(
-                icon: Icons.menu_book_rounded,
-                onTap: () {},
-              ),
+
+              _circleButton(icon: Icons.menu_book_rounded, onTap: () {}),
             ],
           ),
-          const SizedBox(height: 24),
+
+          const SizedBox(height: 28),
+
           Row(
             children: [
               Expanded(
@@ -282,7 +398,9 @@ class _ReadingPracticeState extends State<ReadingPractice> {
                   icon: Icons.timer_outlined,
                 ),
               ),
+
               const SizedBox(width: 12),
+
               Expanded(
                 child: _infoCard(
                   title: "Questions",
@@ -299,10 +417,7 @@ class _ReadingPracticeState extends State<ReadingPractice> {
     );
   }
 
-  Widget _circleButton({
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
+  Widget _circleButton({required IconData icon, required VoidCallback onTap}) {
     return InkWell(
       borderRadius: BorderRadius.circular(18),
       onTap: onTap,
@@ -338,7 +453,10 @@ class _ReadingPracticeState extends State<ReadingPractice> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                Text(
+                  title,
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
                 const SizedBox(height: 3),
                 Text(
                   value,
@@ -362,7 +480,7 @@ class _ReadingPracticeState extends State<ReadingPractice> {
         padding: const EdgeInsets.all(24),
         margin: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Colors.white.withOpacity(0.08),
           borderRadius: BorderRadius.circular(26),
           boxShadow: [
             BoxShadow(
@@ -379,7 +497,11 @@ class _ReadingPracticeState extends State<ReadingPractice> {
             const SizedBox(height: 18),
             const Text(
               "Generating IELTS Reading Test...",
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 16,
+                color: Colors.white,
+              ),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -409,7 +531,11 @@ class _ReadingPracticeState extends State<ReadingPractice> {
                     gradient: LinearGradient(colors: [primary, secondary]),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.auto_stories_rounded, color: Colors.white, size: 44),
+                  child: const Icon(
+                    Icons.auto_stories_rounded,
+                    color: Colors.white,
+                    size: 44,
+                  ),
                 ),
                 const SizedBox(height: 18),
                 const Text(
@@ -418,22 +544,22 @@ class _ReadingPracticeState extends State<ReadingPractice> {
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w900,
-                    color: Color(0xff111827),
+                    color: Colors.white,
                   ),
                 ),
                 const SizedBox(height: 8),
                 const Text(
                   "Generate a real IELTS-style reading passage with MCQ and True/False/Not Given questions.",
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    height: 1.5,
-                    color: Color(0xff6B7280),
-                  ),
+                  style: TextStyle(height: 1.5, color: Color(0xff6B7280)),
                 ),
                 const SizedBox(height: 20),
                 _featureTile(Icons.article_outlined, "Academic IELTS passage"),
                 _featureTile(Icons.quiz_outlined, "Mixed question types"),
-                _featureTile(Icons.workspace_premium_outlined, "Score and estimated band"),
+                _featureTile(
+                  Icons.workspace_premium_outlined,
+                  "Score and estimated band",
+                ),
               ],
             ),
           ),
@@ -485,10 +611,7 @@ class _ReadingPracticeState extends State<ReadingPractice> {
             icon: Icons.done_all_rounded,
             onTap: submitAnswers,
           ),
-          if (showResult) ...[
-            const SizedBox(height: 18),
-            _resultCard(),
-          ],
+          if (showResult) ...[const SizedBox(height: 18), _resultCard()],
         ],
       ),
     );
@@ -499,13 +622,39 @@ class _ReadingPracticeState extends State<ReadingPractice> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _cardTitle(Icons.menu_book_rounded, title.isEmpty ? "Reading Passage" : title),
-          const SizedBox(height: 12),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [primary, secondary]),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Icon(Icons.menu_book_rounded, color: Colors.white),
+              ),
+
+              const SizedBox(width: 12),
+
+              Expanded(
+                child: Text(
+                  title.isEmpty ? "Reading Passage" : title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 18),
+
           Text(
             passage,
-            style: const TextStyle(
-              height: 1.6,
-              color: Color(0xff374151),
+            style: TextStyle(
+              height: 1.8,
+              color: Colors.white.withOpacity(0.80),
               fontSize: 15,
             ),
           ),
@@ -518,25 +667,43 @@ class _ReadingPracticeState extends State<ReadingPractice> {
     final answered = selectedAnswers.where((e) => e != null).length;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xff111827),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(28),
+
+        gradient: const LinearGradient(
+          colors: [Color(0xFF111827), Color(0xFF1F2937)],
+        ),
+
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.20),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
+
       child: Row(
         children: [
           const Icon(Icons.assignment_turned_in_outlined, color: Colors.white),
+
           const SizedBox(width: 10),
+
           Expanded(
             child: Text(
               "$answered of ${questions.length} answered",
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
+
           Text(
             "${questions.isEmpty ? 0 : ((answered / questions.length) * 100).round()}%",
             style: const TextStyle(
-              color: Color(0xffF9A8D4),
+              color: Color(0xFF86EFAC),
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -549,6 +716,8 @@ class _ReadingPracticeState extends State<ReadingPractice> {
     final q = questions[currentQuestion];
     final options = List<String>.from(q["options"] ?? []);
     final correctAnswer = q["answer"]?.toString();
+    final type = q["type"]?.toString() ?? "multiple_choice";
+    final hasOptions = options.isNotEmpty;
 
     return _whiteCard(
       child: Column(
@@ -569,87 +738,125 @@ class _ReadingPracticeState extends State<ReadingPractice> {
               fontSize: 17,
               fontWeight: FontWeight.w900,
               height: 1.4,
-              color: Color(0xff111827),
+              color: Colors.white,
             ),
           ),
           const SizedBox(height: 14),
 
-          ...options.map((option) {
-            final isSelected = selectedAnswers[currentQuestion] == option;
-            final isCorrect = showResult && correctAnswer == option;
-            final isWrong = showResult && isSelected && !isCorrect;
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: primary.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              type.replaceAll("_", " ").toUpperCase(),
+              style: TextStyle(
+                color: primary,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
 
-            return InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: showResult
-                  ? null
-                  : () {
-                      setState(() {
-                        selectedAnswers[currentQuestion] = option;
-                      });
-                    },
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(13),
-                decoration: BoxDecoration(
-                  color: isCorrect
-                      ? Colors.green.withOpacity(0.12)
-                      : isWrong
-                          ? Colors.red.withOpacity(0.10)
-                          : isSelected
-                              ? primary.withOpacity(0.10)
-                              : const Color(0xffF9FAFB),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
+          const SizedBox(height: 12),
+
+          if (hasOptions)
+            ...options.map((option) {
+              final isSelected = selectedAnswers[currentQuestion] == option;
+              final isCorrect = showResult && correctAnswer == option;
+              final isWrong = showResult && isSelected && !isCorrect;
+
+              return InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: showResult
+                    ? null
+                    : () {
+                        setState(() {
+                          selectedAnswers[currentQuestion] = option;
+                        });
+                      },
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(13),
+                  decoration: BoxDecoration(
                     color: isCorrect
-                        ? Colors.green
+                        ? Colors.green.withOpacity(0.18)
                         : isWrong
-                            ? Colors.redAccent
-                            : isSelected
-                                ? primary
-                                : const Color(0xffE5E7EB),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      isCorrect
-                          ? Icons.check_circle
-                          : isWrong
-                              ? Icons.cancel
-                              : isSelected
-                                  ? Icons.radio_button_checked
-                                  : Icons.radio_button_off,
+                        ? Colors.red.withOpacity(0.16)
+                        : isSelected
+                        ? primary.withOpacity(0.22)
+                        : Colors.white.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
                       color: isCorrect
                           ? Colors.green
                           : isWrong
-                              ? Colors.redAccent
-                              : isSelected
-                                  ? primary
-                                  : Colors.grey,
+                          ? Colors.redAccent
+                          : isSelected
+                          ? primary
+                          : Colors.white.withOpacity(0.12),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        option,
-                        style: const TextStyle(
-                          color: Color(0xff374151),
-                          fontWeight: FontWeight.w600,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isCorrect
+                            ? Icons.check_circle
+                            : isWrong
+                            ? Icons.cancel
+                            : isSelected
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_off,
+                        color: isCorrect
+                            ? Colors.green
+                            : isWrong
+                            ? Colors.redAccent
+                            : isSelected
+                            ? primary
+                            : Colors.white54,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          option,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.88),
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
+                ),
+              );
+            })
+          else
+            TextField(
+              enabled: !showResult,
+              style: const TextStyle(color: Colors.white),
+              cursorColor: primary,
+              onChanged: (value) {
+                selectedAnswers[currentQuestion] = value;
+              },
+              decoration: InputDecoration(
+                hintText: "Write your answer here",
+                hintStyle: TextStyle(color: Colors.white.withOpacity(0.45)),
+                filled: true,
+                fillColor: Colors.white.withOpacity(0.08),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: Colors.white.withOpacity(0.12)),
                 ),
               ),
-            );
-          }),
+            ),
 
           if (showResult && q["explanation"] != null) ...[
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xffEFF6FF),
+                color: Colors.white.withOpacity(0.08),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Text(
@@ -675,7 +882,9 @@ class _ReadingPracticeState extends State<ReadingPractice> {
               const SizedBox(width: 10),
               Expanded(
                 child: _smallButton(
-                  text: currentQuestion == questions.length - 1 ? "Last" : "Next",
+                  text: currentQuestion == questions.length - 1
+                      ? "Last"
+                      : "Next",
                   icon: Icons.arrow_forward_rounded,
                   onTap: currentQuestion < questions.length - 1
                       ? () => setState(() => currentQuestion++)
@@ -694,34 +903,57 @@ class _ReadingPracticeState extends State<ReadingPractice> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(32),
+
         gradient: const LinearGradient(
-          colors: [Color(0xff111827), Color(0xff1F2937)],
+          colors: [Color(0xFF111827), Color(0xFF1F2937)],
         ),
-        borderRadius: BorderRadius.circular(28),
+
+        boxShadow: [
+          BoxShadow(
+            color: primary.withOpacity(0.30),
+            blurRadius: 28,
+            offset: const Offset(0, 14),
+          ),
+        ],
       ),
+
       child: Column(
         children: [
-          const Text(
+          Text(
             "Estimated IELTS Band",
-            style: TextStyle(color: Colors.white70),
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.70),
+              fontSize: 14,
+            ),
           ),
-          const SizedBox(height: 10),
+
+          const SizedBox(height: 12),
+
           Text(
             band.toStringAsFixed(1),
             style: const TextStyle(
-              color: Color(0xffF9A8D4),
-              fontSize: 52,
+              color: Color(0xFF86EFAC),
+              fontSize: 58,
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 8),
+
+          const SizedBox(height: 10),
+
           Text(
             "Score: $score / ${questions.length}",
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+            ),
           ),
-          const SizedBox(height: 18),
+
+          const SizedBox(height: 24),
+
           _gradientButton(
             text: "Generate New Test",
             icon: Icons.refresh_rounded,
@@ -735,38 +967,23 @@ class _ReadingPracticeState extends State<ReadingPractice> {
   Widget _whiteCard({required Widget child}) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(26),
+        color: Colors.white.withOpacity(0.08),
+
+        borderRadius: BorderRadius.circular(30),
+
+        border: Border.all(color: Colors.white.withOpacity(0.10)),
+
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
+            color: Colors.black.withOpacity(0.20),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
       child: child,
-    );
-  }
-
-  Widget _cardTitle(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, color: primary),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w900,
-              color: Color(0xff111827),
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -781,10 +998,14 @@ class _ReadingPracticeState extends State<ReadingPractice> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 13),
         decoration: BoxDecoration(
-          color: onTap == null ? const Color(0xffF3F4F6) : primary.withOpacity(0.10),
+          color: onTap == null
+              ? const Color(0xffF3F4F6)
+              : primary.withOpacity(0.10),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: onTap == null ? const Color(0xffE5E7EB) : primary.withOpacity(0.25),
+            color: onTap == null
+                ? const Color(0xffE5E7EB)
+                : primary.withOpacity(0.25),
           ),
         ),
         child: Row(
@@ -817,7 +1038,9 @@ class _ReadingPracticeState extends State<ReadingPractice> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          gradient: LinearGradient(colors: [primary, secondary]),
+          gradient: const LinearGradient(
+            colors: [Color(0xFF2DD4BF), Color(0xFF14B8A6), Color(0xFF0F766E)],
+          ),
           borderRadius: BorderRadius.circular(22),
           boxShadow: [
             BoxShadow(
