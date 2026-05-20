@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:fyproject/screens/pages/registration/registration.dart';
-import 'package:fyproject/screens/widgets/botton/round_botton.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -15,21 +14,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   final List<Map<String, String>> onboardingData = [
     {
-      "title": "Learn Anytime",
-      "desc":
-          "Practice IELTS anytime with smart lessons and AI guidance.",
+      "title": "Master IELTS Skills",
+      "desc": "Practice Listening, Reading, Writing and Speaking with smart AI guidance.",
       "image": "assets/images/on1.png",
     },
     {
-      "title": "Track Progress",
-      "desc":
-          "Monitor your band score and improve step by step.",
+      "title": "Track Your Band Score",
+      "desc": "Monitor your progress, identify weak areas, and improve step by step.",
       "image": "assets/images/on2.png",
     },
     {
       "title": "Achieve Band 7+",
-      "desc":
-          "Mock tests + real exam experience to boost your score.",
+      "desc": "Experience real IELTS-style practice tests and boost your confidence.",
       "image": "assets/images/on3.png",
     },
   ];
@@ -37,8 +33,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   void nextPage() {
     if (currentIndex < onboardingData.length - 1) {
       _controller.nextPage(
-        duration: const Duration(milliseconds: 400),
-        curve: Curves.easeInOut,
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeInOutCubic,
       );
     } else {
       Navigator.pushReplacement(
@@ -49,45 +45,71 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   void skip() {
-    _controller.animateToPage(
-      onboardingData.length - 1,
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeInOut,
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const Registration()),
     );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF08111F),
       body: Container(
-        /// 🌈 BACKGROUND
-       
-
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Color(0xFF08111F),
+              Color(0xFF102A43),
+              Color(0xFF0F766E),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
         child: SafeArea(
           child: Column(
             children: [
-              /// 🔘 TOP BAR
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      "${currentIndex + 1}/${onboardingData.length}",
-                      style: const TextStyle(color: Colors.black54),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(color: Colors.white.withOpacity(0.15)),
+                      ),
+                      child: Text(
+                        "${currentIndex + 1}/${onboardingData.length}",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                     TextButton(
                       onPressed: skip,
                       child: const Text(
                         "Skip",
-                        style: TextStyle(color: Colors.black),
+                        style: TextStyle(
+                          color: Color(0xFF99F6E4),
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
 
-              ///  PAGES
               Expanded(
                 child: PageView.builder(
                   controller: _controller,
@@ -96,43 +118,65 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     setState(() => currentIndex = index);
                   },
                   itemBuilder: (context, index) {
+                    final item = onboardingData[index];
+
                     return Padding(
-                      padding: const EdgeInsets.all(24),
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          ///  IMAGE
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 400),
-                            height: currentIndex == index ? 280 : 240,
-                            child: Image.asset(
-                              onboardingData[index]["image"]!,
+                          Container(
+                            height: 330,
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(26),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.10),
+                              borderRadius: BorderRadius.circular(34),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.18),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF14B8A6).withOpacity(0.25),
+                                  blurRadius: 35,
+                                  offset: const Offset(0, 18),
+                                ),
+                              ],
+                            ),
+                            child: AnimatedScale(
+                              duration: const Duration(milliseconds: 450),
+                              scale: currentIndex == index ? 1.0 : 0.92,
+                              child: Image.asset(
+                                item["image"]!,
+                                fit: BoxFit.contain,
+                              ),
                             ),
                           ),
 
-                          const SizedBox(height: 40),
+                          const SizedBox(height: 38),
 
-                          /// TITLE
                           Text(
-                            onboardingData[index]["title"]!,
+                            item["title"]!,
                             textAlign: TextAlign.center,
                             style: const TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
+                              fontSize: 31,
+                              height: 1.15,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: -0.6,
                             ),
                           ),
 
                           const SizedBox(height: 16),
 
-                          ///  DESC
                           Text(
-                            onboardingData[index]["desc"]!,
+                            item["desc"]!,
                             textAlign: TextAlign.center,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 16,
-                              color: Colors.black54,
-                              height: 1.5,
+                              height: 1.6,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white.withOpacity(0.72),
                             ),
                           ),
                         ],
@@ -142,7 +186,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
               ),
 
-              ///  INDICATOR (MODERN)
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(
@@ -150,59 +193,67 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   (index) => AnimatedContainer(
                     duration: const Duration(milliseconds: 300),
                     margin: const EdgeInsets.symmetric(horizontal: 5),
-                    width: currentIndex == index ? 24 : 8,
-                    height: 8,
+                    width: currentIndex == index ? 30 : 9,
+                    height: 9,
                     decoration: BoxDecoration(
                       color: currentIndex == index
-                          ? Colors.black
-                          : Colors.black26,
-                      borderRadius: BorderRadius.circular(10),
+                          ? const Color(0xFF2DD4BF)
+                          : Colors.white.withOpacity(0.25),
+                      borderRadius: BorderRadius.circular(20),
                     ),
                   ),
                 ),
               ),
 
-              const SizedBox(height: 30),
+              const SizedBox(height: 28),
 
-              ///  NEXT BUTTON
               Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: RoundButton(
-                  title: currentIndex == onboardingData.length - 1
-                      ? "Get Started"
-                      : "Next",
-                      isLoading: false,
-                  onPress: nextPage,
+                padding: const EdgeInsets.fromLTRB(22, 0, 22, 28),
+                child: GestureDetector(
+                  onTap: nextPage,
+                  child: Container(
+                    height: 62,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [
+                          Color(0xFF2DD4BF),
+                          Color(0xFF14B8A6),
+                          Color(0xFF0F766E),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(22),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF14B8A6).withOpacity(0.45),
+                          blurRadius: 25,
+                          offset: const Offset(0, 12),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          currentIndex == onboardingData.length - 1
+                              ? "Start IELTS Practice"
+                              : "Continue",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        const Icon(
+                          Icons.arrow_forward_rounded,
+                          color: Colors.white,
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-              // Padding(
-              //   padding: const EdgeInsets.symmetric(horizontal: 24),
-              //   child: GestureDetector(
-              //     onTap: nextPage,
-              //     child: Container(
-              //       height: 60,
-              //       width: double.infinity,
-              //       decoration: BoxDecoration(
-              //         color: Colors.white,
-              //         borderRadius: BorderRadius.circular(18),
-              //       ),
-              //       child: Center(
-              //         child: Text(
-              //           currentIndex == onboardingData.length - 1
-              //               ? "Get Started"
-              //               : "Next",
-              //           style: const TextStyle(
-              //             color: Color(0xff4a00e0),
-              //             fontSize: 16,
-              //             fontWeight: FontWeight.bold,
-              //           ),
-              //         ),
-              //       ),
-              //     ),
-              //   ),
-              // ),
-
-              // const SizedBox(height: 40),
             ],
           ),
         ),

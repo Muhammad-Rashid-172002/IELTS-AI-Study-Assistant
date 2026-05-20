@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl_phone_number_input/intl_phone_number_input.dart';
+
 import '../../../../controller/firebase_services/firebase_services.dart';
 import '../../../../resources/components/custom_text_field.dart';
 import '../../../resources/routes/routes_names.dart';
@@ -42,71 +43,95 @@ class _RegistrationState extends State<Registration> {
 
   @override
   Widget build(BuildContext context) {
-    final height = MediaQuery.of(context).size.height;
-
     return Scaffold(
+      backgroundColor: const Color(0xFF08111F),
       body: Container(
-        /// 🔥 Background Gradient
+        width: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xfff3f4f8), Color(0xffe9e9f2)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF08111F),
+              Color(0xFF102A43),
+              Color(0xFF0F766E),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
         ),
 
         child: SafeArea(
           child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 22),
             child: Column(
               children: [
                 const SizedBox(height: 40),
 
-                /// 🔥 LOGO ICON
+                /// LOGO
                 Container(
-                  height: 80,
-                  width: 80,
+                  height: 95,
+                  width: 95,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(22),
-                    gradient: const LinearGradient(
-                      colors: [Color(0xff4A00E0), Color(0xff8E2DE2)],
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(0.10),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.15),
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF14B8A6).withOpacity(0.45),
+                        blurRadius: 40,
+                        spreadRadius: 3,
+                      ),
+                    ],
                   ),
-                  child: const Icon(
-                    Icons.gps_fixed,
-                    color: Colors.white,
-                    size: 35,
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Image.asset(
+                      "assets/app_icon/app_icon.png",
+                    ),
                   ),
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: 26),
 
                 /// TITLE
                 const Text(
                   "Create Account",
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                ),
-
-                const SizedBox(height: 8),
-
-                const Text(
-                  "Start your IELTS journey today",
-                  style: TextStyle(color: Colors.grey),
-                ),
-
-                const SizedBox(height: 30),
-
-                /// 🔥 CARD CONTAINER
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 20),
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
+                  style: TextStyle(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(25),
+                    fontSize: 32,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                Text(
+                  "Start your IELTS preparation journey with AI",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.65),
+                    fontSize: 15,
+                    height: 1.5,
+                  ),
+                ),
+
+                const SizedBox(height: 35),
+
+                /// GLASS CARD
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.12),
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.08),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
+                        color: Colors.black.withOpacity(0.18),
+                        blurRadius: 25,
+                        offset: const Offset(0, 12),
                       ),
                     ],
                   ),
@@ -118,22 +143,28 @@ class _RegistrationState extends State<Registration> {
                         /// NAME
                         CustomTextField(
                           controller: nameController,
-                          hintText: "Enter your name",
+                          hintText: "Full Name",
                           validator: validateName,
-                          prefixIcon: const Icon(Icons.person_outline),
+                          prefixIcon: const Icon(
+                            Icons.person_outline,
+                            color: Color(0xFF2DD4BF),
+                          ),
                         ),
 
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 18),
 
                         /// EMAIL
                         CustomTextField(
                           controller: emailController,
-                          hintText: "Enter your email",
+                          hintText: "Email Address",
                           validator: validateEmail,
-                          prefixIcon: const Icon(Icons.email_outlined),
+                          prefixIcon: const Icon(
+                            Icons.email_outlined,
+                            color: Color(0xFF2DD4BF),
+                          ),
                         ),
 
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 18),
 
                         /// PASSWORD
                         Obx(
@@ -141,8 +172,12 @@ class _RegistrationState extends State<Registration> {
                             controller: passwordController,
                             obscureText:
                                 !firebaseServices.isPasswordVisibleR.value,
-                            hintText: "Create a password",
-                            prefixIcon: const Icon(Icons.lock_outline),
+                            hintText: "Create Password",
+                            validator: validatePassword,
+                            prefixIcon: const Icon(
+                              Icons.lock_outline,
+                              color: Color(0xFF2DD4BF),
+                            ),
                             suffixIcon: IconButton(
                               onPressed:
                                   firebaseServices.togglePasswordVisibility,
@@ -150,19 +185,26 @@ class _RegistrationState extends State<Registration> {
                                 firebaseServices.isPasswordVisibleR.value
                                     ? Icons.visibility
                                     : Icons.visibility_off,
+                                color: Colors.white70,
                               ),
                             ),
-                            validator: validatePassword,
                           ),
                         ),
-                        SizedBox(height: height * 0.02),
+
+                        const SizedBox(height: 18),
+
+                        /// CONFIRM PASSWORD
                         Obx(
                           () => CustomTextField(
                             controller: confirmPasswordController,
                             obscureText:
                                 !firebaseServices.isPasswordVisibleR.value,
-                            hintText: "Confirm password",
-                            prefixIcon: const Icon(Icons.lock_outline),
+                            hintText: "Confirm Password",
+                            validator: validateConfirmPassword,
+                            prefixIcon: const Icon(
+                              Icons.lock_outline,
+                              color: Color(0xFF2DD4BF),
+                            ),
                             suffixIcon: IconButton(
                               onPressed:
                                   firebaseServices.togglePasswordVisibility,
@@ -170,20 +212,20 @@ class _RegistrationState extends State<Registration> {
                                 firebaseServices.isPasswordVisibleR.value
                                     ? Icons.visibility
                                     : Icons.visibility_off,
+                                color: Colors.white70,
                               ),
                             ),
-                            validator: validateConfirmPassword,
                           ),
                         ),
 
-                        const SizedBox(height: 25),
+                        const SizedBox(height: 28),
 
                         /// BUTTON
                         Obx(
                           () => RoundButton(
-                           
-                            title: "Sign Up",
-                            isLoading: firebaseServices.loadingRegistration.value,
+                            title: "Create Account",
+                            isLoading:
+                                firebaseServices.loadingRegistration.value,
                             onPress: () {
                               if (!formKey.currentState!.validate()) return;
 
@@ -197,51 +239,64 @@ class _RegistrationState extends State<Registration> {
                           ),
                         ),
 
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 28),
 
-                        /// DIVIDER
-                        Row(
-                          children: const [
-                            Expanded(child: Divider()),
-                            Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 10),
-                              child: Text("or continue with"),
-                            ),
-                            Expanded(child: Divider()),
-                          ],
-                        ),
-
-                        const SizedBox(height: 20),
-
-                        /// SOCIAL BUTTONS
                         Row(
                           children: [
                             Expanded(
-                              child: socialButton(
-                                "Google",
-                                "assets/images/google1.png",
-                                () async {
-                                  await firebaseServices.loginWithGoogle();
-                                },
+                              child: Divider(
+                                color: Colors.white.withOpacity(0.12),
+                              ),
+                            ),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 12),
+                              child: Text(
+                                "OR",
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.55),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Divider(
+                                color: Colors.white.withOpacity(0.12),
                               ),
                             ),
                           ],
                         ),
 
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 25),
+
+                        /// GOOGLE BUTTON
+                        socialButton(
+                          "Continue with Google",
+                          "assets/images/google1.png",
+                          () async {
+                            await firebaseServices.loginWithGoogle();
+                          },
+                        ),
+
+                        const SizedBox(height: 28),
 
                         /// LOGIN
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Text("Already have an account? "),
+                            Text(
+                              "Already have an account? ",
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.65),
+                              ),
+                            ),
                             GestureDetector(
-                              onTap: () => Get.toNamed(RoutesName.login),
+                              onTap: () =>
+                                  Get.toNamed(RoutesName.login),
                               child: const Text(
-                                "Log In",
+                                "Login",
                                 style: TextStyle(
-                                  color: Color(0xff8E2DE2),
-                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF2DD4BF),
+                                  fontWeight: FontWeight.w800,
                                 ),
                               ),
                             ),
@@ -261,24 +316,35 @@ class _RegistrationState extends State<Registration> {
     );
   }
 
-  /// 🔘 SOCIAL BUTTON
-  Widget socialButton(String title, String icon, VoidCallback onPressed) {
+  Widget socialButton(
+      String title,
+      String icon,
+      VoidCallback onPressed,
+      ) {
     return InkWell(
       onTap: onPressed,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(18),
       child: Container(
-        height: 50,
+        height: 58,
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade300),
+          color: Colors.white.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.10),
+          ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Image.asset(icon, height: 22),
-            const SizedBox(width: 8),
-            Text(title),
+            const SizedBox(width: 12),
+            const Text(
+              "Continue with Google",
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ],
         ),
       ),
@@ -286,6 +352,7 @@ class _RegistrationState extends State<Registration> {
   }
 
   /// VALIDATORS
+
   String? validateEmail(String? value) {
     if (value == null || value.isEmpty) return "Email required";
     return value.contains("@") ? null : "Invalid email";
@@ -297,13 +364,21 @@ class _RegistrationState extends State<Registration> {
   }
 
   String? validatePassword(String? value) {
-    if (value == null || value.length < 6) return "Min 6 chars";
+    if (value == null || value.length < 6) {
+      return "Minimum 6 characters";
+    }
     return null;
   }
 
   String? validateConfirmPassword(String? value) {
-    if (value == null || value.isEmpty) return "Confirm password required";
-    if (value != passwordController.text) return "Passwords do not match";
+    if (value == null || value.isEmpty) {
+      return "Confirm password required";
+    }
+
+    if (value != passwordController.text) {
+      return "Passwords do not match";
+    }
+
     return null;
   }
 }

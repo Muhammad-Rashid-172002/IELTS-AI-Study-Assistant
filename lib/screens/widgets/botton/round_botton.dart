@@ -1,70 +1,83 @@
 import 'package:flutter/material.dart';
 
 class RoundButton extends StatelessWidget {
-  final bool loading;
+  final bool isLoading;
   final String title;
   final VoidCallback onPress;
-  final double height, width;
+  final double height;
+  final double width;
 
   const RoundButton({
     super.key,
-    this.loading = false,
     required this.title,
     required this.onPress,
+    this.isLoading = false,
     this.width = double.infinity,
-    this.height = 54, required bool isLoading,
+    this.height = 58,
   });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: loading ? null : onPress,
-      child: Container(
+      onTap: isLoading ? null : onPress,
+      borderRadius: BorderRadius.circular(20),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
         height: height,
         width: width,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-
-          /// 🔥 Premium Gradient (Blue → Purple)
-          gradient: const LinearGradient(
-            colors: [
-              Color(0xff4A00E0), // Deep Purple Blue
-              Color(0xff8E2DE2), // Neon Purple
-            ],
+          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            colors: isLoading
+                ? [
+                    const Color(0xFF64748B),
+                    const Color(0xFF475569),
+                  ]
+                : [
+                    const Color(0xFF2DD4BF),
+                    const Color(0xFF14B8A6),
+                    const Color(0xFF0F766E),
+                  ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-
-          /// 🔥 Soft Glow Shadow
           boxShadow: [
             BoxShadow(
-              color: Color(0xff8E2DE2).withOpacity(0.4),
-              blurRadius: 20,
-              spreadRadius: 1,
-              offset: const Offset(0, 6),
+              color: const Color(0xFF14B8A6).withOpacity(0.45),
+              blurRadius: 22,
+              offset: const Offset(0, 10),
             ),
           ],
         ),
-
         child: Center(
-          child: loading
+          child: isLoading
               ? const SizedBox(
-                  height: 22,
-                  width: 22,
+                  height: 23,
+                  width: 23,
                   child: CircularProgressIndicator(
                     color: Colors.white,
-                    strokeWidth: 2.5,
+                    strokeWidth: 2.6,
                   ),
                 )
-              : Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
-                    color: Colors.white,
-                  ),
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.3,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    const Icon(
+                      Icons.arrow_forward_rounded,
+                      color: Colors.white,
+                      size: 21,
+                    ),
+                  ],
                 ),
         ),
       ),

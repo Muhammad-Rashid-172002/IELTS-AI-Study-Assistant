@@ -18,10 +18,12 @@ class _FullMockTestState extends State<FullMockTest>
     with SingleTickerProviderStateMixin {
   final IELTSController ieltsController = Get.put(IELTSController());
 
-  bool testStarted = false;
-
   late AnimationController _controller;
   late Animation<double> _scaleAnim;
+
+  Color get primary => const Color(0xFF14B8A6);
+  Color get secondary => const Color(0xFF0F766E);
+  Color get bg => const Color(0xFF08111F);
 
   @override
   void initState() {
@@ -46,359 +48,309 @@ class _FullMockTestState extends State<FullMockTest>
     super.dispose();
   }
 
-
-  // UI
-
-
   @override
-Widget build(BuildContext context) {
-//  final double headerHeight = 240;
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: bg,
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            _topHeader(),
 
-  return Scaffold(
-    backgroundColor: const Color(0xffeef1f7),
-    body: SingleChildScrollView(
-      child: Column(
-        children: [
-          // HEADER (NOW SCROLLABLE)
-          _topHeader(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 20, 18, 0),
+              child: Column(
+                children: [
+                  _mainCard(),
 
-          // CONTENT
-          Padding(
-            padding: const EdgeInsets.only(top: 10),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: _mainCard(),
-                ),
+                  const SizedBox(height: 18),
 
-                const SizedBox(height: 20),
+                  _sectionTile(
+                    "Listening",
+                    Icons.headphones_rounded,
+                    "30 min • 40 questions",
+                    const Color(0xFF38BDF8),
+                    onTap: () => Get.to(() => const ListeningPractice()),
+                  ),
 
-                _sectionTile(
-                  "Listening",
-                  Icons.headphones,
-                  "30 min • 40 Q",
-                  Colors.blue,
-                  onTap: () => Get.to(() => const ListeningPractice()),
-                ),
+                  _sectionTile(
+                    "Reading",
+                    Icons.menu_book_rounded,
+                    "60 min • Academic passage",
+                    const Color(0xFFA78BFA),
+                    onTap: () => Get.to(() => const ReadingPractice()),
+                  ),
 
-                _sectionTile(
-                  "Reading",
-                  Icons.menu_book,
-                  "15 min • 5 Q",
-                  Colors.purple,
-                  onTap: () => Get.to(() => const ReadingPractice()),
-                ),
+                  _sectionTile(
+                    "Writing",
+                    Icons.edit_note_rounded,
+                    "60 min • Task 1 & Task 2",
+                    const Color(0xFFF472B6),
+                    onTap: () => Get.to(() => const WritingChecker()),
+                  ),
 
-                _sectionTile(
-                  "Writing",
-                  Icons.edit,
-                  "60 min • 2 Q",
-                  Colors.pink,
-                  onTap: () => Get.to(() => const WritingChecker()),
-                ),
+                  _sectionTile(
+                    "Speaking",
+                    Icons.mic_rounded,
+                    "11–14 min • AI examiner",
+                    const Color(0xFF2DD4BF),
+                    onTap: () => Get.to(() => const SpeakingPractice()),
+                  ),
 
-                _sectionTile(
-                  "Speaking",
-                  Icons.mic,
-                  "15 min • 3 Q",
-                  Colors.teal,
-                  onTap: () => Get.to(() => const SpeakingPractice()),
-                ),
+                  const SizedBox(height: 18),
 
-                const SizedBox(height: 20),
-                _startButton(),
-                const SizedBox(height: 20),
-                _beforeStartCard(),
-                const SizedBox(height: 40),
-              ],
+                  _startButton(),
+
+                  const SizedBox(height: 18),
+
+                  _beforeStartCard(),
+
+                  const SizedBox(height: 36),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
-}
-  // Widget mockTestScreen() {
-  //   return Scaffold(
-  //     backgroundColor: const Color(0xfff5f6fa),
-  //     body: Stack(
-  //       children: [
-  //         //  Top Header
-  //         _topHeader(),
-
-  //         //  Card Section
-  //         Positioned(
-  //           top: 180, // overlap effect
-  //           left: 20,
-  //           right: 20,
-  //           child: Container(
-  //             padding: const EdgeInsets.all(20),
-  //             decoration: BoxDecoration(
-  //               color: Colors.white,
-  //               borderRadius: BorderRadius.circular(25),
-  //               boxShadow: [
-  //                 BoxShadow(
-  //                   color: Colors.black12,
-  //                   blurRadius: 10,
-  //                   offset: Offset(0, 5),
-  //                 ),
-  //               ],
-  //             ),
-  //             child: Column(
-  //               crossAxisAlignment: CrossAxisAlignment.start,
-  //               children: [
-  //                 // Title Row
-  //                 Row(
-  //                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  //                   children: [
-  //                     Column(
-  //                       crossAxisAlignment: CrossAxisAlignment.start,
-  //                       children: const [
-  //                         Text(
-  //                           "Academic IELTS",
-  //                           style: TextStyle(
-  //                             fontSize: 20,
-  //                             fontWeight: FontWeight.bold,
-  //                           ),
-  //                         ),
-  //                         SizedBox(height: 5),
-  //                         Text(
-  //                           "Practice Test #12",
-  //                           style: TextStyle(color: Colors.grey),
-  //                         ),
-  //                       ],
-  //                     ),
-  //                     Column(
-  //                       children: const [
-  //                         Row(
-  //                           children: [
-  //                             Icon(Icons.access_time, size: 18),
-  //                             SizedBox(width: 5),
-  //                             Text("165 min"),
-  //                           ],
-  //                         ),
-  //                         SizedBox(height: 5),
-  //                         Text(
-  //                           "Total Duration",
-  //                           style: TextStyle(color: Colors.grey),
-  //                         ),
-  //                       ],
-  //                     ),
-  //                   ],
-  //                 ),
-
-  //                 const SizedBox(height: 20),
-
-  //                 // Instructions Box
-  //                 Container(
-  //                   padding: const EdgeInsets.all(15),
-  //                   decoration: BoxDecoration(
-  //                     color: const Color(0xffeef1f5),
-  //                     borderRadius: BorderRadius.circular(15),
-  //                   ),
-  //                   child: Column(
-  //                     crossAxisAlignment: CrossAxisAlignment.start,
-  //                     children: const [
-  //                       Row(
-  //                         children: [
-  //                           Icon(Icons.description),
-  //                           SizedBox(width: 8),
-  //                           Text(
-  //                             "Instructions",
-  //                             style: TextStyle(fontWeight: FontWeight.bold),
-  //                           ),
-  //                         ],
-  //                       ),
-  //                       SizedBox(height: 10),
-
-  //                       Text("• Complete all four sections in order"),
-  //                       Text("• Time limit applies to each section"),
-  //                       Text("• You can review answers before submitting"),
-  //                       Text("• Results will be available immediately after"),
-  //                     ],
-  //                   ),
-  //                 ),
-  //               ],
-  //             ),
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
-
-
-  //  HEADER
+    );
+  }
 
   Widget _topHeader() {
     return Container(
-      height: 240,
       width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 52, 20, 32),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xff4a00e0), Color(0xff8e2de2)],
-        ),
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(40),
-          bottomRight: Radius.circular(40),
+          colors: [
+            Color(0xFF08111F),
+            Color(0xFF102A43),
+            Color(0xFF0F766E),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
       ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Row(
+      child: Column(
+        children: [
+          Row(
             children: [
-              GestureDetector(
+              _circleButton(
+                icon: Icons.arrow_back_ios_new_rounded,
                 onTap: () => Get.back(),
-                child: const CircleAvatar(
-                  backgroundColor: Colors.white24,
-                  child: Icon(Icons.arrow_back, color: Colors.white),
-                ),
               ),
-              const SizedBox(width: 20),
+
+              const SizedBox(width: 14),
 
               const Expanded(
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       "Full Mock Test",
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 30,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
-                    SizedBox(height: 6),
+                    SizedBox(height: 5),
                     Text(
                       "Complete IELTS Simulation",
-                      style: TextStyle(color: Colors.white70),
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
                     ),
                   ],
                 ),
               ),
 
-              const Icon(Icons.workspace_premium, color: Colors.white),
+              _circleButton(
+                icon: Icons.workspace_premium_rounded,
+                onTap: () {},
+              ),
             ],
           ),
-        ),
+
+          const SizedBox(height: 28),
+
+          Row(
+            children: [
+              Expanded(
+                child: _headerInfoCard(
+                  icon: Icons.timer_outlined,
+                  title: "Duration",
+                  value: "165 min",
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _headerInfoCard(
+                  icon: Icons.quiz_outlined,
+                  title: "Sections",
+                  value: "4 Parts",
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  //  PROGRESS CARD
-  // =====================================================
-  // Widget _progressCard() {
-  //   return Container(
-  //     margin: const EdgeInsets.symmetric(horizontal: 16),
-  //     padding: const EdgeInsets.all(18),
-  //     decoration: BoxDecoration(
-  //       color: Colors.white,
-  //       borderRadius: BorderRadius.circular(22),
-  //     ),
-  //     child: Column(
-  //       crossAxisAlignment: CrossAxisAlignment.start,
-  //       children: [
-  //         const Text(
-  //           "Your Readiness",
-  //           style: TextStyle(fontWeight: FontWeight.bold),
-  //         ),
-  //         const SizedBox(height: 10),
-
-  //         ClipRRect(
-  //           borderRadius: BorderRadius.circular(10),
-  //           child: LinearProgressIndicator(
-  //             value: 0.7,
-  //             minHeight: 10,
-  //             backgroundColor: Colors.grey[200],
-  //             color: Colors.deepPurple,
-  //           ),
-  //         ),
-
-  //         const SizedBox(height: 6),
-  //         const Text("70% Ready - Keep practicing "),
-  //       ],
-  //     ),
-  //   );
-  // }
-
-
-  //  MAIN CARD
-
-  Widget _mainCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(25),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 10,
-            offset: Offset(0, 5),
-          ),
-        ],
+  Widget _circleButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        height: 46,
+        width: 46,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withOpacity(0.10)),
+        ),
+        child: Icon(icon, color: Colors.white, size: 21),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+
+  Widget _headerInfoCard({
+    required IconData icon,
+    required String title,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withOpacity(0.10)),
+      ),
+      child: Row(
         children: [
-          // Title Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    "Academic IELTS",
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 5),
-                
-                ],
-              ),
-          
-            ],
-          ),
-
-          const SizedBox(height: 20),
-
-          // Instructions
-          Container(
-            padding: const EdgeInsets.all(15),
-            decoration: BoxDecoration(
-              color: const Color(0xffeef1f5),
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: const Column(
+          Icon(icon, color: Colors.white),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.description),
-                    SizedBox(width: 8),
-                    Text(
-                      "Instructions",
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ],
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.65),
+                    fontSize: 12,
+                  ),
                 ),
-                SizedBox(height: 10),
-                Text("• Complete all four sections in order"),
-                Text("• Time limit applies to each section"),
-                Text("• Review answers before submitting"),
-                Text("• Results available instantly"),
+                const SizedBox(height: 3),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
               ],
             ),
           ),
         ],
       ),
     );
-  } 
+  }
 
-  //  SECTION TILE
+  Widget _mainCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.white.withOpacity(0.10)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.22),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _cardTitle(Icons.school_rounded, "Academic IELTS"),
+
+          const SizedBox(height: 18),
+
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.07),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: Colors.white.withOpacity(0.08)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _instruction("Complete all four sections in order"),
+                _instruction("Each section has its own time limit"),
+                _instruction("Review your answers before submitting"),
+                _instruction("Results will be available instantly"),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _cardTitle(IconData icon, String title) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(11),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: [primary, secondary]),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Icon(icon, color: Colors.white, size: 22),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 21,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _instruction(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Icon(Icons.check_circle_rounded, color: primary, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.78),
+                fontWeight: FontWeight.w600,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _sectionTile(
     String title,
@@ -408,36 +360,35 @@ Widget build(BuildContext context) {
     VoidCallback? onTap,
   }) {
     return GestureDetector(
-      onTap:
-          onTap ??
-          () {
-            Get.snackbar(title, "Section preview coming soon 🚀");
-          },
+      onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(22),
+          color: Colors.white.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: Colors.white.withOpacity(0.10)),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.15),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+              color: color.withOpacity(0.18),
+              blurRadius: 22,
+              offset: const Offset(0, 10),
             ),
           ],
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(16),
+                color: color.withOpacity(0.16),
+                borderRadius: BorderRadius.circular(18),
               ),
-              child: Icon(icon, color: color),
+              child: Icon(icon, color: color, size: 27),
             ),
+
             const SizedBox(width: 14),
+
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -445,24 +396,34 @@ Widget build(BuildContext context) {
                   Text(
                     title,
                     style: const TextStyle(
+                      color: Colors.white,
                       fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.58),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  Text(subtitle),
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, size: 16),
+
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 17,
+              color: Colors.white.withOpacity(0.60),
+            ),
           ],
         ),
       ),
     );
   }
 
-  // =====================================================
-  // 🚀 START BUTTON (ANIMATED)
-  // =====================================================
   Widget _startButton() {
     return ScaleTransition(
       scale: _scaleAnim,
@@ -471,53 +432,69 @@ Widget build(BuildContext context) {
           Get.to(() => const TestRunner());
         },
         child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16),
-          height: 65,
+          height: 64,
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [Color(0xff4a00e0), Color(0xff8e2de2)],
+              colors: [
+                Color(0xFF2DD4BF),
+                Color(0xFF14B8A6),
+                Color(0xFF0F766E),
+              ],
             ),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: Colors.deepPurple.withOpacity(0.4),
-                blurRadius: 15,
+                color: primary.withOpacity(0.45),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
               ),
             ],
           ),
-          child: const Center(
-            child: Text(
-              "Start Mock Test",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.play_arrow_rounded, color: Colors.white, size: 28),
+              SizedBox(width: 8),
+              Text(
+                "Start Mock Test",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  // =====================================================
-  // 💡 TIPS CARD
-  // =====================================================
   Widget _beforeStartCard() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xfffff3e0),
-        borderRadius: BorderRadius.circular(18),
+        color: const Color(0xFFF59E0B).withOpacity(0.14),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: const Color(0xFFF59E0B).withOpacity(0.25),
+        ),
       ),
-      child: const Row(
+      child: Row(
         children: [
-          Icon(Icons.lightbulb, color: Colors.orange),
-          SizedBox(width: 12),
+          const Icon(
+            Icons.lightbulb_rounded,
+            color: Color(0xFFFBBF24),
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
               "Find a quiet space and ensure stable internet before starting.",
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.78),
+                fontWeight: FontWeight.w600,
+                height: 1.4,
+              ),
             ),
           ),
         ],
