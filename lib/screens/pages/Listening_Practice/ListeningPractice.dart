@@ -368,7 +368,11 @@ class _ListeningPracticeState extends State<ListeningPractice> {
             const SizedBox(height: 18),
             const Text(
               "Generating Listening Test...",
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 18,
+                color: Colors.white,
+              ),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -774,12 +778,12 @@ class _ListeningPracticeState extends State<ListeningPractice> {
         padding: const EdgeInsets.all(13),
         decoration: BoxDecoration(
           color: isCorrect
-              ? Colors.green.withOpacity(0.12)
+              ? Colors.green.withOpacity(0.15)
               : isWrong
-              ? Colors.red.withOpacity(0.10)
+              ? Colors.red.withOpacity(0.12)
               : isSelected
-              ? primary.withOpacity(0.10)
-              : const Color(0xffF9FAFB),
+              ? primary.withOpacity(0.14)
+              : const Color(0xFF1E293B),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isCorrect
@@ -815,7 +819,14 @@ class _ListeningPracticeState extends State<ListeningPractice> {
                 option,
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
-                  color: Colors.white.withOpacity(0.85),
+                  fontSize: 15,
+                  color: isCorrect
+                      ? Colors.green.shade700
+                      : isWrong
+                      ? Colors.red.shade700
+                      : isSelected
+                      ? primary
+                      : const Color(0xFF111827), // Dark text
                 ),
               ),
             ),

@@ -12,21 +12,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController _controller = PageController();
   int currentIndex = 0;
 
-  final List<Map<String, String>> onboardingData = [
+  final List<Map<String, dynamic>> onboardingData = [
     {
-      "title": "Master IELTS Skills",
-      "desc": "Practice Listening, Reading, Writing and Speaking with smart AI guidance.",
-      "image": "assets/images/on1.png",
+      "title": "Listen Better",
+      "desc":
+          "Improve your listening skills with real IELTS tests and instant AI feedback.",
+      "image": "assets/images/listenig.png",
+      "color": Color(0xFF38BDF8),
     },
     {
-      "title": "Track Your Band Score",
-      "desc": "Monitor your progress, identify weak areas, and improve step by step.",
-      "image": "assets/images/on2.png",
+      "title": "Read Smarter",
+      "desc":
+          "Practice IELTS reading passages and learn how to answer faster and accurately.",
+      "image": "assets/images/reading.png",
+      "color": Color(0xFFA855F7),
     },
     {
-      "title": "Achieve Band 7+",
-      "desc": "Experience real IELTS-style practice tests and boost your confidence.",
-      "image": "assets/images/on3.png",
+      "title": "Write with Confidence",
+      "desc":
+          "Improve Task 1 and Task 2 writing with AI band score evaluation.",
+      "image": "assets/images/writing.png",
+      "color": Color(0xFFF97316),
     },
   ];
 
@@ -59,50 +65,43 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final Color accent = onboardingData[currentIndex]["color"];
+
     return Scaffold(
-      backgroundColor: const Color(0xFF08111F),
-      body: Container(
-        decoration: const BoxDecoration(
+      backgroundColor: const Color(0xFF050B18),
+      body: AnimatedContainer(
+        duration: const Duration(milliseconds: 350),
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              Color(0xFF08111F),
-              Color(0xFF102A43),
-              Color(0xFF0F766E),
+              const Color(0xFF050B18),
+              const Color(0xFF08111F),
+              accent.withOpacity(0.22),
             ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
           ),
         ),
         child: SafeArea(
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 14,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(color: Colors.white.withOpacity(0.15)),
-                      ),
-                      child: Text(
-                        "${currentIndex + 1}/${onboardingData.length}",
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
+                    _topBadge("${currentIndex + 1}/${onboardingData.length}"),
                     TextButton(
                       onPressed: skip,
-                      child: const Text(
+                      child: Text(
                         "Skip",
                         style: TextStyle(
-                          color: Color(0xFF99F6E4),
-                          fontWeight: FontWeight.w700,
+                          color: accent,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
                         ),
                       ),
                     ),
@@ -114,11 +113,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: PageView.builder(
                   controller: _controller,
                   itemCount: onboardingData.length,
-                  onPageChanged: (index) {
-                    setState(() => currentIndex = index);
-                  },
+                  onPageChanged: (index) =>
+                      setState(() => currentIndex = index),
                   itemBuilder: (context, index) {
                     final item = onboardingData[index];
+                    final Color pageColor = item["color"];
 
                     return Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -126,57 +125,63 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Container(
-                            height: 330,
+                            height: 350,
                             width: double.infinity,
-                            padding: const EdgeInsets.all(26),
+                            padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.10),
-                              borderRadius: BorderRadius.circular(34),
+                              color: Colors.white.withOpacity(0.055),
+                              borderRadius: BorderRadius.circular(38),
                               border: Border.all(
-                                color: Colors.white.withOpacity(0.18),
+                                color: pageColor.withOpacity(0.35),
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF14B8A6).withOpacity(0.25),
-                                  blurRadius: 35,
+                                  color: pageColor.withOpacity(0.22),
+                                  blurRadius: 38,
                                   offset: const Offset(0, 18),
                                 ),
                               ],
                             ),
-                            child: AnimatedScale(
-                              duration: const Duration(milliseconds: 450),
-                              scale: currentIndex == index ? 1.0 : 0.92,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(30),
                               child: Image.asset(
-                                item["image"]!,
-                                fit: BoxFit.contain,
+                                item["image"],
+                                fit: BoxFit.cover,
                               ),
                             ),
                           ),
 
                           const SizedBox(height: 38),
 
-                          Text(
-                            item["title"]!,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 31,
-                              height: 1.15,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                              letterSpacing: -0.6,
+                          ShaderMask(
+                            shaderCallback: (bounds) {
+                              return LinearGradient(
+                                colors: [Colors.white, pageColor],
+                              ).createShader(bounds);
+                            },
+                            child: Text(
+                              item["title"],
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 36,
+                                height: 1.1,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                                letterSpacing: -1,
+                              ),
                             ),
                           ),
 
                           const SizedBox(height: 16),
 
                           Text(
-                            item["desc"]!,
+                            item["desc"],
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 16,
                               height: 1.6,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.white.withOpacity(0.72),
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white.withOpacity(0.68),
                             ),
                           ),
                         ],
@@ -188,45 +193,42 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(
-                  onboardingData.length,
-                  (index) => AnimatedContainer(
+                children: List.generate(onboardingData.length, (index) {
+                  final bool selected = currentIndex == index;
+                  return AnimatedContainer(
                     duration: const Duration(milliseconds: 300),
                     margin: const EdgeInsets.symmetric(horizontal: 5),
-                    width: currentIndex == index ? 30 : 9,
-                    height: 9,
+                    width: selected ? 34 : 10,
+                    height: 10,
                     decoration: BoxDecoration(
-                      color: currentIndex == index
-                          ? const Color(0xFF2DD4BF)
-                          : Colors.white.withOpacity(0.25),
+                      color: selected ? accent : Colors.white.withOpacity(0.22),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                  ),
-                ),
+                  );
+                }),
               ),
 
-              const SizedBox(height: 28),
+              const SizedBox(height: 30),
 
               Padding(
-                padding: const EdgeInsets.fromLTRB(22, 0, 22, 28),
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 30),
                 child: GestureDetector(
                   onTap: nextPage,
                   child: Container(
-                    height: 62,
+                    height: 64,
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
+                      gradient: LinearGradient(
                         colors: [
-                          Color(0xFF2DD4BF),
-                          Color(0xFF14B8A6),
-                          Color(0xFF0F766E),
+                          accent.withOpacity(0.95),
+                          accent.withOpacity(0.65),
                         ],
                       ),
-                      borderRadius: BorderRadius.circular(22),
+                      borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF14B8A6).withOpacity(0.45),
-                          blurRadius: 25,
+                          color: accent.withOpacity(0.35),
+                          blurRadius: 26,
                           offset: const Offset(0, 12),
                         ),
                       ],
@@ -241,10 +243,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 17,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w900,
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 12),
                         const Icon(
                           Icons.arrow_forward_rounded,
                           color: Colors.white,
@@ -256,6 +258,24 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _topBadge(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.white.withOpacity(0.12)),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w900,
         ),
       ),
     );

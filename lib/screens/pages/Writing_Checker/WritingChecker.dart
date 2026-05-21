@@ -801,7 +801,7 @@ class _WritingCheckerState extends State<WritingChecker> {
       ),
     );
   }
-
+/// ghalt ha
   Widget _whiteCard({required Widget child}) {
     return Container(
       width: double.infinity,
