@@ -105,7 +105,8 @@ class AIService {
     required String currentLevel,
     required int days,
   }) async {
-    final prompt = """
+    final prompt =
+        """
 You are a professional IELTS coach.
 
 Create a personalized IELTS study plan.
@@ -142,8 +143,8 @@ Rules:
   // IELTS READING
   // =========================================================
 
-Future<Map<String, dynamic>> generateReadingTest() async {
-  final prompt = """
+  Future<Map<String, dynamic>> generateReadingTest() async {
+    final prompt = """
 You are an IELTS Academic Reading examiner.
 
 Generate ONE realistic IELTS Academic Reading passage and mixed questions.
@@ -201,12 +202,15 @@ Rules:
 - No markdown
 """;
 
-  return _json(prompt);
-} Future<Map<String, dynamic>> checkReadingAnswers({
+    return _json(prompt);
+  }
+
+  Future<Map<String, dynamic>> checkReadingAnswers({
     required List<Map<String, dynamic>> questions,
     required Map<String, String> userAnswers,
   }) async {
-    final prompt = """
+    final prompt =
+        """
 You are an IELTS Reading examiner.
 
 Check the user's answers.
@@ -247,8 +251,8 @@ Rules:
   // IELTS LISTENING
   // =========================================================
 
-Future<Map<String, dynamic>> generateListeningTest() async {
-  final prompt = """
+  Future<Map<String, dynamic>> generateListeningTest() async {
+    final prompt = """
 You are an IELTS Listening examiner.
 
 Create a REAL IELTS Listening test.
@@ -316,13 +320,15 @@ Rules:
 - No markdown
 """;
 
-  return _json(prompt);
-}
+    return _json(prompt);
+  }
+
   Future<Map<String, dynamic>> checkListeningAnswers({
     required List<Map<String, dynamic>> questions,
     required Map<String, String> userAnswers,
   }) async {
-    final prompt = """
+    final prompt =
+        """
 You are an IELTS Listening examiner.
 
 Check answers.
@@ -358,8 +364,9 @@ Return ONLY valid JSON:
   // IELTS WRITING
   // =========================================================qwqfg
 
-Future<String> generateWritingTopic(String taskType) async {
-  final prompt = """
+  Future<String> generateWritingTopic(String taskType) async {
+    final prompt =
+        """
 You are an IELTS examiner.
 
 Generate ONE real IELTS Academic Writing Task $taskType question.
@@ -373,31 +380,30 @@ Rules:
 - No explanation
 """;
 
-  return _text(prompt);
+    return _text(prompt);
+  }
 
-}
- Future<Map<String, dynamic>> evaluateWriting({
-  required String text,
-  required String taskType,
-}) async {
-  final isTask1 = taskType == "1";
+  Future<Map<String, dynamic>> evaluateWriting({
+    required String text,
+    required String taskType,
+  }) async {
+    final isTask1 = taskType == "1";
 
-  final prompt = """
+    final prompt =
+        """
 You are an OFFICIAL IELTS Writing Examiner.
 
 Use the official IELTS Writing Band Descriptors (Updated May 2023).
 
 Strictly evaluate this IELTS Writing Task $taskType response.
 
-${isTask1
-      ? """
+${isTask1 ? """
 TASK 1 CRITERIA:
 1. Task Achievement
 2. Coherence & Cohesion
 3. Lexical Resource
 4. Grammatical Range & Accuracy
-"""
-      : """
+""" : """
 TASK 2 CRITERIA:
 1. Task Response
 2. Coherence & Cohesion
@@ -418,11 +424,24 @@ IMPORTANT RULES:
 - Mention strengths
 - Give actionable improvement tips
 - Use IELTS-style feedback
+- Detect repetitive vocabulary
+- Detect unnatural or AI-like writing
+- Mention if ideas are underdeveloped
+- Mention if examples are weak
+- Mention if paragraphing is weak
+- Suggest advanced academic vocabulary
+- Suggest better linking words
+- Return short but useful feedback
+- Return ONLY valid JSON
+- Do NOT use markdown
+- Do NOT add explanation outside JSON
 
-Return ONLY valid JSON:
+Return ONLY valid JSON in this exact structure:
 
 {
   "overall_band": "6.5",
+
+  "band_summary": "",
 
   "${isTask1 ? "task_achievement" : "task_response"}": {
     "band": "6.0",
@@ -455,18 +474,51 @@ Return ONLY valid JSON:
     ""
   ],
 
+  "vocabulary_suggestions": [
+    {
+      "basic": "",
+      "advanced": ""
+    },
+    {
+      "basic": "",
+      "advanced": ""
+    }
+  ],
+
+  "linking_words_suggestions": [
+    "",
+    "",
+    ""
+  ],
+
+  "grammar_mistakes_count": "0",
+
+  "naturalness_score": "0",
+
+  "cefr_level": "",
+
+  "time_management": "",
+
   "improved_version": "",
 
-  "examiner_advice": ""
+  "examiner_advice": "",
+
+  "final_tips": [
+    "",
+    ""
+  ]
 }
 
 Candidate Response:
 $text
 """;
 
-  return _json(prompt);
-}  Future<String> generateWritingIdeas(String topic) async {
-    final prompt = """
+    return _json(prompt);
+  }
+
+  Future<String> generateWritingIdeas(String topic) async {
+    final prompt =
+        """
 You are an IELTS Writing coach.
 
 Give ideas for this IELTS essay topic:
@@ -490,7 +542,8 @@ Rules:
   }
 
   Future<String> improveWriting(String text) async {
-    final prompt = """
+    final prompt =
+        """
 Improve this IELTS writing answer.
 
 Rules:
@@ -511,8 +564,8 @@ $text
   // =========================================================
   // IELTS SPEAKING
   // =========================================================
-Future<Map<String, dynamic>> generateSpeakingTest() async {
-  final prompt = """
+  Future<Map<String, dynamic>> generateSpeakingTest() async {
+    final prompt = """
 You are an IELTS Speaking examiner.
 
 Create a complete IELTS Speaking test.
@@ -543,11 +596,11 @@ Rules:
 - No markdown
 """;
 
-  return _json(prompt);
-}
+    return _json(prompt);
+  }
 
-Future<Map<String, dynamic>> generateSpeakingTopic() async {
-  final prompt = """
+  Future<Map<String, dynamic>> generateSpeakingTopic() async {
+    final prompt = """
 You are an IELTS Speaking examiner.
 
 Generate ONE IELTS Speaking Part 2 cue card.
@@ -567,14 +620,15 @@ Rules:
 - No markdown
 """;
 
-  return _json(prompt);
-}
+    return _json(prompt);
+  }
 
-Future<Map<String, dynamic>> evaluateSpeaking({
-  required String transcript,
-  required int durationSeconds,
-}) async {
-  final prompt = """
+  Future<Map<String, dynamic>> evaluateSpeaking({
+    required String transcript,
+    required int durationSeconds,
+  }) async {
+    final prompt =
+        """
 You are an official IELTS Speaking examiner.
 
 Use the official IELTS Speaking Band Descriptors.
@@ -593,9 +647,17 @@ Important:
 - If transcript is too short, band should be low
 - Mention strengths and weaknesses
 - Give actionable improvement advice
-- Since this is transcript-based, pronunciation must be estimated from clarity, naturalness, and speech flow. Mention that pronunciation is estimated.
+- Since this is transcript-based, pronunciation must be estimated from clarity, naturalness, and speech flow
+- Mention that pronunciation is estimated
+- Suggest how to improve fluency
+- Suggest how to improve pronunciation
+- Give a better improved sample answer
+- Detect unnatural or robotic speaking style
+- Return ONLY valid JSON
+- Do NOT use markdown
+- Do NOT add explanation outside JSON
 
-Return ONLY valid JSON:
+Return ONLY valid JSON in this exact structure:
 {
   "overall_band": "6.0",
 
@@ -619,9 +681,11 @@ Return ONLY valid JSON:
     "feedback": ""
   },
 
-  "strengths": ["", ""],
-  "mistakes": ["", "", ""],
-  "better_answer": "",
+  "strengths": "",
+  "mistakes": "",
+  "pronunciation_tips": "",
+  "fluency_tips": "",
+  "improved_answer": "",
   "examiner_advice": ""
 }
 
@@ -631,11 +695,12 @@ Candidate transcript:
 $transcript
 """;
 
-  return _json(prompt);
-}
+    return _json(prompt);
+  }
 
-Future<List<String>> generateFollowUpQuestions(String topic) async {
-  final prompt = """
+  Future<List<String>> generateFollowUpQuestions(String topic) async {
+    final prompt =
+        """
 You are an IELTS Speaking examiner.
 
 Generate 5 IELTS Speaking Part 3 follow-up questions.
@@ -654,15 +719,16 @@ Rules:
 - No markdown
 """;
 
-  final data = await _json(prompt);
-  return List<String>.from(data["questions"] ?? []);
-}
+    final data = await _json(prompt);
+    return List<String>.from(data["questions"] ?? []);
+  }
   // =========================================================
   // VOCABULARY / GRAMMAR
   // =========================================================
 
   Future<Map<String, dynamic>> generateVocabulary(String topic) async {
-    final prompt = """
+    final prompt =
+        """
 Generate IELTS vocabulary for topic: $topic
 
 Return ONLY valid JSON:
@@ -690,7 +756,8 @@ Rules:
   }
 
   Future<Map<String, dynamic>> checkGrammar(String text) async {
-    final prompt = """
+    final prompt =
+        """
 You are an IELTS grammar checker.
 
 Check this text.
@@ -717,7 +784,8 @@ $text
   }
 
   Future<String> feedback(String text, String category) async {
-    final prompt = """
+    final prompt =
+        """
 You are an expert IELTS English instructor.
 
 Give detailed feedback.

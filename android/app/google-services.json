@@ -7,20 +7,12 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:600359875882:android:b107819122a8c4c250da53",
+        "mobilesdk_app_id": "1:600359875882:android:f4946ecc92bd791f50da53",
         "android_client_info": {
-          "package_name": "com.example.fyproject"
+          "package_name": "com.rashidapps.ieltsaimaster"
         }
       },
       "oauth_client": [
-        {
-          "client_id": "600359875882-r9ivn3tc6vmdmhckl6pi1kg5jorvjlgr.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.example.fyproject",
-            "certificate_hash": "37c45d190ec6c8a212eae0d7483d7a564f7695cb"
-          }
-        },
         {
           "client_id": "600359875882-1infdhbghc9dqfl4un77j9bmse1l4h2k.apps.googleusercontent.com",
           "client_type": 3

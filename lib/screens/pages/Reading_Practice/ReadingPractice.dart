@@ -340,13 +340,27 @@ class _ReadingPracticeState extends State<ReadingPractice> {
 
   Widget _header() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 52, 20, 28),
-      decoration: const BoxDecoration(
+      padding: const EdgeInsets.fromLTRB(20, 56, 20, 30),
+
+      decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF08111F), Color(0xFF102A43), Color(0xFF0F766E)],
+          colors: [const Color(0xFF08111F), const Color(0xFF102A43), secondary],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
+
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(34),
+          bottomRight: Radius.circular(34),
+        ),
+
+        boxShadow: [
+          BoxShadow(
+            color: primary.withOpacity(0.18),
+            blurRadius: 28,
+            offset: const Offset(0, 12),
+          ),
+        ],
       ),
 
       child: Column(
@@ -358,26 +372,54 @@ class _ReadingPracticeState extends State<ReadingPractice> {
                 onTap: () => Navigator.pop(context),
               ),
 
-              const SizedBox(width: 14),
+              const SizedBox(width: 16),
 
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      "IELTS Reading",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 28,
-                        fontWeight: FontWeight.w900,
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.10),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+
+                          child: const Icon(
+                            Icons.auto_stories_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+
+                        const SizedBox(width: 10),
+
+                        const Expanded(
+                          child: Text(
+                            "IELTS Reading",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 28,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
 
-                    SizedBox(height: 4),
+                    const SizedBox(height: 8),
 
                     Text(
                       "AI Academic Reading Practice",
-                      style: TextStyle(color: Colors.white70, fontSize: 13),
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.72),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ],
                 ),
@@ -387,7 +429,7 @@ class _ReadingPracticeState extends State<ReadingPractice> {
             ],
           ),
 
-          const SizedBox(height: 28),
+          const SizedBox(height: 30),
 
           Row(
             children: [
@@ -399,7 +441,7 @@ class _ReadingPracticeState extends State<ReadingPractice> {
                 ),
               ),
 
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
 
               Expanded(
                 child: _infoCard(
@@ -477,39 +519,146 @@ class _ReadingPracticeState extends State<ReadingPractice> {
   Widget _loadingBody() {
     return Center(
       child: Container(
-        padding: const EdgeInsets.all(24),
-        margin: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(28),
+        margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(26),
+          gradient: LinearGradient(
+            colors: [
+              Colors.white.withOpacity(0.10),
+              Colors.white.withOpacity(0.04),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+
+          borderRadius: BorderRadius.circular(32),
+
+          border: Border.all(color: Colors.white.withOpacity(0.10), width: 1.2),
+
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
+              color: primary.withOpacity(0.18),
+              blurRadius: 28,
+              offset: const Offset(0, 14),
+            ),
+
+            BoxShadow(
+              color: Colors.black.withOpacity(0.22),
+              blurRadius: 24,
+              offset: const Offset(0, 12),
             ),
           ],
         ),
+
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(color: primary),
-            const SizedBox(height: 18),
-            const Text(
-              "Generating IELTS Reading Test...",
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 16,
-                color: Colors.white,
+            Container(
+              height: 92,
+              width: 92,
+
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+
+                gradient: LinearGradient(colors: [primary, secondary]),
+
+                boxShadow: [
+                  BoxShadow(
+                    color: primary.withOpacity(0.35),
+                    blurRadius: 28,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    height: 72,
+                    width: 72,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      valueColor: const AlwaysStoppedAnimation(Colors.white),
+                      backgroundColor: Colors.white.withOpacity(0.12),
+                    ),
+                  ),
+
+                  const Icon(
+                    Icons.auto_stories_rounded,
+                    color: Colors.white,
+                    size: 38,
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
+
+            const SizedBox(height: 28),
+
             const Text(
-              "AI is creating a passage and questions.",
+              "Generating IELTS Reading Test...",
               textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xff6B7280)),
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 24,
+                color: Colors.white,
+                letterSpacing: -0.2,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            Text(
+              "AI is creating an advanced IELTS reading passage with realistic questions, smart evaluation and band scoring.",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.72),
+                fontSize: 14,
+                height: 1.7,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+
+            const SizedBox(height: 26),
+
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _loadingChip("Passage"),
+                const SizedBox(width: 8),
+                _loadingChip("MCQs"),
+                const SizedBox(width: 8),
+                _loadingChip("True/False"),
+                const SizedBox(width: 8),
+                _loadingChip("Band Score"),
+              ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _loadingChip(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(20),
+
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+
+      child: Text(
+        text,
+        style: TextStyle(
+          color: Colors.white.withOpacity(0.84),
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
         ),
       ),
     );
@@ -520,50 +669,127 @@ class _ReadingPracticeState extends State<ReadingPractice> {
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          const SizedBox(height: 26),
+          const SizedBox(height: 24),
+
           _whiteCard(
             child: Column(
               children: [
                 Container(
-                  height: 86,
-                  width: 86,
+                  height: 96,
+                  width: 96,
+
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [primary, secondary]),
                     shape: BoxShape.circle,
+
+                    gradient: LinearGradient(
+                      colors: [primary, secondary],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+
+                    boxShadow: [
+                      BoxShadow(
+                        color: primary.withOpacity(0.35),
+                        blurRadius: 28,
+                        offset: const Offset(0, 14),
+                      ),
+                    ],
                   ),
+
                   child: const Icon(
                     Icons.auto_stories_rounded,
                     color: Colors.white,
-                    size: 44,
+                    size: 48,
                   ),
                 ),
-                const SizedBox(height: 18),
+
+                const SizedBox(height: 24),
+
                 const Text(
                   "Start Reading Practice",
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 22,
+                    fontSize: 28,
                     fontWeight: FontWeight.w900,
                     color: Colors.white,
+                    letterSpacing: -0.4,
                   ),
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  "Generate a real IELTS-style reading passage with MCQ and True/False/Not Given questions.",
+
+                const SizedBox(height: 12),
+
+                Text(
+                  "Practice real IELTS-style reading passages with advanced AI-generated questions, detailed scoring and estimated IELTS band.",
                   textAlign: TextAlign.center,
-                  style: TextStyle(height: 1.5, color: Color(0xff6B7280)),
+                  style: TextStyle(
+                    height: 1.7,
+                    fontSize: 14,
+                    color: Colors.white.withOpacity(0.70),
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-                const SizedBox(height: 20),
-                _featureTile(Icons.article_outlined, "Academic IELTS passage"),
-                _featureTile(Icons.quiz_outlined, "Mixed question types"),
+
+                const SizedBox(height: 28),
+
+                _featureTile(
+                  Icons.article_outlined,
+                  "Academic IELTS reading passage",
+                ),
+
+                _featureTile(
+                  Icons.quiz_rounded,
+                  "MCQs, True/False & Not Given",
+                ),
+
+                _featureTile(
+                  Icons.analytics_outlined,
+                  "Instant score & performance analysis",
+                ),
+
                 _featureTile(
                   Icons.workspace_premium_outlined,
-                  "Score and estimated band",
+                  "Estimated IELTS Band Score",
+                ),
+
+                const SizedBox(height: 12),
+
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+
+                  decoration: BoxDecoration(
+                    color: primary.withOpacity(0.10),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: primary.withOpacity(0.22)),
+                  ),
+
+                  child: Row(
+                    children: [
+                      Icon(Icons.bolt_rounded, color: primary),
+
+                      const SizedBox(width: 10),
+
+                      Expanded(
+                        child: Text(
+                          "AI creates a unique IELTS Reading test every time.",
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.84),
+                            fontWeight: FontWeight.w600,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 24),
+
+          const SizedBox(height: 28),
+
           _gradientButton(
             text: "Start AI Reading Test",
             icon: Icons.play_arrow_rounded,
@@ -575,20 +801,74 @@ class _ReadingPracticeState extends State<ReadingPractice> {
   }
 
   Widget _featureTile(IconData icon, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.08),
+            Colors.white.withOpacity(0.04),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+
+        borderRadius: BorderRadius.circular(20),
+
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.12),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+
       child: Row(
         children: [
-          Icon(icon, color: primary),
-          const SizedBox(width: 10),
+          Container(
+            height: 42,
+            width: 42,
+
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [primary, secondary]),
+
+              borderRadius: BorderRadius.circular(14),
+
+              boxShadow: [
+                BoxShadow(
+                  color: primary.withOpacity(0.25),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+
+            child: Icon(icon, color: Colors.white, size: 22),
+          ),
+
+          const SizedBox(width: 14),
+
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(
-                color: Color(0xff374151),
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.86),
                 fontWeight: FontWeight.w700,
+                fontSize: 14,
+                height: 1.4,
               ),
             ),
+          ),
+
+          Icon(
+            Icons.arrow_forward_ios_rounded,
+            color: Colors.white.withOpacity(0.45),
+            size: 16,
           ),
         ],
       ),
@@ -618,64 +898,189 @@ class _ReadingPracticeState extends State<ReadingPractice> {
   }
 
   Widget _passageCard() {
+    final formattedPassage = passage
+        .replaceAll("###", "\n###")
+        .replaceAll("##", "\n##")
+        .replaceAll("Paragraph", "\nParagraph");
+
     return _whiteCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          /// TOP HEADER
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(colors: [primary, secondary]),
                   borderRadius: BorderRadius.circular(18),
+
+                  boxShadow: [
+                    BoxShadow(
+                      color: primary.withOpacity(0.30),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
                 ),
-                child: const Icon(Icons.menu_book_rounded, color: Colors.white),
+                child: const Icon(
+                  Icons.menu_book_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
               ),
 
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
 
               Expanded(
-                child: Text(
-                  title.isEmpty ? "Reading Passage" : title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title.isEmpty ? "IELTS Academic Reading" : title,
+
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        height: 1.2,
+                      ),
+                    ),
+
+                    const SizedBox(height: 4),
+
+                    Text(
+                      "AI Generated IELTS Passage",
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.65),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: 18),
+          const SizedBox(height: 24),
 
-          Text(
-            passage,
-            style: TextStyle(
-              height: 1.8,
-              color: Colors.white.withOpacity(0.80),
-              fontSize: 15,
+          /// READING LABEL
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+
+            decoration: BoxDecoration(
+              color: primary.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: primary.withOpacity(0.22)),
             ),
+
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.auto_stories_rounded, color: primary, size: 18),
+
+                const SizedBox(width: 8),
+
+                Text(
+                  "READING PASSAGE",
+                  style: TextStyle(
+                    color: primary,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 22),
+
+          /// PASSAGE CONTENT
+          SelectableText.rich(
+            TextSpan(children: _buildFormattedPassage(formattedPassage)),
           ),
         ],
       ),
     );
   }
 
+  /// FORMAT PASSAGE
+  List<TextSpan> _buildFormattedPassage(String text) {
+    final lines = text.split("\n");
+
+    return lines.map((line) {
+      final trimmed = line.trim();
+
+      /// MAIN HEADINGS
+      if (trimmed.startsWith("###") || trimmed.startsWith("##")) {
+        return TextSpan(
+          text: "\n${trimmed.replaceAll("#", "").trim()}\n",
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 21,
+            fontWeight: FontWeight.w900,
+            height: 1.8,
+          ),
+        );
+      }
+
+      /// PARAGRAPH LABELS
+      if (trimmed.startsWith("Paragraph")) {
+        return TextSpan(
+          text: "\n$trimmed\n",
+          style: TextStyle(
+            color: primary,
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            height: 1.8,
+          ),
+        );
+      }
+
+      /// NORMAL TEXT
+      return TextSpan(
+        text: "$trimmed\n\n",
+        style: TextStyle(
+          color: Colors.white.withOpacity(0.84),
+          fontSize: 15.5,
+          height: 2.0,
+          fontWeight: FontWeight.w500,
+          letterSpacing: 0.2,
+        ),
+      );
+    }).toList();
+  }
+
   Widget _progressCard() {
     final answered = selectedAnswers.where((e) => e != null).length;
 
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
+    final progress = questions.isEmpty ? 0.0 : answered / questions.length;
 
-        gradient: const LinearGradient(
-          colors: [Color(0xFF111827), Color(0xFF1F2937)],
+    return Container(
+      padding: const EdgeInsets.all(20),
+
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.10),
+            Colors.white.withOpacity(0.04),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
 
+        borderRadius: BorderRadius.circular(30),
+
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+
         boxShadow: [
+          BoxShadow(
+            color: primary.withOpacity(0.12),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+
           BoxShadow(
             color: Colors.black.withOpacity(0.20),
             blurRadius: 20,
@@ -684,27 +1089,97 @@ class _ReadingPracticeState extends State<ReadingPractice> {
         ],
       ),
 
-      child: Row(
+      child: Column(
         children: [
-          const Icon(Icons.assignment_turned_in_outlined, color: Colors.white),
+          Row(
+            children: [
+              Container(
+                height: 50,
+                width: 50,
 
-          const SizedBox(width: 10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [primary, secondary]),
 
-          Expanded(
-            child: Text(
-              "$answered of ${questions.length} answered",
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
+                  borderRadius: BorderRadius.circular(16),
+
+                  boxShadow: [
+                    BoxShadow(
+                      color: primary.withOpacity(0.28),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+
+                child: const Icon(
+                  Icons.assignment_turned_in_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
               ),
-            ),
+
+              const SizedBox(width: 14),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Reading Progress",
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.72),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+
+                    const SizedBox(height: 4),
+
+                    Text(
+                      "$answered of ${questions.length} answered",
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+
+                decoration: BoxDecoration(
+                  color: primary.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: primary.withOpacity(0.22)),
+                ),
+
+                child: Text(
+                  "${(progress * 100).round()}%",
+                  style: const TextStyle(
+                    color: Color(0xFF86EFAC),
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ],
           ),
 
-          Text(
-            "${questions.isEmpty ? 0 : ((answered / questions.length) * 100).round()}%",
-            style: const TextStyle(
-              color: Color(0xFF86EFAC),
-              fontWeight: FontWeight.w900,
+          const SizedBox(height: 18),
+
+          ClipRRect(
+            borderRadius: BorderRadius.circular(30),
+            child: LinearProgressIndicator(
+              value: progress.clamp(0.0, 1.0),
+              minHeight: 10,
+              backgroundColor: Colors.white.withOpacity(0.08),
+              valueColor: AlwaysStoppedAnimation(primary),
             ),
           ),
         ],
@@ -714,160 +1189,321 @@ class _ReadingPracticeState extends State<ReadingPractice> {
 
   Widget _questionCard() {
     final q = questions[currentQuestion];
+
     final options = List<String>.from(q["options"] ?? []);
+
     final correctAnswer = q["answer"]?.toString();
+
     final type = q["type"]?.toString() ?? "multiple_choice";
+
     final hasOptions = options.isNotEmpty;
 
     return _whiteCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            "Question ${currentQuestion + 1}",
-            style: TextStyle(
-              color: primary,
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            q["question"]?.toString() ?? "",
-            style: const TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w900,
-              height: 1.4,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 14),
+          /// TOP HEADER
+          Row(
+            children: [
+              Container(
+                height: 48,
+                width: 48,
 
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [primary, secondary]),
+
+                  borderRadius: BorderRadius.circular(16),
+
+                  boxShadow: [
+                    BoxShadow(
+                      color: primary.withOpacity(0.28),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+
+                child: Center(
+                  child: Text(
+                    "${currentQuestion + 1}",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(width: 14),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Reading Question",
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.65),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+
+                    const SizedBox(height: 4),
+
+                    Text(
+                      "Question ${currentQuestion + 1} of ${questions.length}",
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 22),
+
+          /// QUESTION TEXT
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            padding: const EdgeInsets.all(18),
+
             decoration: BoxDecoration(
-              color: primary.withOpacity(0.10),
-              borderRadius: BorderRadius.circular(20),
+              color: Colors.white.withOpacity(0.05),
+
+              borderRadius: BorderRadius.circular(22),
+
+              border: Border.all(color: Colors.white.withOpacity(0.08)),
             ),
+
             child: Text(
-              type.replaceAll("_", " ").toUpperCase(),
-              style: TextStyle(
-                color: primary,
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
+              q["question"]?.toString() ?? "",
+
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                height: 1.6,
+                color: Colors.white,
               ),
             ),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 18),
 
+          /// TYPE CHIP
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  primary.withOpacity(0.22),
+                  secondary.withOpacity(0.12),
+                ],
+              ),
+
+              borderRadius: BorderRadius.circular(22),
+
+              border: Border.all(color: primary.withOpacity(0.25)),
+            ),
+
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.quiz_rounded, color: primary, size: 18),
+
+                const SizedBox(width: 8),
+
+                Text(
+                  type.replaceAll("_", " ").toUpperCase(),
+
+                  style: TextStyle(
+                    color: primary,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          /// OPTIONS
           if (hasOptions)
             ...options.map((option) {
               final isSelected = selectedAnswers[currentQuestion] == option;
+
               final isCorrect = showResult && correctAnswer == option;
+
               final isWrong = showResult && isSelected && !isCorrect;
 
-              return InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: showResult
-                    ? null
-                    : () {
-                        setState(() {
-                          selectedAnswers[currentQuestion] = option;
-                        });
-                      },
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  padding: const EdgeInsets.all(13),
-                  decoration: BoxDecoration(
-                    color: isCorrect
-                        ? Colors.green.withOpacity(0.18)
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+
+                margin: const EdgeInsets.only(bottom: 14),
+
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: isCorrect
+                        ? [
+                            Colors.green.withOpacity(0.22),
+                            Colors.green.withOpacity(0.08),
+                          ]
                         : isWrong
-                        ? Colors.red.withOpacity(0.16)
+                        ? [
+                            Colors.red.withOpacity(0.20),
+                            Colors.red.withOpacity(0.08),
+                          ]
                         : isSelected
-                        ? primary.withOpacity(0.22)
-                        : Colors.white.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: isCorrect
-                          ? Colors.green
-                          : isWrong
-                          ? Colors.redAccent
-                          : isSelected
-                          ? primary
-                          : Colors.white.withOpacity(0.12),
-                    ),
+                        ? [
+                            primary.withOpacity(0.22),
+                            secondary.withOpacity(0.10),
+                          ]
+                        : [
+                            Colors.white.withOpacity(0.08),
+                            Colors.white.withOpacity(0.04),
+                          ],
                   ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        isCorrect
-                            ? Icons.check_circle
-                            : isWrong
-                            ? Icons.cancel
-                            : isSelected
-                            ? Icons.radio_button_checked
-                            : Icons.radio_button_off,
-                        color: isCorrect
-                            ? Colors.green
-                            : isWrong
-                            ? Colors.redAccent
-                            : isSelected
-                            ? primary
-                            : Colors.white54,
+
+                  borderRadius: BorderRadius.circular(22),
+
+                  border: Border.all(
+                    color: isCorrect
+                        ? Colors.greenAccent
+                        : isWrong
+                        ? Colors.redAccent
+                        : isSelected
+                        ? primary
+                        : Colors.white.withOpacity(0.08),
+                  ),
+
+                  boxShadow: [
+                    BoxShadow(
+                      color: isSelected
+                          ? primary.withOpacity(0.16)
+                          : Colors.black.withOpacity(0.12),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+
+                child: Material(
+                  color: Colors.transparent,
+
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(22),
+
+                    onTap: showResult
+                        ? null
+                        : () {
+                            setState(() {
+                              selectedAnswers[currentQuestion] = option;
+                            });
+                          },
+
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 15,
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          option,
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.88),
-                            fontWeight: FontWeight.w700,
+
+                      child: Row(
+                        children: [
+                          Icon(
+                            isCorrect
+                                ? Icons.check_circle_rounded
+                                : isWrong
+                                ? Icons.cancel_rounded
+                                : isSelected
+                                ? Icons.radio_button_checked_rounded
+                                : Icons.radio_button_off_rounded,
+
+                            color: isCorrect
+                                ? Colors.greenAccent
+                                : isWrong
+                                ? Colors.redAccent
+                                : isSelected
+                                ? primary
+                                : Colors.white54,
                           ),
-                        ),
+
+                          const SizedBox(width: 14),
+
+                          Expanded(
+                            child: Text(
+                              option,
+
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.90),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               );
             })
           else
-            TextField(
-              enabled: !showResult,
-              style: const TextStyle(color: Colors.white),
-              cursorColor: primary,
-              onChanged: (value) {
-                selectedAnswers[currentQuestion] = value;
-              },
-              decoration: InputDecoration(
-                hintText: "Write your answer here",
-                hintStyle: TextStyle(color: Colors.white.withOpacity(0.45)),
-                filled: true,
-                fillColor: Colors.white.withOpacity(0.08),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: Colors.white.withOpacity(0.12)),
-                ),
-              ),
-            ),
+            _answerField(),
 
+          /// EXPLANATION
           if (showResult && q["explanation"] != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 14),
+
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(16),
+
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(16),
+                gradient: LinearGradient(
+                  colors: [
+                    primary.withOpacity(0.12),
+                    secondary.withOpacity(0.08),
+                  ],
+                ),
+
+                borderRadius: BorderRadius.circular(20),
+
+                border: Border.all(color: primary.withOpacity(0.18)),
               ),
-              child: Text(
-                "Explanation: ${q["explanation"]}",
-                style: const TextStyle(color: Color(0xff1E40AF), height: 1.4),
+
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.lightbulb_rounded, color: primary),
+
+                  const SizedBox(width: 12),
+
+                  Expanded(
+                    child: Text(
+                      q["explanation"],
+
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.82),
+                        height: 1.6,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
 
-          const SizedBox(height: 14),
+          const SizedBox(height: 22),
 
+          /// NAVIGATION
           Row(
             children: [
               Expanded(
@@ -879,13 +1515,17 @@ class _ReadingPracticeState extends State<ReadingPractice> {
                       : null,
                 ),
               ),
-              const SizedBox(width: 10),
+
+              const SizedBox(width: 12),
+
               Expanded(
                 child: _smallButton(
                   text: currentQuestion == questions.length - 1
-                      ? "Last"
+                      ? "Finish"
                       : "Next",
+
                   icon: Icons.arrow_forward_rounded,
+
                   onTap: currentQuestion < questions.length - 1
                       ? () => setState(() => currentQuestion++)
                       : null,
@@ -898,64 +1538,201 @@ class _ReadingPracticeState extends State<ReadingPractice> {
     );
   }
 
-  Widget _resultCard() {
-    final band = calculateBandScore();
-
+  Widget _answerField() {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(32),
-
-        gradient: const LinearGradient(
-          colors: [Color(0xFF111827), Color(0xFF1F2937)],
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.08),
+            Colors.white.withOpacity(0.04),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: primary.withOpacity(0.18)),
         boxShadow: [
           BoxShadow(
-            color: primary.withOpacity(0.30),
-            blurRadius: 28,
-            offset: const Offset(0, 14),
+            color: primary.withOpacity(0.10),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
 
-      child: Column(
-        children: [
-          Text(
-            "Estimated IELTS Band",
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.70),
-              fontSize: 14,
+      child: TextField(
+        key: ValueKey(currentQuestion),
+
+        controller: TextEditingController(
+          text: selectedAnswers[currentQuestion] ?? "",
+        ),
+
+        enabled: !showResult,
+
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+        ),
+
+        cursorColor: primary,
+
+        onChanged: (value) {
+          selectedAnswers[currentQuestion] = value;
+        },
+
+        decoration: InputDecoration(
+          hintText: "Write your answer here...",
+          hintStyle: TextStyle(
+            color: Colors.white.withOpacity(0.45),
+            fontWeight: FontWeight.w500,
+          ),
+
+          prefixIcon: Container(
+            margin: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [primary, secondary]),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.edit_rounded,
+              color: Colors.white,
+              size: 20,
             ),
           ),
 
-          const SizedBox(height: 12),
+          filled: true,
+          fillColor: Colors.transparent,
+
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 20,
+          ),
+
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(24),
+            borderSide: BorderSide.none,
+          ),
+
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(24),
+            borderSide: BorderSide(color: Colors.white.withOpacity(0.08)),
+          ),
+
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(24),
+            borderSide: BorderSide(color: primary, width: 1.5),
+          ),
+
+          disabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(24),
+            borderSide: BorderSide(color: Colors.white.withOpacity(0.06)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _resultCard() {
+    final band = calculateBandScore();
+    final percent = questions.isEmpty ? 0.0 : score / questions.length;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(26),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(34),
+        gradient: LinearGradient(
+          colors: [
+            primary.withOpacity(0.22),
+            const Color(0xFF111827),
+            const Color(0xFF0B1220),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: primary.withOpacity(0.25)),
+        boxShadow: [
+          BoxShadow(
+            color: primary.withOpacity(0.28),
+            blurRadius: 32,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            height: 86,
+            width: 86,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(colors: [primary, secondary]),
+              boxShadow: [
+                BoxShadow(
+                  color: primary.withOpacity(0.38),
+                  blurRadius: 26,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.workspace_premium_rounded,
+              color: Colors.white,
+              size: 42,
+            ),
+          ),
+
+          const SizedBox(height: 20),
 
           Text(
-            band.toStringAsFixed(1),
-            style: const TextStyle(
-              color: Color(0xFF86EFAC),
-              fontSize: 58,
-              fontWeight: FontWeight.w900,
+            "Estimated IELTS Band",
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.72),
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
             ),
           ),
 
           const SizedBox(height: 10),
 
           Text(
+            band.toStringAsFixed(1),
+            style: const TextStyle(
+              color: Color(0xFF86EFAC),
+              fontSize: 66,
+              fontWeight: FontWeight.w900,
+              height: 1,
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          ClipRRect(
+            borderRadius: BorderRadius.circular(30),
+            child: LinearProgressIndicator(
+              value: percent.clamp(0.0, 1.0),
+              minHeight: 10,
+              backgroundColor: Colors.white.withOpacity(0.08),
+              valueColor: AlwaysStoppedAnimation(primary),
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          Text(
             "Score: $score / ${questions.length}",
             style: const TextStyle(
               color: Colors.white,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w800,
               fontSize: 16,
             ),
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 26),
 
           _gradientButton(
-            text: "Generate New Test",
+            text: "Generate New Reading Test",
             icon: Icons.refresh_rounded,
             onTap: generateAIReadingTest,
           ),
@@ -967,22 +1744,38 @@ class _ReadingPracticeState extends State<ReadingPractice> {
   Widget _whiteCard({required Widget child}) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(22),
+
+      padding: const EdgeInsets.all(24),
+
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.10),
+            Colors.white.withOpacity(0.04),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
 
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(34),
 
-        border: Border.all(color: Colors.white.withOpacity(0.10)),
+        border: Border.all(color: Colors.white.withOpacity(0.10), width: 1.2),
 
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.20),
-            blurRadius: 24,
+            color: primary.withOpacity(0.12),
+            blurRadius: 30,
+            offset: const Offset(0, 14),
+          ),
+
+          BoxShadow(
+            color: Colors.black.withOpacity(0.22),
+            blurRadius: 26,
             offset: const Offset(0, 12),
           ),
         ],
       ),
+
       child: child,
     );
   }
@@ -992,35 +1785,94 @@ class _ReadingPracticeState extends State<ReadingPractice> {
     required IconData icon,
     required VoidCallback? onTap,
   }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 13),
-        decoration: BoxDecoration(
-          color: onTap == null
-              ? const Color(0xffF3F4F6)
-              : primary.withOpacity(0.10),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: onTap == null
-                ? const Color(0xffE5E7EB)
-                : primary.withOpacity(0.25),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: onTap == null ? Colors.grey : primary, size: 18),
-            const SizedBox(width: 6),
-            Text(
-              text,
-              style: TextStyle(
-                color: onTap == null ? Colors.grey : primary,
-                fontWeight: FontWeight.w900,
+    final isDisabled = onTap == null;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+
+      decoration: BoxDecoration(
+        gradient: isDisabled
+            ? LinearGradient(
+                colors: [
+                  Colors.white.withOpacity(0.05),
+                  Colors.white.withOpacity(0.03),
+                ],
+              )
+            : LinearGradient(
+                colors: [
+                  primary.withOpacity(0.22),
+                  secondary.withOpacity(0.12),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
+
+        borderRadius: BorderRadius.circular(22),
+
+        border: Border.all(
+          color: isDisabled
+              ? Colors.white.withOpacity(0.06)
+              : primary.withOpacity(0.22),
+        ),
+
+        boxShadow: [
+          BoxShadow(
+            color: isDisabled
+                ? Colors.black.withOpacity(0.10)
+                : primary.withOpacity(0.16),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+
+      child: Material(
+        color: Colors.transparent,
+
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: onTap,
+
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 15),
+
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(7),
+
+                  decoration: BoxDecoration(
+                    color: isDisabled
+                        ? Colors.white.withOpacity(0.05)
+                        : Colors.white.withOpacity(0.12),
+
+                    shape: BoxShape.circle,
+                  ),
+
+                  child: Icon(
+                    icon,
+                    color: isDisabled ? Colors.white24 : Colors.white,
+
+                    size: 18,
+                  ),
+                ),
+
+                const SizedBox(width: 10),
+
+                Text(
+                  text,
+                  style: TextStyle(
+                    color: isDisabled ? Colors.white38 : Colors.white,
+
+                    fontWeight: FontWeight.w900,
+                    fontSize: 14.5,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -1031,41 +1883,88 @@ class _ReadingPracticeState extends State<ReadingPractice> {
     required IconData icon,
     required VoidCallback? onTap,
   }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(22),
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF2DD4BF), Color(0xFF14B8A6), Color(0xFF0F766E)],
-          ),
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: [
-            BoxShadow(
-              color: primary.withOpacity(0.25),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+
+        gradient: const LinearGradient(
+          colors: [Color(0xFF2DD4BF), Color(0xFF14B8A6), Color(0xFF0F766E)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: Colors.white),
-            const SizedBox(width: 10),
-            Text(
-              text,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w900,
-              ),
+
+        boxShadow: [
+          BoxShadow(
+            color: primary.withOpacity(0.35),
+            blurRadius: 28,
+            offset: const Offset(0, 14),
+          ),
+
+          BoxShadow(
+            color: Colors.black.withOpacity(0.18),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+
+      child: Material(
+        color: Colors.transparent,
+
+        child: InkWell(
+          borderRadius: BorderRadius.circular(28),
+          onTap: onTap,
+
+          child: Container(
+            width: double.infinity,
+
+            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+  mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.16),
+                    shape: BoxShape.circle,
+                  ),
+
+                  child: Icon(icon, color: Colors.white, size: 20),
+                ),
+
+                const SizedBox(width: 14),
+
+                Flexible(
+                  child: Text(
+                    text,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16.5,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.3,
+                       overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 10),
+
+                const Icon(
+                  Icons.arrow_forward_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
+
 }

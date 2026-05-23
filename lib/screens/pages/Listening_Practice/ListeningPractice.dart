@@ -364,23 +364,105 @@ class _ListeningPracticeState extends State<ListeningPractice> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(color: primary),
-            const SizedBox(height: 18),
-            const Text(
-              "Generating Listening Test...",
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 18,
-                color: Colors.white,
+            Container(
+              height: 90,
+              width: 90,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+
+                gradient: LinearGradient(colors: [primary, secondary]),
+
+                boxShadow: [
+                  BoxShadow(
+                    color: primary.withOpacity(0.35),
+                    blurRadius: 28,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    height: 70,
+                    width: 70,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      valueColor: AlwaysStoppedAnimation(Colors.white),
+                      backgroundColor: Colors.white.withOpacity(0.12),
+                    ),
+                  ),
+
+                  const Icon(
+                    Icons.graphic_eq_rounded,
+                    color: Colors.white,
+                    size: 34,
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
+
+            const SizedBox(height: 26),
+
             const Text(
-              "AI is creating 4 IELTS listening parts.",
+              "Generating Listening Test...",
               textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xff6B7280)),
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 24,
+                color: Colors.white,
+                letterSpacing: 0.2,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            Text(
+              "AI is creating professional IELTS listening sections with realistic conversations, questions and answers.",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.70),
+                fontSize: 14,
+                height: 1.6,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _loadingChip("Part 1"),
+                const SizedBox(width: 8),
+                _loadingChip("Part 2"),
+                const SizedBox(width: 8),
+                _loadingChip("Part 3"),
+                const SizedBox(width: 8),
+                _loadingChip("Part 4"),
+              ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _loadingChip(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: Colors.white.withOpacity(0.82),
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
         ),
       ),
     );
@@ -424,7 +506,7 @@ class _ListeningPracticeState extends State<ListeningPractice> {
                   style: TextStyle(
                     fontSize: 14,
                     height: 1.5,
-                    color: Color(0xff6B7280),
+                    color: Color.fromARGB(255, 165, 174, 192),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -488,35 +570,85 @@ class _ListeningPracticeState extends State<ListeningPractice> {
   Widget _partButton(String text, String value) {
     final selected = selectedPart == value;
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: () => loadPart(value),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          gradient: selected
-              ? LinearGradient(colors: [primary, secondary])
-              : null,
-          color: selected ? null : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: selected ? Colors.transparent : const Color(0xffE5E7EB),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOut,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => loadPart(value),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 15),
+
+          decoration: BoxDecoration(
+            gradient: selected
+                ? LinearGradient(
+                    colors: [
+                      const Color(0xFF2DD4BF),
+                      const Color(0xFF14B8A6),
+                      const Color(0xFF0F766E),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : LinearGradient(
+                    colors: [
+                      Colors.white.withOpacity(0.08),
+                      Colors.white.withOpacity(0.04),
+                    ],
+                  ),
+
+            borderRadius: BorderRadius.circular(20),
+
+            border: Border.all(
+              color: selected
+                  ? Colors.transparent
+                  : Colors.white.withOpacity(0.08),
+              width: 1.2,
             ),
-          ],
-        ),
-        child: Text(
-          text,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: selected ? Colors.white : const Color(0xff6B7280),
-            fontWeight: FontWeight.w900,
-            fontSize: 12,
+
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: primary.withOpacity(0.35),
+                      blurRadius: 22,
+                      offset: const Offset(0, 10),
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.15),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+          ),
+
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (selected)
+                const Padding(
+                  padding: EdgeInsets.only(right: 6),
+                  child: Icon(
+                    Icons.graphic_eq_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
+
+              Text(
+                text,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: selected
+                      ? Colors.white
+                      : Colors.white.withOpacity(0.72),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -666,53 +798,91 @@ class _ListeningPracticeState extends State<ListeningPractice> {
         final type = q["type"]?.toString() ?? "question";
         final hasOptions = options.isNotEmpty;
 
-        return Container(
-          margin: const EdgeInsets.only(bottom: 14),
-          padding: const EdgeInsets.all(16),
+        final isCorrect =
+            showResult &&
+            _cleanAnswer(selectedAnswers[i]) == _cleanAnswer(correctAnswer);
+
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          margin: const EdgeInsets.only(bottom: 18),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(24),
+            gradient: LinearGradient(
+              colors: [
+                Colors.white.withOpacity(0.10),
+                Colors.white.withOpacity(0.045),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(28),
             border: Border.all(
               color: showResult
-                  ? _cleanAnswer(selectedAnswers[i]) ==
-                            _cleanAnswer(correctAnswer)
-                        ? Colors.green
-                        : Colors.redAccent
-                  : Colors.transparent,
+                  ? isCorrect
+                        ? Colors.greenAccent.withOpacity(0.8)
+                        : Colors.redAccent.withOpacity(0.8)
+                  : Colors.white.withOpacity(0.10),
               width: 1.4,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 16,
-                offset: const Offset(0, 8),
+                color: showResult
+                    ? isCorrect
+                          ? Colors.greenAccent.withOpacity(0.18)
+                          : Colors.redAccent.withOpacity(0.16)
+                    : Colors.black.withOpacity(0.22),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
               ),
             ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                "Question ${i + 1}",
-                style: TextStyle(
-                  color: primary,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 13,
-                ),
+              Row(
+                children: [
+                  Container(
+                    height: 38,
+                    width: 38,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: [primary, secondary]),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Center(
+                      child: Text(
+                        "${i + 1}",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: _typeChip(type)),
+                  if (showResult)
+                    Icon(
+                      isCorrect
+                          ? Icons.check_circle_rounded
+                          : Icons.cancel_rounded,
+                      color: isCorrect ? Colors.greenAccent : Colors.redAccent,
+                    ),
+                ],
               ),
-              const SizedBox(height: 8),
+
+              const SizedBox(height: 16),
+
               Text(
                 q["question"]?.toString() ?? "",
                 style: const TextStyle(
                   color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                  height: 1.4,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 18,
+                  height: 1.35,
                 ),
               ),
-              const SizedBox(height: 12),
-              _typeChip(type),
-              const SizedBox(height: 12),
+
+              const SizedBox(height: 18),
 
               if (hasOptions)
                 ...options.map(
@@ -721,22 +891,34 @@ class _ListeningPracticeState extends State<ListeningPractice> {
               else
                 _answerField(i),
 
-              if (showResult && q["explanation"] != null)
+              if (showResult && q["explanation"] != null) ...[
+                const SizedBox(height: 12),
                 Container(
-                  margin: const EdgeInsets.only(top: 8),
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: const Color(0xffEFF6FF),
-                    borderRadius: BorderRadius.circular(16),
+                    color: primary.withOpacity(0.10),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: primary.withOpacity(0.25)),
                   ),
-                  child: Text(
-                    "Explanation: ${q["explanation"]}",
-                    style: const TextStyle(
-                      color: Color(0xff1E40AF),
-                      height: 1.4,
-                    ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.lightbulb_rounded, color: primary, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          "Explanation: ${q["explanation"]}",
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.82),
+                            height: 1.45,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+              ],
             ],
           ),
         );
@@ -745,108 +927,282 @@ class _ListeningPracticeState extends State<ListeningPractice> {
   }
 
   Widget _typeChip(String type) {
+    IconData icon;
+
+    switch (type.toLowerCase()) {
+      case "multiple_choice":
+        icon = Icons.radio_button_checked_rounded;
+        break;
+
+      case "fill_in_the_blank":
+        icon = Icons.edit_note_rounded;
+        break;
+
+      case "true_false":
+        icon = Icons.fact_check_rounded;
+        break;
+
+      default:
+        icon = Icons.quiz_rounded;
+    }
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: primary.withOpacity(0.10),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        type.replaceAll("_", " ").toUpperCase(),
-        style: TextStyle(
-          color: primary,
-          fontSize: 11,
-          fontWeight: FontWeight.w900,
+        gradient: LinearGradient(
+          colors: [primary.withOpacity(0.22), secondary.withOpacity(0.16)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+
+        borderRadius: BorderRadius.circular(30),
+
+        border: Border.all(color: primary.withOpacity(0.35), width: 1),
+
+        boxShadow: [
+          BoxShadow(
+            color: primary.withOpacity(0.12),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: primary, size: 16),
+
+          const SizedBox(width: 8),
+
+          Text(
+            type.replaceAll("_", " ").toUpperCase(),
+            style: TextStyle(
+              color: primary,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _optionTile(int i, String option, String? correctAnswer) {
     final isSelected = selectedAnswers[i] == option;
+
     final isCorrect =
         showResult && _cleanAnswer(correctAnswer) == _cleanAnswer(option);
+
     final isWrong = showResult && isSelected && !isCorrect;
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: showResult
-          ? null
-          : () => setState(() => selectedAnswers[i] = option),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(13),
-        decoration: BoxDecoration(
-          color: isCorrect
-              ? Colors.green.withOpacity(0.15)
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      margin: const EdgeInsets.only(bottom: 14),
+
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isCorrect
+              ? [Colors.green.withOpacity(0.22), Colors.green.withOpacity(0.10)]
               : isWrong
-              ? Colors.red.withOpacity(0.12)
+              ? [Colors.red.withOpacity(0.20), Colors.red.withOpacity(0.08)]
               : isSelected
-              ? primary.withOpacity(0.14)
-              : const Color(0xFF1E293B),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isCorrect
-                ? Colors.green
-                : isWrong
-                ? Colors.redAccent
-                : isSelected
-                ? primary
-                : const Color(0xffE5E7EB),
-          ),
+              ? [primary.withOpacity(0.22), secondary.withOpacity(0.12)]
+              : [
+                  Colors.white.withOpacity(0.08),
+                  Colors.white.withOpacity(0.04),
+                ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        child: Row(
-          children: [
-            Icon(
-              isCorrect
-                  ? Icons.check_circle
-                  : isWrong
-                  ? Icons.cancel
-                  : isSelected
-                  ? Icons.radio_button_checked
-                  : Icons.radio_button_off,
-              color: isCorrect
-                  ? Colors.green
-                  : isWrong
-                  ? Colors.redAccent
-                  : isSelected
-                  ? primary
-                  : Colors.grey,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                option,
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                  color: isCorrect
-                      ? Colors.green.shade700
-                      : isWrong
-                      ? Colors.red.shade700
-                      : isSelected
-                      ? primary
-                      : const Color(0xFF111827), // Dark text
+
+        borderRadius: BorderRadius.circular(22),
+
+        border: Border.all(
+          color: isCorrect
+              ? Colors.greenAccent
+              : isWrong
+              ? Colors.redAccent
+              : isSelected
+              ? primary
+              : Colors.white.withOpacity(0.08),
+          width: 1.3,
+        ),
+
+        boxShadow: [
+          BoxShadow(
+            color: isCorrect
+                ? Colors.green.withOpacity(0.16)
+                : isWrong
+                ? Colors.red.withOpacity(0.16)
+                : isSelected
+                ? primary.withOpacity(0.18)
+                : Colors.black.withOpacity(0.14),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: showResult
+              ? null
+              : () => setState(() => selectedAnswers[i] = option),
+
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  height: 30,
+                  width: 30,
+
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+
+                    gradient: isCorrect
+                        ? const LinearGradient(
+                            colors: [Color(0xFF22C55E), Color(0xFF16A34A)],
+                          )
+                        : isWrong
+                        ? const LinearGradient(
+                            colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                          )
+                        : isSelected
+                        ? LinearGradient(colors: [primary, secondary])
+                        : null,
+
+                    color: !isCorrect && !isWrong && !isSelected
+                        ? Colors.white.withOpacity(0.08)
+                        : null,
+
+                    border: Border.all(
+                      color: isCorrect
+                          ? Colors.greenAccent
+                          : isWrong
+                          ? Colors.redAccent
+                          : isSelected
+                          ? primary
+                          : Colors.white.withOpacity(0.12),
+                    ),
+                  ),
+
+                  child: Icon(
+                    isCorrect
+                        ? Icons.check_rounded
+                        : isWrong
+                        ? Icons.close_rounded
+                        : isSelected
+                        ? Icons.done_rounded
+                        : Icons.circle_outlined,
+                    size: 16,
+                    color: Colors.white,
+                  ),
                 ),
-              ),
+
+                const SizedBox(width: 14),
+
+                Expanded(
+                  child: Text(
+                    option,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15.5,
+                      height: 1.4,
+
+                      color: isCorrect
+                          ? Colors.greenAccent.shade100
+                          : isWrong
+                          ? Colors.redAccent.shade100
+                          : Colors.white.withOpacity(isSelected ? 1 : 0.88),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 
   Widget _answerField(int i) {
-    return TextField(
-      enabled: !showResult,
-      onChanged: (value) => selectedAnswers[i] = value,
-      decoration: InputDecoration(
-        hintText: "Write your answer here",
-        filled: true,
-        fillColor: const Color(0xffF9FAFB),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xffE5E7EB)),
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.08),
+            Colors.white.withOpacity(0.04),
+          ],
+        ),
+        border: Border.all(color: primary.withOpacity(0.35), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: primary.withOpacity(0.10),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: TextField(
+        enabled: !showResult,
+        onChanged: (value) => selectedAnswers[i] = value,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+        ),
+        cursorColor: primary,
+        decoration: InputDecoration(
+          hintText: "Write your answer here...",
+          hintStyle: TextStyle(
+            color: Colors.white.withOpacity(0.45),
+            fontWeight: FontWeight.w500,
+          ),
+
+          prefixIcon: Container(
+            margin: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [primary, secondary]),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.edit_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+          ),
+
+          filled: true,
+          fillColor: Colors.transparent,
+
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 20,
+          ),
+
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(22),
+            borderSide: BorderSide.none,
+          ),
+
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(22),
+            borderSide: BorderSide(color: Colors.white.withOpacity(0.08)),
+          ),
+
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(22),
+            borderSide: BorderSide(color: primary, width: 1.6),
+          ),
         ),
       ),
     );
@@ -854,54 +1210,96 @@ class _ListeningPracticeState extends State<ListeningPractice> {
 
   Widget _resultCard() {
     final band = calculateBandScore();
+    final percent = questions.isEmpty ? 0.0 : score / questions.length;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(32),
-
-        gradient: const LinearGradient(
-          colors: [Color(0xFF111827), Color(0xFF1F2937)],
+        borderRadius: BorderRadius.circular(34),
+        gradient: LinearGradient(
+          colors: [
+            primary.withOpacity(0.22),
+            const Color(0xFF111827),
+            const Color(0xFF0B1220),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-
+        border: Border.all(color: primary.withOpacity(0.28)),
         boxShadow: [
           BoxShadow(
-            color: primary.withOpacity(0.30),
-            blurRadius: 28,
+            color: primary.withOpacity(0.25),
+            blurRadius: 30,
             offset: const Offset(0, 14),
           ),
         ],
       ),
-
       child: Column(
         children: [
-          Text(
-            "Estimated IELTS Band",
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.70),
-              fontSize: 14,
+          Container(
+            height: 86,
+            width: 86,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(colors: [primary, secondary]),
+              boxShadow: [
+                BoxShadow(
+                  color: primary.withOpacity(0.35),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.workspace_premium_rounded,
+              color: Colors.white,
+              size: 42,
             ),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 18),
 
           Text(
-            band.toStringAsFixed(1),
-            style: const TextStyle(
-              color: Color(0xFF86EFAC),
-              fontSize: 58,
-              fontWeight: FontWeight.w900,
+            "Estimated IELTS Band",
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.72),
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
             ),
           ),
 
           const SizedBox(height: 10),
 
           Text(
+            band.toStringAsFixed(1),
+            style: const TextStyle(
+              color: Color(0xFF86EFAC),
+              fontSize: 64,
+              fontWeight: FontWeight.w900,
+              height: 1,
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          ClipRRect(
+            borderRadius: BorderRadius.circular(30),
+            child: LinearProgressIndicator(
+              value: percent.clamp(0.0, 1.0),
+              minHeight: 10,
+              backgroundColor: Colors.white.withOpacity(0.08),
+              valueColor: AlwaysStoppedAnimation(primary),
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          Text(
             "Score: $score / ${questions.length}",
             style: const TextStyle(
               color: Colors.white,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w800,
               fontSize: 16,
             ),
           ),
@@ -919,20 +1317,44 @@ class _ListeningPracticeState extends State<ListeningPractice> {
   }
 
   Widget _featureTile(IconData icon, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.07),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withOpacity(0.10)),
+      ),
       child: Row(
         children: [
-          Icon(icon, color: primary, size: 22),
-          const SizedBox(width: 10),
+          Container(
+            height: 38,
+            width: 38,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [primary, secondary]),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: Colors.white, size: 20),
+          ),
+
+          const SizedBox(width: 12),
+
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(
-                color: Color(0xff374151),
-                fontWeight: FontWeight.w600,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.86),
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+                height: 1.3,
               ),
             ),
+          ),
+
+          Icon(
+            Icons.check_circle_rounded,
+            color: primary.withOpacity(0.9),
+            size: 20,
           ),
         ],
       ),
@@ -944,20 +1366,36 @@ class _ListeningPracticeState extends State<ListeningPractice> {
       width: double.infinity,
       margin: const EdgeInsets.symmetric(horizontal: 20),
       padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(30),
 
-        border: Border.all(color: Colors.white.withOpacity(0.10)),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.10),
+            Colors.white.withOpacity(0.04),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+
+        borderRadius: BorderRadius.circular(32),
+
+        border: Border.all(color: Colors.white.withOpacity(0.10), width: 1.2),
 
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.20),
+            color: primary.withOpacity(0.10),
+            blurRadius: 28,
+            offset: const Offset(0, 14),
+          ),
+
+          BoxShadow(
+            color: Colors.black.withOpacity(0.22),
             blurRadius: 24,
             offset: const Offset(0, 12),
           ),
         ],
       ),
+
       child: child,
     );
   }
@@ -968,50 +1406,90 @@ class _ListeningPracticeState extends State<ListeningPractice> {
     required VoidCallback? onTap,
     bool loading = false,
   }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(22),
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF2DD4BF), Color(0xFF14B8A6), Color(0xFF0F766E)],
-          ),
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: [
-            BoxShadow(
-              color: primary.withOpacity(0.25),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(26),
+
+        gradient: const LinearGradient(
+          colors: [Color(0xFF2DD4BF), Color(0xFF14B8A6), Color(0xFF0F766E)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        child: Center(
-          child: loading
-              ? const SizedBox(
-                  height: 22,
-                  width: 22,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2.4,
-                  ),
-                )
-              : Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(icon, color: Colors.white),
-                    const SizedBox(width: 10),
-                    Text(
-                      text,
-                      style: const TextStyle(
+
+        boxShadow: [
+          BoxShadow(
+            color: primary.withOpacity(0.35),
+            blurRadius: 26,
+            offset: const Offset(0, 12),
+          ),
+
+          BoxShadow(
+            color: Colors.black.withOpacity(0.18),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+
+      child: Material(
+        color: Colors.transparent,
+
+        child: InkWell(
+          borderRadius: BorderRadius.circular(26),
+          onTap: loading ? null : onTap,
+
+          child: Container(
+            width: double.infinity,
+
+            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+
+            child: Center(
+              child: loading
+                  ? const SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: CircularProgressIndicator(
                         color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
+                        strokeWidth: 2.6,
                       ),
+                    )
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.16),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(icon, color: Colors.white, size: 20),
+                        ),
+
+                        const SizedBox(width: 14),
+
+                        Text(
+                          text,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+
+                        const SizedBox(width: 10),
+
+                        const Icon(
+                          Icons.arrow_forward_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+            ),
+          ),
         ),
       ),
     );

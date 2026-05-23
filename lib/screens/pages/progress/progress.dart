@@ -12,505 +12,477 @@ class ProgressScreen extends StatefulWidget {
 }
 
 class _ProgressScreenState extends State<ProgressScreen> {
+  Future<Map<String, double>>? _progressFuture;
+
+  Color get primary => const Color(0xFF14B8A6);
+  Color get secondary => const Color(0xFF0F766E);
+  Color get bg => const Color(0xFF08111F);
+
+  @override
+  void initState() {
+    super.initState();
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      _progressFuture = _calculateAllModules(user.uid);
+    }
+  }
+
+  Future<void> _refreshProgress() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    setState(() {
+      _progressFuture = _calculateAllModules(user.uid);
+    });
+
+    await _progressFuture;
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      return const Scaffold(body: Center(child: Text("User not logged in")));
+      return Scaffold(
+        backgroundColor: bg,
+        body: const Center(
+          child: Text(
+            "User not logged in",
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
+      );
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF08111F),
+      backgroundColor: bg,
       bottomNavigationBar: BottomNavigation(index: 1),
       body: FutureBuilder<Map<String, double>>(
-        future: _calculateAllModules(user.uid),
+        future: _progressFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(color: Color(0xFF6C63FF)),
-              ),
-            );
+            return _loadingBody();
           }
 
           if (snapshot.hasError) {
-            return Scaffold(
-              body: Center(
-                child: Text(
-                  "Error: ${snapshot.error}",
-                  style: const TextStyle(color: Colors.red, fontSize: 16),
-                ),
-              ),
-            );
+            return _errorBody(snapshot.error.toString());
           }
 
           if (!snapshot.hasData) {
-            return const Scaffold(body: Center(child: Text("No Data Found")));
+            return _emptyBody();
           }
 
           final data = snapshot.data!;
 
-          double listening = data["listening"]!;
-          double reading = data["reading"]!;
-          double writing = data["writing"]!;
-          double speaking = data["speaking"]!;
+          final listening = data["listening"] ?? 0.0;
+          final reading = data["reading"] ?? 0.0;
+          final writing = data["writing"] ?? 0.0;
+          final speaking = data["speaking"] ?? 0.0;
 
-          double overall = (listening + reading + writing + speaking) / 4;
+          final overall = (listening + reading + writing + speaking) / 4;
 
-          return CustomScrollView(
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              /// ================= HEADER =================
-              SliverToBoxAdapter(child: _header(overall)),
+          return RefreshIndicator(
+            color: primary,
+            backgroundColor: const Color(0xFF111827),
+            onRefresh: _refreshProgress,
+            child: CustomScrollView(
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
+              slivers: [
+                SliverToBoxAdapter(child: _header(overall)),
 
-              /// ================= MODULES =================
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 24),
-
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: const [
-                          const Text(
-                            "Module Scores",
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                            ),
-                          ),
-                          Icon(
-                            Icons.analytics_rounded,
-                            color: Color(0xFF6C63FF),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 18),
-
-                      GridView(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              crossAxisSpacing: 14,
-                              mainAxisSpacing: 14,
-                              childAspectRatio: 0.82,
-                            ),
-                        children: [
-                          _moduleCard(
-                            title: "Listening",
-                            score: listening,
-                            icon: Icons.headphones_rounded,
-                            color: const Color(0xFF2DD4BF), // Teal
-                          ),
-
-                          _moduleCard(
-                            title: "Reading",
-                            score: reading,
-                            icon: Icons.menu_book_rounded,
-                            color: const Color(0xFF60A5FA), // Soft Blue
-                          ),
-
-                          _moduleCard(
-                            title: "Writing",
-                            score: writing,
-                            icon: Icons.edit_note_rounded,
-                            color: const Color(0xFFF59E0B), // Amber
-                          ),
-
-                          _moduleCard(
-                            title: "Speaking",
-                            score: speaking,
-                            icon: Icons.mic_rounded,
-                            color: const Color(0xFFF472B6), // Soft Pink
-                          ),
-                        ],
-                      ),
-                    ],
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 24, 18, 0),
+                    child: _sectionHeader(
+                      title: "Module Scores",
+                      subtitle: "Average band from your latest practice",
+                      icon: Icons.analytics_rounded,
+                    ),
                   ),
                 ),
-              ),
 
-              /// ================= LINE CHART =================
-              // SliverToBoxAdapter(
-              //   child: _sectionCard(
-              //     title: "Progress Overview",
-              //     child: SizedBox(
-              //       height: 250,
-              //       child: LineChart(
-              //         LineChartData(
-              //           minY: 0,
-              //           maxY: 9,
-              //           borderData: FlBorderData(show: false),
-
-              //           gridData: FlGridData(
-              //             show: true,
-              //             drawVerticalLine: false,
-              //             horizontalInterval: 1,
-              //             getDrawingHorizontalLine: (value) {
-              //               return FlLine(
-              //                 color: Colors.grey.shade200,
-              //                 strokeWidth: 1,
-              //               );
-              //             },
-              //           ),
-
-              //           titlesData: FlTitlesData(
-              //             leftTitles: AxisTitles(
-              //               sideTitles: SideTitles(
-              //                 showTitles: true,
-              //                 reservedSize: 28,
-              //                 getTitlesWidget:
-              //                     (value, meta) {
-              //                   return Text(
-              //                     value.toInt().toString(),
-              //                     style: const TextStyle(
-              //                       fontSize: 12,
-              //                       color: Colors.grey,
-              //                     ),
-              //                   );
-              //                 },
-              //               ),
-              //             ),
-
-              //             rightTitles: AxisTitles(
-              //               sideTitles:
-              //                   SideTitles(showTitles: false),
-              //             ),
-
-              //             topTitles: AxisTitles(
-              //               sideTitles:
-              //                   SideTitles(showTitles: false),
-              //             ),
-
-              //             bottomTitles: AxisTitles(
-              //               sideTitles: SideTitles(
-              //                 showTitles: true,
-              //                 getTitlesWidget:
-              //                     (value, meta) {
-              //                   List<String> weeks = [
-              //                     "",
-              //                     "W1",
-              //                     "W2",
-              //                     "W3",
-              //                     "W4",
-              //                     "W5"
-              //                   ];
-
-              //                   return Padding(
-              //                     padding:
-              //                         const EdgeInsets.only(top: 10),
-              //                     child: Text(
-              //                       weeks[value.toInt()],
-              //                       style: const TextStyle(
-              //                         fontWeight:
-              //                             FontWeight.w600,
-              //                       ),
-              //                     ),
-              //                   );
-              //                 },
-              //               ),
-              //             ),
-              //           ),
-
-              //           lineTouchData: LineTouchData(
-              //             touchTooltipData:
-              //                 LineTouchTooltipData(
-              //               tooltipBorderRadius: BorderRadius.circular(14),
-              //               getTooltipColor: (touchedSpot) =>
-              //                   Colors.black,
-              //               getTooltipItems: (spots) {
-              //                 return spots.map((spot) {
-              //                   return LineTooltipItem(
-              //                     "Band ${spot.y.toStringAsFixed(1)}",
-              //                     const TextStyle(
-              //                       color: Colors.white,
-              //                       fontWeight:
-              //                           FontWeight.bold,
-              //                     ),
-              //                   );
-              //                 }).toList();
-              //               },
-              //             ),
-              //           ),
-
-              //           lineBarsData: [
-              //             LineChartBarData(
-              //               isCurved: true,
-              //               barWidth: 5,
-              //               gradient: const LinearGradient(
-              //                 colors: [
-              //                   Color(0xFF6C63FF),
-              //                   Color(0xFF9C6BFF),
-              //                 ],
-              //               ),
-              //               belowBarData: BarAreaData(
-              //                 show: true,
-              //                 gradient: LinearGradient(
-              //                   colors: [
-              //                     const Color(0xFF6C63FF)
-              //                         .withOpacity(0.25),
-              //                     Colors.transparent,
-              //                   ],
-              //                   begin: Alignment.topCenter,
-              //                   end: Alignment.bottomCenter,
-              //                 ),
-              //               ),
-              //               dotData: FlDotData(
-              //                 show: true,
-              //                 getDotPainter:
-              //                     (spot, percent, barData,
-              //                         index) {
-              //                   return FlDotCirclePainter(
-              //                     radius: 5,
-              //                     color:
-              //                         const Color(0xFF6C63FF),
-              //                     strokeWidth: 2,
-              //                     strokeColor: Colors.white,
-              //                   );
-              //                 },
-              //               ),
-              //               spots: const [
-              //                 FlSpot(1, 5.5),
-              //                 FlSpot(2, 6.0),
-              //                 FlSpot(3, 6.5),
-              //                 FlSpot(4, 7.0),
-              //                 FlSpot(5, 7.5),
-              //               ],
-              //             ),
-              //           ],
-              //         ),
-              //       ),
-              //     ),
-              //   ),
-              // ),
-
-              // /// ================= BAR CHART =================
-              SliverToBoxAdapter(
-                child: _sectionCard(
-                  title: "Module Comparison",
-                  child: SizedBox(
-                    height: 260,
-                    child: BarChart(
-                      BarChartData(
-                        maxY: 9,
-                        borderData: FlBorderData(show: false),
-
-                        gridData: FlGridData(
-                          show: true,
-                          drawVerticalLine: false,
-                          horizontalInterval: 1,
-                          getDrawingHorizontalLine: (value) {
-                            return FlLine(
-                              color: Colors.white.withOpacity(0.10),
-                              strokeWidth: 1,
-                            );
-                          },
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
+                    child: GridView(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 14,
+                        mainAxisSpacing: 14,
+                        childAspectRatio: 0.82,
+                      ),
+                      children: [
+                        _moduleCard(
+                          title: "Listening",
+                          score: listening,
+                          icon: Icons.headphones_rounded,
+                          color: const Color(0xFF2DD4BF),
                         ),
+                        _moduleCard(
+                          title: "Reading",
+                          score: reading,
+                          icon: Icons.menu_book_rounded,
+                          color: const Color(0xFF60A5FA),
+                        ),
+                        _moduleCard(
+                          title: "Writing",
+                          score: writing,
+                          icon: Icons.edit_note_rounded,
+                          color: const Color(0xFFF59E0B),
+                        ),
+                        _moduleCard(
+                          title: "Speaking",
+                          score: speaking,
+                          icon: Icons.mic_rounded,
+                          color: const Color(0xFFF472B6),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
 
-                        titlesData: FlTitlesData(
-                          topTitles: AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
+                SliverToBoxAdapter(
+                  child: _sectionCard(
+                    title: "Module Comparison",
+                    subtitle: "Compare your IELTS band performance",
+                    icon: Icons.bar_chart_rounded,
+                    child: SizedBox(
+                      height: 260,
+                      child: BarChart(
+                        BarChartData(
+                          maxY: 9,
+                          minY: 0,
+                          borderData: FlBorderData(show: false),
+                          gridData: FlGridData(
+                            show: true,
+                            drawVerticalLine: false,
+                            horizontalInterval: 1,
+                            getDrawingHorizontalLine: (value) {
+                              return FlLine(
+                                color: Colors.white.withOpacity(0.10),
+                                strokeWidth: 1,
+                              );
+                            },
                           ),
-                          rightTitles: AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
-                          ),
-
-                          leftTitles: AxisTitles(
-                            sideTitles: SideTitles(
-                              showTitles: true,
-                              reservedSize: 28,
-                              getTitlesWidget: (value, meta) {
-                                return Text(
-                                  value.toInt().toString(),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.white.withOpacity(0.60),
-                                  ),
-                                );
-                              },
+                          titlesData: FlTitlesData(
+                            topTitles: const AxisTitles(
+                              sideTitles: SideTitles(showTitles: false),
                             ),
-                          ),
-
-                          bottomTitles: AxisTitles(
-                            sideTitles: SideTitles(
-                              showTitles: true,
-                              getTitlesWidget: (value, meta) {
-                                List<String> titles = ["L", "R", "W", "S"];
-
-                                return Padding(
-                                  padding: const EdgeInsets.only(top: 8),
-                                  child: Text(
-                                    titles[value.toInt()],
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14,
-                                      color: Colors.white,
+                            rightTitles: const AxisTitles(
+                              sideTitles: SideTitles(showTitles: false),
+                            ),
+                            leftTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 28,
+                                getTitlesWidget: (value, meta) {
+                                  return Text(
+                                    value.toInt().toString(),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.white.withOpacity(0.60),
                                     ),
+                                  );
+                                },
+                              ),
+                            ),
+                            bottomTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                getTitlesWidget: (value, meta) {
+                                  final titles = ["L", "R", "W", "S"];
+                                  final index = value.toInt();
+
+                                  if (index < 0 || index >= titles.length) {
+                                    return const SizedBox.shrink();
+                                  }
+
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 8),
+                                    child: Text(
+                                      titles[index],
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 14,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                          barTouchData: BarTouchData(
+                            touchTooltipData: BarTouchTooltipData(
+                              tooltipBorderRadius: BorderRadius.circular(8),
+                              getTooltipColor: (_) =>
+                                  const Color(0xFF111827),
+                              getTooltipItem:
+                                  (group, groupIndex, rod, rodIndex) {
+                                return BarTooltipItem(
+                                  "Band ${rod.toY.toStringAsFixed(1)}",
+                                  const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w900,
                                   ),
                                 );
                               },
                             ),
                           ),
+                          barGroups: [
+                            _bar(0, listening, const Color(0xFF2DD4BF)),
+                            _bar(1, reading, const Color(0xFF60A5FA)),
+                            _bar(2, writing, const Color(0xFFF59E0B)),
+                            _bar(3, speaking, const Color(0xFFF472B6)),
+                          ],
                         ),
-
-                        barGroups: [
-                          _bar(0, listening, const Color(0xFF4CAF50)),
-                          _bar(1, reading, const Color(0xFF2196F3)),
-                          _bar(2, writing, const Color(0xFFFF9800)),
-                          _bar(3, speaking, const Color(0xFFE91E63)),
-                        ],
                       ),
                     ),
                   ),
                 ),
-              ),
-              SliverToBoxAdapter(
-                child: Container(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 10,
-                  ),
-                  padding: const EdgeInsets.all(22),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xff111827), Color(0xff1F2937)],
+
+                SliverToBoxAdapter(
+                  child: _aiInsightCard(
+                    overall: overall,
+                    weakestModule: _worstModule(
+                      listening,
+                      reading,
+                      writing,
+                      speaking,
                     ),
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "AI Performance Insight",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-
-                      const SizedBox(height: 14),
-
-                      Text(
-                        overall >= 7
-                            ? "Excellent progress. You're close to advanced IELTS level."
-                            : overall >= 6
-                            ? "Good improvement. Focus more on weak modules."
-                            : "Practice consistently to improve your IELTS band.",
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          height: 1.6,
-                          fontSize: 15,
-                        ),
-                      ),
-
-                      const SizedBox(height: 18),
-
-                      Row(
-                        children: [
-                          const Icon(Icons.auto_awesome, color: Colors.amber),
-
-                          const SizedBox(width: 8),
-
-                          Text(
-                            "Estimated Overall Band: ${overall.toStringAsFixed(1)}",
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                    strongestModule: _bestModule(
+                      listening,
+                      reading,
+                      writing,
+                      speaking,
+                    ),
                   ),
                 ),
-              ),
 
-              /// ================= INSIGHTS =================
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 10,
-                  ),
-                  child: Column(
-                    children: [
-                      _insightCard(
-                        title: "Your Strength",
-                        subtitle:
-                            "Excellent performance in ${_bestModule(listening, reading, writing, speaking)} module.",
-                        icon: Icons.trending_up_rounded,
-                        color: const Color(0xFF4CAF50),
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      _insightCard(
-                        title: "Needs Improvement",
-                        subtitle:
-                            "Focus more on ${_worstModule(listening, reading, writing, speaking)} practice.",
-                        icon: Icons.auto_graph_rounded,
-                        color: const Color(0xFFFF9800),
-                      ),
-
-                      const SizedBox(height: 30),
-                    ],
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 10, 18, 30),
+                    child: Column(
+                      children: [
+                        _insightCard(
+                          title: "Your Strength",
+                          subtitle:
+                              "Excellent performance in ${_bestModule(listening, reading, writing, speaking)} module.",
+                          icon: Icons.trending_up_rounded,
+                          color: const Color(0xFF22C55E),
+                        ),
+                        const SizedBox(height: 16),
+                        _insightCard(
+                          title: "Needs Improvement",
+                          subtitle:
+                              "Focus more on ${_worstModule(listening, reading, writing, speaking)} practice.",
+                          icon: Icons.auto_graph_rounded,
+                          color: const Color(0xFFF59E0B),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           );
         },
       ),
     );
   }
 
-  /// ================= HEADER =================
+  Widget _loadingBody() {
+    return Container(
+      color: bg,
+      child: Center(
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 28),
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Colors.white.withOpacity(0.10),
+                Colors.white.withOpacity(0.04),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(32),
+            border: Border.all(color: Colors.white.withOpacity(0.10)),
+            boxShadow: [
+              BoxShadow(
+                color: primary.withOpacity(0.20),
+                blurRadius: 28,
+                offset: const Offset(0, 14),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                height: 86,
+                width: 86,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(colors: [primary, secondary]),
+                  boxShadow: [
+                    BoxShadow(
+                      color: primary.withOpacity(0.35),
+                      blurRadius: 28,
+                      offset: const Offset(0, 12),
+                    ),
+                  ],
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      height: 66,
+                      width: 66,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 3,
+                        backgroundColor: Colors.white.withOpacity(0.12),
+                      ),
+                    ),
+                    const Icon(
+                      Icons.analytics_rounded,
+                      color: Colors.white,
+                      size: 34,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                "Loading Progress",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                "Calculating your IELTS performance analytics...",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.70),
+                  height: 1.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _errorBody(String error) {
+    return Container(
+      color: bg,
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: _glassCard(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.error_outline_rounded,
+                color: Colors.redAccent,
+                size: 48,
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                "Something went wrong",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 20,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                error,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white.withOpacity(0.65)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyBody() {
+    return Container(
+      color: bg,
+      child: Center(
+        child: Text(
+          "No Data Found",
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.75),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _header(double overall) {
+    final level = _levelLabel(overall);
+    final progress = (overall / 9).clamp(0.0, 1.0);
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(22, 65, 22, 35),
-      decoration: const BoxDecoration(
+      padding: const EdgeInsets.fromLTRB(22, 64, 22, 34),
+      decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF08111F), Color(0xFF102A43), Color(0xFF0F766E)],
+          colors: [
+            bg,
+            const Color(0xFF102A43),
+            secondary,
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(36),
+          bottomRight: Radius.circular(36),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: primary.withOpacity(0.18),
+            blurRadius: 30,
+            offset: const Offset(0, 14),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "Performance Analytics",
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 30,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "Track your IELTS growth & band score",
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.65),
-              fontSize: 15,
-            ),
-          ),
-          const SizedBox(height: 28),
+          _topHeaderRow(),
+          const SizedBox(height: 24),
           Container(
             padding: const EdgeInsets.all(22),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: Colors.white.withOpacity(0.10)),
+              gradient: LinearGradient(
+                colors: [
+                  Colors.white.withOpacity(0.12),
+                  Colors.white.withOpacity(0.05),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(32),
+              border: Border.all(color: Colors.white.withOpacity(0.12)),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.22),
@@ -528,41 +500,70 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       Text(
                         "Overall Band",
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.65),
-                          fontSize: 16,
+                          color: Colors.white.withOpacity(0.66),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        "${overall.toStringAsFixed(1)} / 9",
+                        overall.toStringAsFixed(1),
                         style: const TextStyle(
-                          fontSize: 52,
+                          fontSize: 58,
                           fontWeight: FontWeight.w900,
                           color: Color(0xFF86EFAC),
+                          height: 1,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        level,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.72),
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ],
                   ),
                 ),
-                Container(
-                  height: 92,
-                  width: 92,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF2DD4BF), Color(0xFF14B8A6)],
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF14B8A6).withOpacity(0.35),
-                        blurRadius: 22,
+                SizedBox(
+                  height: 110,
+                  width: 110,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        height: 106,
+                        width: 106,
+                        child: CircularProgressIndicator(
+                          value: progress,
+                          strokeWidth: 10,
+                          color: const Color(0xFF86EFAC),
+                          backgroundColor: Colors.white.withOpacity(0.10),
+                        ),
+                      ),
+                      Container(
+                        height: 82,
+                        width: 82,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: [primary, secondary],
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: primary.withOpacity(0.35),
+                              blurRadius: 22,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.workspace_premium_rounded,
+                          color: Colors.white,
+                          size: 40,
+                        ),
                       ),
                     ],
-                  ),
-                  child: const Icon(
-                    Icons.workspace_premium_rounded,
-                    color: Colors.white,
-                    size: 46,
                   ),
                 ),
               ],
@@ -573,7 +574,97 @@ class _ProgressScreenState extends State<ProgressScreen> {
     );
   }
 
-  /// ================= MODULE CARD =================
+  Widget _topHeaderRow() {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: [primary, secondary]),
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: primary.withOpacity(0.35),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.insights_rounded,
+            color: Colors.white,
+            size: 26,
+          ),
+        ),
+        const SizedBox(width: 14),
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Performance Analytics",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 27,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.4,
+                ),
+              ),
+              SizedBox(height: 4),
+              Text(
+                "Track your IELTS growth & band score",
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _sectionHeader({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 24,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.58),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: primary.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: primary.withOpacity(0.20)),
+          ),
+          child: Icon(icon, color: primary),
+        ),
+      ],
+    );
+  }
+
   Widget _moduleCard({
     required String title,
     required double score,
@@ -585,73 +676,81 @@ class _ProgressScreenState extends State<ProgressScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.white.withOpacity(0.10)),
-        color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(28),
-
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.10),
+            Colors.white.withOpacity(0.04),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: color.withOpacity(0.18)),
+        borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
             color: color.withOpacity(0.18),
             blurRadius: 22,
             offset: const Offset(0, 10),
           ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.18),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          /// TOP ROW
           Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.16),
-                  borderRadius: BorderRadius.circular(16),
+                  gradient: LinearGradient(
+                    colors: [
+                      color.withOpacity(0.90),
+                      color.withOpacity(0.55),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(18),
                 ),
-                child: Icon(icon, color: color, size: 24),
+                child: Icon(icon, color: Colors.white, size: 24),
               ),
-
               const Spacer(),
-
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
-                  vertical: 5,
+                  vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.18),
+                  color: color.withOpacity(0.16),
                   borderRadius: BorderRadius.circular(30),
+                  border: Border.all(color: color.withOpacity(0.25)),
                 ),
                 child: Text(
                   "$percentage%",
                   style: TextStyle(
                     color: color,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w900,
                     fontSize: 12,
                   ),
                 ),
               ),
             ],
           ),
-
           const Spacer(),
-
-          /// MODULE NAME
           Text(
             title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1B1D28),
+              fontSize: 17,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
             ),
           ),
-
           const SizedBox(height: 10),
-
-          /// SCORE ROW
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -660,68 +759,36 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   score.toStringAsFixed(1),
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 34,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 36,
+                    fontWeight: FontWeight.w900,
                     color: color,
                     height: 1,
                   ),
                 ),
               ),
-
-              const Padding(
-                padding: EdgeInsets.only(left: 3, bottom: 4),
+              Padding(
+                padding: const EdgeInsets.only(left: 3, bottom: 4),
                 child: Text(
                   "/9",
                   style: TextStyle(
-                    color: Colors.white,
+                    color: Colors.white.withOpacity(0.70),
                     fontSize: 15,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
-
               const Spacer(),
-
               Icon(Icons.trending_up_rounded, color: color, size: 22),
             ],
           ),
-
           const SizedBox(height: 16),
-
-          /// PROGRESS BAR
           ClipRRect(
             borderRadius: BorderRadius.circular(20),
-            child: Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: LinearProgressIndicator(
-                    value: score / 9,
-                    minHeight: 10,
-                    backgroundColor: Colors.white.withOpacity(0.08),
-                    valueColor: AlwaysStoppedAnimation(color),
-                  ),
-                ),
-
-                Positioned.fill(
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: Container(
-                      width: 12,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.8),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: color.withOpacity(0.6),
-                            blurRadius: 10,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+            child: LinearProgressIndicator(
+              value: (score / 9).clamp(0.0, 1.0),
+              minHeight: 10,
+              backgroundColor: Colors.white.withOpacity(0.08),
+              valueColor: AlwaysStoppedAnimation(color),
             ),
           ),
         ],
@@ -729,54 +796,165 @@ class _ProgressScreenState extends State<ProgressScreen> {
     );
   }
 
-  /// ================= COMMON CARD =================
-
-  Widget _sectionCard({required String title, required Widget child}) {
+  Widget _sectionCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Widget child,
+  }) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(32),
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.10),
+            Colors.white.withOpacity(0.04),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(34),
         border: Border.all(color: Colors.white.withOpacity(0.10)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.22),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
+            color: primary.withOpacity(0.10),
+            blurRadius: 28,
+            offset: const Offset(0, 14),
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.20),
+            blurRadius: 22,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 21,
-              fontWeight: FontWeight.w900,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 20),
+          _sectionHeader(title: title, subtitle: subtitle, icon: icon),
+          const SizedBox(height: 22),
           child,
         ],
       ),
     );
   }
 
-  /// ================= BAR =================
+  Widget _aiInsightCard({
+    required double overall,
+    required String weakestModule,
+    required String strongestModule,
+  }) {
+    final readiness = ((overall / 9) * 100).clamp(0, 100).round();
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            primary.withOpacity(0.20),
+            const Color(0xFF111827),
+            const Color(0xFF0B1220),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(34),
+        border: Border.all(color: primary.withOpacity(0.22)),
+        boxShadow: [
+          BoxShadow(
+            color: primary.withOpacity(0.16),
+            blurRadius: 28,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionHeader(
+            title: "AI Performance Insight",
+            subtitle: "Smart recommendation based on your scores",
+            icon: Icons.auto_awesome_rounded,
+          ),
+          const SizedBox(height: 18),
+          Text(
+            overall >= 7
+                ? "Excellent progress. You are close to an advanced IELTS level. Maintain consistency and polish your weaker module."
+                : overall >= 6
+                    ? "Good improvement. Focus more on $weakestModule to increase your overall band."
+                    : "Practice consistently. Your fastest improvement can come from focused $weakestModule practice.",
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.78),
+              height: 1.65,
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _chip("Overall ${overall.toStringAsFixed(1)}"),
+              _chip("$readiness% Ready"),
+              _chip("Best: $strongestModule"),
+              _chip("Focus: $weakestModule"),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _chip(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: Colors.white.withOpacity(0.84),
+          fontWeight: FontWeight.w800,
+          fontSize: 12.5,
+        ),
+      ),
+    );
+  }
+
+  Widget _glassCard({required Widget child}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.10),
+            Colors.white.withOpacity(0.04),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.white.withOpacity(0.10)),
+      ),
+      child: child,
+    );
+  }
 
   BarChartGroupData _bar(int x, double y, Color color) {
     return BarChartGroupData(
       x: x,
       barRods: [
         BarChartRodData(
-          toY: y,
+          toY: y.clamp(0.0, 9.0),
           width: 26,
           borderRadius: BorderRadius.circular(12),
           gradient: LinearGradient(
-            colors: [color.withOpacity(0.8), color],
+            colors: [color.withOpacity(0.65), color],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
@@ -784,8 +962,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
       ],
     );
   }
-
-  /// ================= INSIGHT CARD =================
 
   Widget _insightCard({
     required String title,
@@ -796,13 +972,20 @@ class _ProgressScreenState extends State<ProgressScreen> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: Colors.white.withOpacity(0.10)),
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.10),
+            Colors.white.withOpacity(0.04),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: color.withOpacity(0.18)),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.16),
-            blurRadius: 20,
+            color: color.withOpacity(0.14),
+            blurRadius: 22,
             offset: const Offset(0, 10),
           ),
         ],
@@ -810,13 +993,18 @@ class _ProgressScreenState extends State<ProgressScreen> {
       child: Row(
         children: [
           Container(
-            height: 60,
-            width: 60,
+            height: 62,
+            width: 62,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(18),
+              gradient: LinearGradient(
+                colors: [
+                  color.withOpacity(0.90),
+                  color.withOpacity(0.55),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(20),
             ),
-            child: Icon(icon, color: color, size: 30),
+            child: Icon(icon, color: Colors.white, size: 30),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -835,8 +1023,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 Text(
                   subtitle,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.65),
-                    height: 1.4,
+                    color: Colors.white.withOpacity(0.68),
+                    height: 1.45,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
@@ -847,10 +1036,17 @@ class _ProgressScreenState extends State<ProgressScreen> {
     );
   }
 
-  /// ================= HELPERS =================
+  String _levelLabel(double overall) {
+    if (overall >= 8) return "Expert IELTS Level";
+    if (overall >= 7) return "Advanced IELTS Level";
+    if (overall >= 6) return "Good IELTS Level";
+    if (overall >= 5) return "Intermediate IELTS Level";
+    if (overall > 0) return "Beginner IELTS Level";
+    return "Start practicing to unlock your level";
+  }
 
   String _bestModule(double l, double r, double w, double s) {
-    Map<String, double> scores = {
+    final scores = {
       "Listening": l,
       "Reading": r,
       "Writing": w,
@@ -861,7 +1057,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
   }
 
   String _worstModule(double l, double r, double w, double s) {
-    Map<String, double> scores = {
+    final scores = {
       "Listening": l,
       "Reading": r,
       "Writing": w,
@@ -871,13 +1067,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
     return scores.entries.reduce((a, b) => a.value < b.value ? a : b).key;
   }
 
-  /// ================= FIREBASE LOGIC =================
-
   Future<Map<String, double>> _calculateAllModules(String uid) async {
     try {
       final firestore = FirebaseFirestore.instance;
 
-      /// FETCH ALL COLLECTIONS
       final listeningSnap = await firestore
           .collection("users")
           .doc(uid)
@@ -902,49 +1095,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
           .collection("speaking")
           .get();
 
-      /// LISTENING + READING
-      double listening = _avgScore(listeningSnap.docs);
-      double reading = _avgScore(readingSnap.docs);
-
-      /// WRITING
-      double writing = 0;
-
-      if (writingSnap.docs.isNotEmpty) {
-        final writingBands = writingSnap.docs.map((e) {
-          try {
-            final data = e.data();
-
-            return double.tryParse(data["band"]?.toString() ?? "0") ?? 0;
-          } catch (e) {
-            debugPrint("Writing Error: $e");
-            return 0;
-          }
-        }).toList();
-
-        if (writingBands.isNotEmpty) {
-          writing = writingBands.reduce((a, b) => a + b) / writingBands.length;
-        }
-      }
-
-      /// SPEAKING
-      double speaking = 0;
-      if (speakingSnap.docs.isNotEmpty) {
-        final speakingBands = speakingSnap.docs.map((e) {
-          try {
-            final data = e.data();
-
-            return double.tryParse(data["band"]?.toString() ?? "0") ?? 0;
-          } catch (e) {
-            debugPrint("Speaking Error: $e");
-            return 0.0;
-          }
-        }).toList();
-
-        if (speakingBands.isNotEmpty) {
-          speaking =
-              speakingBands.reduce((a, b) => a + b) / speakingBands.length;
-        }
-      }
+      final listening = _avgScore(listeningSnap.docs);
+      final reading = _avgScore(readingSnap.docs);
+      final writing = _avgBand(writingSnap.docs, "band");
+      final speaking = _avgBand(speakingSnap.docs, "band");
 
       return {
         "listening": listening,
@@ -955,11 +1109,36 @@ class _ProgressScreenState extends State<ProgressScreen> {
     } catch (e) {
       debugPrint("Firebase Main Error: $e");
 
-      return {"listening": 0, "reading": 0, "writing": 0, "speaking": 0};
+      return {
+        "listening": 0,
+        "reading": 0,
+        "writing": 0,
+        "speaking": 0,
+      };
     }
   }
 
-  /// ================= SAFE AVG SCORE =================
+  double _avgBand(List<QueryDocumentSnapshot> docs, String field) {
+    try {
+      if (docs.isEmpty) return 0;
+
+      final values = docs.map((e) {
+        try {
+          final data = e.data() as Map<String, dynamic>;
+          return double.tryParse(data[field]?.toString() ?? "0") ?? 0.0;
+        } catch (_) {
+          return 0.0;
+        }
+      }).where((e) => e > 0).toList();
+
+      if (values.isEmpty) return 0;
+
+      return values.reduce((a, b) => a + b) / values.length;
+    } catch (e) {
+      debugPrint("AVG Band Error: $e");
+      return 0;
+    }
+  }
 
   double _avgScore(List<QueryDocumentSnapshot> docs) {
     try {
@@ -969,10 +1148,14 @@ class _ProgressScreenState extends State<ProgressScreen> {
         try {
           final data = e.data() as Map<String, dynamic>;
 
-          final score = double.tryParse(data["score"]?.toString() ?? "0") ?? 0;
+          final bandField = double.tryParse(data["band"]?.toString() ?? "");
 
-          final total =
-              double.tryParse(
+          if (bandField != null && bandField > 0) {
+            return bandField;
+          }
+
+          final score = double.tryParse(data["score"]?.toString() ?? "0") ?? 0;
+          final total = double.tryParse(
                 (data["total"] ?? data["totalQuestions"] ?? 1).toString(),
               ) ??
               1;
@@ -984,7 +1167,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
           debugPrint("AVG Score Error: $e");
           return 0.0;
         }
-      }).toList();
+      }).where((e) => e > 0).toList();
 
       if (values.isEmpty) return 0;
 
