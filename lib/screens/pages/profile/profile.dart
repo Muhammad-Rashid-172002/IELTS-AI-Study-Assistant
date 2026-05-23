@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:fyproject/screens/help_and%20_Support/help_and_support.dart';
 import 'package:fyproject/services/image_picker.dart';
 import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -63,23 +64,21 @@ class _ProfileState extends State<Profile> {
         isEditing = false;
       });
 
-      Get.snackbar(
-        "Success",
-        "Profile updated successfully",
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-        snackPosition: SnackPosition.BOTTOM,
+      showCustomSnackBar(
+        context: context,
+        title: "Success",
+        message: "Profile updated successfully",
       );
     } catch (e) {
       setState(() {
         isSaving = false;
       });
 
-      Get.snackbar(
-        "Error",
-        e.toString(),
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+      showCustomSnackBar(
+        context: context,
+        title: "Error",
+        message: "Something went wrong",
+        isError: true,
       );
     }
   }
@@ -95,11 +94,11 @@ class _ProfileState extends State<Profile> {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
-      Get.snackbar(
-        "Error",
-        "Could not launch URL",
-        backgroundColor: const Color(0xffef4444),
-        colorText: Colors.white,
+      showCustomSnackBar(
+        context: context,
+        title: "Error",
+        message: "Could not launch URL",
+        isError: true,
       );
     }
   }
@@ -131,13 +130,19 @@ class _ProfileState extends State<Profile> {
           slivers: [
             /// HEADER
             SliverAppBar(
-              expandedHeight: 320,
+              expandedHeight: 340,
               pinned: true,
               elevation: 0,
-              backgroundColor: const Color(0xff2563EB),
+              backgroundColor: const Color(0xFF08111F),
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(34),
+                  bottomRight: Radius.circular(34),
+                ),
+              ),
               flexibleSpace: FlexibleSpaceBar(
                 background: Container(
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     gradient: const LinearGradient(
                       colors: [
                         Color(0xFF08111F),
@@ -147,31 +152,45 @@ class _ProfileState extends State<Profile> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF14B8A6).withOpacity(0.20),
+                        blurRadius: 30,
+                        offset: const Offset(0, 14),
+                      ),
+                    ],
                   ),
-
                   child: SafeArea(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        /// PROFILE IMAGE
                         Stack(
                           alignment: Alignment.bottomRight,
                           children: [
                             Container(
-                              padding: const EdgeInsets.all(4),
+                              padding: const EdgeInsets.all(5),
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white24,
-                                  width: 2,
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Color(0xFF2DD4BF),
+                                    Color(0xFF14B8A6),
+                                    Color(0xFF0F766E),
+                                  ],
                                 ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFF14B8A6,
+                                    ).withOpacity(0.35),
+                                    blurRadius: 28,
+                                    offset: const Offset(0, 12),
+                                  ),
+                                ],
                               ),
-
                               child: CircleAvatar(
-                                radius: 55,
-                                backgroundColor: Colors.white,
-
-                                /// IMAGE SHOW
+                                radius: 58,
+                                backgroundColor: const Color(0xFF111827),
                                 backgroundImage: selectedImagePath != null
                                     ? FileImage(File(selectedImagePath!))
                                     : NetworkImage(profileImage)
@@ -179,7 +198,6 @@ class _ProfileState extends State<Profile> {
                               ),
                             ),
 
-                            /// CAMERA BUTTON
                             GestureDetector(
                               onTap: () async {
                                 File? image =
@@ -202,94 +220,100 @@ class _ProfileState extends State<Profile> {
                                       isSaving = false;
                                     });
 
-                                    Get.snackbar(
-                                      "Success",
-                                      "Profile image updated successfully",
-                                      backgroundColor: Colors.green,
-                                      colorText: Colors.white,
+                                    showCustomSnackBar(
+                                      context: context,
+                                      title: "Success",
+                                      message:
+                                          "Profile image updated successfully",
+                                      isError: false,
                                     );
                                   } catch (e) {
                                     setState(() => isSaving = false);
 
-                                    Get.snackbar(
-                                      "Error",
-                                      "Image upload failed. Please try again.",
-                                      backgroundColor: Colors.red,
-                                      colorText: Colors.white,
+                                    showCustomSnackBar(
+                                      context: context,
+                                      title: "Error",
+                                      message:
+                                          "Image upload failed. Please try again.",
+                                      isError: true,
                                     );
                                   }
                                 }
                               },
-
                               child: Container(
-                                padding: const EdgeInsets.all(8),
+                                padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xff2563EB),
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Color(0xFF2DD4BF),
+                                      Color(0xFF14B8A6),
+                                    ],
+                                  ),
                                   shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.15),
-                                      blurRadius: 10,
-                                    ),
-                                  ],
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 2,
+                                  ),
                                 ),
-
                                 child: const Icon(
                                   Icons.camera_alt_rounded,
-                                  size: 18,
+                                  size: 19,
                                   color: Colors.white,
                                 ),
                               ),
                             ),
                           ],
                         ),
+
                         const SizedBox(height: 18),
 
-                        /// NAME
                         Text(
-                          nameC.text.isEmpty ? "User Name" : nameC.text,
+                          data['name']?.toString().isEmpty ?? true
+                              ? "User Name"
+                              : data['name'].toString(),
+                          textAlign: TextAlign.center,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 26,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
                           ),
                         ),
 
                         const SizedBox(height: 8),
 
-                        /// EMAIL
                         Text(
-                          emailC.text.isEmpty
+                          data['email']?.toString().isEmpty ?? true
                               ? "example@gmail.com"
-                              : emailC.text,
-                          style: const TextStyle(
-                            color: Colors.white70,
+                              : data['email'].toString(),
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.70),
                             fontSize: 15,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
 
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 18),
 
-                        /// BADGE
-                        // Container(
-                        //   padding: const EdgeInsets.symmetric(
-                        //     horizontal: 18,
-                        //     vertical: 8,
-                        //   ),
-
-                        //   decoration: BoxDecoration(
-                        //     color: Colors.white.withOpacity(0.12),
-                        //     borderRadius: BorderRadius.circular(30),
-                        //   ),
-
-                        //   child: const Text(
-                        //     "Premium Student",
-                        //     style: TextStyle(
-                        //       color: Colors.white,
-                        //       fontWeight: FontWeight.w600,
-                        //     ),
-                        //   ),
-                        // ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 9,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.10),
+                            borderRadius: BorderRadius.circular(30),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.12),
+                            ),
+                          ),
+                          child: const Text(
+                            "IELTS Student",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -379,8 +403,11 @@ class _ProfileState extends State<Profile> {
                             Icons.help_outline_rounded,
                             "Help & Support",
                             () {
-                              _openUrl(
-                                "https://ielts-support-portal.vercel.app/",
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const HelpSupportScreen(),
+                                ),
                               );
                             },
                           ),
@@ -389,14 +416,202 @@ class _ProfileState extends State<Profile> {
                             Icons.lock_outline_rounded,
                             "Privacy Policy",
                             () {
-                              _openUrl(
-                                "https://ielts-privacy-police.vercel.app/",
-                              );
+                              _openUrl("https://ielts-ai-privacy.vercel.app/");
                             },
                           ),
 
-                          _tile(Icons.info_outline_rounded, "About App", () {
-                            _openUrl("https://ieltsabout.vercel.app/");
+                          _tile(Icons.info_outline_rounded, "About", () {
+                            showDialog(
+                              context: context,
+
+                              builder: (context) {
+                                return Dialog(
+                                  backgroundColor: Colors.transparent,
+
+                                  child: Container(
+                                    padding: const EdgeInsets.all(28),
+
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Colors.white.withOpacity(0.12),
+                                          Colors.white.withOpacity(0.05),
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+
+                                      borderRadius: BorderRadius.circular(34),
+
+                                      border: Border.all(
+                                        color: Colors.white.withOpacity(0.10),
+                                      ),
+
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: const Color(
+                                            0xFF14B8A6,
+                                          ).withOpacity(0.18),
+
+                                          blurRadius: 28,
+                                          offset: const Offset(0, 14),
+                                        ),
+                                      ],
+                                    ),
+
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(18),
+
+                                          decoration: BoxDecoration(
+                                            gradient: const LinearGradient(
+                                              colors: [
+                                                Color(0xFF2DD4BF),
+                                                Color(0xFF14B8A6),
+                                                Color(0xFF0F766E),
+                                              ],
+                                            ),
+
+                                            shape: BoxShape.circle,
+                                          ),
+
+                                          child: const Icon(
+                                            Icons.school_rounded,
+                                            color: Colors.white,
+                                            size: 38,
+                                          ),
+                                        ),
+
+                                        const SizedBox(height: 22),
+
+                                        const Text(
+                                          "About IELTS AI",
+                                          textAlign: TextAlign.center,
+
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 26,
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                        ),
+
+                                        const SizedBox(height: 12),
+
+                                        Text(
+                                          "IELTS AI is a smart AI-powered IELTS preparation app designed to help students improve Listening, Reading, Writing, and Speaking skills with real-time AI evaluation and band score prediction.",
+                                          textAlign: TextAlign.center,
+
+                                          style: TextStyle(
+                                            color: Colors.white.withOpacity(
+                                              0.74,
+                                            ),
+                                            height: 1.7,
+                                            fontWeight: FontWeight.w500,
+                                            fontSize: 14.5,
+                                          ),
+                                        ),
+
+                                        const SizedBox(height: 24),
+
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 18,
+                                            vertical: 10,
+                                          ),
+
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withOpacity(
+                                              0.08,
+                                            ),
+
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
+
+                                            border: Border.all(
+                                              color: Colors.white.withOpacity(
+                                                0.08,
+                                              ),
+                                            ),
+                                          ),
+
+                                          child: const Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                Icons.auto_awesome_rounded,
+                                                color: Color(0xFF2DD4BF),
+                                                size: 18,
+                                              ),
+
+                                              SizedBox(width: 8),
+
+                                              Text(
+                                                "AI Powered IELTS Preparation",
+
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+
+                                        const SizedBox(height: 28),
+
+                                        SizedBox(
+                                          width: double.infinity,
+                                          height: 56,
+
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              gradient: const LinearGradient(
+                                                colors: [
+                                                  Color(0xFF2DD4BF),
+                                                  Color(0xFF14B8A6),
+                                                ],
+                                              ),
+
+                                              borderRadius:
+                                                  BorderRadius.circular(18),
+                                            ),
+
+                                            child: Material(
+                                              color: Colors.transparent,
+
+                                              child: InkWell(
+                                                borderRadius:
+                                                    BorderRadius.circular(18),
+
+                                                onTap: () {
+                                                  Navigator.pop(context);
+                                                },
+
+                                                child: const Center(
+                                                  child: Text(
+                                                    "Close",
+
+                                                    style: TextStyle(
+                                                      color: Colors.white,
+                                                      fontWeight:
+                                                          FontWeight.w900,
+                                                      fontSize: 15.5,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
                           }),
                         ],
                       ),
@@ -407,163 +622,330 @@ class _ProfileState extends State<Profile> {
                     /// LOGOUT BUTTON
                     SizedBox(
                       width: double.infinity,
-                      height: 58,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          showDialog(
-                            context: context,
-                            barrierDismissible: true,
-                            builder: (context) {
-                              return Dialog(
-                                backgroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(28),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(24),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      /// ICON
-                                      Container(
-                                        padding: const EdgeInsets.all(18),
-                                        decoration: BoxDecoration(
-                                          color: const Color(
-                                            0xffef4444,
-                                          ).withOpacity(0.12),
-                                          shape: BoxShape.circle,
+                      height: 64,
+
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [
+                              Color(0xFFEF4444),
+                              Color(0xFFDC2626),
+                              Color(0xFFB91C1C),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+
+                          borderRadius: BorderRadius.circular(24),
+
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFEF4444).withOpacity(0.35),
+                              blurRadius: 26,
+                              offset: const Offset(0, 14),
+                            ),
+
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.18),
+                              blurRadius: 18,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+
+                        child: Material(
+                          color: Colors.transparent,
+
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(24),
+
+                            onTap: () {
+                              showDialog(
+                                context: context,
+                                barrierDismissible: true,
+
+                                builder: (context) {
+                                  return Dialog(
+                                    backgroundColor: Colors.transparent,
+                                    insetPadding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                    ),
+
+                                    child: Container(
+                                      padding: const EdgeInsets.all(28),
+
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            Colors.white.withOpacity(0.12),
+                                            Colors.white.withOpacity(0.05),
+                                          ],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
                                         ),
-                                        child: const Icon(
-                                          Icons.logout_rounded,
-                                          color: Color(0xffef4444),
-                                          size: 38,
+
+                                        borderRadius: BorderRadius.circular(34),
+
+                                        border: Border.all(
+                                          color: Colors.white.withOpacity(0.10),
                                         ),
-                                      ),
 
-                                      const SizedBox(height: 20),
-
-                                      /// TITLE
-                                      const Text(
-                                        "Logout Account?",
-                                        style: TextStyle(
-                                          fontSize: 22,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-
-                                      const SizedBox(height: 10),
-
-                                      /// SUBTITLE
-                                      const Text(
-                                        "Are you sure you want to logout from your account?",
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          color: Colors.grey,
-                                          fontSize: 15,
-                                          height: 1.5,
-                                        ),
-                                      ),
-
-                                      const SizedBox(height: 28),
-
-                                      /// BUTTONS
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: OutlinedButton(
-                                              onPressed: () {
-                                                Navigator.pop(context);
-                                              },
-                                              style: OutlinedButton.styleFrom(
-                                                minimumSize:
-                                                    const ui.Size.fromHeight(
-                                                      52,
-                                                    ),
-                                                side: BorderSide(
-                                                  color: Colors.grey.shade300,
-                                                ),
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(16),
-                                                ),
-                                              ),
-                                              child: const Text(
-                                                "Cancel",
-                                                style: TextStyle(
-                                                  color: Colors.black87,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(
+                                              0.30,
                                             ),
-                                          ),
-
-                                          const SizedBox(width: 14),
-
-                                          Expanded(
-                                            child: ElevatedButton(
-                                              onPressed: () async {
-                                                Navigator.pop(context);
-
-                                                /// LOGOUT FUNCTION
-                                                _logout();
-                                              },
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor: const Color(
-                                                  0xffef4444,
-                                                ),
-                                                minimumSize:
-                                                    const ui.Size.fromHeight(
-                                                      52,
-                                                    ),
-                                                elevation: 0,
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(16),
-                                                ),
-                                              ),
-                                              child: const Text(
-                                                "Logout",
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ),
+                                            blurRadius: 28,
+                                            offset: const Offset(0, 14),
                                           ),
                                         ],
                                       ),
-                                    ],
-                                  ),
-                                ),
+
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          /// ICON
+                                          Container(
+                                            padding: const EdgeInsets.all(20),
+
+                                            decoration: BoxDecoration(
+                                              gradient: const LinearGradient(
+                                                colors: [
+                                                  Color(0xFFEF4444),
+                                                  Color(0xFFDC2626),
+                                                ],
+                                              ),
+
+                                              shape: BoxShape.circle,
+
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: const Color(
+                                                    0xFFEF4444,
+                                                  ).withOpacity(0.35),
+
+                                                  blurRadius: 24,
+                                                  offset: const Offset(0, 10),
+                                                ),
+                                              ],
+                                            ),
+
+                                            child: const Icon(
+                                              Icons.logout_rounded,
+                                              color: Colors.white,
+                                              size: 40,
+                                            ),
+                                          ),
+
+                                          const SizedBox(height: 24),
+
+                                          /// TITLE
+                                          const Text(
+                                            "Logout Account?",
+                                            textAlign: TextAlign.center,
+
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 25,
+                                              fontWeight: FontWeight.w900,
+                                              letterSpacing: -0.3,
+                                            ),
+                                          ),
+
+                                          const SizedBox(height: 12),
+
+                                          /// SUBTITLE
+                                          Text(
+                                            "Are you sure you want to logout from your account? You can login again anytime.",
+                                            textAlign: TextAlign.center,
+
+                                            style: TextStyle(
+                                              color: Colors.white.withOpacity(
+                                                0.68,
+                                              ),
+                                              fontSize: 15,
+                                              height: 1.6,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+
+                                          const SizedBox(height: 30),
+
+                                          /// BUTTONS
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Container(
+                                                  height: 56,
+
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.white
+                                                        .withOpacity(0.08),
+
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          18,
+                                                        ),
+
+                                                    border: Border.all(
+                                                      color: Colors.white
+                                                          .withOpacity(0.10),
+                                                    ),
+                                                  ),
+
+                                                  child: Material(
+                                                    color: Colors.transparent,
+
+                                                    child: InkWell(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            18,
+                                                          ),
+
+                                                      onTap: () {
+                                                        Navigator.pop(context);
+                                                      },
+
+                                                      child: const Center(
+                                                        child: Text(
+                                                          "Cancel",
+
+                                                          style: TextStyle(
+                                                            color: Colors.white,
+                                                            fontWeight:
+                                                                FontWeight.w800,
+                                                            fontSize: 15,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+
+                                              const SizedBox(width: 14),
+
+                                              Expanded(
+                                                child: Container(
+                                                  height: 56,
+
+                                                  decoration: BoxDecoration(
+                                                    gradient:
+                                                        const LinearGradient(
+                                                          colors: [
+                                                            Color(0xFFEF4444),
+                                                            Color(0xFFDC2626),
+                                                          ],
+                                                        ),
+
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          18,
+                                                        ),
+
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                        color: const Color(
+                                                          0xFFEF4444,
+                                                        ).withOpacity(0.30),
+
+                                                        blurRadius: 18,
+                                                        offset: const Offset(
+                                                          0,
+                                                          8,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+
+                                                  child: Material(
+                                                    color: Colors.transparent,
+
+                                                    child: InkWell(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            18,
+                                                          ),
+
+                                                      onTap: () async {
+                                                        Navigator.pop(context);
+
+                                                        _logout();
+                                                      },
+
+                                                      child: const Center(
+                                                        child: Row(
+                                                          mainAxisSize:
+                                                              MainAxisSize.min,
+                                                          children: [
+                                                            Icon(
+                                                              Icons
+                                                                  .logout_rounded,
+                                                              color:
+                                                                  Colors.white,
+                                                              size: 20,
+                                                            ),
+
+                                                            SizedBox(width: 8),
+
+                                                            Text(
+                                                              "Logout",
+
+                                                              style: TextStyle(
+                                                                color: Colors
+                                                                    .white,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w900,
+                                                                fontSize: 15,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
                               );
                             },
-                          );
-                        },
 
-                        icon: const Icon(
-                          Icons.logout_rounded,
-                          color: Colors.white,
-                        ),
+                            child: const Center(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.logout_rounded,
+                                    color: Colors.white,
+                                    size: 22,
+                                  ),
 
-                        label: const Text(
-                          "Logout",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
+                                  SizedBox(width: 10),
 
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xffef4444),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
+                                  Text(
+                                    "Logout",
+
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 16.5,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 40),
                   ],
                 ),
@@ -622,19 +1004,43 @@ class _ProfileState extends State<Profile> {
   Widget _glassCard({required Widget child}) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+
+      padding: const EdgeInsets.all(24),
+
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: Colors.white.withOpacity(0.10)),
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.12),
+            Colors.white.withOpacity(0.05),
+            Colors.white.withOpacity(0.02),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+
+        borderRadius: BorderRadius.circular(34),
+
+        border: Border.all(
+          color: const Color(0xFF2DD4BF).withOpacity(0.12),
+          width: 1.2,
+        ),
+
         boxShadow: [
           BoxShadow(
+            color: const Color(0xFF2DD4BF).withOpacity(0.10),
+            blurRadius: 28,
+            spreadRadius: 1,
+            offset: const Offset(0, 14),
+          ),
+
+          BoxShadow(
             color: Colors.black.withOpacity(0.22),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
+            blurRadius: 26,
+            offset: const Offset(0, 14),
           ),
         ],
       ),
+
       child: child,
     );
   }
@@ -646,95 +1052,326 @@ class _ProfileState extends State<Profile> {
     required IconData icon,
     required bool enabled,
   }) {
-    return TextField(
-      controller: controller,
-      enabled: enabled,
-      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-      cursorColor: const Color(0xFF2DD4BF),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(color: Colors.white.withOpacity(0.55)),
-        prefixIcon: Icon(icon, color: const Color(0xFF2DD4BF)),
-        filled: true,
-        fillColor: Colors.white.withOpacity(0.08),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 18,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+
+      margin: const EdgeInsets.only(bottom: 20),
+
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.10),
+            Colors.white.withOpacity(0.04),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.10)),
+
+        borderRadius: BorderRadius.circular(30),
+
+        border: Border.all(
+          color: enabled
+              ? const Color(0xFF2DD4BF).withOpacity(0.18)
+              : Colors.white.withOpacity(0.05),
+          width: 1.2,
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.10)),
+
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF2DD4BF).withOpacity(0.12),
+            blurRadius: 24,
+            spreadRadius: 1,
+            offset: const Offset(0, 12),
+          ),
+
+          BoxShadow(
+            color: Colors.black.withOpacity(0.20),
+            blurRadius: 22,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+
+      child: TextField(
+        controller: controller,
+        enabled: enabled,
+
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
+          fontSize: 15.5,
+          letterSpacing: 0.2,
         ),
-        disabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.08)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: Color(0xFF2DD4BF), width: 1.4),
+
+        cursorColor: const Color(0xFF2DD4BF),
+
+        decoration: InputDecoration(
+          labelText: label,
+
+          hintText: "Enter your $label",
+
+          floatingLabelBehavior: FloatingLabelBehavior.always,
+
+          hintStyle: TextStyle(
+            color: Colors.white.withOpacity(0.32),
+            fontWeight: FontWeight.w500,
+          ),
+
+          labelStyle: TextStyle(
+            color: Colors.white.withOpacity(0.68),
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+          ),
+
+          prefixIcon: Container(
+            margin: const EdgeInsets.all(10),
+
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [
+                  Color(0xFF2DD4BF),
+                  Color(0xFF14B8A6),
+                  Color(0xFF0F766E),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+
+              borderRadius: BorderRadius.circular(18),
+
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF2DD4BF).withOpacity(0.30),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+
+            child: Icon(icon, color: Colors.white, size: 21),
+          ),
+
+          suffixIcon: !enabled
+              ? Icon(
+                  Icons.lock_rounded,
+                  color: Colors.white.withOpacity(0.35),
+                  size: 20,
+                )
+              : Icon(
+                  Icons.edit_rounded,
+                  color: const Color(0xFF2DD4BF).withOpacity(0.70),
+                  size: 20,
+                ),
+
+          filled: true,
+          fillColor: Colors.transparent,
+
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 22,
+            vertical: 24,
+          ),
+
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(30),
+            borderSide: BorderSide.none,
+          ),
+
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(30),
+            borderSide: BorderSide(color: Colors.white.withOpacity(0.04)),
+          ),
+
+          disabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(30),
+            borderSide: BorderSide(color: Colors.white.withOpacity(0.03)),
+          ),
+
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(30),
+            borderSide: const BorderSide(color: Color(0xFF2DD4BF), width: 1.7),
+          ),
         ),
       ),
     );
   }
 
   /// PRIMARY BUTTON
+  /// PREMIUM PRIMARY BUTTON
   Widget _primaryButton(String text, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: isSaving ? null : onTap,
-      child: Container(
-        height: 58,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF2DD4BF), Color(0xFF14B8A6), Color(0xFF0F766E)],
-          ),
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF14B8A6).withOpacity(0.35),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ],
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+
+      height: 62,
+      width: double.infinity,
+
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF2DD4BF), Color(0xFF14B8A6), Color(0xFF0F766E)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        child: Center(
-          child: isSaving
-              ? const CircularProgressIndicator(color: Colors.white)
-              : Text(
-                  text,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 16,
+
+        borderRadius: BorderRadius.circular(26),
+
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF14B8A6).withOpacity(0.35),
+            blurRadius: 28,
+            offset: const Offset(0, 14),
+          ),
+
+          BoxShadow(
+            color: Colors.black.withOpacity(0.18),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+
+      child: Material(
+        color: Colors.transparent,
+
+        child: InkWell(
+          borderRadius: BorderRadius.circular(26),
+          onTap: isSaving ? null : onTap,
+
+          child: Center(
+            child: isSaving
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2.6,
+                        ),
+                      ),
+
+                      SizedBox(width: 14),
+
+                      Text(
+                        "Saving...",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 15.5,
+                        ),
+                      ),
+                    ],
+                  )
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.16),
+                          shape: BoxShape.circle,
+                        ),
+
+                        child: const Icon(
+                          Icons.save_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+
+                      const SizedBox(width: 12),
+
+                      Text(
+                        text,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16.5,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
+          ),
         ),
       ),
     );
   }
 
-  /// OUTLINE BUTTON
+  /// PREMIUM OUTLINE BUTTON
   Widget _outlineButton(String text, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 58,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFF2DD4BF)),
+    return Container(
+      height: 62,
+      width: double.infinity,
+
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.10),
+            Colors.white.withOpacity(0.04),
+          ],
         ),
-        child: Center(
-          child: Text(
-            text,
-            style: const TextStyle(
-              color: Color(0xFF2DD4BF),
-              fontWeight: FontWeight.w900,
+
+        borderRadius: BorderRadius.circular(26),
+
+        border: Border.all(
+          color: const Color(0xFF2DD4BF).withOpacity(0.25),
+          width: 1.3,
+        ),
+
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF2DD4BF).withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+
+          BoxShadow(
+            color: Colors.black.withOpacity(0.16),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+
+      child: Material(
+        color: Colors.transparent,
+
+        child: InkWell(
+          borderRadius: BorderRadius.circular(26),
+          onTap: onTap,
+
+          child: Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2DD4BF).withOpacity(0.12),
+                    shape: BoxShape.circle,
+                  ),
+
+                  child: const Icon(
+                    Icons.edit_rounded,
+                    color: Color(0xFF2DD4BF),
+                    size: 20,
+                  ),
+                ),
+
+                const SizedBox(width: 12),
+
+                Text(
+                  text,
+                  style: const TextStyle(
+                    color: Color(0xFF2DD4BF),
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -779,4 +1416,128 @@ class _ProfileState extends State<Profile> {
       ),
     );
   }
+
+  void showCustomSnackBar({
+    required BuildContext context,
+    required String title,
+    required String message,
+    bool isError = false,
+  }) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        margin: const EdgeInsets.all(18),
+
+        content: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: isError
+                  ? [const Color(0xFFEF4444), const Color(0xFFB91C1C)]
+                  : [
+                      const Color(0xFF0F172A),
+                      const Color(0xFF111827),
+                      const Color(0xFF0F766E),
+                    ],
+
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+
+            borderRadius: BorderRadius.circular(22),
+
+            border: Border.all(
+              color: isError
+                  ? Colors.redAccent.withOpacity(0.25)
+                  : const Color(0xFF2DD4BF).withOpacity(0.18),
+            ),
+
+            boxShadow: [
+              BoxShadow(
+                color: isError
+                    ? Colors.red.withOpacity(0.25)
+                    : const Color(0xFF14B8A6).withOpacity(0.22),
+
+                blurRadius: 24,
+                offset: const Offset(0, 12),
+              ),
+
+              BoxShadow(
+                color: Colors.black.withOpacity(0.18),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+
+                child: Icon(
+                  isError
+                      ? Icons.error_outline_rounded
+                      : Icons.check_circle_rounded,
+
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+
+              const SizedBox(width: 14),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+
+                  children: [
+                    Text(
+                      title,
+
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 15.5,
+                      ),
+                    ),
+
+                    const SizedBox(height: 4),
+
+                    Text(
+                      message,
+
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.78),
+                        fontWeight: FontWeight.w500,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
 }
+
+// TextFields me premium prefix icon box add karo.
+// Save/Edit buttons ko animated gradient style do.
+// Logout dialog ko dark premium dialog banao, abhi white hai.
+// Get.snackbar ki jagah custom dark snackbar use karo.
+// Stats card uncomment karo: Tests, Avg Band, Practice Days.
+// const BottomNavigation(index: 2) se const hata do agar dynamic rebuild issue aaye.

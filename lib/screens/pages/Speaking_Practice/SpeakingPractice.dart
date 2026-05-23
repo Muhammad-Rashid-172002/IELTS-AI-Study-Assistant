@@ -37,6 +37,11 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
   String grammar = "";
   String pronunciation = "";
   String improvement = "";
+  String strengths = "";
+  String mistakes = "";
+  String pronunciationTips = "";
+  String fluencyTips = "";
+  String improvedAnswer = "";
 
   int seconds = 0;
   Timer? timer;
@@ -201,19 +206,19 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
       });
 
       if (transcript.trim().isEmpty) {
-       _showCustomError(
-  title: "No Speech Detected",
-  message: "Please speak clearly and try again.",
-);
+        _showCustomError(
+          title: "No Speech Detected",
+          message: "Please speak clearly and try again.",
+        );
         return;
       }
 
       await analyzeSpeaking();
     } catch (e) {
-    _showCustomError(
-  title: "Recording Failed",
-  message: "Failed to stop recording. Please try again.",
-);
+      _showCustomError(
+        title: "Recording Failed",
+        message: "Failed to stop recording. Please try again.",
+      );
     }
   }
 
@@ -229,12 +234,30 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
       );
 
       setState(() {
+        /// OVERALL BAND
         band = result["overall_band"]?.toString() ?? "0";
+
+        /// IELTS CRITERIA
         fluency = result["fluency_coherence"]?["feedback"] ?? "";
+
         lexical = result["lexical_resource"]?["feedback"] ?? "";
+
         grammar = result["grammar"]?["feedback"] ?? "";
+
         pronunciation = result["pronunciation"]?["feedback"] ?? "";
-        improvement = result["examiner_advice"] ?? "";
+
+        /// EXTRA AI FEEDBACK
+        strengths = result["strengths"]?.toString() ?? "";
+
+        mistakes = result["mistakes"]?.toString() ?? "";
+
+        pronunciationTips = result["pronunciation_tips"]?.toString() ?? "";
+
+        fluencyTips = result["fluency_tips"]?.toString() ?? "";
+
+        improvedAnswer = result["improved_answer"]?.toString() ?? "";
+
+        improvement = result["examiner_advice"]?.toString() ?? "";
       });
 
       await saveToFirebase();
@@ -242,7 +265,9 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
     } catch (e) {
       _showInternetDialog();
     } finally {
-      if (mounted) setState(() => isAnalyzing = false);
+      if (mounted) {
+        setState(() => isAnalyzing = false);
+      }
     }
   }
 
@@ -461,14 +486,19 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
                   const SizedBox(height: 16),
                   _history(),
                   const SizedBox(height: 20),
-                  _gradientButton(
-                    text: isGeneratingTopic
-                        ? "Generating..."
-                        : "New Speaking Test",
-                    icon: Icons.refresh_rounded,
-                    onTap: isGeneratingTopic ? null : generateFullSpeakingTest,
-                    loading: isGeneratingTopic,
-                  ),
+                  // _gradientButton(
+                  //   text: isGeneratingTopic
+                  //       ? "Generating..."
+                  //       : "New Speaking Test",
+
+                  //   icon: isGeneratingTopic
+                  //       ? Icons.hourglass_top_rounded
+                  //       : Icons.refresh_rounded,
+
+                  //   onTap: isGeneratingTopic ? null : generateFullSpeakingTest,
+
+                  //   loading: isGeneratingTopic,
+                  // ),
                 ],
               ),
             ),
@@ -647,37 +677,109 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
   }
 
   Widget _partButton(String title, String value) {
-    final selected = selectedPart == value;
+    final bool selected = selectedPart == value;
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(18),
-      onTap: () {
-        setState(() {
-          selectedPart = value;
-          transcript = "";
-          seconds = 0;
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 13),
-        decoration: BoxDecoration(
-          gradient: selected
-              ? LinearGradient(colors: [primary, secondary])
-              : null,
-          color: selected ? null : Colors.white.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: selected
-                ? Colors.transparent
-                : Colors.white.withOpacity(0.10),
-          ),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+
+      decoration: BoxDecoration(
+        gradient: selected
+            ? LinearGradient(
+                colors: [primary, secondary, const Color(0xFF0F766E)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : LinearGradient(
+                colors: [
+                  Colors.white.withOpacity(0.07),
+                  Colors.white.withOpacity(0.03),
+                ],
+              ),
+
+        borderRadius: BorderRadius.circular(22),
+
+        border: Border.all(
+          color: selected ? Colors.transparent : Colors.white.withOpacity(0.08),
+          width: 1.2,
         ),
-        child: Center(
-          child: Text(
-            title,
-            style: TextStyle(
-              color: selected ? Colors.white : Colors.white.withOpacity(0.55),
-              fontWeight: FontWeight.w900,
+
+        boxShadow: [
+          BoxShadow(
+            color: selected
+                ? primary.withOpacity(0.35)
+                : Colors.black.withOpacity(0.10),
+
+            blurRadius: selected ? 22 : 14,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+
+      child: Material(
+        color: Colors.transparent,
+
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+
+          onTap: () {
+            setState(() {
+              selectedPart = value;
+              transcript = "";
+              seconds = 0;
+            });
+          },
+
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 12),
+
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+
+                  padding: const EdgeInsets.all(10),
+
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? Colors.white.withOpacity(0.18)
+                        : Colors.white.withOpacity(0.06),
+
+                    shape: BoxShape.circle,
+                  ),
+
+                  child: Icon(
+                    value == "part1"
+                        ? Icons.chat_bubble_outline_rounded
+                        : value == "part2"
+                        ? Icons.topic_outlined
+                        : Icons.forum_outlined,
+
+                    color: selected
+                        ? Colors.white
+                        : Colors.white.withOpacity(0.60),
+
+                    size: 20,
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+
+                  style: TextStyle(
+                    color: selected
+                        ? Colors.white
+                        : Colors.white.withOpacity(0.60),
+
+                    fontWeight: FontWeight.w900,
+                    fontSize: 14.5,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -713,49 +815,88 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
     return _whiteCard(
       child: Column(
         children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: isRecording
+                  ? Colors.redAccent.withOpacity(0.12)
+                  : primary.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isRecording
+                    ? Colors.redAccent.withOpacity(0.30)
+                    : primary.withOpacity(0.25),
+              ),
+            ),
+            child: Text(
+              isRecording ? "LIVE RECORDING" : "SPEAKING PRACTICE",
+              style: TextStyle(
+                color: isRecording ? Colors.redAccent : primary,
+                fontWeight: FontWeight.w900,
+                fontSize: 12,
+                letterSpacing: 0.8,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 22),
+
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
-            height: 110,
-            width: 110,
+            height: 120,
+            width: 120,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: LinearGradient(
                 colors: isRecording
                     ? [Colors.redAccent, Colors.deepOrange]
                     : [primary, secondary],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: (isRecording ? Colors.red : primary).withOpacity(0.30),
-                  blurRadius: 25,
-                  offset: const Offset(0, 10),
+                  color: (isRecording ? Colors.redAccent : primary).withOpacity(
+                    0.38,
+                  ),
+                  blurRadius: 32,
+                  offset: const Offset(0, 14),
                 ),
               ],
             ),
             child: Icon(
               isRecording ? Icons.stop_rounded : Icons.mic_rounded,
               color: Colors.white,
-              size: 54,
+              size: 58,
             ),
           ),
-          const SizedBox(height: 14),
+
+          const SizedBox(height: 18),
+
           Text(
             isRecording ? "Recording your answer..." : "Ready to record",
             style: const TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w800,
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
               color: Colors.white,
             ),
           ),
-          const SizedBox(height: 4),
+
+          const SizedBox(height: 6),
+
           Text(
             "$seconds sec",
-            style: TextStyle(color: Colors.white.withOpacity(0.55)),
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.60),
+              fontWeight: FontWeight.w700,
+            ),
           ),
-          const SizedBox(height: 18),
+
+          const SizedBox(height: 22),
+
           _gradientButton(
             text: isRecording ? "Stop Recording" : "Start Recording",
-            icon: isRecording ? Icons.stop : Icons.mic,
+            icon: isRecording ? Icons.stop_rounded : Icons.mic_rounded,
             onTap: isAnalyzing
                 ? null
                 : (isRecording ? stopRecording : startRecording),
@@ -763,23 +904,43 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
                 ? [Colors.redAccent, Colors.deepOrange]
                 : [primary, secondary],
           ),
+
           if (transcript.isNotEmpty) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(18),
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.white.withOpacity(0.08),
+                    Colors.white.withOpacity(0.04),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(24),
                 border: Border.all(color: Colors.white.withOpacity(0.10)),
               ),
-              child: Text(
-                transcript,
-                style: TextStyle(
-                  height: 1.45,
-                  color: Colors.white.withOpacity(0.82),
-                  fontWeight: FontWeight.w600,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Live Transcript",
+                    style: TextStyle(
+                      color: primary,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    transcript,
+                    style: TextStyle(
+                      height: 1.6,
+                      color: Colors.white.withOpacity(0.84),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -806,98 +967,468 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
   }
 
   Widget _resultCard() {
+    final bandValue = double.tryParse(band) ?? 0.0;
+    final progress = (bandValue / 9).clamp(0.0, 1.0);
+
     return _whiteCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _cardTitle(Icons.workspace_premium_outlined, "Speaking Result"),
-          const SizedBox(height: 14),
+          _cardTitle(Icons.workspace_premium_rounded, "Speaking Result"),
+
+          const SizedBox(height: 22),
+
           Center(
-            child: Text(
-              band,
-              style: TextStyle(
-                fontSize: 52,
-                color: primary,
-                fontWeight: FontWeight.w900,
+            child: Container(
+              height: 120,
+              width: 120,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(colors: [primary, secondary]),
+                boxShadow: [
+                  BoxShadow(
+                    color: primary.withOpacity(0.35),
+                    blurRadius: 28,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Text(
+                  band,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 48,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
               ),
             ),
           ),
-          _feedbackTile("Fluency", fluency),
-          _feedbackTile("Lexical", lexical),
-          _feedbackTile("Grammar", grammar),
+
+          const SizedBox(height: 20),
+
+          ClipRRect(
+            borderRadius: BorderRadius.circular(30),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 10,
+              backgroundColor: Colors.white.withOpacity(0.08),
+              valueColor: AlwaysStoppedAnimation(primary),
+            ),
+          ),
+
+          const SizedBox(height: 22),
+
+          Row(
+            children: [
+              Expanded(
+                child: _speakingStat(
+                  icon: Icons.timer_outlined,
+                  title: "Duration",
+                  value: "$seconds sec",
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _speakingStat(
+                  icon: Icons.mic_rounded,
+                  title: "Status",
+                  value: "Analyzed",
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 18),
+
+          _feedbackTile("Fluency & Coherence", fluency),
+
+          _feedbackTile("Lexical Resource", lexical),
+
+          _feedbackTile("Grammar Range & Accuracy", grammar),
+
           _feedbackTile("Pronunciation", pronunciation),
-          _feedbackTile("Advice", improvement),
+
+          _feedbackTile("Strengths", strengths),
+
+          _feedbackTile("Mistakes", mistakes),
+
+          _feedbackTile("Pronunciation Tips", pronunciationTips),
+
+          _feedbackTile("Fluency Tips", fluencyTips),
+
+          _feedbackTile("Improved Answer", improvedAnswer),
+
+          _feedbackTile("Examiner Advice", improvement),
+        ],
+      ),
+    );
+  }
+
+  Widget _speakingStat({
+    required IconData icon,
+    required String title,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.08),
+            Colors.white.withOpacity(0.04),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: primary, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.60),
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
   Widget _feedbackTile(String title, String value) {
-    if (value.isEmpty) return const SizedBox.shrink();
+    if (value.trim().isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Container(
-      margin: const EdgeInsets.only(top: 10),
-      padding: const EdgeInsets.all(14),
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 14),
+      padding: const EdgeInsets.all(18),
+
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withOpacity(0.10)),
-      ),
-      child: Text(
-        "$title: $value",
-        style: TextStyle(
-          height: 1.45,
-          color: Colors.white.withOpacity(0.82),
-          fontWeight: FontWeight.w600,
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.10),
+            Colors.white.withOpacity(0.04),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+
+        borderRadius: BorderRadius.circular(26),
+
+        border: Border.all(color: primary.withOpacity(0.14), width: 1.1),
+
+        boxShadow: [
+          BoxShadow(
+            color: primary.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+
+          BoxShadow(
+            color: Colors.black.withOpacity(0.16),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [primary, secondary]),
+
+                  borderRadius: BorderRadius.circular(14),
+
+                  boxShadow: [
+                    BoxShadow(
+                      color: primary.withOpacity(0.25),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+
+              const SizedBox(width: 12),
+
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 17,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+
+              borderRadius: BorderRadius.circular(20),
+
+              border: Border.all(color: Colors.white.withOpacity(0.06)),
+            ),
+
+            child: Text(
+              value,
+              style: TextStyle(
+                height: 1.75,
+                fontSize: 14.8,
+                color: Colors.white.withOpacity(0.84),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _history() {
-    if (recordings.isEmpty) return const SizedBox.shrink();
+    if (recordings.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          "Recent Practice",
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w900,
-            color: Colors.white,
-          ),
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [primary, secondary]),
+
+                borderRadius: BorderRadius.circular(16),
+
+                boxShadow: [
+                  BoxShadow(
+                    color: primary.withOpacity(0.28),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+
+              child: const Icon(
+                Icons.history_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+
+            const SizedBox(width: 12),
+
+            const Expanded(
+              child: Text(
+                "Recent Practice",
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                  letterSpacing: -0.2,
+                ),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 10),
+
+        const SizedBox(height: 16),
+
         ...recordings.map((e) {
           final data = e.data() as Map<String, dynamic>;
 
+          final topic = data["topic"] ?? "Speaking Practice";
+          final bandScore = data["band"] ?? "--";
+
           return Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.all(14),
+            margin: const EdgeInsets.only(bottom: 14),
+            padding: const EdgeInsets.all(18),
+
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withOpacity(0.10)),
+              gradient: LinearGradient(
+                colors: [
+                  Colors.white.withOpacity(0.10),
+                  Colors.white.withOpacity(0.04),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+
+              borderRadius: BorderRadius.circular(28),
+
+              border: Border.all(color: primary.withOpacity(0.12)),
+
+              boxShadow: [
+                BoxShadow(
+                  color: primary.withOpacity(0.08),
+                  blurRadius: 22,
+                  offset: const Offset(0, 10),
+                ),
+
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.16),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
+
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.play_circle_fill, color: primary, size: 38),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    data["topic"] ?? "Speaking Practice",
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
+                Container(
+                  height: 62,
+                  width: 62,
+
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [primary, secondary]),
+
+                    borderRadius: BorderRadius.circular(20),
+
+                    boxShadow: [
+                      BoxShadow(
+                        color: primary.withOpacity(0.30),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+
+                  child: const Icon(
+                    Icons.play_arrow_rounded,
+                    color: Colors.white,
+                    size: 34,
                   ),
                 ),
-                Chip(
-                  label: Text("Band ${data["band"] ?? "--"}"),
-                  backgroundColor: Colors.green.shade100,
+
+                const SizedBox(width: 14),
+
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        topic,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15.5,
+                          height: 1.4,
+                        ),
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 7,
+                            ),
+
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.14),
+
+                              borderRadius: BorderRadius.circular(18),
+
+                              border: Border.all(
+                                color: Colors.green.withOpacity(0.25),
+                              ),
+                            ),
+
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.workspace_premium_rounded,
+                                  color: Colors.greenAccent,
+                                  size: 16,
+                                ),
+
+                                const SizedBox(width: 6),
+
+                                Text(
+                                  "Band $bandScore",
+                                  style: const TextStyle(
+                                    color: Colors.greenAccent,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 12.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(width: 10),
+
+                          Text(
+                            "AI Evaluated",
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.55),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: Colors.white.withOpacity(0.35),
+                  size: 18,
                 ),
               ],
             ),
@@ -910,19 +1441,38 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
   Widget _whiteCard({required Widget child}) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(22),
+
+      padding: const EdgeInsets.all(24),
+
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: Colors.white.withOpacity(0.10)),
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.10),
+            Colors.white.withOpacity(0.04),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+
+        borderRadius: BorderRadius.circular(34),
+
+        border: Border.all(color: primary.withOpacity(0.14), width: 1.2),
+
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.22),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
+            color: primary.withOpacity(0.10),
+            blurRadius: 30,
+            offset: const Offset(0, 14),
+          ),
+
+          BoxShadow(
+            color: Colors.black.withOpacity(0.24),
+            blurRadius: 28,
+            offset: const Offset(0, 14),
           ),
         ],
       ),
+
       child: child,
     );
   }
@@ -960,177 +1510,211 @@ class _SpeakingPracticeState extends State<SpeakingPractice> {
     bool loading = false,
     List<Color>? colors,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(22),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 15),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(colors: colors ?? [primary, secondary]),
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: [
-            BoxShadow(
-              color: primary.withOpacity(0.30),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ],
+    final bool isDisabled = onTap == null || loading;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          colors: isDisabled && !loading
+              ? [Colors.grey.shade700, Colors.grey.shade600]
+              : colors ?? [primary, secondary, const Color(0xFF0F766E)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        child: Center(
-          child: loading
-              ? const SizedBox(
-                  height: 22,
-                  width: 22,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2.3,
-                  ),
-                )
-              : Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(icon, color: Colors.white),
-                    const SizedBox(width: 8),
-                    Text(
-                      text,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 16,
-                      ),
+        boxShadow: [
+          BoxShadow(
+            color: isDisabled
+                ? Colors.black.withOpacity(0.12)
+                : primary.withOpacity(0.35),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(28),
+          onTap: isDisabled ? null : onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 18),
+            child: Center(
+              child: loading
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        SizedBox(
+                          height: 22,
+                          width: 22,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2.4,
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          "Please wait...",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 15.5,
+                          ),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(icon, color: Colors.white, size: 22),
+                        const SizedBox(width: 10),
+                        Flexible(
+                          child: Text(
+                            text,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+            ),
+          ),
         ),
       ),
     );
   }
 
   //
-  void _showCustomError({
-  required String title,
-  required String message,
-}) {
-  showDialog(
-    context: context,
-    barrierColor: Colors.black.withOpacity(0.75),
-    builder: (_) => Dialog(
-      backgroundColor: Colors.transparent,
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: const Color(0xFF111827),
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.08),
+  void _showCustomError({required String title, required String message}) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.75),
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: const Color(0xFF111827),
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: Colors.white.withOpacity(0.08)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.redAccent.withOpacity(0.25),
+                blurRadius: 28,
+                offset: const Offset(0, 14),
+              ),
+            ],
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.redAccent.withOpacity(0.25),
-              blurRadius: 28,
-              offset: const Offset(0, 14),
-            ),
-          ],
-        ),
 
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-
-            /// ICON
-            Container(
-              height: 84,
-              width: 84,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  colors: [
-                    Colors.redAccent,
-                    Colors.deepOrange,
-                  ],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.redAccent.withOpacity(0.40),
-                    blurRadius: 24,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.error_outline_rounded,
-                color: Colors.white,
-                size: 42,
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            /// TITLE
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-
-            const SizedBox(height: 14),
-
-            /// MESSAGE
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.70),
-                fontSize: 14,
-                height: 1.6,
-              ),
-            ),
-
-            const SizedBox(height: 28),
-
-            /// BUTTON
-            InkWell(
-              borderRadius: BorderRadius.circular(18),
-              onTap: () => Navigator.pop(context),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 15),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              /// ICON
+              Container(
+                height: 84,
+                width: 84,
                 decoration: BoxDecoration(
+                  shape: BoxShape.circle,
                   gradient: const LinearGradient(
-                    colors: [
-                      Colors.redAccent,
-                      Colors.deepOrange,
-                    ],
+                    colors: [Colors.redAccent, Colors.deepOrange],
                   ),
-                  borderRadius: BorderRadius.circular(18),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.redAccent.withOpacity(0.35),
-                      blurRadius: 18,
-                      offset: const Offset(0, 8),
+                      color: Colors.redAccent.withOpacity(0.40),
+                      blurRadius: 24,
+                      offset: const Offset(0, 10),
                     ),
                   ],
                 ),
-                child: const Center(
-                  child: Text(
-                    "OK",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
+                child: const Icon(
+                  Icons.error_outline_rounded,
+                  color: Colors.white,
+                  size: 42,
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              /// TITLE
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+
+              const SizedBox(height: 14),
+
+              /// MESSAGE
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.70),
+                  fontSize: 14,
+                  height: 1.6,
+                ),
+              ),
+
+              const SizedBox(height: 28),
+
+              /// BUTTON
+              InkWell(
+                borderRadius: BorderRadius.circular(18),
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Colors.redAccent, Colors.deepOrange],
+                    ),
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.redAccent.withOpacity(0.35),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: const Center(
+                    child: Text(
+                      "OK",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
-}
+
+
+
+
+
+
+// add in ai result
+
+// strengths
+// mistakes
+// pronunciation_tips
+// fluency_tips
+// improved_answer

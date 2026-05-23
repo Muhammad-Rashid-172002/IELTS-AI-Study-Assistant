@@ -1,4 +1,4 @@
-package com.example.fyproject
+package com.rashidapps.ieltsaimaster
 
 import io.flutter.embedding.android.FlutterActivity
 

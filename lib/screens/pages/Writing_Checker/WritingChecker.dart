@@ -190,40 +190,216 @@ class _WritingCheckerState extends State<WritingChecker> {
   }) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: Row(
-          children: [
-            Icon(Icons.wifi_off_rounded, color: primary),
-            const SizedBox(width: 10),
-            Expanded(child: Text(title)),
-          ],
-        ),
-        content: Text(message, style: const TextStyle(height: 1.4)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Close"),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              retry();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primary,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text("Retry"),
-          ),
-        ],
-      ),
-    );
-  }
+      barrierColor: Colors.black.withOpacity(0.65),
 
-  void _showSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
+      builder: (_) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+
+          child: Container(
+            padding: const EdgeInsets.all(28),
+
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.white.withOpacity(0.12),
+                  Colors.white.withOpacity(0.05),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+
+              borderRadius: BorderRadius.circular(34),
+
+              border: Border.all(color: Colors.white.withOpacity(0.10)),
+
+              boxShadow: [
+                BoxShadow(
+                  color: primary.withOpacity(0.20),
+                  blurRadius: 30,
+                  offset: const Offset(0, 14),
+                ),
+
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.25),
+                  blurRadius: 24,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                /// ICON
+                Container(
+                  padding: const EdgeInsets.all(20),
+
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [primary, secondary]),
+
+                    shape: BoxShape.circle,
+
+                    boxShadow: [
+                      BoxShadow(
+                        color: primary.withOpacity(0.35),
+                        blurRadius: 24,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+
+                  child: const Icon(
+                    Icons.wifi_off_rounded,
+                    color: Colors.white,
+                    size: 42,
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                /// TITLE
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.4,
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                /// MESSAGE
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.72),
+                    fontSize: 15,
+                    height: 1.6,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+
+                const SizedBox(height: 30),
+
+                /// BUTTONS
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        height: 56,
+
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.08),
+
+                          borderRadius: BorderRadius.circular(18),
+
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.10),
+                          ),
+                        ),
+
+                        child: Material(
+                          color: Colors.transparent,
+
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(18),
+
+                            onTap: () {
+                              Navigator.pop(context);
+                            },
+
+                            child: const Center(
+                              child: Text(
+                                "Close",
+
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(width: 14),
+
+                    Expanded(
+                      child: Container(
+                        height: 56,
+
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [primary, secondary],
+                          ),
+
+                          borderRadius: BorderRadius.circular(18),
+
+                          boxShadow: [
+                            BoxShadow(
+                              color: primary.withOpacity(0.30),
+                              blurRadius: 20,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
+                        ),
+
+                        child: Material(
+                          color: Colors.transparent,
+
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(18),
+
+                            onTap: () {
+                              Navigator.pop(context);
+                              retry();
+                            },
+
+                            child: const Center(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.refresh_rounded,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+
+                                  SizedBox(width: 8),
+
+                                  Text(
+                                    "Retry",
+
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -483,18 +659,80 @@ class _WritingCheckerState extends State<WritingChecker> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _cardTitle(
-            Icons.lightbulb_outline,
-            "Writing Task $selectedTask Prompt",
+          Row(
+            children: [
+              Container(
+                height: 54,
+                width: 54,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [primary, secondary]),
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: primary.withOpacity(0.28),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Colors.white,
+                  size: 26,
+                ),
+              ),
+
+              const SizedBox(width: 14),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Writing Task $selectedTask Prompt",
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "AI generated IELTS writing question",
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.62),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
+
+          const SizedBox(height: 22),
+
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  primary.withOpacity(0.12),
+                  Colors.white.withOpacity(0.05),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: primary.withOpacity(0.20)),
+            ),
+            child: isTopicLoading
+                ? Center(child: CircularProgressIndicator(color: primary))
+                : _buildFormattedPrompt(topic),
+          ),
+
           const SizedBox(height: 18),
-
-          if (isTopicLoading)
-            Center(child: CircularProgressIndicator(color: primary))
-          else
-            _buildFormattedPrompt(topic),
-
-          const SizedBox(height: 16),
 
           Row(
             children: [
@@ -528,7 +766,7 @@ class _WritingCheckerState extends State<WritingChecker> {
 
     for (final line in lines) {
       if (line.trim().startsWith('|')) {
-        tableLines.add(line.trim());
+        tableLines.add(line.replaceAll("**", "").replaceAll("#", "").trim());
       } else {
         normalLines.add(line);
       }
@@ -537,10 +775,59 @@ class _WritingCheckerState extends State<WritingChecker> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _boldText(normalLines.join('\n').trim()),
+        /// NORMAL IELTS TEXT
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(18),
 
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.04),
+
+            borderRadius: BorderRadius.circular(22),
+
+            border: Border.all(color: Colors.white.withOpacity(0.06)),
+          ),
+
+          child: _boldText(normalLines.join('\n').trim()),
+        ),
+
+        /// IELTS TASK 1 TABLE
         if (tableLines.length >= 2) ...[
-          const SizedBox(height: 18),
+          const SizedBox(height: 22),
+
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [primary, secondary]),
+
+                  borderRadius: BorderRadius.circular(14),
+                ),
+
+                child: const Icon(
+                  Icons.table_chart_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+
+              const SizedBox(width: 12),
+
+              const Text(
+                "Visual Data Table",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+
           _markdownTable(tableLines),
         ],
       ],
@@ -549,6 +836,11 @@ class _WritingCheckerState extends State<WritingChecker> {
 
   Widget _boldText(String text) {
     final spans = <TextSpan>[];
+
+    text = text
+        .replaceAll(RegExp(r'#{1,6}\s*'), '')
+        .replaceAll(RegExp(r'^\s*[-•]\s*', multiLine: true), '• ');
+
     final regex = RegExp(r'\*\*(.*?)\*\*');
 
     int start = 0;
@@ -559,8 +851,8 @@ class _WritingCheckerState extends State<WritingChecker> {
           TextSpan(
             text: text.substring(start, match.start),
             style: TextStyle(
-              color: Colors.white.withOpacity(0.82),
-              fontWeight: FontWeight.w600,
+              color: Colors.white.withOpacity(0.84),
+              fontWeight: FontWeight.w500,
             ),
           ),
         );
@@ -580,9 +872,9 @@ class _WritingCheckerState extends State<WritingChecker> {
       spans.add(
         TextSpan(
           text: text.substring(start),
-          style: const TextStyle(
-            color: Color(0xff111827),
-            fontWeight: FontWeight.w600,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.86),
+            fontWeight: FontWeight.w500,
           ),
         ),
       );
@@ -593,10 +885,10 @@ class _WritingCheckerState extends State<WritingChecker> {
       overflow: TextOverflow.visible,
       text: TextSpan(
         children: spans,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 16,
-          height: 1.7,
-          color: Color(0xff111827),
+          height: 1.75,
+          color: Colors.white.withOpacity(0.86),
         ),
       ),
     );
@@ -662,57 +954,371 @@ class _WritingCheckerState extends State<WritingChecker> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _cardTitle(Icons.article_outlined, "Your Essay"),
-          const SizedBox(height: 12),
-          TextField(
-            controller: essayController,
-            maxLines: 15,
-            keyboardType: TextInputType.multiline,
-            textInputAction: TextInputAction.newline,
-            decoration: InputDecoration(
-              hintText:
-                  "Write your IELTS Task 2 essay here...\n\nIntroduction\nBody paragraph 1\nBody paragraph 2\nConclusion",
-              hintStyle: TextStyle(color: Colors.white.withOpacity(0.40)),
-              fillColor: Colors.white.withOpacity(0.08),
-              filled: true,
+          /// TOP TITLE
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
 
-              contentPadding: const EdgeInsets.all(16),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(18),
-                borderSide: const BorderSide(color: Color(0xffE5E7EB)),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [primary, secondary]),
+
+                  borderRadius: BorderRadius.circular(16),
+
+                  boxShadow: [
+                    BoxShadow(
+                      color: primary.withOpacity(0.28),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+
+                child: const Icon(
+                  Icons.edit_note_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
               ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(18),
-                borderSide: BorderSide(color: Colors.white.withOpacity(0.10)),
+
+              const SizedBox(width: 14),
+
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Your Essay",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 20,
+                      ),
+                    ),
+
+                    SizedBox(height: 4),
+
+                    Text(
+                      "Write a professional IELTS response",
+                      style: TextStyle(color: Colors.white70, fontSize: 13),
+                    ),
+                  ],
+                ),
               ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(18),
-                borderSide: BorderSide(color: primary, width: 1.4),
-              ),
-            ),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 15,
-              height: 1.5,
-            ),
-            cursorColor: primary,
+            ],
           ),
+
+          const SizedBox(height: 22),
+
+          /// WRITING AREA
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.white.withOpacity(0.08),
+                  Colors.white.withOpacity(0.04),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+
+              borderRadius: BorderRadius.circular(28),
+
+              border: Border.all(color: primary.withOpacity(0.18)),
+
+              boxShadow: [
+                BoxShadow(
+                  color: primary.withOpacity(0.10),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+
+            child: TextField(
+              controller: essayController,
+
+              maxLines: 18,
+
+              keyboardType: TextInputType.multiline,
+              textInputAction: TextInputAction.newline,
+
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                height: 1.9,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.2,
+              ),
+
+              cursorColor: primary,
+
+              decoration: InputDecoration(
+                hintText:
+                    "Introduction\nBody Paragraph 1\nBody Paragraph 2\nConclusion",
+
+                hintStyle: TextStyle(
+                  color: Colors.white.withOpacity(0.35),
+                  height: 1.8,
+                  fontSize: 15,
+                ),
+
+                filled: true,
+                fillColor: Colors.transparent,
+
+                contentPadding: const EdgeInsets.all(24),
+
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(28),
+                  borderSide: BorderSide.none,
+                ),
+
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(28),
+                  borderSide: BorderSide(color: Colors.white.withOpacity(0.08)),
+                ),
+
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(28),
+                  borderSide: BorderSide(color: primary, width: 1.5),
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          /// STATS
+          Row(
+            children: [
+              Expanded(
+                child: _writingStat(
+                  icon: Icons.description_outlined,
+                  title: "Words",
+                  value: "$wordCount",
+                ),
+              ),
+
+              const SizedBox(width: 12),
+
+              Expanded(
+                child: _writingStat(
+                  icon: Icons.rule_rounded,
+                  title: "Minimum",
+                  value: "$minWords",
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 18),
+
+          /// PROGRESS
+          ClipRRect(
+            borderRadius: BorderRadius.circular(30),
+            child: LinearProgressIndicator(
+              value: (wordCount / minWords).clamp(0.0, 1.0),
+              minHeight: 10,
+              backgroundColor: Colors.white.withOpacity(0.08),
+              valueColor: AlwaysStoppedAnimation(
+                wordCount >= minWords ? const Color(0xFF22C55E) : primary,
+              ),
+            ),
+          ),
+
           const SizedBox(height: 12),
-          LinearProgressIndicator(
-            value: (wordCount / minWords).clamp(0.0, 1.0),
-            minHeight: 8,
-            borderRadius: BorderRadius.circular(20),
-            backgroundColor: Colors.grey.shade200,
-            color: wordCount >= minWords ? Colors.green : primary,
+
+          Row(
+            children: [
+              Icon(
+                wordCount >= minWords
+                    ? Icons.check_circle_rounded
+                    : Icons.info_outline_rounded,
+
+                color: wordCount >= minWords
+                    ? const Color(0xFF22C55E)
+                    : Colors.white54,
+
+                size: 18,
+              ),
+
+              const SizedBox(width: 8),
+
+              Expanded(
+                child: Text(
+                  wordCount >= minWords
+                      ? "Excellent. Minimum word count achieved."
+                      : "${minWords - wordCount} more words needed.",
+
+                  style: TextStyle(
+                    color: wordCount >= minWords
+                        ? const Color(0xFF86EFAC)
+                        : Colors.white70,
+
+                    fontWeight: FontWeight.w600,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            wordCount >= minWords
-                ? "Good. You reached the minimum word count."
-                : "${minWords - wordCount} more words needed.",
-            style: TextStyle(
-              color: wordCount >= minWords ? Colors.green : Colors.grey,
-              fontWeight: FontWeight.w600,
+
+          const SizedBox(height: 20),
+
+          /// WRITING TIPS
+          Container(
+            padding: const EdgeInsets.all(18),
+
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  primary.withOpacity(0.16),
+                  secondary.withOpacity(0.08),
+                  Colors.white.withOpacity(0.04),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+
+              borderRadius: BorderRadius.circular(24),
+
+              border: Border.all(color: primary.withOpacity(0.22), width: 1.2),
+
+              boxShadow: [
+                BoxShadow(
+                  color: primary.withOpacity(0.14),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.14),
+                  blurRadius: 16,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [primary, secondary]),
+
+                    shape: BoxShape.circle,
+
+                    boxShadow: [
+                      BoxShadow(
+                        color: primary.withOpacity(0.30),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+
+                  child: const Icon(
+                    Icons.lightbulb_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+
+                const SizedBox(width: 14),
+
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "IELTS Writing Tip",
+                        style: TextStyle(
+                          color: primary,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 15,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      Text(
+                        "Use clear paragraphs, formal vocabulary and strong grammar to achieve a higher IELTS band score.",
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.84),
+                          height: 1.7,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _writingStat({
+    required IconData icon,
+    required String title,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.06),
+
+        borderRadius: BorderRadius.circular(20),
+
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [primary, secondary]),
+
+              borderRadius: BorderRadius.circular(14),
+            ),
+
+            child: Icon(icon, color: Colors.white, size: 18),
+          ),
+
+          const SizedBox(width: 12),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.65),
+                    fontSize: 12,
+                  ),
+                ),
+
+                const SizedBox(height: 4),
+
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -725,6 +1331,29 @@ class _WritingCheckerState extends State<WritingChecker> {
       children: [
         _bandCard(),
         const SizedBox(height: 14),
+
+        Row(
+          children: [
+            Expanded(
+              child: _writingStat(
+                icon: Icons.description_outlined,
+                title: "Words",
+                value: "$wordCount",
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _writingStat(
+                icon: Icons.assignment_outlined,
+                title: "Task",
+                value: "Task $selectedTask",
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 14),
+
         _detailCard(
           selectedTask == "1" ? "Task Achievement" : "Task Response",
           taskAchievement,
@@ -733,6 +1362,7 @@ class _WritingCheckerState extends State<WritingChecker> {
         _detailCard("Lexical Resource", lexical),
         _detailCard("Grammar Range & Accuracy", grammar),
         _detailCard("Examiner Advice", improvement),
+
         if (improvedVersion.isNotEmpty)
           _detailCard("Improved Version", improvedVersion),
       ],
@@ -773,78 +1403,155 @@ class _WritingCheckerState extends State<WritingChecker> {
   }
 
   Widget _detailCard(String title, String value) {
-    if (value.trim().isEmpty) return const SizedBox.shrink();
+    if (value.trim().isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(18),
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(20),
+
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: Colors.white.withOpacity(0.10)),
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.10),
+            Colors.white.withOpacity(0.04),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+
+        borderRadius: BorderRadius.circular(30),
+
+        border: Border.all(color: primary.withOpacity(0.14), width: 1.2),
+
+        boxShadow: [
+          BoxShadow(
+            color: primary.withOpacity(0.10),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+
+          BoxShadow(
+            color: Colors.black.withOpacity(0.18),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
+
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _cardTitle(Icons.check_circle_outline, title),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: TextStyle(
-              height: 1.55,
-              color: Colors.white.withOpacity(0.78),
-              fontWeight: FontWeight.w500,
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [primary, secondary]),
+
+                  borderRadius: BorderRadius.circular(16),
+
+                  boxShadow: [
+                    BoxShadow(
+                      color: primary.withOpacity(0.28),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+
+              const SizedBox(width: 14),
+
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 18),
+
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+
+              borderRadius: BorderRadius.circular(22),
+
+              border: Border.all(color: Colors.white.withOpacity(0.06)),
+            ),
+
+            child: Text(
+              value,
+              style: TextStyle(
+                height: 1.75,
+                fontSize: 14.8,
+                color: Colors.white.withOpacity(0.84),
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.1,
+              ),
             ),
           ),
         ],
       ),
     );
   }
-/// ghalt ha
+
   Widget _whiteCard({required Widget child}) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(22),
+
+      padding: const EdgeInsets.all(24),
+
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: Colors.white.withOpacity(0.10)),
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.10),
+            Colors.white.withOpacity(0.04),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+
+        borderRadius: BorderRadius.circular(34),
+
+        border: Border.all(color: primary.withOpacity(0.12), width: 1.2),
+
         boxShadow: [
           BoxShadow(
+            color: primary.withOpacity(0.10),
+            blurRadius: 28,
+            offset: const Offset(0, 14),
+          ),
+
+          BoxShadow(
             color: Colors.black.withOpacity(0.22),
-            blurRadius: 24,
+            blurRadius: 26,
             offset: const Offset(0, 12),
           ),
         ],
       ),
-      child: child,
-    );
-  }
 
-  Widget _cardTitle(IconData icon, String title) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(colors: [primary, secondary]),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Icon(icon, color: Colors.white, size: 20),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-              color: Colors.white,
-            ),
-          ),
-        ),
-      ],
+      child: child,
     );
   }
 
@@ -853,38 +1560,101 @@ class _WritingCheckerState extends State<WritingChecker> {
     required String text,
     required VoidCallback? onTap,
   }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: onTap == null
-              ? const Color(0xffF3F4F6)
-              : primary.withOpacity(0.10),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: onTap == null
-                ? const Color(0xffE5E7EB)
-                : primary.withOpacity(0.25),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 18, color: onTap == null ? Colors.grey : primary),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                text,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  color: onTap == null ? Colors.grey : primary,
-                ),
+    final isDisabled = onTap == null;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+
+      decoration: BoxDecoration(
+        gradient: isDisabled
+            ? LinearGradient(
+                colors: [
+                  Colors.white.withOpacity(0.05),
+                  Colors.white.withOpacity(0.03),
+                ],
+              )
+            : LinearGradient(
+                colors: [
+                  primary.withOpacity(0.22),
+                  secondary.withOpacity(0.12),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
+
+        borderRadius: BorderRadius.circular(22),
+
+        border: Border.all(
+          color: isDisabled
+              ? Colors.white.withOpacity(0.06)
+              : primary.withOpacity(0.22),
+          width: 1.1,
+        ),
+
+        boxShadow: [
+          BoxShadow(
+            color: isDisabled
+                ? Colors.black.withOpacity(0.10)
+                : primary.withOpacity(0.16),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+
+      child: Material(
+        color: Colors.transparent,
+
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: onTap,
+
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+
+                  decoration: BoxDecoration(
+                    color: isDisabled
+                        ? Colors.white.withOpacity(0.05)
+                        : Colors.white.withOpacity(0.12),
+
+                    shape: BoxShape.circle,
+                  ),
+
+                  child: Icon(
+                    icon,
+                    size: 18,
+                    color: isDisabled ? Colors.white24 : Colors.white,
+                  ),
+                ),
+
+                const SizedBox(width: 10),
+
+                Flexible(
+                  child: Text(
+                    text,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14.5,
+                      letterSpacing: 0.2,
+
+                      color: isDisabled ? Colors.white38 : Colors.white,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -896,52 +1666,103 @@ class _WritingCheckerState extends State<WritingChecker> {
     required VoidCallback? onTap,
     bool loading = false,
   }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(22),
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: onTap == null
-                ? [Colors.grey, Colors.grey.shade500]
-                : [primary, secondary],
-          ),
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: [
-            BoxShadow(
-              color: primary.withOpacity(0.25),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
+    final isDisabled = onTap == null;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+
+        gradient: LinearGradient(
+          colors: isDisabled
+              ? [Colors.grey.shade700, Colors.grey.shade600]
+              : [primary, secondary, const Color(0xFF0F766E)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        child: Center(
-          child: loading
-              ? const SizedBox(
-                  height: 22,
-                  width: 22,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2.4,
-                  ),
-                )
-              : Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(icon, color: Colors.white),
-                    const SizedBox(width: 10),
-                    Text(
-                      text,
-                      style: const TextStyle(
+
+        boxShadow: [
+          BoxShadow(
+            color: isDisabled
+                ? Colors.black.withOpacity(0.12)
+                : primary.withOpacity(0.35),
+
+            blurRadius: 28,
+            offset: const Offset(0, 14),
+          ),
+
+          BoxShadow(
+            color: Colors.black.withOpacity(0.18),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+
+      child: Material(
+        color: Colors.transparent,
+
+        child: InkWell(
+          borderRadius: BorderRadius.circular(28),
+          onTap: loading ? null : onTap,
+
+          child: Container(
+            width: double.infinity,
+
+            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+
+            child: Center(
+              child: loading
+                  ? const SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: CircularProgressIndicator(
                         color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 16,
+                        strokeWidth: 2.6,
                       ),
+                    )
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.16),
+                            shape: BoxShape.circle,
+                          ),
+
+                          child: Icon(icon, color: Colors.white, size: 20),
+                        ),
+
+                        const SizedBox(width: 14),
+
+                        Flexible(
+                          child: Text(
+                            text,
+                            overflow: TextOverflow.ellipsis,
+
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16.5,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(width: 10),
+
+                        const Icon(
+                          Icons.arrow_forward_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+            ),
+          ),
         ),
       ),
     );
@@ -949,28 +1770,222 @@ class _WritingCheckerState extends State<WritingChecker> {
 
   Widget _loadingOverlay() {
     return Container(
-      color: Colors.black.withOpacity(0.35),
+      color: Colors.black.withOpacity(0.55),
+
       child: Center(
         child: Container(
-          padding: const EdgeInsets.all(22),
-          margin: const EdgeInsets.symmetric(horizontal: 34),
+          margin: const EdgeInsets.symmetric(horizontal: 28),
+          padding: const EdgeInsets.all(26),
+
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
+            gradient: LinearGradient(
+              colors: [const Color(0xFF111827), const Color(0xFF1F2937)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+
+            borderRadius: BorderRadius.circular(32),
+
+            border: Border.all(color: primary.withOpacity(0.18), width: 1.2),
+
+            boxShadow: [
+              BoxShadow(
+                color: primary.withOpacity(0.22),
+                blurRadius: 30,
+                offset: const Offset(0, 14),
+              ),
+
+              BoxShadow(
+                color: Colors.black.withOpacity(0.25),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
+              ),
+            ],
           ),
+
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                height: 88,
+                width: 88,
+
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+
+                  gradient: LinearGradient(colors: [primary, secondary]),
+
+                  boxShadow: [
+                    BoxShadow(
+                      color: primary.withOpacity(0.35),
+                      blurRadius: 28,
+                      offset: const Offset(0, 12),
+                    ),
+                  ],
+                ),
+
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      height: 68,
+                      width: 68,
+
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3,
+                        valueColor: const AlwaysStoppedAnimation(Colors.white),
+                        backgroundColor: Colors.white.withOpacity(0.12),
+                      ),
+                    ),
+
+                    const Icon(
+                      Icons.auto_awesome_rounded,
+                      color: Colors.white,
+                      size: 34,
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              const Text(
+                "AI Examiner is Evaluating",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 24,
+                  letterSpacing: -0.3,
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              Text(
+                "Checking grammar, vocabulary, coherence, task response and IELTS band score...",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.72),
+                  fontSize: 14,
+                  height: 1.7,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+
+              const SizedBox(height: 22),
+
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _loadingChip("Grammar"),
+                  _loadingChip("Vocabulary"),
+                  _loadingChip("Band Score"),
+                  _loadingChip("Feedback"),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _loadingChip(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.10),
+            Colors.white.withOpacity(0.04),
+          ],
+        ),
+
+        borderRadius: BorderRadius.circular(20),
+
+        border: Border.all(color: primary.withOpacity(0.18)),
+      ),
+
+      child: Text(
+        text,
+        style: TextStyle(
+          color: Colors.white.withOpacity(0.84),
+          fontWeight: FontWeight.w700,
+          fontSize: 12.5,
+        ),
+      ),
+    );
+  }
+
+  void _showSnack(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        margin: const EdgeInsets.all(18),
+
+        content: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [const Color(0xFF111827), const Color(0xFF1F2937)],
+            ),
+
+            borderRadius: BorderRadius.circular(22),
+
+            border: Border.all(color: primary.withOpacity(0.25)),
+
+            boxShadow: [
+              BoxShadow(
+                color: primary.withOpacity(0.18),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+
           child: Row(
             children: [
-              CircularProgressIndicator(color: primary),
-              const SizedBox(width: 16),
-              const Expanded(
+              Container(
+                padding: const EdgeInsets.all(10),
+
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [primary, secondary]),
+
+                  shape: BoxShape.circle,
+                ),
+
+                child: const Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+
+              const SizedBox(width: 14),
+
+              Expanded(
                 child: Text(
-                  "AI examiner is checking your essay...",
-                  style: TextStyle(fontWeight: FontWeight.w800),
+                  message,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14.5,
+                    height: 1.4,
+                  ),
                 ),
               ),
             ],
           ),
         ),
+
+        duration: const Duration(seconds: 3),
       ),
     );
   }
