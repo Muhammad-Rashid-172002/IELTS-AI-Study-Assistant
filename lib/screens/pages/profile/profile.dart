@@ -9,7 +9,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../controller/firebase_services/firebase_services.dart';
 import '../../../../resources/bottom_navigation_bar/botton_navigation.dart';
 import '../../../../resources/routes/routes_names.dart';
-import 'dart:ui' as ui;
 
 class Profile extends StatefulWidget {
   const Profile({super.key});
@@ -420,199 +419,107 @@ class _ProfileState extends State<Profile> {
                             },
                           ),
 
-                          _tile(Icons.info_outline_rounded, "About", () {
-                            showDialog(
-                              context: context,
+                          const SizedBox(height: 18),
 
-                              builder: (context) {
-                                return Dialog(
-                                  backgroundColor: Colors.transparent,
+                          Text(
+                            "Version 1.0.0",
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.55),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
 
-                                  child: Container(
-                                    padding: const EdgeInsets.all(28),
+                          const SizedBox(height: 18),
 
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          Colors.white.withOpacity(0.12),
-                                          Colors.white.withOpacity(0.05),
-                                        ],
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                      ),
-
-                                      borderRadius: BorderRadius.circular(34),
-
-                                      border: Border.all(
-                                        color: Colors.white.withOpacity(0.10),
-                                      ),
-
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: const Color(
-                                            0xFF14B8A6,
-                                          ).withOpacity(0.18),
-
-                                          blurRadius: 28,
-                                          offset: const Offset(0, 14),
-                                        ),
-                                      ],
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.06),
+                              ),
+                            ),
+                            child: Column(
+                              children: const [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.check_circle_rounded,
+                                      color: Color(0xFF2DD4BF),
+                                      size: 18,
                                     ),
-
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(18),
-
-                                          decoration: BoxDecoration(
-                                            gradient: const LinearGradient(
-                                              colors: [
-                                                Color(0xFF2DD4BF),
-                                                Color(0xFF14B8A6),
-                                                Color(0xFF0F766E),
-                                              ],
-                                            ),
-
-                                            shape: BoxShape.circle,
-                                          ),
-
-                                          child: const Icon(
-                                            Icons.school_rounded,
-                                            color: Colors.white,
-                                            size: 38,
-                                          ),
+                                    SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        "AI Band Score Prediction",
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w600,
                                         ),
-
-                                        const SizedBox(height: 22),
-
-                                        const Text(
-                                          "About IELTS AI",
-                                          textAlign: TextAlign.center,
-
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 26,
-                                            fontWeight: FontWeight.w900,
-                                          ),
-                                        ),
-
-                                        const SizedBox(height: 12),
-
-                                        Text(
-                                          "IELTS AI is a smart AI-powered IELTS preparation app designed to help students improve Listening, Reading, Writing, and Speaking skills with real-time AI evaluation and band score prediction.",
-                                          textAlign: TextAlign.center,
-
-                                          style: TextStyle(
-                                            color: Colors.white.withOpacity(
-                                              0.74,
-                                            ),
-                                            height: 1.7,
-                                            fontWeight: FontWeight.w500,
-                                            fontSize: 14.5,
-                                          ),
-                                        ),
-
-                                        const SizedBox(height: 24),
-
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 18,
-                                            vertical: 10,
-                                          ),
-
-                                          decoration: BoxDecoration(
-                                            color: Colors.white.withOpacity(
-                                              0.08,
-                                            ),
-
-                                            borderRadius: BorderRadius.circular(
-                                              20,
-                                            ),
-
-                                            border: Border.all(
-                                              color: Colors.white.withOpacity(
-                                                0.08,
-                                              ),
-                                            ),
-                                          ),
-
-                                          child: const Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(
-                                                Icons.auto_awesome_rounded,
-                                                color: Color(0xFF2DD4BF),
-                                                size: 18,
-                                              ),
-
-                                              SizedBox(width: 8),
-
-                                              Text(
-                                                "AI Powered IELTS Preparation",
-
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-
-                                        const SizedBox(height: 28),
-
-                                        SizedBox(
-                                          width: double.infinity,
-                                          height: 56,
-
-                                          child: Container(
-                                            decoration: BoxDecoration(
-                                              gradient: const LinearGradient(
-                                                colors: [
-                                                  Color(0xFF2DD4BF),
-                                                  Color(0xFF14B8A6),
-                                                ],
-                                              ),
-
-                                              borderRadius:
-                                                  BorderRadius.circular(18),
-                                            ),
-
-                                            child: Material(
-                                              color: Colors.transparent,
-
-                                              child: InkWell(
-                                                borderRadius:
-                                                    BorderRadius.circular(18),
-
-                                                onTap: () {
-                                                  Navigator.pop(context);
-                                                },
-
-                                                child: const Center(
-                                                  child: Text(
-                                                    "Close",
-
-                                                    style: TextStyle(
-                                                      color: Colors.white,
-                                                      fontWeight:
-                                                          FontWeight.w900,
-                                                      fontSize: 15.5,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
+                                      ),
                                     ),
-                                  ),
-                                );
-                              },
-                            );
-                          }),
+                                  ],
+                                ),
+
+                                SizedBox(height: 12),
+
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.check_circle_rounded,
+                                      color: Color(0xFF2DD4BF),
+                                      size: 18,
+                                    ),
+                                    SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        "Real IELTS Mock Tests",
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+
+                                SizedBox(height: 12),
+
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.check_circle_rounded,
+                                      color: Color(0xFF2DD4BF),
+                                      size: 18,
+                                    ),
+                                    SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        "Speaking & Writing Evaluation",
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 22),
+
+                          Text(
+                            "Developed by M.Rashid",
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.45),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                         ],
                       ),
                     ),
