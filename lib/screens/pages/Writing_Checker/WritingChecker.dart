@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -36,6 +37,15 @@ class _WritingCheckerState extends State<WritingChecker> {
   int get minWords => selectedTask == "1" ? 150 : 250;
 
   int get examTime => selectedTask == "1" ? 1200 : 2400;
+
+  File? chartImage;
+  bool isAnalyzingChart = false;
+
+  String mainTrends = "";
+  String highestValue = "";
+  String lowestValue = "";
+  String overview = "";
+  String band9Sample = "";
 
   Color get primary => const Color(0xFF14B8A6);
   Color get secondary => const Color(0xFF0F766E);
