@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:fyproject/resources/bottom_navigation_bar/botton_navigation.dart';
 import 'package:fyproject/screens/Full_Mock_Test/Full_mock_test.dart';
@@ -19,12 +21,347 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
+  double readingBand = 0;
+  double listeningBand = 0;
+  double writingBand = 0;
+  double speakingBand = 0;
+
+  bool loadingAnalyzer = true;
+  String weakestSkill = "Start a test";
+  String todayFocus = "Complete your first IELTS test";
+
   @override
   void initState() {
     super.initState();
     final services = Get.find<FirebaseServices>();
     services.loadUserProfile();
     StreakService.updateUserStreak();
+    loadWeaknessAnalyzer();
+  }
+
+  Future<void> loadWeaknessAnalyzer() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final uid = user.uid;
+
+      final reading = await _getModuleAverage(uid, "reading_results");
+      final listening = await _getModuleAverage(uid, "listening_results");
+      final writing = await _getModuleAverage(uid, "writing_results");
+      final speaking = await _getModuleAverage(uid, "speaking");
+
+      setState(() {
+        readingBand = reading;
+        listeningBand = listening;
+        writingBand = writing;
+        speakingBand = speaking;
+
+        _analyzeWeakArea();
+        loadingAnalyzer = false;
+      });
+    } catch (e) {
+      setState(() => loadingAnalyzer = false);
+    }
+  }
+
+  Future<double> _getModuleAverage(String uid, String collection) async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection("users")
+        .doc(uid)
+        .collection(collection)
+        .get();
+
+    if (snapshot.docs.isEmpty) return 0;
+
+    if (collection == "listening_results" || collection == "reading_results") {
+      return _avgScore(snapshot.docs);
+    } else {
+      return _avgBand(snapshot.docs, "band");
+    }
+  }
+
+  double _avgBand(List<QueryDocumentSnapshot> docs, String field) {
+    try {
+      if (docs.isEmpty) return 0;
+
+      final values = docs
+          .map((e) {
+            final data = e.data() as Map<String, dynamic>;
+            return double.tryParse(data[field]?.toString() ?? "0") ?? 0.0;
+          })
+          .where((e) => e > 0)
+          .toList();
+
+      if (values.isEmpty) return 0;
+
+      return values.reduce((a, b) => a + b) / values.length;
+    } catch (e) {
+      debugPrint("AVG Band Error: $e");
+      return 0;
+    }
+  }
+
+  double _avgScore(List<QueryDocumentSnapshot> docs) {
+    try {
+      if (docs.isEmpty) return 0;
+
+      final values = docs
+          .map((e) {
+            final data = e.data() as Map<String, dynamic>;
+
+            final bandField = double.tryParse(data["band"]?.toString() ?? "");
+
+            if (bandField != null && bandField > 0) {
+              return bandField;
+            }
+
+            final score =
+                double.tryParse(data["score"]?.toString() ?? "0") ?? 0;
+            final total =
+                double.tryParse(
+                  (data["total"] ?? data["totalQuestions"] ?? 1).toString(),
+                ) ??
+                1;
+
+            if (total == 0) return 0.0;
+
+            return (score / total) * 9;
+          })
+          .where((e) => e > 0)
+          .toList();
+
+      if (values.isEmpty) return 0;
+
+      return values.reduce((a, b) => a + b) / values.length;
+    } catch (e) {
+      debugPrint("AVG Score Error: $e");
+      return 0;
+    }
+  }
+
+  void _analyzeWeakArea() {
+    final scores = {
+      "Reading": readingBand,
+      "Listening": listeningBand,
+      "Writing": writingBand,
+      "Speaking": speakingBand,
+    };
+
+    final validScores = scores.entries.where((e) => e.value > 0).toList();
+
+    if (validScores.isEmpty) {
+      weakestSkill = "No test data yet";
+      todayFocus = "Take your first IELTS test";
+      return;
+    }
+
+    validScores.sort((a, b) => a.value.compareTo(b.value));
+
+    weakestSkill = validScores.first.key;
+
+    if (weakestSkill == "Writing") {
+      todayFocus = "Grammar & Writing";
+    } else if (weakestSkill == "Speaking") {
+      todayFocus = "Pronunciation & Speaking";
+    } else if (weakestSkill == "Reading") {
+      todayFocus = "Reading Accuracy";
+    } else {
+      todayFocus = "Listening Practice";
+    }
+  }
+
+  Widget _buildWeaknessAnalyzerCard() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          gradient: LinearGradient(
+            colors: [
+              const Color(0xFF111827),
+              const Color(0xFF0F766E).withOpacity(0.55),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          border: Border.all(color: Colors.white.withOpacity(0.10)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF14B8A6).withOpacity(0.20),
+              blurRadius: 28,
+              offset: const Offset(0, 14),
+            ),
+          ],
+        ),
+        child: loadingAnalyzer
+            ? const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(18),
+                  child: CircularProgressIndicator(color: Colors.white),
+                ),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        height: 52,
+                        width: 52,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF14B8A6), Color(0xFF0F766E)],
+                          ),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: const Icon(
+                          Icons.psychology_alt_rounded,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "AI Weakness Analyzer",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              "Based on your latest IELTS results",
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  Row(
+                    children: [
+                      Expanded(child: _bandMiniCard("Reading", readingBand)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _bandMiniCard("Listening", listeningBand),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Row(
+                    children: [
+                      Expanded(child: _bandMiniCard("Writing", writingBand)),
+                      const SizedBox(width: 8),
+                      Expanded(child: _bandMiniCard("Speaking", speakingBand)),
+                    ],
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.10),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: Colors.white.withOpacity(0.08)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Weak Area",
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.65),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          weakestSkill,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.track_changes_rounded,
+                              color: Color(0xFF5EEAD4),
+                              size: 22,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                "Today's Focus: $todayFocus",
+                                style: const TextStyle(
+                                  color: Color(0xFFCCFBF1),
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _bandMiniCard(String title, double band) {
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.65),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            band == 0 ? "--" : band.toStringAsFixed(1),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -40,6 +377,13 @@ class _HomeState extends State<Home> {
             children: [
               //                   HEADER SECTION
               _buildHeader(),
+              const SizedBox(height: 18),
+
+              _buildDailyCoachCard(),
+
+              const SizedBox(height: 18),
+
+              _buildWeaknessAnalyzerCard(),
 
               const SizedBox(height: 20),
 
@@ -229,6 +573,209 @@ class _HomeState extends State<Home> {
       ),
     );
   }
+
+  Widget _buildDailyCoachCard() {
+    final FirebaseServices services = Get.find<FirebaseServices>();
+    final data = services.userData;
+    final String userName = data['name'] ?? "IELTS Student";
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          gradient: LinearGradient(
+            colors: [
+              const Color(0xFF0F172A),
+              const Color(0xFF0F766E).withOpacity(0.75),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          border: Border.all(color: Colors.white.withOpacity(0.10)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF14B8A6).withOpacity(0.22),
+              blurRadius: 28,
+              offset: const Offset(0, 14),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  height: 54,
+                  width: 54,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF14B8A6), Color(0xFF5EEAD4)],
+                    ),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: const Icon(
+                    Icons.smart_toy_rounded,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Daily AI Coach",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 21,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        "Personal guidance for today",
+                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+
+            Text(
+              "Good Morning $userName 👋",
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            Text(
+              _coachMessage(),
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.78),
+                fontSize: 14.5,
+                height: 1.6,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+
+            const SizedBox(height: 18),
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.10),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: Colors.white.withOpacity(0.08)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Today's Goal",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ..._todayTasks().map((task) => _coachTaskRow(task)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _coachMessage() {
+    if (weakestSkill == "No test data yet" || weakestSkill == "Start a test") {
+      return "Start your first IELTS practice test today. I will track your performance and guide you step by step.";
+    }
+
+    return "Your weakest skill is $weakestSkill. Focus on $todayFocus today to improve your overall IELTS band.";
+  }
+
+  List<String> _todayTasks() {
+    if (weakestSkill == "Writing") {
+      return [
+        "Complete 1 Writing Task",
+        "Review grammar mistakes",
+        "Learn 10 academic words",
+      ];
+    }
+
+    if (weakestSkill == "Speaking") {
+      return [
+        "Complete 1 Speaking Practice",
+        "Speak for at least 5 minutes",
+        "Use longer answers in Part 2",
+      ];
+    }
+
+    if (weakestSkill == "Reading") {
+      return [
+        "Complete 1 Reading Test",
+        "Review wrong answers",
+        "Practice skimming and scanning",
+      ];
+    }
+
+    if (weakestSkill == "Listening") {
+      return [
+        "Complete 1 Listening Test",
+        "Replay difficult audio parts",
+        "Write down new vocabulary",
+      ];
+    }
+
+    return [
+      "Complete 1 IELTS practice test",
+      "Check your band score",
+      "Build your study streak",
+    ];
+  }
+
+  Widget _coachTaskRow(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.check_circle_rounded,
+            color: Color(0xFF5EEAD4),
+            size: 19,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.86),
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   //                     HEADER WIDGET
 
   Widget _buildHeader() {
@@ -281,8 +828,6 @@ class _HomeState extends State<Home> {
                   ),
                 ],
               ),
-
-          
             ],
           ),
 
@@ -363,32 +908,84 @@ class _HomeState extends State<Home> {
               ),
               border: Border.all(color: Colors.white.withOpacity(0.10)),
             ),
-
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      "Study Streak",
-                      style: TextStyle(color: Colors.white.withOpacity(0.65)),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Study Streak",
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.65),
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          "$streak Days",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 30,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
                     ),
+                    FirePulseIcon(),
+                  ],
+                ),
 
-                    const SizedBox(height: 6),
+                const SizedBox(height: 20),
 
-                    Text(
-                      "$streak Days",
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 28,
-                        fontWeight: FontWeight.w900,
+                _nextRewardProgress(streak),
+
+                const SizedBox(height: 18),
+
+                Text(
+                  "Streak Rewards",
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.85),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: _rewardBadge(
+                        title: "7 Day\nWarrior",
+                        icon: Icons.shield_rounded,
+                        unlocked: streak >= 7,
+                        progressText: "${streak.clamp(0, 7)} / 7",
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _rewardBadge(
+                        title: "30 Day\nChampion",
+                        icon: Icons.emoji_events_rounded,
+                        unlocked: streak >= 30,
+                        progressText: "${streak.clamp(0, 30)} / 30",
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _rewardBadge(
+                        title: "100 Day\nMaster",
+                        icon: Icons.workspace_premium_rounded,
+                        unlocked: streak >= 100,
+                        progressText: "${streak.clamp(0, 100)} / 100",
                       ),
                     ),
                   ],
                 ),
-
-                FirePulseIcon(),
               ],
             ),
           ),
@@ -397,7 +994,135 @@ class _HomeState extends State<Home> {
     );
   }
 
-  //
+  Widget _nextRewardProgress(int streak) {
+    int target = 7;
+    String reward = "7 Day Warrior";
+
+    if (streak >= 7 && streak < 30) {
+      target = 30;
+      reward = "30 Day Champion";
+    } else if (streak >= 30 && streak < 100) {
+      target = 100;
+      reward = "100 Day Master";
+    } else if (streak >= 100) {
+      target = 100;
+      reward = "All Rewards Unlocked";
+    }
+
+    final progress = (streak / target).clamp(0.0, 1.0);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Next Reward",
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.65),
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            reward,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+              fontSize: 18,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(30),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 9,
+              backgroundColor: Colors.white.withOpacity(0.10),
+              valueColor: const AlwaysStoppedAnimation(Color(0xFF5EEAD4)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            streak >= 100 ? "Completed" : "$streak / $target Days",
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.70),
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _rewardBadge({
+    required String title,
+    required IconData icon,
+    required bool unlocked,
+    required String progressText,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: unlocked
+            ? LinearGradient(
+                colors: [
+                  const Color(0xFF14B8A6).withOpacity(0.35),
+                  const Color(0xFF0F766E).withOpacity(0.22),
+                ],
+              )
+            : null,
+        color: unlocked ? null : Colors.white.withOpacity(0.06),
+        border: Border.all(
+          color: unlocked
+              ? const Color(0xFF5EEAD4).withOpacity(0.35)
+              : Colors.white.withOpacity(0.08),
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            unlocked ? icon : Icons.lock_rounded,
+            color: unlocked
+                ? const Color(0xFF5EEAD4)
+                : Colors.white.withOpacity(0.35),
+            size: 28,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: unlocked ? Colors.white : Colors.white.withOpacity(0.48),
+              fontSize: 12,
+              height: 1.3,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            progressText,
+            style: TextStyle(
+              color: unlocked
+                  ? const Color(0xFFCCFBF1)
+                  : Colors.white.withOpacity(0.40),
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  } //
+
   Widget _moduleCard1({
     required String title,
     required String subtitle,
