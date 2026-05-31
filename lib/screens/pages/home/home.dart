@@ -1121,7 +1121,9 @@ class _HomeState extends State<Home> {
         ],
       ),
     );
-  } //
+  }
+
+  // Module 1
 
   Widget _moduleCard1({
     required String title,

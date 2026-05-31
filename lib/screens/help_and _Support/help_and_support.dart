@@ -282,7 +282,7 @@ class HelpSupportScreen extends StatelessWidget {
       ),
     );
   }
-
+// support card widget
   Widget _supportCard({
     required IconData icon,
     required String title,
