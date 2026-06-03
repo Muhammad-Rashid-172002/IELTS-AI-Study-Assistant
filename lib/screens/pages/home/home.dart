@@ -175,30 +175,32 @@ class _HomeState extends State<Home> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 18),
       child: Container(
-        padding: const EdgeInsets.all(20),
+        width: double.infinity,
+        padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(30),
+          borderRadius: BorderRadius.circular(32),
           gradient: LinearGradient(
             colors: [
               const Color(0xFF111827),
-              const Color(0xFF0F766E).withOpacity(0.55),
+              const Color(0xFF0F766E).withOpacity(.72),
+              const Color(0xFF14B8A6).withOpacity(.22),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          border: Border.all(color: Colors.white.withOpacity(0.10)),
+          border: Border.all(color: Colors.white.withOpacity(.12)),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF14B8A6).withOpacity(0.20),
-              blurRadius: 28,
-              offset: const Offset(0, 14),
+              color: const Color(0xFF14B8A6).withOpacity(.22),
+              blurRadius: 32,
+              offset: const Offset(0, 16),
             ),
           ],
         ),
         child: loadingAnalyzer
             ? const Center(
                 child: Padding(
-                  padding: EdgeInsets.all(18),
+                  padding: EdgeInsets.all(24),
                   child: CircularProgressIndicator(color: Colors.white),
                 ),
               )
@@ -208,119 +210,215 @@ class _HomeState extends State<Home> {
                   Row(
                     children: [
                       Container(
-                        height: 52,
-                        width: 52,
+                        height: 58,
+                        width: 58,
                         decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
                           gradient: const LinearGradient(
-                            colors: [Color(0xFF14B8A6), Color(0xFF0F766E)],
+                            colors: [Color(0xFF5EEAD4), Color(0xFF14B8A6)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
-                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF5EEAD4).withOpacity(.35),
+                              blurRadius: 18,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
                         ),
                         child: const Icon(
-                          Icons.psychology_alt_rounded,
+                          Icons.insights_rounded,
                           color: Colors.white,
-                          size: 28,
+                          size: 30,
                         ),
                       ),
+
                       const SizedBox(width: 14),
+
                       const Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              "AI Weakness Analyzer",
+                              "IELTS Performance ",
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 20,
                                 fontWeight: FontWeight.w900,
+                                letterSpacing: -.3,
                               ),
                             ),
-                            SizedBox(height: 4),
+                            SizedBox(height: 5),
                             Text(
-                              "Based on your latest IELTS results",
+                              "Analyze strengths, weaknesses & focus areas",
                               style: TextStyle(
                                 color: Colors.white70,
-                                fontSize: 13,
+                                fontSize: 12.8,
+                                height: 1.3,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ],
                         ),
                       ),
+
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(.12),
+                          borderRadius: BorderRadius.circular(30),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(.10),
+                          ),
+                        ),
+                        child: const Text(
+                          "Insights",
+                          style: TextStyle(
+                            color: Color(0xFFCCFBF1),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
 
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 20),
 
                   Row(
                     children: [
                       Expanded(child: _bandMiniCard("Reading", readingBand)),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: _bandMiniCard("Listening", listeningBand),
                       ),
                     ],
                   ),
 
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
 
                   Row(
                     children: [
                       Expanded(child: _bandMiniCard("Writing", writingBand)),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 10),
                       Expanded(child: _bandMiniCard("Speaking", speakingBand)),
                     ],
                   ),
 
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 20),
 
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.10),
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(color: Colors.white.withOpacity(0.08)),
+                      borderRadius: BorderRadius.circular(26),
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.white.withOpacity(.14),
+                          Colors.white.withOpacity(.06),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      border: Border.all(color: Colors.white.withOpacity(.10)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          "Weak Area",
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.65),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          weakestSkill,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
                         Row(
                           children: [
-                            const Icon(
-                              Icons.track_changes_rounded,
-                              color: Color(0xFF5EEAD4),
-                              size: 22,
+                            Container(
+                              height: 38,
+                              width: 38,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF14B8A6).withOpacity(.22),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: const Icon(
+                                Icons.track_changes_rounded,
+                                color: Color(0xFF5EEAD4),
+                                size: 22,
+                              ),
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
+
+                            const SizedBox(width: 12),
+
+                            const Expanded(
                               child: Text(
-                                "Today's Focus: $todayFocus",
-                                style: const TextStyle(
-                                  color: Color(0xFFCCFBF1),
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w800,
+                                "Improvement Priority",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w900,
                                 ),
                               ),
                             ),
                           ],
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        Text(
+                          weakestSkill,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 26,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -.4,
+                          ),
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        Text(
+                          "Recommended Focus: $todayFocus",
+                          style: const TextStyle(
+                            color: Color(0xFFCCFBF1),
+                            fontSize: 14.5,
+                            height: 1.4,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF14B8A6).withOpacity(.13),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: const Color(0xFF5EEAD4).withOpacity(.18),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.auto_awesome_rounded,
+                                color: Color(0xFF5EEAD4),
+                                size: 22,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  weakestSkill == "No test data yet"
+                                      ? "Complete your first IELTS test to unlock smart performance insights."
+                                      : "Focus on $todayFocus today to improve your overall IELTS band score.",
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(.88),
+                                    fontSize: 13.5,
+                                    height: 1.45,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -332,31 +430,94 @@ class _HomeState extends State<Home> {
   }
 
   Widget _bandMiniCard(String title, double band) {
+    final bool hasData = band > 0;
+
+    String status;
+    IconData statusIcon;
+    Color statusColor;
+
+    if (!hasData) {
+      status = "No Data";
+      statusIcon = Icons.lock_outline_rounded;
+      statusColor = Colors.white.withOpacity(.45);
+    } else if (band >= 7) {
+      status = "Strong";
+      statusIcon = Icons.trending_up_rounded;
+      statusColor = const Color(0xFF5EEAD4);
+    } else if (band >= 5.5) {
+      status = "Average";
+      statusIcon = Icons.stacked_line_chart_rounded;
+      statusColor = const Color(0xFFFACC15);
+    } else {
+      status = "Needs Work";
+      statusIcon = Icons.warning_amber_rounded;
+      statusColor = const Color(0xFFF87171);
+    }
+
     return Container(
-      padding: const EdgeInsets.all(13),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        borderRadius: BorderRadius.circular(22),
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(.12),
+            Colors.white.withOpacity(.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: Colors.white.withOpacity(.10)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.65),
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(.68),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Icon(statusIcon, color: statusColor, size: 17),
+            ],
           ),
-          const SizedBox(height: 5),
+
+          const SizedBox(height: 8),
+
           Text(
-            band == 0 ? "--" : band.toStringAsFixed(1),
+            hasData ? band.toStringAsFixed(1) : "--",
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 20,
+              fontSize: 24,
               fontWeight: FontWeight.w900,
+              letterSpacing: -.4,
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color: statusColor.withOpacity(.14),
+              borderRadius: BorderRadius.circular(30),
+            ),
+            child: Text(
+              status,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: statusColor,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ),
         ],
@@ -393,24 +554,84 @@ class _HomeState extends State<Home> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Row(
+                      children: [
+                        Container(
+                          height: 42,
+                          width: 42,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(14),
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF5EEAD4), Color(0xFF14B8A6)],
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.menu_book_rounded,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                        ),
+
+                        const SizedBox(width: 12),
+
+                        const Expanded(
+                          child: Text(
+                            "IELTS Study Hub",
+                            style: TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: -0.8,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 10),
+
                     Text(
-                      "Study Modules",
+                      "Master Reading, Listening, Writing and Speaking with personalized AI-powered practice and real exam simulations.",
                       style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        letterSpacing: -0.5,
+                        fontSize: 14,
+                        color: Colors.white.withOpacity(0.65),
+                        height: 1.6,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
 
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 16),
 
-                    Text(
-                      "Boost your IELTS band score with AI powered tools",
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.white.withOpacity(0.60),
-                        height: 1.5,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF14B8A6).withOpacity(.12),
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(
+                          color: const Color(0xFF14B8A6).withOpacity(.20),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.auto_awesome_rounded,
+                            color: Color(0xFF5EEAD4),
+                            size: 16,
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            "AI Powered Learning",
+                            style: TextStyle(
+                              color: Color(0xFFCCFBF1),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -429,10 +650,11 @@ class _HomeState extends State<Home> {
                         Expanded(
                           child: _moduleCard(
                             title: "Listening",
-                            subtitle: "AI listening",
-
-                            tag: "AI",
-                            icon: Icons.mic,
+                            subtitle: "Audio & conversation practice",
+                            tag: "Practice",
+                            icon: Icons.headphones_rounded,
+                            startColor: const Color(0xFF2563EB),
+                            endColor: const Color(0xFF1D4ED8),
                             onTap: () {
                               Navigator.push(
                                 context,
@@ -441,18 +663,17 @@ class _HomeState extends State<Home> {
                                 ),
                               );
                             },
-                            startColor: Color(0xff2F6BFF),
-                            endColor: Color(0xff7B2CFF),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: _moduleCard(
                             title: "Reading",
-                            subtitle: "Passage practice",
-
-                            tag: "IELTS",
-                            icon: Icons.menu_book,
+                            subtitle: "Academic passage training",
+                            tag: "Academic",
+                            icon: Icons.menu_book_rounded,
+                            startColor: const Color(0xFF7C3AED),
+                            endColor: const Color(0xFF6D28D9),
                             onTap: () {
                               Navigator.push(
                                 context,
@@ -461,8 +682,6 @@ class _HomeState extends State<Home> {
                                 ),
                               );
                             },
-                            startColor: Color(0xFF7B1FA2),
-                            endColor: Color(0xFFC2185B),
                           ),
                         ),
                       ],
@@ -475,10 +694,11 @@ class _HomeState extends State<Home> {
                         Expanded(
                           child: _moduleCard(
                             title: "Writing",
-                            subtitle: "AI writing checker",
-
-                            tag: "AI",
-                            icon: Icons.edit_note,
+                            subtitle: "Essay & grammar evaluation",
+                            tag: "Checker",
+                            icon: Icons.edit_note_rounded,
+                            startColor: const Color(0xFFF97316),
+                            endColor: const Color(0xFFEA580C),
                             onTap: () {
                               Navigator.push(
                                 context,
@@ -487,19 +707,17 @@ class _HomeState extends State<Home> {
                                 ),
                               );
                             },
-                            startColor: Color(0xFFFF2D8D),
-                            endColor: Color(0xFFD0005B),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: _moduleCard(
                             title: "Speaking",
-                            subtitle: "AI speaking",
-                            startColor: Color(0xFF14B8A6),
-                            endColor: Color(0xFF0F766E),
-                            tag: "AI",
-                            icon: Icons.mic,
+                            subtitle: "Fluency & pronunciation coach",
+                            tag: "Coach",
+                            icon: Icons.record_voice_over_rounded,
+                            startColor: const Color(0xFF14B8A6),
+                            endColor: const Color(0xFF0F766E),
                             onTap: () {
                               Navigator.push(
                                 context,
@@ -507,16 +725,6 @@ class _HomeState extends State<Home> {
                                   builder: (_) => const SpeakingPractice(),
                                 ),
                               );
-                              // Get.snackbar(
-                              //   "Coming Soon ",
-                              //   "This feature will be available soon",
-                              //   snackPosition: SnackPosition.TOP,
-                              //   backgroundColor: Colors.black87,
-                              //   colorText: Colors.white,
-                              //   margin: const EdgeInsets.all(10),
-                              //   borderRadius: 10,
-                              //   duration: const Duration(seconds: 2),
-                              // );
                             },
                           ),
                         ),
@@ -550,10 +758,11 @@ class _HomeState extends State<Home> {
                     SizedBox(height: 12),
                     _moduleCard1(
                       title: "Full Mock Test",
-                      subtitle: "Take a full IELTS test simulation with timer",
-                      color: Colors.black,
-                      tag: "Exam Mode",
-                      icon: Icons.assignment,
+                      subtitle:
+                          "Complete IELTS exam simulation with timer, scoring and band prediction.",
+                      color: Colors.orange,
+                      tag: "EXAM MODE",
+                      icon: Icons.workspace_premium_rounded,
                       onTap: () {
                         Navigator.push(
                           context,
@@ -585,21 +794,22 @@ class _HomeState extends State<Home> {
         width: double.infinity,
         padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(30),
+          borderRadius: BorderRadius.circular(32),
           gradient: LinearGradient(
             colors: [
-              const Color(0xFF0F172A),
-              const Color(0xFF0F766E).withOpacity(0.75),
+              const Color(0xFF111827),
+              const Color(0xFF0F766E).withOpacity(.85),
+              const Color(0xFF14B8A6).withOpacity(.30),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          border: Border.all(color: Colors.white.withOpacity(0.10)),
+          border: Border.all(color: Colors.white.withOpacity(.12)),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF14B8A6).withOpacity(0.22),
-              blurRadius: 28,
-              offset: const Offset(0, 14),
+              color: const Color(0xFF14B8A6).withOpacity(.22),
+              blurRadius: 32,
+              offset: const Offset(0, 16),
             ),
           ],
         ),
@@ -609,51 +819,89 @@ class _HomeState extends State<Home> {
             Row(
               children: [
                 Container(
-                  height: 54,
-                  width: 54,
+                  height: 58,
+                  width: 58,
                   decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF14B8A6), Color(0xFF5EEAD4)],
+                      colors: [Color(0xFF5EEAD4), Color(0xFF14B8A6)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF5EEAD4).withOpacity(.35),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
                   ),
                   child: const Icon(
-                    Icons.smart_toy_rounded,
+                    Icons.auto_awesome_rounded,
                     color: Colors.white,
-                    size: 28,
+                    size: 30,
                   ),
                 ),
+
                 const SizedBox(width: 14),
+
                 const Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        "Daily AI Coach",
+                        "Daily IELTS Coach",
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 21,
                           fontWeight: FontWeight.w900,
+                          letterSpacing: -.3,
                         ),
                       ),
-                      SizedBox(height: 4),
+                      SizedBox(height: 5),
                       Text(
-                        "Personal guidance for today",
-                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                        "Smart study plan for today",
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ],
+                  ),
+                ),
+
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(.12),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: Colors.white.withOpacity(.10)),
+                  ),
+                  child: const Text(
+                    "IELTS Coach",
+                    style: TextStyle(
+                      color: Color(0xFFCCFBF1),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
               ],
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 22),
 
             Text(
-              "Good Morning $userName 👋",
+              "Good Morning, $userName 👋",
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 20,
+                fontSize: 21,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -663,7 +911,7 @@ class _HomeState extends State<Home> {
             Text(
               _coachMessage(),
               style: TextStyle(
-                color: Colors.white.withOpacity(0.78),
+                color: Colors.white.withOpacity(.82),
                 fontSize: 14.5,
                 height: 1.6,
                 fontWeight: FontWeight.w500,
@@ -674,25 +922,54 @@ class _HomeState extends State<Home> {
 
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(17),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.10),
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: Colors.white.withOpacity(0.08)),
+                borderRadius: BorderRadius.circular(24),
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.white.withOpacity(.14),
+                    Colors.white.withOpacity(.06),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                border: Border.all(color: Colors.white.withOpacity(.10)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    "Today's Goal",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w900,
-                    ),
+                  Row(
+                    children: [
+                      Container(
+                        height: 34,
+                        width: 34,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF14B8A6).withOpacity(.20),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.track_changes_rounded,
+                          color: Color(0xFF5EEAD4),
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Text(
+                        "Today's Focus Plan",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
+
+                  const SizedBox(height: 14),
+
                   ..._todayTasks().map((task) => _coachTaskRow(task)),
+
+                  const SizedBox(height: 8),
                 ],
               ),
             ),
@@ -788,81 +1065,98 @@ class _HomeState extends State<Home> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(22, 24, 22, 28),
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 30),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF08111F), Color(0xFF102A43), Color(0xFF0F766E)],
+          colors: [Color(0xFF06111F), Color(0xFF0B2538), Color(0xFF0F766E)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
       ),
-
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          /// TOP BAR
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "IELTS AI Master",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 30,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.5,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "IELTS Genius AI",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 31,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.7,
+                      ),
                     ),
-                  ),
-
-                  const SizedBox(height: 6),
-
-                  Text(
-                    "AI Powered IELTS Preparation",
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.65),
-                      fontSize: 14,
+                    const SizedBox(height: 6),
+                    Text(
+                      "Reach your target band with smart practice",
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(.68),
+                        fontSize: 13.5,
+                        height: 1.4,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
 
-          const SizedBox(height: 28),
+          const SizedBox(height: 24),
 
-          /// USER CARD
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.08),
               borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: Colors.white.withOpacity(0.10)),
+              gradient: LinearGradient(
+                colors: [
+                  Colors.white.withOpacity(.13),
+                  Colors.white.withOpacity(.05),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              border: Border.all(color: Colors.white.withOpacity(.12)),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.18),
-                  blurRadius: 25,
-                  offset: const Offset(0, 10),
+                  color: Colors.black.withOpacity(.22),
+                  blurRadius: 28,
+                  offset: const Offset(0, 14),
                 ),
               ],
             ),
-
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: 31,
-                  backgroundColor: Colors.white,
-                  backgroundImage: (userPhoto != null && userPhoto.isNotEmpty)
-                      ? NetworkImage(userPhoto)
-                      : null,
-                  child: (userPhoto == null || userPhoto.isEmpty)
-                      ? const Icon(Icons.person, color: Colors.grey)
-                      : null,
+                Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF5EEAD4), Color(0xFF14B8A6)],
+                    ),
+                  ),
+                  child: CircleAvatar(
+                    radius: 31,
+                    backgroundColor: const Color(0xFF08111F),
+                    backgroundImage: (userPhoto != null && userPhoto.isNotEmpty)
+                        ? NetworkImage(userPhoto)
+                        : null,
+                    child: (userPhoto == null || userPhoto.isEmpty)
+                        ? const Icon(
+                            Icons.person_rounded,
+                            color: Colors.white70,
+                            size: 32,
+                          )
+                        : null,
+                  ),
                 ),
 
-                const SizedBox(width: 14),
+                const SizedBox(width: 15),
 
                 Expanded(
                   child: Column(
@@ -871,19 +1165,39 @@ class _HomeState extends State<Home> {
                       Text(
                         "Welcome Back 👋",
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.70),
-                          fontSize: 13,
+                          color: Colors.white.withOpacity(.65),
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-
-                      const SizedBox(height: 4),
-
+                      const SizedBox(height: 5),
                       Text(
                         userName ?? "IELTS Student",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 22,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 7),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF14B8A6).withOpacity(.18),
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: const Text(
+                          "IELTS Journey Active",
+                          style: TextStyle(
+                            color: Color(0xFFCCFBF1),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
                     ],
@@ -895,61 +1209,93 @@ class _HomeState extends State<Home> {
 
           const SizedBox(height: 22),
 
-          /// STREAK CARD
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(28),
+              borderRadius: BorderRadius.circular(30),
               gradient: LinearGradient(
                 colors: [
-                  const Color(0xFF14B8A6).withOpacity(0.30),
-                  const Color(0xFF0F766E).withOpacity(0.18),
+                  const Color(0xFF14B8A6).withOpacity(.34),
+                  const Color(0xFF0F766E).withOpacity(.16),
                 ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              border: Border.all(color: Colors.white.withOpacity(0.10)),
+              border: Border.all(color: Colors.white.withOpacity(.12)),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF14B8A6).withOpacity(.18),
+                  blurRadius: 30,
+                  offset: const Offset(0, 14),
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Study Streak",
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.65),
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          "$streak Days",
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 30,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ],
-                    ),
                     FirePulseIcon(),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Study Streak",
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(.68),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            "$streak Days",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 31,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(.12),
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(.10),
+                        ),
+                      ),
+                      child: const Text(
+                        "Keep Going",
+                        style: TextStyle(
+                          color: Color(0xFFCCFBF1),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: 18),
 
                 _nextRewardProgress(streak),
 
                 const SizedBox(height: 18),
 
                 Text(
-                  "Streak Rewards",
+                  "Achievement Rewards",
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.85),
-                    fontWeight: FontWeight.w800,
+                    color: Colors.white.withOpacity(.88),
+                    fontWeight: FontWeight.w900,
                     fontSize: 15,
                   ),
                 ),
@@ -1138,16 +1484,18 @@ class _HomeState extends State<Home> {
       child: Container(
         padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(30),
+          borderRadius: BorderRadius.circular(32),
           gradient: const LinearGradient(
-            colors: [Color(0xFF111827), Color(0xFF1F2937)],
+            colors: [Color(0xFFFFA000), Color(0xFFFF6D00)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-          border: Border.all(color: Colors.white12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.25),
-              blurRadius: 25,
-              offset: const Offset(0, 12),
+              color: Color(0xFFFF9800),
+              blurRadius: 30,
+              spreadRadius: 1,
+              offset: Offset(0, 14),
             ),
           ],
         ),
@@ -1157,13 +1505,19 @@ class _HomeState extends State<Home> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.10),
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(20),
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.white.withOpacity(.25),
+                    Colors.white.withOpacity(.08),
+                  ],
+                ),
+                border: Border.all(color: Colors.white.withOpacity(.15)),
               ),
               child: const Icon(
-                Icons.assignment,
+                Icons.workspace_premium_rounded,
                 color: Colors.white,
-                size: 28,
+                size: 30,
               ),
             ),
 
@@ -1173,33 +1527,91 @@ class _HomeState extends State<Home> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 21,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -.4,
+                          ),
+                        ),
+                      ),
+
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(.18),
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: Text(
+                          tag,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
 
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
 
                   Text(
                     subtitle,
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.65),
-                      fontSize: 13,
-                      height: 1.5,
+                      color: Colors.white.withOpacity(.92),
+                      fontSize: 13.5,
+                      height: 1.45,
+                      fontWeight: FontWeight.w500,
                     ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.timer_outlined,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        "Real Exam Experience",
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(.95),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
 
-            const Icon(
-              Icons.arrow_forward_ios_rounded,
-              color: Colors.white,
-              size: 18,
+            const SizedBox(width: 10),
+
+            Container(
+              height: 42,
+              width: 42,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(.18),
+              ),
+              child: const Icon(
+                Icons.arrow_forward_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
             ),
           ],
         ),
@@ -1222,54 +1634,72 @@ class _HomeState extends State<Home> {
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(30),
-
           gradient: LinearGradient(
-            colors: [startColor.withOpacity(0.18), endColor.withOpacity(0.10)],
+            colors: [
+              startColor.withOpacity(.26),
+              endColor.withOpacity(.13),
+              const Color(0xFF111827).withOpacity(.35),
+            ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-
-          border: Border.all(color: Colors.white.withOpacity(0.08)),
-
+          border: Border.all(color: Colors.white.withOpacity(.10)),
           boxShadow: [
             BoxShadow(
-              color: startColor.withOpacity(0.18),
-              blurRadius: 24,
-              offset: const Offset(0, 12),
+              color: startColor.withOpacity(.24),
+              blurRadius: 30,
+              spreadRadius: 1,
+              offset: const Offset(0, 14),
             ),
           ],
         ),
-
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.10),
                     borderRadius: BorderRadius.circular(18),
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.white.withOpacity(.20),
+                        Colors.white.withOpacity(.07),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    border: Border.all(color: Colors.white.withOpacity(.10)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: startColor.withOpacity(.20),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
                   ),
                   child: Icon(icon, color: Colors.white, size: 24),
                 ),
 
+                const Spacer(),
+
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
+                    horizontal: 11,
+                    vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.10),
+                    color: Colors.white.withOpacity(.11),
                     borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: Colors.white.withOpacity(.10)),
                   ),
                   child: Text(
                     tag,
                     style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
+                      color: Color(0xFFCCFBF1),
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
                 ),
@@ -1280,10 +1710,13 @@ class _HomeState extends State<Home> {
 
             Text(
               title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
+                fontSize: 19,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -.3,
               ),
             ),
 
@@ -1291,18 +1724,66 @@ class _HomeState extends State<Home> {
 
             Text(
               subtitle,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.68),
+                color: Colors.white.withOpacity(.72),
                 fontSize: 13,
-                height: 1.4,
+                height: 1.45,
+                fontWeight: FontWeight.w500,
               ),
             ),
 
             const SizedBox(height: 20),
 
-            const Align(
-              alignment: Alignment.bottomRight,
-              child: Icon(Icons.arrow_forward_rounded, color: Colors.white),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+               
+                // Expanded(
+                //   child: Container(
+                //     height: 4,
+                //     decoration: BoxDecoration(
+                //       borderRadius: BorderRadius.circular(20),
+                //       color: Colors.white.withOpacity(.10),
+                //     ),
+                //     child: FractionallySizedBox(
+                //       alignment: Alignment.centerLeft,
+                //       widthFactor: .65,
+                //       child: Container(
+                //         decoration: BoxDecoration(
+                //           borderRadius: BorderRadius.circular(20),
+                //           gradient: LinearGradient(
+                //             colors: [startColor, endColor],
+                //           ),
+                //         ),
+                //       ),
+                //     ),
+                //   ),
+                // ),
+
+                const SizedBox(width: 12),
+
+                Container(
+                  height: 34,
+                  width: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.white.withOpacity(.20),
+                        Colors.white.withOpacity(.08),
+                      ],
+                    ),
+                    border: Border.all(color: Colors.white.withOpacity(.10)),
+                  ),
+                  child: const Icon(
+                    Icons.arrow_forward_rounded,
+                    color: Colors.white,
+                    size: 19,
+                  ),
+                ),
+              ],
             ),
           ],
         ),

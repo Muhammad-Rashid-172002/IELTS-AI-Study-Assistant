@@ -241,41 +241,41 @@ class _RegistrationState extends State<Registration> {
 
                         const SizedBox(height: 28),
 
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Divider(
-                                color: Colors.white.withOpacity(0.12),
-                              ),
-                            ),
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 12),
-                              child: Text(
-                                "OR",
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.55),
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: Divider(
-                                color: Colors.white.withOpacity(0.12),
-                              ),
-                            ),
-                          ],
-                        ),
+                        // Row(
+                        //   children: [
+                        //     Expanded(
+                        //       child: Divider(
+                        //         color: Colors.white.withOpacity(0.12),
+                        //       ),
+                        //     ),
+                        //     Padding(
+                        //       padding:
+                        //           const EdgeInsets.symmetric(horizontal: 12),
+                        //       child: Text(
+                        //         "OR",
+                        //         style: TextStyle(
+                        //           color: Colors.white.withOpacity(0.55),
+                        //         ),
+                        //       ),
+                        //     ),
+                        //     Expanded(
+                        //       child: Divider(
+                        //         color: Colors.white.withOpacity(0.12),
+                        //       ),
+                        //     ),
+                        //   ],
+                        // ),
 
                         const SizedBox(height: 25),
 
                         /// GOOGLE BUTTON
-                        socialButton(
-                          "Continue with Google",
-                          "assets/images/google1.png",
-                          () async {
-                            await firebaseServices.loginWithGoogle();
-                          },
-                        ),
+                        // socialButton(
+                        //   "Continue with Google",
+                        //   "assets/images/google1.png",
+                        //   () async {
+                        //     await firebaseServices.loginWithGoogle();
+                        //   },
+                        // ),
 
                         const SizedBox(height: 28),
 
@@ -307,7 +307,7 @@ class _RegistrationState extends State<Registration> {
                   ),
                 ),
 
-                const SizedBox(height: 30),
+                const SizedBox(height: 47),
               ],
             ),
           ),

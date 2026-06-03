@@ -12,10 +12,31 @@ class HelpSupportScreen extends StatelessWidget {
     final Uri uri = Uri(
       scheme: 'mailto',
       path: 'muhammadrashid172002@gmail.com',
-      queryParameters: {
-        'subject': 'IELTS AI App Support',
-        'body': 'Hello Support Team,\n\nI need help with:\n\n',
-      },
+     queryParameters: {
+  'subject': 'IELTS AI App Support',
+  'body': '''
+Hello Support Team,
+
+Thank you for using IELTS AI.
+
+Please describe your issue or question below. Our team will review your request and respond as soon as possible.
+
+Issue Details:
+--------------------------------------------------
+
+--------------------------------------------------
+
+Device Information:
+• Device Model:
+• Android/iOS Version:
+• App Version:
+
+Thank you for helping us improve IELTS AI.
+
+Best regards,
+IELTS AI Support Team
+''',
+},
     );
 
     if (await canLaunchUrl(uri)) {
