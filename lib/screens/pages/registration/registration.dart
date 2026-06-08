@@ -105,7 +105,7 @@ class _RegistrationState extends State<Registration> {
                 ),
 
                 const SizedBox(height: 10),
-
+//
                 Text(
                   "Start your IELTS preparation journey with AI",
                   textAlign: TextAlign.center,
