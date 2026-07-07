@@ -112,11 +112,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       physics: const NeverScrollableScrollPhysics(),
                       gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 14,
-                        mainAxisSpacing: 14,
-                        childAspectRatio: 0.82,
-                      ),
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 14,
+                            mainAxisSpacing: 14,
+                            childAspectRatio: 0.82,
+                          ),
                       children: [
                         _moduleCard(
                           title: "Listening",
@@ -221,18 +221,17 @@ class _ProgressScreenState extends State<ProgressScreen> {
                           barTouchData: BarTouchData(
                             touchTooltipData: BarTouchTooltipData(
                               tooltipBorderRadius: BorderRadius.circular(8),
-                              getTooltipColor: (_) =>
-                                  const Color(0xFF111827),
+                              getTooltipColor: (_) => const Color(0xFF111827),
                               getTooltipItem:
                                   (group, groupIndex, rod, rodIndex) {
-                                return BarTooltipItem(
-                                  "Band ${rod.toY.toStringAsFixed(1)}",
-                                  const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                );
-                              },
+                                    return BarTooltipItem(
+                                      "Band ${rod.toY.toStringAsFixed(1)}",
+                                      const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    );
+                                  },
                             ),
                           ),
                           barGroups: [
@@ -445,11 +444,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
       padding: const EdgeInsets.fromLTRB(22, 64, 22, 34),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            bg,
-            const Color(0xFF102A43),
-            secondary,
-          ],
+          colors: [bg, const Color(0xFF102A43), secondary],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -672,6 +667,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
     required Color color,
   }) {
     final percentage = ((score / 9) * 100).clamp(0, 100).toInt();
+    final hasData = score > 0;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -708,10 +704,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [
-                      color.withOpacity(0.90),
-                      color.withOpacity(0.55),
-                    ],
+                    colors: [color.withOpacity(0.90), color.withOpacity(0.55)],
                   ),
                   borderRadius: BorderRadius.circular(18),
                 ),
@@ -729,12 +722,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   border: Border.all(color: color.withOpacity(0.25)),
                 ),
                 child: Text(
-                  "$percentage%",
-                  style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 12,
-                  ),
+                  hasData ? "$percentage%" : "No Data",
+                  style: TextStyle(color: color, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -751,35 +740,27 @@ class _ProgressScreenState extends State<ProgressScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Flexible(
-                child: Text(
-                  score.toStringAsFixed(1),
-                  overflow: TextOverflow.ellipsis,
+          RichText(
+            text: TextSpan(
+              children: [
+                TextSpan(
+                  text: hasData ? score.toStringAsFixed(1) : "--",
                   style: TextStyle(
                     fontSize: 36,
                     fontWeight: FontWeight.w900,
                     color: color,
-                    height: 1,
                   ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(left: 3, bottom: 4),
-                child: Text(
-                  "/9",
+                TextSpan(
+                  text: "/9",
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.70),
                     fontSize: 15,
+                    color: Colors.white70,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-              ),
-              const Spacer(),
-              Icon(Icons.trending_up_rounded, color: color, size: 22),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 16),
           ClipRRect(
@@ -883,8 +864,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
             overall >= 7
                 ? "Excellent progress. You are close to an advanced IELTS level. Maintain consistency and polish your weaker module."
                 : overall >= 6
-                    ? "Good improvement. Focus more on $weakestModule to increase your overall band."
-                    : "Practice consistently. Your fastest improvement can come from focused $weakestModule practice.",
+                ? "Good improvement. Focus more on $weakestModule to increase your overall band."
+                : "Practice consistently. Your fastest improvement can come from focused $weakestModule practice.",
             style: TextStyle(
               color: Colors.white.withOpacity(0.78),
               height: 1.65,
@@ -997,10 +978,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
             width: 62,
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [
-                  color.withOpacity(0.90),
-                  color.withOpacity(0.55),
-                ],
+                colors: [color.withOpacity(0.90), color.withOpacity(0.55)],
               ),
               borderRadius: BorderRadius.circular(20),
             ),
@@ -1046,23 +1024,13 @@ class _ProgressScreenState extends State<ProgressScreen> {
   }
 
   String _bestModule(double l, double r, double w, double s) {
-    final scores = {
-      "Listening": l,
-      "Reading": r,
-      "Writing": w,
-      "Speaking": s,
-    };
+    final scores = {"Listening": l, "Reading": r, "Writing": w, "Speaking": s};
 
     return scores.entries.reduce((a, b) => a.value > b.value ? a : b).key;
   }
 
   String _worstModule(double l, double r, double w, double s) {
-    final scores = {
-      "Listening": l,
-      "Reading": r,
-      "Writing": w,
-      "Speaking": s,
-    };
+    final scores = {"Listening": l, "Reading": r, "Writing": w, "Speaking": s};
 
     return scores.entries.reduce((a, b) => a.value < b.value ? a : b).key;
   }
@@ -1109,12 +1077,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
     } catch (e) {
       debugPrint("Firebase Main Error: $e");
 
-      return {
-        "listening": 0,
-        "reading": 0,
-        "writing": 0,
-        "speaking": 0,
-      };
+      return {"listening": 0, "reading": 0, "writing": 0, "speaking": 0};
     }
   }
 
@@ -1122,14 +1085,17 @@ class _ProgressScreenState extends State<ProgressScreen> {
     try {
       if (docs.isEmpty) return 0;
 
-      final values = docs.map((e) {
-        try {
-          final data = e.data() as Map<String, dynamic>;
-          return double.tryParse(data[field]?.toString() ?? "0") ?? 0.0;
-        } catch (_) {
-          return 0.0;
-        }
-      }).where((e) => e > 0).toList();
+      final values = docs
+          .map((e) {
+            try {
+              final data = e.data() as Map<String, dynamic>;
+              return double.tryParse(data[field]?.toString() ?? "0") ?? 0.0;
+            } catch (_) {
+              return 0.0;
+            }
+          })
+          .where((e) => e > 0)
+          .toList();
 
       if (values.isEmpty) return 0;
 
@@ -1144,30 +1110,35 @@ class _ProgressScreenState extends State<ProgressScreen> {
     try {
       if (docs.isEmpty) return 0;
 
-      final values = docs.map((e) {
-        try {
-          final data = e.data() as Map<String, dynamic>;
+      final values = docs
+          .map((e) {
+            try {
+              final data = e.data() as Map<String, dynamic>;
 
-          final bandField = double.tryParse(data["band"]?.toString() ?? "");
+              final bandField = double.tryParse(data["band"]?.toString() ?? "");
 
-          if (bandField != null && bandField > 0) {
-            return bandField;
-          }
+              if (bandField != null && bandField > 0) {
+                return bandField;
+              }
 
-          final score = double.tryParse(data["score"]?.toString() ?? "0") ?? 0;
-          final total = double.tryParse(
-                (data["total"] ?? data["totalQuestions"] ?? 1).toString(),
-              ) ??
-              1;
+              final score =
+                  double.tryParse(data["score"]?.toString() ?? "0") ?? 0;
+              final total =
+                  double.tryParse(
+                    (data["total"] ?? data["totalQuestions"] ?? 1).toString(),
+                  ) ??
+                  1;
 
-          if (total == 0) return 0.0;
+              if (total == 0) return 0.0;
 
-          return (score / total) * 9;
-        } catch (e) {
-          debugPrint("AVG Score Error: $e");
-          return 0.0;
-        }
-      }).where((e) => e > 0).toList();
+              return (score / total) * 9;
+            } catch (e) {
+              debugPrint("AVG Score Error: $e");
+              return 0.0;
+            }
+          })
+          .where((e) => e > 0)
+          .toList();
 
       if (values.isEmpty) return 0;
 
