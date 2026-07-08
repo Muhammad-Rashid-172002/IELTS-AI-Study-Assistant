@@ -12,9 +12,9 @@ class HelpSupportScreen extends StatelessWidget {
     final Uri uri = Uri(
       scheme: 'mailto',
       path: 'muhammadrashid172002@gmail.com',
-     queryParameters: {
-  'subject': 'IELTS AI App Support',
-  'body': '''
+      queryParameters: {
+        'subject': 'IELTS AI App Support',
+        'body': '''
 Hello Support Team,
 
 Thank you for using IELTS AI.
@@ -36,7 +36,7 @@ Thank you for helping us improve IELTS AI.
 Best regards,
 IELTS AI Support Team
 ''',
-},
+      },
     );
 
     if (await canLaunchUrl(uri)) {
@@ -303,7 +303,8 @@ IELTS AI Support Team
       ),
     );
   }
-// support card widget
+
+  // support card widget
   Widget _supportCard({
     required IconData icon,
     required String title,
@@ -386,7 +387,8 @@ IELTS AI Support Team
       ),
     );
   }
-// info box
+
+  // info box
   Widget _infoBox() {
     return Container(
       width: double.infinity,

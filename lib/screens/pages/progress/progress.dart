@@ -82,6 +82,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
           final overall = (listening + reading + writing + speaking) / 4;
 
+          final hasPractice =
+              listening > 0 || reading > 0 || writing > 0 || speaking > 0;
+
           return RefreshIndicator(
             color: primary,
             backgroundColor: const Color(0xFF111827),
@@ -269,21 +272,24 @@ class _ProgressScreenState extends State<ProgressScreen> {
                     padding: const EdgeInsets.fromLTRB(18, 10, 18, 30),
                     child: Column(
                       children: [
-                        _insightCard(
-                          title: "Your Strength",
-                          subtitle:
-                              "Excellent performance in ${_bestModule(listening, reading, writing, speaking)} module.",
-                          icon: Icons.trending_up_rounded,
-                          color: const Color(0xFF22C55E),
-                        ),
-                        const SizedBox(height: 16),
-                        _insightCard(
-                          title: "Needs Improvement",
-                          subtitle:
-                              "Focus more on ${_worstModule(listening, reading, writing, speaking)} practice.",
-                          icon: Icons.auto_graph_rounded,
-                          color: const Color(0xFFF59E0B),
-                        ),
+                        if (hasPractice) ...[
+                          _insightCard(
+                            title: "Your Strength",
+                            subtitle:
+                                "Excellent performance in ${_bestModule(listening, reading, writing, speaking)} module.",
+                            icon: Icons.trending_up_rounded,
+                            color: const Color(0xFF22C55E),
+                          ),
+                          const SizedBox(height: 16),
+                          _insightCard(
+                            title: "Needs Improvement",
+                            subtitle:
+                                "Focus more on ${_worstModule(listening, reading, writing, speaking)} practice.",
+                            icon: Icons.auto_graph_rounded,
+                            color: const Color(0xFFF59E0B),
+                          ),
+                        ] else
+                          _practiceCard(),
                       ],
                     ),
                   ),
@@ -292,6 +298,48 @@ class _ProgressScreenState extends State<ProgressScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _practiceCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(25),
+        gradient: LinearGradient(
+          colors: [Color(0xff14B8A6), Color(0xff0F766E)],
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.school_rounded, size: 45, color: Colors.white),
+
+          SizedBox(width: 18),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Start Your IELTS Journey",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                SizedBox(height: 6),
+
+                Text(
+                  "You haven't completed any practice yet.\nTake your first Listening, Reading, Writing or Speaking test to unlock your progress analytics.",
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -766,7 +814,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
           ClipRRect(
             borderRadius: BorderRadius.circular(20),
             child: LinearProgressIndicator(
-              value: (score / 9).clamp(0.0, 1.0),
+              value: hasData ? (score / 9).clamp(0.0, 1.0) : 0,
               minHeight: 10,
               backgroundColor: Colors.white.withOpacity(0.08),
               valueColor: AlwaysStoppedAnimation(color),
