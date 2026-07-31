@@ -1025,7 +1025,7 @@ class _ProfileState extends State<Profile> {
                       ),
                       SizedBox(width: 8),
                       Text(
-                        "Version 1.0.0+2 • Stable Release",
+                        "Version 1.1.2+7 • Stable Release",
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 12.5,

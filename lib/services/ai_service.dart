@@ -54,7 +54,7 @@ class AIService {
       while (attempts < 3) {
         try {
           await Future.delayed(const Duration(milliseconds: 800));
-          return await request().timeout(const Duration(seconds: 45));
+          return await request().timeout(const Duration(seconds: 90));
         } catch (e) {
           attempts++;
           final error = e.toString();

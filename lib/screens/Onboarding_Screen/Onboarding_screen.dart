@@ -113,84 +113,106 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: PageView.builder(
                   controller: _controller,
                   itemCount: onboardingData.length,
-                  onPageChanged: (index) =>
-                      setState(() => currentIndex = index),
+                  onPageChanged: (index) {
+                    setState(() => currentIndex = index);
+                  },
                   itemBuilder: (context, index) {
                     final item = onboardingData[index];
                     final Color pageColor = item["color"];
 
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            height: 350,
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.055),
-                              borderRadius: BorderRadius.circular(38),
-                              border: Border.all(
-                                color: pageColor.withOpacity(0.35),
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: pageColor.withOpacity(0.22),
-                                  blurRadius: 38,
-                                  offset: const Offset(0, 18),
+                    return LayoutBuilder(
+                      builder: (context, constraints) {
+                        final bool isSmallScreen = constraints.maxHeight < 560;
+
+                        final double imageHeight = isSmallScreen
+                            ? constraints.maxHeight * 0.52
+                            : constraints.maxHeight * 0.56;
+
+                        return SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: constraints.maxHeight,
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  height: imageHeight.clamp(250.0, 350.0),
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.055),
+                                    borderRadius: BorderRadius.circular(
+                                      isSmallScreen ? 28 : 38,
+                                    ),
+                                    border: Border.all(
+                                      color: pageColor.withOpacity(0.35),
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: pageColor.withOpacity(0.22),
+                                        blurRadius: isSmallScreen ? 24 : 38,
+                                        offset: const Offset(0, 14),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(
+                                      isSmallScreen ? 22 : 30,
+                                    ),
+                                    child: Image.asset(
+                                      item["image"],
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
                                 ),
+
+                                SizedBox(height: isSmallScreen ? 22 : 38),
+
+                                ShaderMask(
+                                  shaderCallback: (bounds) {
+                                    return LinearGradient(
+                                      colors: [Colors.white, pageColor],
+                                    ).createShader(bounds);
+                                  },
+                                  child: Text(
+                                    item["title"],
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: isSmallScreen ? 29 : 36,
+                                      height: 1.1,
+                                      fontWeight: FontWeight.w900,
+                                      color: Colors.white,
+                                      letterSpacing: -1,
+                                    ),
+                                  ),
+                                ),
+
+                                SizedBox(height: isSmallScreen ? 10 : 16),
+
+                                Text(
+                                  item["desc"],
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: isSmallScreen ? 14 : 16,
+                                    height: isSmallScreen ? 1.45 : 1.6,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white.withOpacity(0.68),
+                                  ),
+                                ),
+
+                                const SizedBox(height: 12),
                               ],
                             ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(30),
-                              child: Image.asset(
-                                item["image"],
-                                fit: BoxFit.cover,
-                              ),
-                            ),
                           ),
-
-                          const SizedBox(height: 38),
-
-                          ShaderMask(
-                            shaderCallback: (bounds) {
-                              return LinearGradient(
-                                colors: [Colors.white, pageColor],
-                              ).createShader(bounds);
-                            },
-                            child: Text(
-                              item["title"],
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontSize: 36,
-                                height: 1.1,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.white,
-                                letterSpacing: -1,
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 16),
-
-                          Text(
-                            item["desc"],
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 16,
-                              height: 1.6,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white.withOpacity(0.68),
-                            ),
-                          ),
-                        ],
-                      ),
+                        );
+                      },
                     );
                   },
                 ),
               ),
-
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(onboardingData.length, (index) {
@@ -211,7 +233,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               const SizedBox(height: 30),
 
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 30),
+                padding: EdgeInsets.fromLTRB(
+                  24,
+                  0,
+                  24,
+                  MediaQuery.sizeOf(context).height < 700 ? 16 : 30,
+                ),
                 child: GestureDetector(
                   onTap: nextPage,
                   child: Container(
