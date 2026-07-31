@@ -28,6 +28,8 @@ class _WritingCheckerState extends State<WritingChecker> {
 
   bool isTopicLoading = false;
   bool isChecking = false;
+  bool isOfflineTopic = false;
+  bool isInitializing = true;
 
   int wordCount = 0;
   int totalSeconds = 2400;
@@ -35,7 +37,6 @@ class _WritingCheckerState extends State<WritingChecker> {
   String selectedTask = "2";
 
   int get minWords => selectedTask == "1" ? 150 : 250;
-
   int get examTime => selectedTask == "1" ? 1200 : 2400;
 
   File? chartImage;
@@ -62,16 +63,15 @@ class _WritingCheckerState extends State<WritingChecker> {
     super.initState();
 
     essayController.addListener(() {
-      final text = essayController.text.trim();
-      final words = text.isEmpty ? [] : text.split(RegExp(r'\s+'));
+      if (!mounted) return;
 
-      setState(() {
-        wordCount = words.length;
-      });
+      final text = essayController.text.trim();
+      final words = text.isEmpty ? <String>[] : text.split(RegExp(r'\s+'));
+
+      setState(() => wordCount = words.length);
     });
 
-    loadTopic();
-    startTimer();
+    _initializeWritingChecker();
   }
 
   @override
@@ -79,6 +79,120 @@ class _WritingCheckerState extends State<WritingChecker> {
     timer?.cancel();
     essayController.dispose();
     super.dispose();
+  }
+
+  Future<void> _initializeWritingChecker() async {
+    final hasInternet = await _hasInternetConnection();
+
+    if (!mounted) return;
+
+    if (hasInternet) {
+      await loadTopic(showFailureDialog: false);
+    } else {
+      final loaded = await _loadSavedTopic(showMessage: false);
+
+      if (!loaded && mounted) {
+        _showInternetDialog(
+          title: "No Internet Connection",
+          message:
+              "No saved Writing Task $selectedTask topic is available on this device. Connect to the internet once to generate and save a topic for offline practice.",
+          retry: () => loadTopic(),
+        );
+      }
+    }
+
+    if (!mounted) return;
+
+    setState(() => isInitializing = false);
+    startTimer();
+  }
+
+  Future<bool> _hasInternetConnection() async {
+    try {
+      final result = await InternetAddress.lookup(
+        "google.com",
+      ).timeout(const Duration(seconds: 5));
+
+      return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
+    } on SocketException {
+      return false;
+    } on TimeoutException {
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  DocumentReference<Map<String, dynamic>>? _topicCacheReference(
+    String taskType,
+  ) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return null;
+
+    return FirebaseFirestore.instance
+        .collection("users")
+        .doc(user.uid)
+        .collection("cached_writing_topics")
+        .doc("task_$taskType");
+  }
+
+  Future<void> _saveTopicToFirebase(String generatedTopic) async {
+    final reference = _topicCacheReference(selectedTask);
+    if (reference == null || generatedTopic.trim().isEmpty) return;
+
+    try {
+      await reference.set({
+        "topic": generatedTopic.trim(),
+        "taskType": selectedTask,
+        "minimumWords": minWords,
+        "examTimeSeconds": examTime,
+        "updatedAt": FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (_) {
+      // The generated topic remains available in memory even if caching fails.
+    }
+  }
+
+  Future<bool> _loadSavedTopic({bool showMessage = true}) async {
+    final reference = _topicCacheReference(selectedTask);
+    if (reference == null) return false;
+
+    DocumentSnapshot<Map<String, dynamic>>? snapshot;
+
+    try {
+      snapshot = await reference.get(const GetOptions(source: Source.cache));
+    } catch (_) {
+      // Continue and try Firestore's default source.
+    }
+
+    if (snapshot == null || !snapshot.exists) {
+      try {
+        snapshot = await reference.get();
+      } catch (_) {
+        return false;
+      }
+    }
+
+    final data = snapshot.data();
+    final savedTopic = data?["topic"]?.toString().trim() ?? "";
+
+    if (savedTopic.isEmpty || !mounted) return false;
+
+    setState(() {
+      topic = savedTopic;
+      isOfflineTopic = true;
+      isTopicLoading = false;
+    });
+
+    if (showMessage) {
+      _showSnack(
+        "Offline Topic Loaded",
+        "A previously saved Writing Task $selectedTask topic is ready for practice.",
+        type: SnackType.warning,
+      );
+    }
+
+    return true;
   }
 
   void startTimer() {
@@ -95,22 +209,115 @@ class _WritingCheckerState extends State<WritingChecker> {
     });
   }
 
-  Future<void> loadTopic() async {
-    setState(() => isTopicLoading = true);
+  Future<void> _changeTask(String taskType) async {
+    if (selectedTask == taskType || isTopicLoading || isChecking) return;
+
+    timer?.cancel();
+
+    setState(() {
+      selectedTask = taskType;
+      totalSeconds = taskType == "1" ? 1200 : 2400;
+      topic = "";
+      isOfflineTopic = false;
+      bandScore = "";
+      taskAchievement = "";
+      coherence = "";
+      lexical = "";
+      grammar = "";
+      improvement = "";
+      improvedVersion = "";
+    });
+
+    await loadTopic(showFailureDialog: true);
+
+    if (mounted) startTimer();
+  }
+
+  Future<void> loadTopic({bool showFailureDialog = true}) async {
+    if (isTopicLoading) return;
+
+    if (mounted) {
+      setState(() {
+        isTopicLoading = true;
+        isOfflineTopic = false;
+      });
+    }
+
+    final hasInternet = await _hasInternetConnection();
+
+    if (!hasInternet) {
+      final loaded = await _loadSavedTopic();
+
+      if (!loaded && mounted && showFailureDialog) {
+        _showInternetDialog(
+          title: "No Internet Connection",
+          message:
+              "A new writing topic cannot be generated right now, and no saved Writing Task $selectedTask topic is available. Please connect to the internet and try again.",
+          retry: () => loadTopic(),
+        );
+      }
+
+      if (mounted) setState(() => isTopicLoading = false);
+      return;
+    }
 
     try {
-      final result = await ai.generateWritingTopic(selectedTask);
+      final result = await ai
+          .generateWritingTopic(selectedTask)
+          .timeout(const Duration(seconds: 40));
+
+      if (result.trim().isEmpty) {
+        throw const FormatException("The generated topic was empty.");
+      }
+
+      if (!mounted) return;
 
       setState(() {
-        topic = result;
+        topic = result.trim();
+        isOfflineTopic = false;
       });
-    } catch (e) {
-      _showInternetDialog(
-        title: "Topic Loading Failed",
-        message:
-            "Your internet connection is not working properly, or the AI service is unavailable. Please check your network and try again.",
-        retry: loadTopic,
+
+      await _saveTopicToFirebase(result);
+
+      _showSnack(
+        "New Topic Ready",
+        "Your Writing Task $selectedTask topic was generated and saved for offline practice.",
+        type: SnackType.success,
       );
+    } on TimeoutException {
+      final loaded = await _loadSavedTopic();
+
+      if (!loaded && mounted && showFailureDialog) {
+        _showInternetDialog(
+          title: "Request Timed Out",
+          message:
+              "The AI service took too long to respond. Check your connection and try again.",
+          retry: () => loadTopic(),
+        );
+      }
+    } catch (error) {
+      final loaded = await _loadSavedTopic();
+
+      if (!loaded && mounted && showFailureDialog) {
+        final message = error.toString().toLowerCase();
+        final title = message.contains("403")
+            ? "AI Permission Error"
+            : message.contains("429")
+            ? "AI Limit Reached"
+            : "Topic Generation Failed";
+
+        final description = message.contains("403")
+            ? "The AI service rejected this request. Check your API key, billing status and model permissions."
+            : message.contains("429")
+            ? "The AI request limit has been reached. Please try again later."
+            : "The writing topic could not be generated. Check your connection and try again.";
+
+        _showInternetDialog(
+          title: title,
+          message: description,
+          retry: () => loadTopic(),
+        );
+      }
     } finally {
       if (mounted) setState(() => isTopicLoading = false);
     }
@@ -120,23 +327,46 @@ class _WritingCheckerState extends State<WritingChecker> {
     final essay = essayController.text.trim();
 
     if (essay.isEmpty) {
-      _showSnack("Please write your essay first.");
+      _showSnack(
+        "Essay Required",
+        "Write your essay before requesting an AI evaluation.",
+        type: SnackType.warning,
+      );
       return;
     }
 
     if (wordCount < minWords) {
-      _showSnack("IELTS Task $selectedTask requires at least $minWords words.");
+      _showSnack(
+        "Minimum Word Count",
+        "IELTS Writing Task $selectedTask requires at least $minWords words. Add ${minWords - wordCount} more words.",
+        type: SnackType.warning,
+      );
       return;
     }
+
+    final hasInternet = await _hasInternetConnection();
+
+    if (!hasInternet) {
+      _showInternetDialog(
+        title: "Internet Required for Evaluation",
+        message:
+            "Your saved topic remains available offline, but AI essay evaluation requires an active internet connection. Your essay will remain on this screen.",
+        retry: checkEssay,
+      );
+      return;
+    }
+
+    if (!mounted) return;
 
     setState(() => isChecking = true);
     timer?.cancel();
 
     try {
-      final result = await ai.evaluateWriting(
-        text: essay,
-        taskType: selectedTask,
-      );
+      final result = await ai
+          .evaluateWriting(text: essay, taskType: selectedTask)
+          .timeout(const Duration(seconds: 60));
+
+      if (!mounted) return;
 
       setState(() {
         bandScore = result["overall_band"]?.toString() ?? "0";
@@ -146,23 +376,43 @@ class _WritingCheckerState extends State<WritingChecker> {
             : (result["task_response"]?["feedback"]?.toString() ?? "");
 
         coherence = result["coherence_cohesion"]?["feedback"]?.toString() ?? "";
-
         lexical = result["lexical_resource"]?["feedback"]?.toString() ?? "";
-
         grammar = result["grammar"]?["feedback"]?.toString() ?? "";
-
         improvement = result["examiner_advice"]?.toString() ?? "";
-
         improvedVersion = result["improved_version"]?.toString() ?? "";
       });
 
       await saveToFirebase();
-      _showSnack("Essay checked successfully.");
-    } catch (e) {
+
+      _showSnack(
+        "Evaluation Complete",
+        "Your essay was evaluated successfully and the result was saved.",
+        type: SnackType.success,
+      );
+    } on TimeoutException {
       _showInternetDialog(
-        title: "Checking Failed",
+        title: "Evaluation Timed Out",
         message:
-            "Your internet connection is not working properly, or the AI examiner could not check your essay. Please try again.",
+            "The AI examiner took too long to respond. Your essay is still available, so you can safely try again.",
+        retry: checkEssay,
+      );
+    } catch (error) {
+      final message = error.toString().toLowerCase();
+      final title = message.contains("403")
+          ? "AI Permission Error"
+          : message.contains("429")
+          ? "AI Limit Reached"
+          : "Evaluation Failed";
+
+      final description = message.contains("403")
+          ? "The AI service rejected this request. Check your API key, billing status and model permissions."
+          : message.contains("429")
+          ? "The AI request limit has been reached. Please try again later."
+          : "The AI examiner could not evaluate your essay. Check your connection and try again.";
+
+      _showInternetDialog(
+        title: title,
+        message: description,
         retry: checkEssay,
       );
     } finally {
@@ -174,23 +424,41 @@ class _WritingCheckerState extends State<WritingChecker> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    await FirebaseFirestore.instance
-        .collection("users")
-        .doc(user.uid)
-        .collection("writing_results")
-        .add({
-          "topic": topic,
-          "essay": essayController.text.trim(),
-          "band": bandScore,
-          "task_achievement": taskAchievement,
-          "coherence": coherence,
-          "lexical": lexical,
-          "grammar": grammar,
-          "improvement": improvement,
-          "improved_version": improvedVersion,
-          "word_count": wordCount,
-          "createdAt": FieldValue.serverTimestamp(),
-        });
+    final resultData = {
+      "topic": topic,
+      "essay": essayController.text.trim(),
+      "band": bandScore,
+      "taskType": selectedTask,
+      "task_achievement": taskAchievement,
+      "coherence": coherence,
+      "lexical": lexical,
+      "grammar": grammar,
+      "improvement": improvement,
+      "improved_version": improvedVersion,
+      "word_count": wordCount,
+      "createdAt": FieldValue.serverTimestamp(),
+    };
+
+    try {
+      await FirebaseFirestore.instance
+          .collection("users")
+          .doc(user.uid)
+          .collection("writing_results")
+          .add(resultData);
+
+      await FirebaseFirestore.instance
+          .collection("users")
+          .doc(user.uid)
+          .collection("cached_writing_results")
+          .doc("latest_task_$selectedTask")
+          .set(resultData, SetOptions(merge: true));
+    } catch (_) {
+      _showSnack(
+        "Result Saved Locally",
+        "The evaluation is visible now. Firebase will synchronize it when the connection becomes available.",
+        type: SnackType.info,
+      );
+    }
   }
 
   void _showInternetDialog({
@@ -434,14 +702,7 @@ class _WritingCheckerState extends State<WritingChecker> {
                               title: "Task 1",
                               subtitle: "150 words",
                               selected: selectedTask == "1",
-                              onTap: () {
-                                setState(() {
-                                  selectedTask = "1";
-                                  totalSeconds = 1200;
-                                });
-
-                                loadTopic();
-                              },
+                              onTap: () => _changeTask("1"),
                             ),
                           ),
 
@@ -452,19 +713,16 @@ class _WritingCheckerState extends State<WritingChecker> {
                               title: "Task 2",
                               subtitle: "250 words",
                               selected: selectedTask == "2",
-                              onTap: () {
-                                setState(() {
-                                  selectedTask = "2";
-                                  totalSeconds = 2400;
-                                });
-
-                                loadTopic();
-                              },
+                              onTap: () => _changeTask("2"),
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 14),
+                      if (isOfflineTopic) ...[
+                        _offlineModeBanner(),
+                        const SizedBox(height: 14),
+                      ],
                       _topicCard(),
                       const SizedBox(height: 16),
                       _essayCard(),
@@ -486,6 +744,82 @@ class _WritingCheckerState extends State<WritingChecker> {
             ],
           ),
           if (isChecking) _loadingOverlay(),
+        ],
+      ),
+    );
+  }
+
+  Widget _offlineModeBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFFF59E0B).withOpacity(0.20),
+            const Color(0xFFD97706).withOpacity(0.10),
+            Colors.white.withOpacity(0.04),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFFBBF24).withOpacity(0.35)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFF59E0B).withOpacity(0.12),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            height: 44,
+            width: 44,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF59E0B).withOpacity(0.18),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.cloud_off_rounded,
+              color: Color(0xFFFBBF24),
+              size: 23,
+            ),
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Offline Practice Mode",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  "This topic was loaded from Firebase cache. AI evaluation will require an internet connection.",
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.70),
+                    fontSize: 12.5,
+                    height: 1.45,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            tooltip: "Try online",
+            onPressed: isTopicLoading ? null : () => loadTopic(),
+            icon: const Icon(Icons.refresh_rounded, color: Color(0xFFFBBF24)),
+          ),
         ],
       ),
     );
@@ -1931,72 +2265,127 @@ class _WritingCheckerState extends State<WritingChecker> {
     );
   }
 
-  void _showSnack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        margin: const EdgeInsets.all(18),
+  void _showSnack(
+    String title,
+    String message, {
+    SnackType type = SnackType.info,
+  }) {
+    if (!mounted) return;
 
-        content: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+    final Color accentColor;
+    final IconData icon;
 
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [const Color(0xFF111827), const Color(0xFF1F2937)],
+    switch (type) {
+      case SnackType.success:
+        accentColor = const Color(0xFF22C55E);
+        icon = Icons.check_circle_outline_rounded;
+        break;
+      case SnackType.warning:
+        accentColor = const Color(0xFFF59E0B);
+        icon = Icons.warning_amber_rounded;
+        break;
+      case SnackType.error:
+        accentColor = const Color(0xFFEF4444);
+        icon = Icons.error_outline_rounded;
+        break;
+      case SnackType.info:
+        accentColor = primary;
+        icon = Icons.info_outline_rounded;
+        break;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+          duration: const Duration(seconds: 4),
+          content: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF111827), Color(0xFF0B1220)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: accentColor.withOpacity(0.45)),
+              boxShadow: [
+                BoxShadow(
+                  color: accentColor.withOpacity(0.18),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
+                ),
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.30),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
-
-            borderRadius: BorderRadius.circular(22),
-
-            border: Border.all(color: primary.withOpacity(0.25)),
-
-            boxShadow: [
-              BoxShadow(
-                color: primary.withOpacity(0.18),
-                blurRadius: 24,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [primary, secondary]),
-
-                  shape: BoxShape.circle,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  height: 42,
+                  width: 42,
+                  decoration: BoxDecoration(
+                    color: accentColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(icon, color: accentColor, size: 23),
                 ),
-
-                child: const Icon(
-                  Icons.warning_amber_rounded,
-                  color: Colors.white,
-                  size: 22,
-                ),
-              ),
-
-              const SizedBox(width: 14),
-
-              Expanded(
-                child: Text(
-                  message,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14.5,
-                    height: 1.4,
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        message,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.72),
+                          fontSize: 13,
+                          height: 1.4,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 8),
+                InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: messenger.hideCurrentSnackBar,
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(
+                      Icons.close_rounded,
+                      color: Colors.white.withOpacity(0.55),
+                      size: 19,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-
-        duration: const Duration(seconds: 3),
-      ),
-    );
+      );
   }
 }
+
+enum SnackType { info, success, warning, error }

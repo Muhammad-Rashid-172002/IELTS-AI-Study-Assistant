@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:fyproject/services/ai_service.dart';
+
+enum SnackType { info, success, warning, error }
 
 class ReadingPractice extends StatefulWidget {
   const ReadingPractice({super.key});
@@ -24,6 +27,8 @@ class _ReadingPracticeState extends State<ReadingPractice> {
   bool isLoading = false;
   bool generated = false;
   bool showResult = false;
+  bool isOfflineTest = false;
+  bool checkingSavedTest = true;
 
   int score = 0;
   int currentQuestion = 0;
@@ -42,12 +47,188 @@ class _ReadingPracticeState extends State<ReadingPractice> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _initializeReadingScreen();
+  }
+
+  Future<void> _initializeReadingScreen() async {
+    final hasInternet = await _hasInternetConnection();
+
+    if (!hasInternet) {
+      await _loadSavedReadingTest(showMessage: false);
+    }
+
+    if (mounted) {
+      setState(() => checkingSavedTest = false);
+    }
+  }
+
+  Future<bool> _hasInternetConnection() async {
+    try {
+      final result = await InternetAddress.lookup(
+        'generativelanguage.googleapis.com',
+      ).timeout(const Duration(seconds: 5));
+
+      return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
+    } on SocketException {
+      return false;
+    } on TimeoutException {
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _saveReadingTestToFirebase(Map<String, dynamic> testData) async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null || testData.isEmpty) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('cached_tests')
+          .doc('reading_full_test')
+          .set({
+            'testData': testData,
+            'testType': 'reading',
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('SAVE READING TEST ERROR: $e');
+      // The test is already visible, so a save failure should not
+      // interrupt the user's reading practice.
+    }
+  }
+
+  Future<bool> _loadSavedReadingTest({bool showMessage = false}) async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      if (mounted) {
+        setState(() => checkingSavedTest = false);
+      }
+      return false;
+    }
+
+    try {
+      DocumentSnapshot<Map<String, dynamic>> snapshot;
+
+      try {
+        snapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('cached_tests')
+            .doc('reading_full_test')
+            .get(const GetOptions(source: Source.server))
+            .timeout(const Duration(seconds: 6));
+      } catch (_) {
+        snapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('cached_tests')
+            .doc('reading_full_test')
+            .get(const GetOptions(source: Source.cache));
+      }
+
+      if (!snapshot.exists || snapshot.data() == null) {
+        if (mounted) {
+          setState(() => checkingSavedTest = false);
+        }
+        return false;
+      }
+
+      final rawTestData = snapshot.data()!['testData'];
+
+      if (rawTestData is! Map) {
+        if (mounted) {
+          setState(() => checkingSavedTest = false);
+        }
+        return false;
+      }
+
+      final savedTest = Map<String, dynamic>.from(rawTestData);
+      final qList = List<Map<String, dynamic>>.from(
+        savedTest['questions'] ?? [],
+      );
+
+      if (savedTest.isEmpty || qList.isEmpty) {
+        if (mounted) {
+          setState(() => checkingSavedTest = false);
+        }
+        return false;
+      }
+
+      if (!mounted) return false;
+
+      timer?.cancel();
+
+      setState(() {
+        title = savedTest['title'] ?? 'IELTS Academic Reading';
+        passage = savedTest['passage'] ?? '';
+        questions = qList;
+        selectedAnswers = List.generate(qList.length, (_) => null);
+        generated = true;
+        showResult = false;
+        score = 0;
+        currentQuestion = 0;
+        totalSeconds = 1200;
+        isOfflineTest = snapshot.metadata.isFromCache;
+        checkingSavedTest = false;
+      });
+
+      startTimer();
+
+      if (showMessage) {
+        _showSnack(
+          'Offline Mode',
+          'No internet connection is available. Your saved reading test has been loaded.',
+        );
+      }
+
+      return true;
+    } catch (e) {
+      debugPrint('LOAD SAVED READING TEST ERROR: $e');
+
+      if (mounted) {
+        setState(() => checkingSavedTest = false);
+      }
+
+      return false;
+    }
+  }
+
+  @override
   void dispose() {
     timer?.cancel();
     super.dispose();
   }
 
   Future<void> generateAIReadingTest() async {
+    if (isLoading) return;
+
+    final hasInternet = await _hasInternetConnection();
+
+    if (!hasInternet) {
+      final savedTestLoaded = await _loadSavedReadingTest(showMessage: true);
+
+      if (!savedTestLoaded && mounted) {
+        _showInternetDialog(
+          title: 'No Internet Connection',
+          message:
+              'No internet connection is available, and no saved reading test was found. Connect to the internet to generate your first test.',
+          retry: generateAIReadingTest,
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+
+    timer?.cancel();
+
     setState(() {
       isLoading = true;
       generated = false;
@@ -55,31 +236,95 @@ class _ReadingPracticeState extends State<ReadingPractice> {
       score = 0;
       currentQuestion = 0;
       totalSeconds = 1200;
+      isOfflineTest = false;
     });
 
     try {
-      final data = await ai.generateReadingTest();
+      final data = await ai.generateReadingTest().timeout(
+        const Duration(seconds: 60),
+      );
 
-      final qList = List<Map<String, dynamic>>.from(data["questions"] ?? []);
+      final qList = List<Map<String, dynamic>>.from(data['questions'] ?? []);
+
+      if (data.isEmpty || qList.isEmpty) {
+        throw Exception('The AI returned incomplete reading test data.');
+      }
+
+      if (!mounted) return;
 
       setState(() {
-        title = data["title"] ?? "IELTS Academic Reading";
-        passage = data["passage"] ?? "";
+        title = data['title'] ?? 'IELTS Academic Reading';
+        passage = data['passage'] ?? '';
         questions = qList;
         selectedAnswers = List.generate(qList.length, (_) => null);
         generated = true;
+        isOfflineTest = false;
       });
 
       startTimer();
-    } catch (e) {
-      _showInternetDialog(
-        title: "Reading Test Failed",
-        message:
-            "Your internet connection is not working properly, or the AI service is unavailable. Please check your network and try again.",
-        retry: generateAIReadingTest,
-      );
+
+      await _saveReadingTestToFirebase(Map<String, dynamic>.from(data));
+
+      if (mounted) {
+        _showSnack(
+          'Test Ready',
+          'Your new IELTS reading test has been generated successfully.',
+        );
+      }
+    } on TimeoutException {
+      final savedTestLoaded = await _loadSavedReadingTest(showMessage: true);
+
+      if (!savedTestLoaded && mounted) {
+        _showSnack(
+          'Request Timeout',
+          'The AI is taking too long to respond. Please try again.',
+        );
+      }
+    } on SocketException {
+      final savedTestLoaded = await _loadSavedReadingTest(showMessage: true);
+
+      if (!savedTestLoaded && mounted) {
+        _showSnack(
+          'No Internet',
+          'Please check your internet connection and try again.',
+        );
+      }
+    } catch (e, stackTrace) {
+      debugPrint('GENERATE READING TEST ERROR: $e');
+      debugPrintStack(stackTrace: stackTrace);
+
+      final errorText = e.toString().toLowerCase();
+
+      if (errorText.contains('403') ||
+          errorText.contains('permission_denied') ||
+          errorText.contains('forbidden')) {
+        _showSnack(
+          'AI Permission Error',
+          'The Gemini API request was denied. Check the API key, billing status, and API restrictions.',
+        );
+      } else if (errorText.contains('429') ||
+          errorText.contains('resource_exhausted') ||
+          errorText.contains('quota')) {
+        _showSnack(
+          'AI Limit Reached',
+          'The Gemini API quota or billing limit has been reached.',
+        );
+      } else {
+        final savedTestLoaded = await _loadSavedReadingTest(showMessage: true);
+
+        if (!savedTestLoaded && mounted) {
+          _showInternetDialog(
+            title: 'Reading Test Failed',
+            message:
+                'The reading test could not be generated. Check your connection and try again.',
+            retry: generateAIReadingTest,
+          );
+        }
+      }
     } finally {
-      if (mounted) setState(() => isLoading = false);
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
     }
   }
 
@@ -151,20 +396,153 @@ class _ReadingPracticeState extends State<ReadingPractice> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    await FirebaseFirestore.instance
-        .collection("users")
-        .doc(user.uid)
-        .collection("reading_results")
-        .add({
-          "title": title,
-          "passage": passage,
-          "questions": questions,
-          "answers": selectedAnswers,
-          "score": score,
-          "total": questions.length,
-          "band": calculateBandScore(),
-          "createdAt": FieldValue.serverTimestamp(),
-        });
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('reading_results')
+          .add({
+            'title': title,
+            'passage': passage,
+            'questions': questions,
+            'answers': selectedAnswers,
+            'score': score,
+            'total': questions.length,
+            'band': calculateBandScore(),
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+
+      if (mounted) {
+        _showSnack(
+          'Result Saved',
+          'Your reading result has been saved successfully.',
+        );
+      }
+    } catch (e) {
+      debugPrint('SAVE READING RESULT ERROR: $e');
+
+      if (mounted) {
+        _showSnack(
+          'Result Pending',
+          'The result could not be saved online. Please reconnect and try again.',
+        );
+      }
+    }
+  }
+
+  void _showSnack(
+    String title,
+    String message, {
+    bool isError = false,
+    bool isSuccess = false,
+  }) {
+    if (!mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    final Color accentColor = isError
+        ? const Color(0xFFEF4444)
+        : isSuccess
+        ? const Color(0xFF22C55E)
+        : const Color(0xFF14B8A6);
+
+    final IconData icon = isError
+        ? Icons.error_outline_rounded
+        : isSuccess
+        ? Icons.check_circle_outline_rounded
+        : Icons.info_outline_rounded;
+
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+          duration: const Duration(seconds: 4),
+          content: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF111827),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: accentColor.withOpacity(0.45)),
+              boxShadow: [
+                BoxShadow(
+                  color: accentColor.withOpacity(0.18),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
+                ),
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.30),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  height: 42,
+                  width: 42,
+                  decoration: BoxDecoration(
+                    color: accentColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(icon, color: accentColor, size: 23),
+                ),
+
+                const SizedBox(width: 13),
+
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+
+                      const SizedBox(height: 4),
+
+                      Text(
+                        message,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.72),
+                          fontSize: 13,
+                          height: 1.4,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(width: 8),
+
+                InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: messenger.hideCurrentSnackBar,
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(
+                      Icons.close_rounded,
+                      color: Colors.white.withOpacity(0.55),
+                      size: 19,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
   }
 
   void _showInternetDialog({
@@ -327,7 +705,9 @@ class _ReadingPracticeState extends State<ReadingPractice> {
         children: [
           _header(),
           Expanded(
-            child: isLoading
+            child: checkingSavedTest
+                ? _initialLoadingBody()
+                : isLoading
                 ? _loadingBody()
                 : generated
                 ? _body()
@@ -516,132 +896,141 @@ class _ReadingPracticeState extends State<ReadingPractice> {
     );
   }
 
-  Widget _loadingBody() {
-    return Center(
-      child: Container(
-        padding: const EdgeInsets.all(28),
-        margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+ Widget _loadingBody() {
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      final isCompact = constraints.maxHeight < 430;
 
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Colors.white.withOpacity(0.10),
-              Colors.white.withOpacity(0.04),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-
-          borderRadius: BorderRadius.circular(32),
-
-          border: Border.all(color: Colors.white.withOpacity(0.10), width: 1.2),
-
-          boxShadow: [
-            BoxShadow(
-              color: primary.withOpacity(0.18),
-              blurRadius: 28,
-              offset: const Offset(0, 14),
-            ),
-
-            BoxShadow(
-              color: Colors.black.withOpacity(0.22),
-              blurRadius: 24,
-              offset: const Offset(0, 12),
-            ),
-          ],
+      return SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        padding: EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: isCompact ? 12 : 20,
         ),
-
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              height: 92,
-              width: 92,
-
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: constraints.maxHeight - (isCompact ? 24 : 40),
+          ),
+          child: Center(
+            child: Container(
+              padding: EdgeInsets.all(isCompact ? 20 : 28),
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
-
-                gradient: LinearGradient(colors: [primary, secondary]),
-
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.white.withOpacity(0.10),
+                    Colors.white.withOpacity(0.04),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(32),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.10),
+                  width: 1.2,
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: primary.withOpacity(0.35),
+                    color: primary.withOpacity(0.18),
                     blurRadius: 28,
+                    offset: const Offset(0, 14),
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.22),
+                    blurRadius: 24,
                     offset: const Offset(0, 12),
                   ),
                 ],
               ),
-
-              child: Stack(
-                alignment: Alignment.center,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  SizedBox(
-                    height: 72,
-                    width: 72,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 3,
-                      valueColor: const AlwaysStoppedAnimation(Colors.white),
-                      backgroundColor: Colors.white.withOpacity(0.12),
+                  Container(
+                    height: isCompact ? 72 : 92,
+                    width: isCompact ? 72 : 92,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [primary, secondary],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: primary.withOpacity(0.35),
+                          blurRadius: 28,
+                          offset: const Offset(0, 12),
+                        ),
+                      ],
+                    ),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox(
+                          height: isCompact ? 56 : 72,
+                          width: isCompact ? 56 : 72,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 3,
+                            valueColor:
+                                const AlwaysStoppedAnimation(Colors.white),
+                            backgroundColor:
+                                Colors.white.withOpacity(0.12),
+                          ),
+                        ),
+                        Icon(
+                          Icons.auto_stories_rounded,
+                          color: Colors.white,
+                          size: isCompact ? 30 : 38,
+                        ),
+                      ],
                     ),
                   ),
 
-                  const Icon(
-                    Icons.auto_stories_rounded,
-                    color: Colors.white,
-                    size: 38,
+                  SizedBox(height: isCompact ? 18 : 28),
+
+                  Text(
+                    "Generating IELTS Reading Test...",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: isCompact ? 20 : 24,
+                      color: Colors.white,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+
+                  SizedBox(height: isCompact ? 8 : 12),
+
+                  Text(
+                    "AI is creating an advanced IELTS reading passage with realistic questions, smart evaluation and band scoring.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.72),
+                      fontSize: isCompact ? 13 : 14,
+                      height: isCompact ? 1.45 : 1.7,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+
+                  SizedBox(height: isCompact ? 16 : 26),
+
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _loadingChip("Passage"),
+                      _loadingChip("MCQs"),
+                      _loadingChip("True/False"),
+                      _loadingChip("Band Score"),
+                    ],
                   ),
                 ],
               ),
             ),
-
-            const SizedBox(height: 28),
-
-            const Text(
-              "Generating IELTS Reading Test...",
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 24,
-                color: Colors.white,
-                letterSpacing: -0.2,
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            Text(
-              "AI is creating an advanced IELTS reading passage with realistic questions, smart evaluation and band scoring.",
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.72),
-                fontSize: 14,
-                height: 1.7,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-
-            const SizedBox(height: 26),
-
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _loadingChip("Passage"),
-                const SizedBox(width: 8),
-                _loadingChip("MCQs"),
-                const SizedBox(width: 8),
-                _loadingChip("True/False"),
-                const SizedBox(width: 8),
-                _loadingChip("Band Score"),
-              ],
-            ),
-          ],
+          ),
         ),
-      ),
-    );
-  }
-
+      );
+    },
+  );
+}
   Widget _loadingChip(String text) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -880,6 +1269,7 @@ class _ReadingPracticeState extends State<ReadingPractice> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
+          if (isOfflineTest) ...[_offlineBanner(), const SizedBox(height: 16)],
           _passageCard(),
           const SizedBox(height: 16),
           _progressCard(),
@@ -892,6 +1282,114 @@ class _ReadingPracticeState extends State<ReadingPractice> {
             onTap: submitAnswers,
           ),
           if (showResult) ...[const SizedBox(height: 18), _resultCard()],
+        ],
+      ),
+    );
+  }
+
+  Widget _initialLoadingBody() {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(26),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.white.withOpacity(0.10),
+              Colors.white.withOpacity(0.04),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: Colors.white.withOpacity(0.10)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(color: primary),
+            const SizedBox(height: 20),
+            const Text(
+              'Preparing Reading Practice',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Checking for a saved reading test...',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.65),
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _offlineBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFFF59E0B).withOpacity(0.20),
+            const Color(0xFFEA580C).withOpacity(0.10),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.42)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFF59E0B).withOpacity(0.12),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            height: 44,
+            width: 44,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF59E0B).withOpacity(0.16),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.cloud_off_rounded,
+              color: Color(0xFFFBBF24),
+            ),
+          ),
+          const SizedBox(width: 13),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Offline Mode',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                  ),
+                ),
+                SizedBox(height: 3),
+                Text(
+                  'A saved reading test is being displayed.',
+                  style: TextStyle(
+                    color: Color(0xFFD1D5DB),
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -1924,7 +2422,7 @@ class _ReadingPracticeState extends State<ReadingPractice> {
 
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
-  mainAxisSize: MainAxisSize.min,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
                   padding: const EdgeInsets.all(8),
@@ -1947,7 +2445,7 @@ class _ReadingPracticeState extends State<ReadingPractice> {
                       fontSize: 16.5,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 0.3,
-                       overflow: TextOverflow.ellipsis,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),
@@ -1966,5 +2464,4 @@ class _ReadingPracticeState extends State<ReadingPractice> {
       ),
     );
   }
-
 }

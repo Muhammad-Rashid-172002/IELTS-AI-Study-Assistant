@@ -718,7 +718,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
     final hasData = score > 0;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -749,29 +749,45 @@ class _ProgressScreenState extends State<ProgressScreen> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
+                height: 46,
+                width: 46,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [color.withOpacity(0.90), color.withOpacity(0.55)],
                   ),
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: Icon(icon, color: Colors.white, size: 24),
+                child: Icon(icon, color: Colors.white, size: 22),
               ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.16),
-                  borderRadius: BorderRadius.circular(30),
-                  border: Border.all(color: color.withOpacity(0.25)),
-                ),
-                child: Text(
-                  hasData ? "$percentage%" : "No Data",
-                  style: TextStyle(color: color, fontWeight: FontWeight.bold),
+
+              const SizedBox(width: 6),
+
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 62),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.16),
+                      borderRadius: BorderRadius.circular(30),
+                      border: Border.all(color: color.withOpacity(0.25)),
+                    ),
+                    child: Text(
+                      hasData ? "$percentage%" : "No Data",
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],

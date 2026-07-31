@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -29,6 +30,11 @@ class _ListeningPracticeState extends State<ListeningPractice> {
   bool isLoading = false;
   bool isPlaying = false;
   bool showResult = false;
+  bool isOfflineTest = false;
+  bool checkingSavedTest = true;
+  bool isTtsReady = false;
+  bool isTtsInitializing = false;
+  String? selectedTtsEngine;
 
   int score = 0;
   Timer? countdownTimer;
@@ -47,9 +53,67 @@ class _ListeningPracticeState extends State<ListeningPractice> {
   @override
   void initState() {
     super.initState();
-    flutterTts.setCompletionHandler(() {
-      if (mounted) setState(() => isPlaying = false);
+
+    flutterTts.setStartHandler(() {
+      debugPrint("TTS STARTED");
+
+      if (!mounted) return;
+
+      countdownTimer?.cancel();
+
+      setState(() {
+        isPlaying = true;
+      });
+
+      startTimer();
     });
+
+    flutterTts.setCompletionHandler(() {
+      debugPrint("TTS COMPLETED");
+
+      if (!mounted) return;
+
+      countdownTimer?.cancel();
+
+      setState(() {
+        isPlaying = false;
+      });
+    });
+
+    flutterTts.setCancelHandler(() {
+      debugPrint("TTS CANCELLED");
+
+      if (!mounted) return;
+
+      countdownTimer?.cancel();
+
+      setState(() {
+        isPlaying = false;
+      });
+    });
+
+    flutterTts.setErrorHandler((message) {
+      debugPrint("TTS ERROR: $message");
+
+      if (!mounted) return;
+
+      countdownTimer?.cancel();
+
+      setState(() {
+        isPlaying = false;
+        isTtsReady = false;
+        isTtsInitializing = false;
+      });
+
+      _showSnack(
+        "Audio Playback Failed",
+        "The text-to-speech engine could not play the listening audio.",
+        isError: true,
+      );
+    });
+
+    _initializeTts();
+    _initializeListeningScreen();
   }
 
   @override
@@ -59,27 +123,326 @@ class _ListeningPracticeState extends State<ListeningPractice> {
     super.dispose();
   }
 
+  Future<void> _initializeListeningScreen() async {
+    final hasInternet = await _hasInternetConnection();
+
+    if (!hasInternet) {
+      await _loadSavedListeningTest(showMessage: false);
+    }
+
+    if (mounted) {
+      setState(() {
+        checkingSavedTest = false;
+      });
+    }
+  }
+
+  Future<bool> _initializeTts() async {
+    if (isTtsReady) return true;
+    if (isTtsInitializing) return false;
+
+    if (mounted) {
+      setState(() {
+        isTtsInitializing = true;
+        isTtsReady = false;
+      });
+    }
+
+    try {
+      await flutterTts.awaitSpeakCompletion(true);
+
+      dynamic languageResult;
+
+      try {
+        languageResult = await flutterTts
+            .setLanguage("en-GB")
+            .timeout(const Duration(seconds: 5));
+      } catch (_) {
+        languageResult = await flutterTts
+            .setLanguage("en-US")
+            .timeout(const Duration(seconds: 5));
+      }
+
+      await flutterTts.setSpeechRate(0.43).timeout(const Duration(seconds: 3));
+
+      await flutterTts.setPitch(1.0).timeout(const Duration(seconds: 3));
+
+      await flutterTts.setVolume(1.0).timeout(const Duration(seconds: 3));
+
+      final bool ready = languageResult == 1 || languageResult == true;
+
+      debugPrint("TTS LANGUAGE RESULT: $languageResult");
+      debugPrint("TTS READY: $ready");
+
+      if (mounted) {
+        setState(() {
+          isTtsReady = ready;
+          isTtsInitializing = false;
+        });
+      }
+
+      return ready;
+    } on TimeoutException catch (e) {
+      debugPrint("TTS INITIALIZATION TIMEOUT: $e");
+
+      if (mounted) {
+        setState(() {
+          isTtsReady = false;
+          isTtsInitializing = false;
+        });
+      }
+
+      return false;
+    } catch (e, stackTrace) {
+      debugPrint("TTS INITIALIZATION ERROR: $e");
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (mounted) {
+        setState(() {
+          isTtsReady = false;
+          isTtsInitializing = false;
+        });
+      }
+
+      return false;
+    }
+  }
+
+  Future<bool> _hasInternetConnection() async {
+    try {
+      final result = await InternetAddress.lookup(
+        'generativelanguage.googleapis.com',
+      ).timeout(const Duration(seconds: 5));
+
+      return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
+    } on SocketException {
+      return false;
+    } on TimeoutException {
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _saveListeningTestToFirebase(
+    Map<String, dynamic> testData,
+  ) async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null || testData.isEmpty) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('cached_tests')
+          .doc('listening_full_test')
+          .set({
+            'testData': testData,
+            'testType': 'listening',
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('SAVE LISTENING TEST ERROR: $e');
+
+      // The test is already visible in the UI, so a Firebase save failure
+      // should not cause the test generation process to fail.
+    }
+  }
+
+  Future<bool> _loadSavedListeningTest({bool showMessage = false}) async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      if (mounted) {
+        setState(() => checkingSavedTest = false);
+      }
+      return false;
+    }
+
+    try {
+      DocumentSnapshot<Map<String, dynamic>> snapshot;
+
+      try {
+        // First, try to retrieve the latest test from the server.
+        snapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('cached_tests')
+            .doc('listening_full_test')
+            .get(const GetOptions(source: Source.server))
+            .timeout(const Duration(seconds: 6));
+      } catch (_) {
+        // Internet na ho to local Firestore cache se load karega.
+        snapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('cached_tests')
+            .doc('listening_full_test')
+            .get(const GetOptions(source: Source.cache));
+      }
+
+      if (!snapshot.exists || snapshot.data() == null) {
+        if (mounted) {
+          setState(() => checkingSavedTest = false);
+        }
+        return false;
+      }
+
+      final documentData = snapshot.data()!;
+      final rawTestData = documentData['testData'];
+
+      if (rawTestData is! Map) {
+        if (mounted) {
+          setState(() => checkingSavedTest = false);
+        }
+        return false;
+      }
+
+      final savedTest = Map<String, dynamic>.from(rawTestData);
+
+      if (savedTest.isEmpty) {
+        if (mounted) {
+          setState(() => checkingSavedTest = false);
+        }
+        return false;
+      }
+
+      if (!mounted) return false;
+
+      setState(() {
+        listeningTest = savedTest;
+        generated = true;
+        isOfflineTest = snapshot.metadata.isFromCache;
+        checkingSavedTest = false;
+      });
+
+      loadPart('part1');
+
+      if (showMessage) {
+        _showSnack(
+          'Offline mode',
+          'Internet available nahi hai. Aapka saved listening test load kar diya gaya hai.',
+          isError: true,
+        );
+      }
+
+      return true;
+    } catch (e) {
+      debugPrint('LOAD SAVED LISTENING TEST ERROR: $e');
+
+      if (mounted) {
+        setState(() => checkingSavedTest = false);
+      }
+
+      return false;
+    }
+  }
+
   Future<void> generateListeningTest() async {
+    if (isLoading) return;
+
+    final hasInternet = await _hasInternetConnection();
+
+    if (!hasInternet) {
+      final savedTestLoaded = await _loadSavedListeningTest(showMessage: true);
+
+      if (!savedTestLoaded && mounted) {
+        _showSnack(
+          'No Internet',
+          'Aapke paas internet connection nahi hai aur koi saved listening test bhi available nahi hai.',
+        );
+      }
+
+      return;
+    }
+
+    if (!mounted) return;
+
     setState(() {
       isLoading = true;
       showResult = false;
       score = 0;
       totalSeconds = 1800;
+      isOfflineTest = false;
     });
 
     try {
-      final data = await aiService.generateListeningTest();
+      final data = await aiService.generateListeningTest().timeout(
+        const Duration(seconds: 100),
+      );
+
+      if (data.isEmpty) {
+        throw Exception('Gemini returned empty test data');
+      }
+
+      if (!mounted) return;
 
       setState(() {
-        listeningTest = data;
+        listeningTest = Map<String, dynamic>.from(data);
         generated = true;
+        isOfflineTest = false;
       });
 
-      loadPart("part1");
-    } catch (e) {
-      _showSnack("Error", "Failed to generate listening test");
+      loadPart('part1');
+
+      // Save the complete AI-generated listening test to Firebase.
+      await _saveListeningTestToFirebase(Map<String, dynamic>.from(data));
+    } on TimeoutException {
+      final savedTestLoaded = await _loadSavedListeningTest(showMessage: true);
+
+      if (!savedTestLoaded && mounted) {
+        _showSnack(
+          'Request Timeout',
+          'The AI is taking too long to respond. Please try again.',
+        );
+      }
+    } on SocketException {
+      final savedTestLoaded = await _loadSavedListeningTest(showMessage: true);
+
+      if (!savedTestLoaded && mounted) {
+        _showSnack(
+          'No Internet',
+          'No internet connection is available. Please check your connection.',
+        );
+      }
+    } catch (e, stackTrace) {
+      debugPrint('GEMINI LISTENING ERROR: $e');
+      debugPrintStack(stackTrace: stackTrace);
+
+      final errorText = e.toString().toLowerCase();
+
+      if (errorText.contains('403') ||
+          errorText.contains('permission_denied') ||
+          errorText.contains('forbidden')) {
+        _showSnack(
+          'AI Permission Error',
+          'The Gemini API request was denied. Please check the API key, billing status, and API restrictions.',
+          isError: true,
+        );
+      } else if (errorText.contains('429') ||
+          errorText.contains('resource_exhausted') ||
+          errorText.contains('quota')) {
+        _showSnack(
+          'AI Limit Reached',
+          'The Gemini API quota or billing limit has been reached.',
+        );
+      } else {
+        final savedTestLoaded = await _loadSavedListeningTest(
+          showMessage: true,
+        );
+
+        if (!savedTestLoaded && mounted) {
+          _showSnack(
+            'Generation Failed',
+            'The listening test could not be generated. Please try again.',
+          );
+        }
+      }
     } finally {
-      if (mounted) setState(() => isLoading = false);
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
     }
   }
 
@@ -99,24 +462,105 @@ class _ListeningPracticeState extends State<ListeningPractice> {
     });
   }
 
-  Future<void> playAudio() async {
-    if (audioScript.isEmpty) return;
+Future<void> playAudio() async {
+  final script = audioScript.trim();
 
-    await flutterTts.stop();
-    await flutterTts.setLanguage("en-GB");
-    await flutterTts.setSpeechRate(0.43);
-    await flutterTts.setPitch(1.0);
-
-    setState(() => isPlaying = true);
-    startTimer();
-
-    await flutterTts.speak(audioScript);
+  if (script.isEmpty) {
+    _showSnack(
+      "Audio Unavailable",
+      "Listening test generate nahi hua ya audio script empty hai.",
+      isError: true,
+    );
+    return;
   }
 
-  Future<void> stopAudio() async {
+  if (isPlaying) {
+    await stopAudio();
+    return;
+  }
+
+  if (!isTtsReady) {
+    final initialized = await _initializeTts();
+
+    if (!initialized) {
+      _showSnack(
+        "Speech Engine Unavailable",
+        "Phone settings mein Speech Recognition & Synthesis by Google install ya enable karein.",
+        isError: true,
+      );
+      return;
+    }
+  }
+
+  try {
     await flutterTts.stop();
+
+    final result = await flutterTts
+        .speak(script)
+        .timeout(const Duration(seconds: 10));
+
+    debugPrint("TTS SPEAK RESULT: $result");
+
+    if (result != 1 && result != true) {
+      if (!mounted) return;
+
+      setState(() {
+        isPlaying = false;
+      });
+
+      _showSnack(
+        "Playback Failed",
+        "Speech engine audio start nahi kar saka.",
+        isError: true,
+      );
+    }
+  } on TimeoutException {
+    if (!mounted) return;
+
+    setState(() {
+      isPlaying = false;
+      isTtsReady = false;
+    });
+
+    _showSnack(
+      "Playback Timeout",
+      "Speech engine ne response dene mein zyada waqt liya.",
+      isError: true,
+    );
+  } catch (e, stackTrace) {
+    debugPrint("PLAY AUDIO ERROR: $e");
+    debugPrintStack(stackTrace: stackTrace);
+
+    if (!mounted) return;
+
     countdownTimer?.cancel();
-    setState(() => isPlaying = false);
+
+    setState(() {
+      isPlaying = false;
+      isTtsReady = false;
+    });
+
+    _showSnack(
+      "Playback Error",
+      "Listening audio play nahi ho saka.",
+      isError: true,
+    );
+  }
+}
+  Future<void> stopAudio() async {
+    try {
+      await flutterTts.stop();
+    } catch (e) {
+      debugPrint("STOP AUDIO ERROR: $e");
+    }
+
+    countdownTimer?.cancel();
+
+    if (!mounted) return;
+
+    setState(() {
+      isPlaying = false;
+    });
   }
 
   void startTimer() {
@@ -182,28 +626,141 @@ class _ListeningPracticeState extends State<ListeningPractice> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    await FirebaseFirestore.instance
-        .collection("users")
-        .doc(user.uid)
-        .collection("listening_results")
-        .add({
-          "part": selectedPart,
-          "score": score,
-          "total": questions.length,
-          "band": calculateBandScore(),
-          "title": title,
-          "answers": selectedAnswers,
-          "createdAt": FieldValue.serverTimestamp(),
-        });
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('listening_results')
+          .add({
+            'part': selectedPart,
+            'score': score,
+            'total': questions.length,
+            'band': calculateBandScore(),
+            'title': title,
+            'answers': selectedAnswers,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+
+      debugPrint('Listening result saved successfully');
+    } catch (e) {
+      debugPrint('SAVE RESULT ERROR: $e');
+
+      if (mounted) {
+        _showSnack(
+          'Result Pending',
+          'The result could not be saved online. Please check your internet connection and try again.',
+        );
+      }
+    }
   }
 
-  void _showSnack(String title, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("$title: $message"),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+  void _showSnack(
+    String title,
+    String message, {
+    bool isError = false,
+    bool isSuccess = false,
+  }) {
+    if (!mounted) return;
+
+    final Color accentColor = isError
+        ? const Color(0xFFEF4444)
+        : isSuccess
+        ? const Color(0xFF22C55E)
+        : const Color(0xFF14B8A6);
+
+    final IconData icon = isError
+        ? Icons.error_outline_rounded
+        : isSuccess
+        ? Icons.check_circle_outline_rounded
+        : Icons.info_outline_rounded;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+          duration: const Duration(seconds: 4),
+          content: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF111827),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: accentColor.withOpacity(0.45)),
+              boxShadow: [
+                BoxShadow(
+                  color: accentColor.withOpacity(0.18),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
+                ),
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.30),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  height: 42,
+                  width: 42,
+                  decoration: BoxDecoration(
+                    color: accentColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(icon, color: accentColor, size: 23),
+                ),
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        message,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.72),
+                          fontSize: 13,
+                          height: 1.4,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: () {
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(
+                      Icons.close_rounded,
+                      color: Colors.white.withOpacity(0.55),
+                      size: 19,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
   }
 
   @override
@@ -214,7 +771,11 @@ class _ListeningPracticeState extends State<ListeningPractice> {
         children: [
           _header(),
           Expanded(
-            child: isLoading
+            child: checkingSavedTest
+                ? const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF14B8A6)),
+                  )
+                : isLoading
                 ? _loadingBody()
                 : generated
                 ? _testBody()
@@ -448,7 +1009,8 @@ class _ListeningPracticeState extends State<ListeningPractice> {
       ),
     );
   }
-// loading chip
+
+  // loading chip
   Widget _loadingChip(String text) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -534,6 +1096,8 @@ class _ListeningPracticeState extends State<ListeningPractice> {
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
       child: Column(
         children: [
+          if (isOfflineTest) ...[_offlineBanner(), const SizedBox(height: 14)],
+
           _partTabs(),
           const SizedBox(height: 14),
           _audioCard(),
@@ -548,6 +1112,33 @@ class _ListeningPracticeState extends State<ListeningPractice> {
             onTap: submitAnswers,
           ),
           if (showResult) ...[const SizedBox(height: 18), _resultCard()],
+        ],
+      ),
+    );
+  }
+
+  Widget _offlineBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.orange.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.orange.withOpacity(0.45)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.cloud_off_rounded, color: Colors.orangeAccent),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Offline mode: Your saved listening test is being displayed.',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
         ],
       ),
     );

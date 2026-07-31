@@ -313,7 +313,7 @@ class _HomeState extends State<Home> {
 
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(18),
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(26),
                       gradient: LinearGradient(
@@ -1110,7 +1110,7 @@ class _HomeState extends State<Home> {
           const SizedBox(height: 24),
 
           Container(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(30),
               gradient: LinearGradient(
@@ -1631,7 +1631,7 @@ class _HomeState extends State<Home> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(30),
           gradient: LinearGradient(
@@ -1659,9 +1659,10 @@ class _HomeState extends State<Home> {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(14),
+                  height: 48,
+                  width: 48,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(16),
                     gradient: LinearGradient(
                       colors: [
                         Colors.white.withOpacity(.20),
@@ -1679,33 +1680,43 @@ class _HomeState extends State<Home> {
                       ),
                     ],
                   ),
-                  child: Icon(icon, color: Colors.white, size: 24),
+                  child: Icon(icon, color: Colors.white, size: 22),
                 ),
 
-                const Spacer(),
+                const SizedBox(width: 6),
 
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 11,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(.11),
-                    borderRadius: BorderRadius.circular(30),
-                    border: Border.all(color: Colors.white.withOpacity(.10)),
-                  ),
-                  child: Text(
-                    tag,
-                    style: const TextStyle(
-                      color: Color(0xFFCCFBF1),
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w900,
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 65),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(.11),
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(.10),
+                        ),
+                      ),
+                      child: Text(
+                        tag,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Color(0xFFCCFBF1),
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
-
             const SizedBox(height: 22),
 
             Text(
@@ -1739,7 +1750,6 @@ class _HomeState extends State<Home> {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-               
                 // Expanded(
                 //   child: Container(
                 //     height: 4,
@@ -1761,7 +1771,6 @@ class _HomeState extends State<Home> {
                 //     ),
                 //   ),
                 // ),
-
                 const SizedBox(width: 12),
 
                 Container(
