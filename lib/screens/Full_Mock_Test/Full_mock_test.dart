@@ -70,7 +70,7 @@ class _FullMockTestState extends State<FullMockTest>
                     Icons.headphones_rounded,
                     "30 min • 40 questions",
                     const Color(0xFF38BDF8),
-                    onTap: () => Get.to(() => const ListeningPractice()),
+                    onTap: () => Get.to(() => const ListeningScreen()),
                   ),
 
                   _sectionTile(

@@ -14,19 +14,19 @@ class AppRoutes {
   static List<GetPage<dynamic>> appRoutes() => [
     GetPage(
       name: RoutesName.splash,
-      page: () => const Splashscreen(),
+      page: () => const SplashScreen(),
       transition: Transition.leftToRightWithFade,
       transitionDuration: const Duration(milliseconds: 250),
     ),
     GetPage(
       name: RoutesName.onboarding,
-      page: () => const OnboardingScreen(),
+      page: () => const PremiumOnboardingScreen(),
       transition: Transition.leftToRightWithFade,
       transitionDuration: const Duration(milliseconds: 250),
     ),
     GetPage(
       name: RoutesName.home,
-      page: () => const Home(),
+      page: () => const HomeDashboard(),
       transition: Transition.leftToRightWithFade,
       transitionDuration: const Duration(milliseconds: 250),
     ),
@@ -38,7 +38,7 @@ class AppRoutes {
     ),
     GetPage(
       name: RoutesName.register,
-      page: () => const Registration(),
+      page: () => const RegistrationScreen(),
       transition: Transition.leftToRightWithFade,
       transitionDuration: const Duration(milliseconds: 250),
     ),

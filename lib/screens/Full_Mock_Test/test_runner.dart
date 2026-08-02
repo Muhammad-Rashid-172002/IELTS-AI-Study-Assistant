@@ -18,7 +18,7 @@ class _TestRunnerState extends State<TestRunner> {
   int currentSection = 0;
 
   final List<Widget> sections = const [
-    ListeningPractice(),
+    ListeningScreen(),
     ReadingPractice(),
     WritingChecker(),
     SpeakingPractice(),

@@ -1,1050 +1,236 @@
+import 'dart:math' as math;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:fyproject/resources/bottom_navigation_bar/botton_navigation.dart';
-import 'package:fyproject/screens/Full_Mock_Test/Full_mock_test.dart';
 import 'package:fyproject/screens/pages/Listening_Practice/ListeningPractice.dart';
 import 'package:fyproject/screens/pages/Reading_Practice/ReadingPractice.dart';
 import 'package:fyproject/screens/pages/Speaking_Practice/SpeakingPractice.dart';
 import 'package:fyproject/screens/pages/Writing_Checker/WritingChecker.dart';
-import 'package:fyproject/screens/widgets/add_fire_pulse/fire_animation.dart';
-import 'package:fyproject/services/StreakService.dart';
-import 'package:get/get.dart';
 
-import '../../../controller/firebase_services/firebase_services.dart';
-
-class Home extends StatefulWidget {
-  const Home({super.key});
+class HomeDashboard extends StatelessWidget {
+  const HomeDashboard({super.key});
 
   @override
-  State<Home> createState() => _HomeState();
+  Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      return const _SignedOutState();
+    }
+
+    final userRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid);
+
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: userRef.snapshots(),
+      builder: (context, userSnapshot) {
+        if (userSnapshot.hasError) {
+          return _ErrorState(
+            message: 'Profile data could not be loaded.',
+            onRetry: () {},
+          );
+        }
+
+        if (!userSnapshot.hasData) {
+          return const _HomeLoadingState();
+        }
+
+        final userData = userSnapshot.data!.data() ?? <String, dynamic>{};
+
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: userRef
+              .collection('diagnosticResults')
+              .orderBy('completedAt', descending: true)
+              .limit(1)
+              .snapshots(),
+          builder: (context, diagnosticSnapshot) {
+            final diagnosticData =
+                diagnosticSnapshot.data?.docs.isNotEmpty == true
+                ? diagnosticSnapshot.data!.docs.first.data()
+                : <String, dynamic>{};
+
+            return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: userRef
+                  .collection('studyPlans')
+                  .doc('active')
+                  .snapshots(),
+              builder: (context, planSnapshot) {
+                final planData =
+                    planSnapshot.data?.data() ?? <String, dynamic>{};
+
+                final model = HomeDashboardModel.fromFirestore(
+                  authUser: user,
+                  userData: userData,
+                  diagnosticData: diagnosticData,
+                  planData: planData,
+                );
+
+                return _HomeDashboardView(model: model, userRef: userRef);
+              },
+            );
+          },
+        );
+      },
+    );
+  }
 }
 
-class _HomeState extends State<Home> {
-  double readingBand = 0;
-  double listeningBand = 0;
-  double writingBand = 0;
-  double speakingBand = 0;
+class _HomeDashboardView extends StatelessWidget {
+  final HomeDashboardModel model;
+  final DocumentReference<Map<String, dynamic>> userRef;
 
-  bool loadingAnalyzer = true;
-  String weakestSkill = "Start a test";
-  String todayFocus = "Complete your first IELTS test";
+  const _HomeDashboardView({required this.model, required this.userRef});
 
-  @override
-  void initState() {
-    super.initState();
-    final services = Get.find<FirebaseServices>();
-    services.loadUserProfile();
-    StreakService.updateUserStreak();
-    loadWeaknessAnalyzer();
-  }
-
-  Future<void> loadWeaknessAnalyzer() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+  Future<void> _toggleTask(BuildContext context, HomeTask task) async {
+    final planRef = userRef.collection('studyPlans').doc('active');
 
     try {
-      final uid = user.uid;
-
-      final reading = await _getModuleAverage(uid, "reading_results");
-      final listening = await _getModuleAverage(uid, "listening_results");
-      final writing = await _getModuleAverage(uid, "writing_results");
-      final speaking = await _getModuleAverage(uid, "speaking");
-
-      setState(() {
-        readingBand = reading;
-        listeningBand = listening;
-        writingBand = writing;
-        speakingBand = speaking;
-
-        _analyzeWeakArea();
-        loadingAnalyzer = false;
-      });
-    } catch (e) {
-      setState(() => loadingAnalyzer = false);
+      if (task.completed) {
+        await planRef.set({
+          'completedTaskIds': FieldValue.arrayRemove([task.id]),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } else {
+        await planRef.set({
+          'completedTaskIds': FieldValue.arrayUnion([task.id]),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+    } catch (_) {
+      if (!context.mounted) return;
+      _showMessage(context, 'Task status could not be updated.');
     }
   }
 
-  Future<double> _getModuleAverage(String uid, String collection) async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection("users")
-        .doc(uid)
-        .collection(collection)
-        .get();
-
-    if (snapshot.docs.isEmpty) return 0;
-
-    if (collection == "listening_results" || collection == "reading_results") {
-      return _avgScore(snapshot.docs);
-    } else {
-      return _avgBand(snapshot.docs, "band");
-    }
-  }
-
-  double _avgBand(List<QueryDocumentSnapshot> docs, String field) {
-    try {
-      if (docs.isEmpty) return 0;
-
-      final values = docs
-          .map((e) {
-            final data = e.data() as Map<String, dynamic>;
-            return double.tryParse(data[field]?.toString() ?? "0") ?? 0.0;
-          })
-          .where((e) => e > 0)
-          .toList();
-
-      if (values.isEmpty) return 0;
-
-      return values.reduce((a, b) => a + b) / values.length;
-    } catch (e) {
-      debugPrint("AVG Band Error: $e");
-      return 0;
-    }
-  }
-
-  double _avgScore(List<QueryDocumentSnapshot> docs) {
-    try {
-      if (docs.isEmpty) return 0;
-
-      final values = docs
-          .map((e) {
-            final data = e.data() as Map<String, dynamic>;
-
-            final bandField = double.tryParse(data["band"]?.toString() ?? "");
-
-            if (bandField != null && bandField > 0) {
-              return bandField;
-            }
-
-            final score =
-                double.tryParse(data["score"]?.toString() ?? "0") ?? 0;
-            final total =
-                double.tryParse(
-                  (data["total"] ?? data["totalQuestions"] ?? 1).toString(),
-                ) ??
-                1;
-
-            if (total == 0) return 0.0;
-
-            return (score / total) * 9;
-          })
-          .where((e) => e > 0)
-          .toList();
-
-      if (values.isEmpty) return 0;
-
-      return values.reduce((a, b) => a + b) / values.length;
-    } catch (e) {
-      debugPrint("AVG Score Error: $e");
-      return 0;
-    }
-  }
-
-  void _analyzeWeakArea() {
-    final scores = {
-      "Reading": readingBand,
-      "Listening": listeningBand,
-      "Writing": writingBand,
-      "Speaking": speakingBand,
-    };
-
-    final validScores = scores.entries.where((e) => e.value > 0).toList();
-
-    if (validScores.isEmpty) {
-      weakestSkill = "No test data yet";
-      todayFocus = "Take your first IELTS test";
-      return;
-    }
-
-    validScores.sort((a, b) => a.value.compareTo(b.value));
-
-    weakestSkill = validScores.first.key;
-
-    if (weakestSkill == "Writing") {
-      todayFocus = "Grammar & Writing";
-    } else if (weakestSkill == "Speaking") {
-      todayFocus = "Pronunciation & Speaking";
-    } else if (weakestSkill == "Reading") {
-      todayFocus = "Reading Accuracy";
-    } else {
-      todayFocus = "Listening Practice";
-    }
-  }
-
-  Widget _buildWeaknessAnalyzerCard() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(32),
-          gradient: LinearGradient(
-            colors: [
-              const Color(0xFF111827),
-              const Color(0xFF0F766E).withOpacity(.72),
-              const Color(0xFF14B8A6).withOpacity(.22),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          border: Border.all(color: Colors.white.withOpacity(.12)),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF14B8A6).withOpacity(.22),
-              blurRadius: 32,
-              offset: const Offset(0, 16),
-            ),
-          ],
+  void _showMessage(BuildContext context, String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: _C.surfaceLight,
+          content: Text(message),
         ),
-        child: loadingAnalyzer
-            ? const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: CircularProgressIndicator(color: Colors.white),
-                ),
-              )
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        height: 58,
-                        width: 58,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF5EEAD4), Color(0xFF14B8A6)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF5EEAD4).withOpacity(.35),
-                              blurRadius: 18,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.insights_rounded,
-                          color: Colors.white,
-                          size: 30,
-                        ),
-                      ),
-
-                      const SizedBox(width: 14),
-
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "IELTS Performance ",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -.3,
-                              ),
-                            ),
-                            SizedBox(height: 5),
-                            Text(
-                              "Analyze strengths, weaknesses & focus areas",
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 12.8,
-                                height: 1.3,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(.12),
-                          borderRadius: BorderRadius.circular(30),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(.10),
-                          ),
-                        ),
-                        child: const Text(
-                          "Insights",
-                          style: TextStyle(
-                            color: Color(0xFFCCFBF1),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  Row(
-                    children: [
-                      Expanded(child: _bandMiniCard("Reading", readingBand)),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _bandMiniCard("Listening", listeningBand),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  Row(
-                    children: [
-                      Expanded(child: _bandMiniCard("Writing", writingBand)),
-                      const SizedBox(width: 10),
-                      Expanded(child: _bandMiniCard("Speaking", speakingBand)),
-                    ],
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(26),
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.white.withOpacity(.14),
-                          Colors.white.withOpacity(.06),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      border: Border.all(color: Colors.white.withOpacity(.10)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              height: 38,
-                              width: 38,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF14B8A6).withOpacity(.22),
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: const Icon(
-                                Icons.track_changes_rounded,
-                                color: Color(0xFF5EEAD4),
-                                size: 22,
-                              ),
-                            ),
-
-                            const SizedBox(width: 12),
-
-                            const Expanded(
-                              child: Text(
-                                "Improvement Priority",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        Text(
-                          weakestSkill,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 26,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -.4,
-                          ),
-                        ),
-
-                        const SizedBox(height: 8),
-
-                        Text(
-                          "Recommended Focus: $todayFocus",
-                          style: const TextStyle(
-                            color: Color(0xFFCCFBF1),
-                            fontSize: 14.5,
-                            height: 1.4,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF14B8A6).withOpacity(.13),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: const Color(0xFF5EEAD4).withOpacity(.18),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.auto_awesome_rounded,
-                                color: Color(0xFF5EEAD4),
-                                size: 22,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  weakestSkill == "No test data yet"
-                                      ? "Complete your first IELTS test to unlock smart performance insights."
-                                      : "Focus on $todayFocus today to improve your overall IELTS band score.",
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(.88),
-                                    fontSize: 13.5,
-                                    height: 1.45,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-      ),
-    );
+      );
   }
 
-  Widget _bandMiniCard(String title, double band) {
-    final bool hasData = band > 0;
+  void _openQuickAction(BuildContext context, String action) {
+    _showMessage(context, ' $action connect with your real router ');
+  }
 
-    String status;
-    IconData statusIcon;
-    Color statusColor;
+  void _openSkillPractice(BuildContext context, String skill) {
+    late final Widget screen;
 
-    if (!hasData) {
-      status = "No Data";
-      statusIcon = Icons.lock_outline_rounded;
-      statusColor = Colors.white.withOpacity(.45);
-    } else if (band >= 7) {
-      status = "Strong";
-      statusIcon = Icons.trending_up_rounded;
-      statusColor = const Color(0xFF5EEAD4);
-    } else if (band >= 5.5) {
-      status = "Average";
-      statusIcon = Icons.stacked_line_chart_rounded;
-      statusColor = const Color(0xFFFACC15);
-    } else {
-      status = "Needs Work";
-      statusIcon = Icons.warning_amber_rounded;
-      statusColor = const Color(0xFFF87171);
+    switch (skill.toLowerCase()) {
+      case 'listening':
+        screen = const ListeningScreen();
+        break;
+
+      case 'reading':
+        screen = const ReadingPractice();
+        break;
+
+      case 'writing':
+        screen = const WritingChecker();
+        break;
+
+      case 'speaking':
+        screen = const SpeakingPractice();
+        break;
+
+      default:
+        _showMessage(context, '$skill practice screen is not available.');
+        return;
     }
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        gradient: LinearGradient(
-          colors: [
-            Colors.white.withOpacity(.12),
-            Colors.white.withOpacity(.05),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        border: Border.all(color: Colors.white.withOpacity(.10)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(.68),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              Icon(statusIcon, color: statusColor, size: 17),
-            ],
-          ),
-
-          const SizedBox(height: 8),
-
-          Text(
-            hasData ? band.toStringAsFixed(1) : "--",
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -.4,
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-            decoration: BoxDecoration(
-              color: statusColor.withOpacity(.14),
-              borderRadius: BorderRadius.circular(30),
-            ),
-            child: Text(
-              status,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: statusColor,
-                fontSize: 10.5,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF08111F),
-      bottomNavigationBar: BottomNavigation(index: 0),
-
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              //                   HEADER SECTION
-              _buildHeader(),
-              const SizedBox(height: 18),
-
-              _buildDailyCoachCard(),
-
-              const SizedBox(height: 18),
-
-              _buildWeaknessAnalyzerCard(),
-
-              const SizedBox(height: 20),
-
-              //                     STUDY MODULES TEXT
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 22),
+      backgroundColor: _C.bg,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: _Background()),
+          SafeArea(
+            bottom: false,
+            child: RefreshIndicator(
+              color: _C.cyan,
+              backgroundColor: _C.surface,
+              onRefresh: () async {
+                await Future<void>.delayed(const Duration(milliseconds: 450));
+              },
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                ),
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 120),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          height: 42,
-                          width: 42,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(14),
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF5EEAD4), Color(0xFF14B8A6)],
-                            ),
-                          ),
-                          child: const Icon(
-                            Icons.menu_book_rounded,
-                            color: Colors.white,
-                            size: 22,
-                          ),
-                        ),
-
-                        const SizedBox(width: 12),
-
-                        const Expanded(
-                          child: Text(
-                            "IELTS Study Hub",
-                            style: TextStyle(
-                              fontSize: 26,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                              letterSpacing: -0.8,
-                            ),
-                          ),
-                        ),
-                      ],
+                    _Header(model: model),
+                    const SizedBox(height: 20),
+                    _ReadinessCard(model: model),
+                    const SizedBox(height: 20),
+                    _Title(
+                      'Today’s Study Plan',
+                      model.todayTasks.isEmpty
+                          ? 'No tasks scheduled for today'
+                          : '${model.todayTasks.length} personalized tasks for today',
                     ),
-
-                    const SizedBox(height: 10),
-
-                    Text(
-                      "Master Reading, Listening, Writing and Speaking with personalized AI-powered practice and real exam simulations.",
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.white.withOpacity(0.65),
-                        height: 1.6,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF14B8A6).withOpacity(.12),
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(
-                          color: const Color(0xFF14B8A6).withOpacity(.20),
-                        ),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.auto_awesome_rounded,
-                            color: Color(0xFF5EEAD4),
-                            size: 16,
-                          ),
-                          SizedBox(width: 6),
-                          Text(
-                            "AI Powered Learning",
-                            style: TextStyle(
-                              color: Color(0xFFCCFBF1),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              //                     MODULE CARDS
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _moduleCard(
-                            title: "Listening",
-                            subtitle: "Audio & conversation practice",
-                            tag: "Practice",
-                            icon: Icons.headphones_rounded,
-                            startColor: const Color(0xFF2563EB),
-                            endColor: const Color(0xFF1D4ED8),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const ListeningPractice(),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _moduleCard(
-                            title: "Reading",
-                            subtitle: "Academic passage training",
-                            tag: "Academic",
-                            icon: Icons.menu_book_rounded,
-                            startColor: const Color(0xFF7C3AED),
-                            endColor: const Color(0xFF6D28D9),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const ReadingPractice(),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-
                     const SizedBox(height: 12),
+                    _TodayPlan(
+                      tasks: model.todayTasks,
+                      totalMinutes: model.todayTotalMinutes,
+                      onToggleTask: (task) => _toggleTask(context, task),
+                      onContinue: model.todayTasks.isEmpty
+                          ? null
+                          : () {
+                              final firstPending = model.todayTasks
+                                  .where((task) => !task.completed)
+                                  .firstOrNull;
 
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _moduleCard(
-                            title: "Writing",
-                            subtitle: "Essay & grammar evaluation",
-                            tag: "Checker",
-                            icon: Icons.edit_note_rounded,
-                            startColor: const Color(0xFFF97316),
-                            endColor: const Color(0xFFEA580C),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const WritingChecker(),
-                                ),
-                              );
+                              if (firstPending == null) {
+                                _showMessage(
+                                  context,
+                                  'Aaj ke tamam tasks complete ho chuke hain.',
+                                );
+                              } else {
+                                _showMessage(
+                                  context,
+                                  '${firstPending.title} open karein.',
+                                );
+                              }
                             },
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _moduleCard(
-                            title: "Speaking",
-                            subtitle: "Fluency & pronunciation coach",
-                            tag: "Coach",
-                            icon: Icons.record_voice_over_rounded,
-                            startColor: const Color(0xFF14B8A6),
-                            endColor: const Color(0xFF0F766E),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const SpeakingPractice(),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
                     ),
-
+                    const SizedBox(height: 20),
+                    const _Title(
+                      'Four Skills Overview',
+                      'Real diagnostic and recent practice performance',
+                    ),
                     const SizedBox(height: 12),
-
-                    // Row(
-                    //   children: [
-                    //     Expanded(
-                    //       child: _moduleCard(
-                    //         title: "Vocabulary",
-                    //         subtitle: "Word builder",
-                    //         color: const Color(0xFF26A69A),
-                    //         tag: "Vocab",
-                    //         icon: Icons.translate,
-                    //         onTap: () {
-                    //           Navigator.push(
-                    //             context,
-                    //             MaterialPageRoute(
-                    //               builder: (_) => const Vocabularybuilder(),
-                    //             ),
-                    //           );
-                    //         },
-                    //       ),
-                    //     ),
-                    //     const SizedBox(width: 12),
-                    //   ],
-                    // ),
-                    SizedBox(height: 12),
-                    _moduleCard1(
-                      title: "Full Mock Test",
-                      subtitle:
-                          "Complete IELTS exam simulation with timer, scoring and band prediction.",
-                      color: Colors.orange,
-                      tag: "EXAM MODE",
-                      icon: Icons.workspace_premium_rounded,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const FullMockTest(),
-                          ),
-                        );
-                      },
+                    _Skills(
+                      skills: model.skills,
+                      onPractice: (skill) => _openSkillPractice(context, skill),
                     ),
+                    const SizedBox(height: 20),
+                    const _Title(
+                      'Quick Actions',
+                      'Open your most useful IELTS tools',
+                    ),
+                    const SizedBox(height: 12),
+                    _QuickActions(
+                      onTap: (action) => _openQuickAction(context, action),
+                    ),
+                    const SizedBox(height: 20),
+                    _AIInsight(text: model.aiInsight),
+                    const SizedBox(height: 20),
+                    _Streak(model: model),
                   ],
                 ),
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDailyCoachCard() {
-    final FirebaseServices services = Get.find<FirebaseServices>();
-    final data = services.userData;
-    final String userName = data['name'] ?? "IELTS Student";
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(32),
-          gradient: LinearGradient(
-            colors: [
-              const Color(0xFF111827),
-              const Color(0xFF0F766E).withOpacity(.85),
-              const Color(0xFF14B8A6).withOpacity(.30),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          border: Border.all(color: Colors.white.withOpacity(.12)),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF14B8A6).withOpacity(.22),
-              blurRadius: 32,
-              offset: const Offset(0, 16),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  height: 58,
-                  width: 58,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF5EEAD4), Color(0xFF14B8A6)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF5EEAD4).withOpacity(.35),
-                        blurRadius: 18,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.auto_awesome_rounded,
-                    color: Colors.white,
-                    size: 30,
-                  ),
-                ),
-
-                const SizedBox(width: 14),
-
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Daily IELTS Coach",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 21,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -.3,
-                        ),
-                      ),
-                      SizedBox(height: 5),
-                      Text(
-                        "Smart study plan for today",
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(.12),
-                    borderRadius: BorderRadius.circular(30),
-                    border: Border.all(color: Colors.white.withOpacity(.10)),
-                  ),
-                  child: const Text(
-                    "IELTS Coach",
-                    style: TextStyle(
-                      color: Color(0xFFCCFBF1),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 22),
-
-            Text(
-              "Good Morning, $userName 👋",
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 21,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            Text(
-              _coachMessage(),
-              style: TextStyle(
-                color: Colors.white.withOpacity(.82),
-                fontSize: 14.5,
-                height: 1.6,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-
-            const SizedBox(height: 18),
-
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(17),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.white.withOpacity(.14),
-                    Colors.white.withOpacity(.06),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                border: Border.all(color: Colors.white.withOpacity(.10)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        height: 34,
-                        width: 34,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF14B8A6).withOpacity(.20),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.track_changes_rounded,
-                          color: Color(0xFF5EEAD4),
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      const Text(
-                        "Today's Focus Plan",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  ..._todayTasks().map((task) => _coachTaskRow(task)),
-
-                  const SizedBox(height: 8),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _coachMessage() {
-    if (weakestSkill == "No test data yet" || weakestSkill == "Start a test") {
-      return "Start your first IELTS practice test today. I will track your performance and guide you step by step.";
-    }
-
-    return "Your weakest skill is $weakestSkill. Focus on $todayFocus today to improve your overall IELTS band.";
-  }
-
-  List<String> _todayTasks() {
-    if (weakestSkill == "Writing") {
-      return [
-        "Complete 1 Writing Task",
-        "Review grammar mistakes",
-        "Learn 10 academic words",
-      ];
-    }
-
-    if (weakestSkill == "Speaking") {
-      return [
-        "Complete 1 Speaking Practice",
-        "Speak for at least 5 minutes",
-        "Use longer answers in Part 2",
-      ];
-    }
-
-    if (weakestSkill == "Reading") {
-      return [
-        "Complete 1 Reading Test",
-        "Review wrong answers",
-        "Practice skimming and scanning",
-      ];
-    }
-
-    if (weakestSkill == "Listening") {
-      return [
-        "Complete 1 Listening Test",
-        "Replay difficult audio parts",
-        "Write down new vocabulary",
-      ];
-    }
-
-    return [
-      "Complete 1 IELTS practice test",
-      "Check your band score",
-      "Build your study streak",
-    ];
-  }
-
-  Widget _coachTaskRow(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 9),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.check_circle_rounded,
-            color: Color(0xFF5EEAD4),
-            size: 19,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.86),
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
               ),
             ),
           ),
@@ -1052,53 +238,501 @@ class _HomeState extends State<Home> {
       ),
     );
   }
+}
 
-  //                     HEADER WIDGET
+class HomeDashboardModel {
+  final String userName;
+  final String? profileImageUrl;
+  final bool isPremium;
+  final int examCountdownDays;
+  final double currentBand;
+  final double targetBand;
+  final int readinessPercent;
+  final int weeklyProgressPercent;
+  final int currentStreak;
+  final int longestStreak;
+  final int xpPoints;
+  final List<bool> activeWeekDays;
+  final List<HomeTask> todayTasks;
+  final int todayTotalMinutes;
+  final List<SkillOverview> skills;
+  final String aiInsight;
 
-  Widget _buildHeader() {
-    final FirebaseServices services = Get.find<FirebaseServices>();
-    final data = services.userData;
+  const HomeDashboardModel({
+    required this.userName,
+    required this.profileImageUrl,
+    required this.isPremium,
+    required this.examCountdownDays,
+    required this.currentBand,
+    required this.targetBand,
+    required this.readinessPercent,
+    required this.weeklyProgressPercent,
+    required this.currentStreak,
+    required this.longestStreak,
+    required this.xpPoints,
+    required this.activeWeekDays,
+    required this.todayTasks,
+    required this.todayTotalMinutes,
+    required this.skills,
+    required this.aiInsight,
+  });
 
-    final int streak = data['streak'] ?? 0;
-    final String? userName = data['name'];
-    final String? userPhoto = data['profileImage'];
+  factory HomeDashboardModel.fromFirestore({
+    required User authUser,
+    required Map<String, dynamic> userData,
+    required Map<String, dynamic> diagnosticData,
+    required Map<String, dynamic> planData,
+  }) {
+    final skillBands = _asMap(diagnosticData['skillBands']);
+    final targetBands = _asMap(userData['targetBands']);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 30),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF06111F), Color(0xFF0B2538), Color(0xFF0F766E)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    final currentBand = _asDouble(
+      diagnosticData['overallBand'] ?? userData['currentBand'],
+      fallback: 0,
+    );
+
+    final targetBand = _asDouble(
+      targetBands['overall'] ?? userData['targetBand'],
+      fallback: 7,
+    );
+
+    final skillValues = <String, double>{
+      'Listening': _asDouble(
+        skillBands['listening'] ?? userData['listeningBand'],
+      ),
+      'Reading': _asDouble(skillBands['reading'] ?? userData['readingBand']),
+      'Writing': _asDouble(skillBands['writing'] ?? userData['writingBand']),
+      'Speaking': _asDouble(skillBands['speaking'] ?? userData['speakingBand']),
+    };
+
+    final today = DateTime.now();
+    final todayName = _dayName(today.weekday);
+    final weeklyPlan = _asList(planData['weeklyPlan']);
+    final completedTaskIds = _asStringSet(planData['completedTaskIds']);
+
+    Map<String, dynamic>? todayPlan;
+
+    for (final rawDay in weeklyPlan) {
+      final dayMap = _asMap(rawDay);
+
+      if ((dayMap['day'] ?? '').toString().toLowerCase() ==
+          todayName.toLowerCase()) {
+        todayPlan = dayMap;
+        break;
+      }
+    }
+
+    final rawTasks = _asList(todayPlan?['tasks']);
+    final todayTasks = rawTasks.map((rawTask) {
+      final task = _asMap(rawTask);
+      final id = (task['id'] ?? task['title'] ?? '').toString();
+
+      return HomeTask(
+        id: id,
+        title: (task['title'] ?? 'IELTS Study Task').toString(),
+        subtitle: (task['subtitle'] ?? '').toString(),
+        durationMinutes: _asInt(task['durationMinutes'], fallback: 10),
+        type: (task['type'] ?? 'practice').toString(),
+        completed: completedTaskIds.contains(id) || task['completed'] == true,
+      );
+    }).toList();
+
+    final todayTotalMinutes = todayTasks.fold<int>(
+      0,
+      (sum, task) => sum + task.durationMinutes,
+    );
+
+    final completedToday = todayTasks.where((task) => task.completed).length;
+
+    final calculatedWeekly = _calculateWeeklyProgress(
+      weeklyPlan,
+      completedTaskIds,
+    );
+
+    final weeklyProgress = _asInt(
+      userData['weeklyProgressPercent'],
+      fallback: calculatedWeekly,
+    ).clamp(0, 100);
+
+    final readiness = _asInt(
+      userData['readinessPercent'],
+      fallback: _calculateReadiness(
+        currentBand: currentBand,
+        targetBand: targetBand,
+        weeklyProgress: weeklyProgress,
+      ),
+    ).clamp(0, 100);
+
+    final weakest = _weakestSkill(skillValues);
+    final weakQuestionTypes = _asStringList(userData['weakQuestionTypes']);
+    final weakestTopic = weakQuestionTypes.isNotEmpty
+        ? weakQuestionTypes.first
+        : _defaultWeakTopic(weakest);
+
+    final skillList = skillValues.entries.map((entry) {
+      return SkillOverview(
+        name: entry.key,
+        band: entry.value,
+        weeklyTrend: _skillTrend(userData, entry.key),
+        pendingTask: _findPendingSkillTask(
+          todayTasks,
+          entry.key,
+          fallback: _defaultPendingTask(entry.key),
         ),
+      );
+    }).toList();
+
+    return HomeDashboardModel(
+      userName: _firstNonEmpty([
+        userData['fullName'],
+        userData['name'],
+        authUser.displayName,
+        authUser.email?.split('@').first,
+        'IELTS Learner',
+      ]),
+      profileImageUrl: _nullableString(
+        userData['photoUrl'] ??
+            userData['profileImageUrl'] ??
+            authUser.photoURL,
+      ),
+      isPremium:
+          userData['isPremium'] == true ||
+          userData['premium'] == true ||
+          (userData['premiumPlan'] ?? '').toString().isNotEmpty,
+      examCountdownDays: _examCountdown(
+        userData['exactExamDate'] ?? userData['examDate'],
+      ),
+      currentBand: currentBand,
+      targetBand: targetBand,
+      readinessPercent: readiness,
+      weeklyProgressPercent: weeklyProgress,
+      currentStreak: _asInt(userData['currentStreak'] ?? userData['streak']),
+      longestStreak: _asInt(userData['longestStreak']),
+      xpPoints: _asInt(userData['xpPoints'] ?? userData['xp']),
+      activeWeekDays: _activeWeekDays(
+        userData['weeklyActivity'],
+        completedToday: completedToday,
+      ),
+      todayTasks: todayTasks,
+      todayTotalMinutes: todayTotalMinutes,
+      skills: skillList,
+      aiInsight:
+          'Your $weakest performance needs the most attention. '
+          '$weakestTopic is currently the main focus area. '
+          'Complete today’s targeted task to improve your score.',
+    );
+  }
+}
+
+class HomeTask {
+  final String id;
+  final String title;
+  final String subtitle;
+  final int durationMinutes;
+  final String type;
+  final bool completed;
+
+  const HomeTask({
+    required this.id,
+    required this.title,
+    required this.subtitle,
+    required this.durationMinutes,
+    required this.type,
+    required this.completed,
+  });
+
+  IconData get icon {
+    switch (type.toLowerCase()) {
+      case 'listening':
+        return Icons.headphones_rounded;
+      case 'reading':
+        return Icons.menu_book_rounded;
+      case 'writing':
+        return Icons.edit_note_rounded;
+      case 'speaking':
+        return Icons.mic_rounded;
+      case 'vocabulary':
+      case 'vocab':
+        return Icons.auto_stories_rounded;
+      case 'quiz':
+        return Icons.quiz_outlined;
+      case 'mock':
+        return Icons.timer_outlined;
+      case 'review':
+        return Icons.fact_check_outlined;
+      default:
+        return Icons.bolt_rounded;
+    }
+  }
+
+  Color get color {
+    switch (type.toLowerCase()) {
+      case 'listening':
+        return const Color(0xFF22D3EE);
+      case 'reading':
+        return const Color(0xFF60A5FA);
+      case 'writing':
+        return const Color(0xFFA78BFA);
+      case 'speaking':
+        return const Color(0xFF34D399);
+      case 'vocabulary':
+      case 'vocab':
+        return const Color(0xFF8B5CF6);
+      case 'quiz':
+        return const Color(0xFFF59E0B);
+      default:
+        return const Color(0xFF2563EB);
+    }
+  }
+}
+
+class SkillOverview {
+  final String name;
+  final double band;
+  final double weeklyTrend;
+  final String pendingTask;
+
+  const SkillOverview({
+    required this.name,
+    required this.band,
+    required this.weeklyTrend,
+    required this.pendingTask,
+  });
+
+  IconData get icon {
+    switch (name.toLowerCase()) {
+      case 'listening':
+        return Icons.headphones_rounded;
+      case 'reading':
+        return Icons.menu_book_rounded;
+      case 'writing':
+        return Icons.edit_note_rounded;
+      case 'speaking':
+        return Icons.mic_rounded;
+      default:
+        return Icons.auto_awesome_rounded;
+    }
+  }
+
+  Color get color {
+    switch (name.toLowerCase()) {
+      case 'listening':
+        return const Color(0xFF22D3EE);
+      case 'reading':
+        return const Color(0xFF60A5FA);
+      case 'writing':
+        return const Color(0xFFA78BFA);
+      case 'speaking':
+        return const Color(0xFF34D399);
+      default:
+        return const Color(0xFF06B6D4);
+    }
+  }
+}
+
+class _Header extends StatelessWidget {
+  final HomeDashboardModel model;
+
+  const _Header({required this.model});
+
+  @override
+  Widget build(BuildContext context) {
+    final greeting = _greeting();
+
+    return Row(
+      children: [
+        Container(
+          width: 54,
+          height: 54,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: _C.gradient,
+            border: Border.all(color: Colors.white.withOpacity(.14), width: 2),
+          ),
+          child: ClipOval(
+            child: model.profileImageUrl == null
+                ? const Icon(
+                    Icons.person_rounded,
+                    color: Colors.white,
+                    size: 28,
+                  )
+                : Image.network(
+                    model.profileImageUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const Icon(
+                      Icons.person_rounded,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                  ),
+          ),
+        ),
+        const SizedBox(width: 13),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$greeting, ${model.userName}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: _C.text,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -.4,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.event_available_outlined,
+                    color: _C.cyan,
+                    size: 15,
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      model.examCountdownDays > 0
+                          ? '${model.examCountdownDays} days until your IELTS exam'
+                          : 'No IELTS exam date selected',
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: _C.muted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        if (model.isPremium)
+          Container(
+            margin: const EdgeInsets.only(right: 7),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(100),
+              gradient: const LinearGradient(
+                colors: [Color(0xFFF59E0B), Color(0xFFF97316)],
+              ),
+            ),
+            child: const Icon(
+              Icons.workspace_premium_rounded,
+              color: Colors.white,
+              size: 15,
+            ),
+          ),
+        IconButton(
+          onPressed: () {},
+          style: IconButton.styleFrom(
+            backgroundColor: _C.surface,
+            foregroundColor: _C.text,
+          ),
+          icon: const Icon(Icons.notifications_none_rounded),
+        ),
+      ],
+    );
+  }
+
+  String _greeting() {
+    final hour = DateTime.now().hour;
+
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
+  }
+}
+
+class _ReadinessCard extends StatelessWidget {
+  final HomeDashboardModel model;
+
+  const _ReadinessCard({required this.model});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(19),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          colors: [
+            _C.blue.withOpacity(.26),
+            _C.cyan.withOpacity(.12),
+            _C.violet.withOpacity(.18),
+          ],
+        ),
+        border: Border.all(color: _C.cyan.withOpacity(.2)),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Expanded(
+              SizedBox(
+                width: 96,
+                height: 96,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      width: 96,
+                      height: 96,
+                      child: CircularProgressIndicator(
+                        value: model.readinessPercent / 100,
+                        strokeWidth: 9,
+                        backgroundColor: _C.border,
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          _C.cyan,
+                        ),
+                      ),
+                    ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '${model.readinessPercent}%',
+                          style: const TextStyle(
+                            color: _C.text,
+                            fontSize: 23,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const Text(
+                          'READY',
+                          style: TextStyle(
+                            color: _C.cyan,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      "IELTS Genius AI",
+                    Text(
+                      'Exam Readiness',
                       style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 31,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.7,
+                        color: _C.text,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    SizedBox(height: 8),
                     Text(
-                      "Reach your target band with smart practice",
+                      'Based on your diagnostic result, weekly activity and target-band progress.',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(.68),
-                        fontSize: 13.5,
-                        height: 1.4,
-                        fontWeight: FontWeight.w500,
+                        color: _C.secondary,
+                        fontSize: 10.5,
+                        height: 1.45,
                       ),
                     ),
                   ],
@@ -1106,697 +740,1190 @@ class _HomeState extends State<Home> {
               ),
             ],
           ),
-
-          const SizedBox(height: 24),
-
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(30),
-              gradient: LinearGradient(
-                colors: [
-                  Colors.white.withOpacity(.13),
-                  Colors.white.withOpacity(.05),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: _Metric(
+                  label: 'Current Band',
+                  value: model.currentBand.toStringAsFixed(1),
+                  color: _C.cyan,
+                ),
               ),
-              border: Border.all(color: Colors.white.withOpacity(.12)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(.22),
-                  blurRadius: 28,
-                  offset: const Offset(0, 14),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _Metric(
+                  label: 'Target Band',
+                  value: model.targetBand.toStringAsFixed(1),
+                  color: _C.violet,
                 ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF5EEAD4), Color(0xFF14B8A6)],
-                    ),
-                  ),
-                  child: CircleAvatar(
-                    radius: 31,
-                    backgroundColor: const Color(0xFF08111F),
-                    backgroundImage: (userPhoto != null && userPhoto.isNotEmpty)
-                        ? NetworkImage(userPhoto)
-                        : null,
-                    child: (userPhoto == null || userPhoto.isEmpty)
-                        ? const Icon(
-                            Icons.person_rounded,
-                            color: Colors.white70,
-                            size: 32,
-                          )
-                        : null,
-                  ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _Metric(
+                  label: 'Weekly',
+                  value: '${model.weeklyProgressPercent}%',
+                  color: _C.green,
                 ),
-
-                const SizedBox(width: 15),
-
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Welcome Back 👋",
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(.65),
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        userName ?? "IELTS Student",
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 7),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF14B8A6).withOpacity(.18),
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        child: const Text(
-                          "IELTS Journey Active",
-                          style: TextStyle(
-                            color: Color(0xFFCCFBF1),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 15),
+          Row(
+            children: [
+              const Text(
+                'Weekly progress',
+                style: TextStyle(color: _C.muted, fontSize: 10.5),
+              ),
+              const Spacer(),
+              Text(
+                '${model.weeklyProgressPercent}%',
+                style: const TextStyle(
+                  color: _C.text,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
                 ),
-              ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(100),
+            child: LinearProgressIndicator(
+              value: model.weeklyProgressPercent / 100,
+              minHeight: 7,
+              backgroundColor: _C.border,
+              valueColor: const AlwaysStoppedAnimation<Color>(_C.green),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
 
-          const SizedBox(height: 22),
+class _Metric extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
 
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(30),
-              gradient: LinearGradient(
-                colors: [
-                  const Color(0xFF14B8A6).withOpacity(.34),
-                  const Color(0xFF0F766E).withOpacity(.16),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+  const _Metric({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 11),
+      decoration: BoxDecoration(
+        color: _C.bg.withOpacity(.34),
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: TextStyle(
+                color: color,
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
               ),
-              border: Border.all(color: Colors.white.withOpacity(.12)),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF14B8A6).withOpacity(.18),
-                  blurRadius: 30,
-                  offset: const Offset(0, 14),
-                ),
-              ],
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: _C.muted, fontSize: 8.4),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TodayPlan extends StatelessWidget {
+  final List<HomeTask> tasks;
+  final int totalMinutes;
+  final ValueChanged<HomeTask> onToggleTask;
+  final VoidCallback? onContinue;
+
+  const _TodayPlan({
+    required this.tasks,
+    required this.totalMinutes,
+    required this.onToggleTask,
+    required this.onContinue,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final completed = tasks.where((task) => task.completed).length;
+    final progress = tasks.isEmpty ? 0.0 : completed / tasks.length;
+
+    return Container(
+      padding: const EdgeInsets.all(17),
+      decoration: _card(),
+      child: tasks.isEmpty
+          ? const _EmptyTodayPlan()
+          : Column(
               children: [
                 Row(
                   children: [
-                    FirePulseIcon(),
-                    const SizedBox(width: 14),
+                    const _SquareIcon(icon: Icons.checklist_rounded),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            "Study Streak",
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(.68),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
+                            '${tasks.length} Daily Tasks',
+                            style: const TextStyle(
+                              color: _C.text,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
-                          const SizedBox(height: 5),
+                          const SizedBox(height: 4),
                           Text(
-                            "$streak Days",
+                            '$totalMinutes minutes total',
                             style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 31,
-                              fontWeight: FontWeight.w900,
+                              color: _C.muted,
+                              fontSize: 10.5,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(.12),
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(.10),
-                        ),
-                      ),
-                      child: const Text(
-                        "Keep Going",
-                        style: TextStyle(
-                          color: Color(0xFFCCFBF1),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
-                        ),
+                    Text(
+                      '$completed / ${tasks.length}',
+                      style: const TextStyle(
+                        color: _C.cyan,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ],
                 ),
-
-                const SizedBox(height: 18),
-
-                _nextRewardProgress(streak),
-
-                const SizedBox(height: 18),
-
-                Text(
-                  "Achievement Rewards",
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(.88),
-                    fontWeight: FontWeight.w900,
-                    fontSize: 15,
+                const SizedBox(height: 15),
+                ...tasks
+                    .take(4)
+                    .map(
+                      (task) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () => onToggleTask(task),
+                            borderRadius: BorderRadius.circular(15),
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: task.completed
+                                    ? _C.green.withOpacity(.08)
+                                    : _C.bg.withOpacity(.35),
+                                borderRadius: BorderRadius.circular(15),
+                                border: Border.all(
+                                  color: task.completed
+                                      ? _C.green.withOpacity(.22)
+                                      : Colors.white.withOpacity(.05),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      color: task.color.withOpacity(.12),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Icon(
+                                      task.icon,
+                                      color: task.color,
+                                      size: 18,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          task.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: task.completed
+                                                ? _C.green
+                                                : _C.text,
+                                            fontSize: 11.5,
+                                            fontWeight: FontWeight.w700,
+                                            decoration: task.completed
+                                                ? TextDecoration.lineThrough
+                                                : null,
+                                          ),
+                                        ),
+                                        if (task.subtitle.isNotEmpty) ...[
+                                          const SizedBox(height: 3),
+                                          Text(
+                                            task.subtitle,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              color: _C.muted,
+                                              fontSize: 9,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '${task.durationMinutes} min',
+                                    style: const TextStyle(
+                                      color: _C.muted,
+                                      fontSize: 9.5,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Icon(
+                                    task.completed
+                                        ? Icons.check_circle_rounded
+                                        : Icons.radio_button_unchecked_rounded,
+                                    color: task.completed
+                                        ? _C.green
+                                        : _C.border,
+                                    size: 19,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(100),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 7,
+                    backgroundColor: _C.border,
+                    valueColor: const AlwaysStoppedAnimation<Color>(_C.cyan),
                   ),
                 ),
-
-                const SizedBox(height: 12),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: _rewardBadge(
-                        title: "7 Day\nWarrior",
-                        icon: Icons.shield_rounded,
-                        unlocked: streak >= 7,
-                        progressText: "${streak.clamp(0, 7)} / 7",
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: onContinue,
+                    icon: const Icon(Icons.play_arrow_rounded),
+                    label: const Text(
+                      'Continue Today’s Plan',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _C.blue,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _rewardBadge(
-                        title: "30 Day\nChampion",
-                        icon: Icons.emoji_events_rounded,
-                        unlocked: streak >= 30,
-                        progressText: "${streak.clamp(0, 30)} / 30",
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _rewardBadge(
-                        title: "100 Day\nMaster",
-                        icon: Icons.workspace_premium_rounded,
-                        unlocked: streak >= 100,
-                        progressText: "${streak.clamp(0, 100)} / 100",
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ],
             ),
+    );
+  }
+}
+
+class _EmptyTodayPlan extends StatelessWidget {
+  const _EmptyTodayPlan();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 12),
+      child: Column(
+        children: [
+          Icon(Icons.event_available_outlined, color: _C.cyan, size: 38),
+          SizedBox(height: 11),
+          Text(
+            'No study tasks for today',
+            style: TextStyle(
+              color: _C.text,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          SizedBox(height: 6),
+          Text(
+            'Activate a personalized study plan or add today to your available study days.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: _C.muted, fontSize: 10.5, height: 1.45),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _nextRewardProgress(int streak) {
-    int target = 7;
-    String reward = "7 Day Warrior";
+class _Skills extends StatelessWidget {
+  final List<SkillOverview> skills;
+  final ValueChanged<String> onPractice;
 
-    if (streak >= 7 && streak < 30) {
-      target = 30;
-      reward = "30 Day Champion";
-    } else if (streak >= 30 && streak < 100) {
-      target = 100;
-      reward = "100 Day Master";
-    } else if (streak >= 100) {
-      target = 100;
-      reward = "All Rewards Unlocked";
-    }
+  const _Skills({required this.skills, required this.onPractice});
 
-    final progress = (streak / target).clamp(0.0, 1.0);
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cardWidth = (constraints.maxWidth - 12) / 2;
+
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: skills.map((skill) {
+            return SizedBox(
+              width: cardWidth,
+              child: _SkillCard(
+                skill: skill,
+                onPractice: () => onPractice(skill.name),
+              ),
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
+}
+
+class _SkillCard extends StatelessWidget {
+  final SkillOverview skill;
+  final VoidCallback onPractice;
+
+  const _SkillCard({required this.skill, required this.onPractice});
+
+  @override
+  @override
+  Widget build(BuildContext context) {
+    final trendText = skill.weeklyTrend >= 0
+        ? '+${skill.weeklyTrend.toStringAsFixed(1)}'
+        : skill.weeklyTrend.toStringAsFixed(1);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPractice,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 188),
+          padding: const EdgeInsets.all(13),
+          decoration: _card(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: skill.color.withOpacity(.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(skill.icon, color: skill.color, size: 19),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color:
+                          (skill.weeklyTrend >= 0 ? _C.green : Colors.redAccent)
+                              .withOpacity(.1),
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    child: Text(
+                      trendText,
+                      style: TextStyle(
+                        color: skill.weeklyTrend >= 0
+                            ? _C.green
+                            : Colors.redAccent,
+                        fontSize: 8.2,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                skill.band > 0 ? skill.band.toStringAsFixed(1) : '—',
+                style: TextStyle(
+                  color: skill.color,
+                  fontSize: 24,
+                  height: 1,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                skill.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: _C.text,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 9),
+              Text(
+                skill.pendingTask,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: _C.muted,
+                  fontSize: 9,
+                  height: 1.25,
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                height: 34,
+                child: OutlinedButton(
+                  onPressed: onPractice,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: skill.color,
+                    side: BorderSide(color: skill.color.withOpacity(.28)),
+                    padding: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                  ),
+                  child: const Text(
+                    'Practice',
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickActions extends StatelessWidget {
+  final ValueChanged<String> onTap;
+
+  const _QuickActions({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    const actions = [
+      ('Full Mock Test', Icons.timer_outlined, Color(0xFF2563EB)),
+      ('Writing Checker', Icons.edit_note_rounded, Color(0xFF8B5CF6)),
+      ('Speaking AI', Icons.record_voice_over_rounded, Color(0xFF34D399)),
+      ('Vocabulary', Icons.auto_stories_rounded, Color(0xFF22D3EE)),
+      (
+        'Weakness Practice',
+        Icons.center_focus_strong_rounded,
+        Color(0xFFF97316),
+      ),
+      ('Daily Quiz', Icons.quiz_outlined, Color(0xFFF59E0B)),
+    ];
+
+    return GridView.builder(
+      itemCount: actions.length,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        mainAxisSpacing: 11,
+        crossAxisSpacing: 11,
+        childAspectRatio: .92,
+      ),
+      itemBuilder: (_, index) {
+        final action = actions[index];
+
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => onTap(action.$1),
+            borderRadius: BorderRadius.circular(18),
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: _card(),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: action.$3.withOpacity(.12),
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    child: Icon(action.$2, color: action.$3, size: 20),
+                  ),
+                  const SizedBox(height: 9),
+                  Text(
+                    action.$1,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _C.text,
+                      fontSize: 9.4,
+                      height: 1.2,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _AIInsight extends StatelessWidget {
+  final String text;
+
+  const _AIInsight({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: LinearGradient(
+          colors: [
+            _C.blue.withOpacity(.18),
+            _C.cyan.withOpacity(.1),
+            _C.violet.withOpacity(.13),
+          ],
+        ),
+        border: Border.all(color: _C.cyan.withOpacity(.16)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SquareIcon(icon: Icons.psychology_alt_rounded),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'AI Coach Insight',
+                  style: TextStyle(
+                    color: _C.text,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  text,
+                  style: const TextStyle(
+                    color: _C.secondary,
+                    fontSize: 11.2,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.arrow_forward_rounded, color: _C.cyan, size: 20),
+        ],
+      ),
+    );
+  }
+}
+
+class _Streak extends StatelessWidget {
+  final HomeDashboardModel model;
+
+  const _Streak({required this.model});
+
+  @override
+  Widget build(BuildContext context) {
+    const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
-      ),
+      padding: const EdgeInsets.all(17),
+      decoration: _card(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            "Next Reward",
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.65),
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-            ),
+          const Row(
+            children: [
+              Icon(
+                Icons.local_fire_department_rounded,
+                color: Color(0xFFF97316),
+                size: 23,
+              ),
+              SizedBox(width: 8),
+              Text(
+                'Daily Streak',
+                style: TextStyle(
+                  color: _C.text,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            reward,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-              fontSize: 18,
-            ),
+          const SizedBox(height: 15),
+          Row(
+            children: [
+              Expanded(
+                child: _Metric(
+                  label: 'Current streak',
+                  value: '${model.currentStreak}',
+                  color: const Color(0xFFF97316),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _Metric(
+                  label: 'Longest streak',
+                  value: '${model.longestStreak}',
+                  color: _C.violet,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _Metric(
+                  label: 'XP points',
+                  value: '${model.xpPoints}',
+                  color: _C.cyan,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(30),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 9,
-              backgroundColor: Colors.white.withOpacity(0.10),
-              valueColor: const AlwaysStoppedAnimation(Color(0xFF5EEAD4)),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            streak >= 100 ? "Completed" : "$streak / $target Days",
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.70),
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-            ),
+          const SizedBox(height: 17),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(7, (index) {
+              final active = index < model.activeWeekDays.length
+                  ? model.activeWeekDays[index]
+                  : false;
+
+              return Column(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: active ? _C.green : _C.surfaceLight,
+                      border: Border.all(color: active ? _C.green : _C.border),
+                    ),
+                    child: Icon(
+                      active ? Icons.check_rounded : Icons.circle_outlined,
+                      color: active ? _C.bg : _C.muted,
+                      size: 17,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    labels[index],
+                    style: const TextStyle(
+                      color: _C.muted,
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              );
+            }),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _rewardBadge({
-    required String title,
-    required IconData icon,
-    required bool unlocked,
-    required String progressText,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        gradient: unlocked
-            ? LinearGradient(
-                colors: [
-                  const Color(0xFF14B8A6).withOpacity(0.35),
-                  const Color(0xFF0F766E).withOpacity(0.22),
-                ],
-              )
-            : null,
-        color: unlocked ? null : Colors.white.withOpacity(0.06),
-        border: Border.all(
-          color: unlocked
-              ? const Color(0xFF5EEAD4).withOpacity(0.35)
-              : Colors.white.withOpacity(0.08),
-        ),
-      ),
-      child: Column(
-        children: [
-          Icon(
-            unlocked ? icon : Icons.lock_rounded,
-            color: unlocked
-                ? const Color(0xFF5EEAD4)
-                : Colors.white.withOpacity(0.35),
-            size: 28,
+class _Title extends StatelessWidget {
+  final String title;
+  final String subtitle;
+
+  const _Title(this.title, this.subtitle);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: _C.text,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: const TextStyle(color: _C.muted, fontSize: 10.5),
+              ),
+            ],
           ),
-          const SizedBox(height: 10),
-          Text(
-            title,
+        ),
+      ],
+    );
+  }
+}
+
+class _SquareIcon extends StatelessWidget {
+  final IconData icon;
+
+  const _SquareIcon({required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 46,
+      height: 46,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(15),
+        gradient: _C.gradient,
+      ),
+      child: Icon(icon, color: Colors.white, size: 23),
+    );
+  }
+}
+
+class _SignedOutState extends StatelessWidget {
+  const _SignedOutState();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: _C.bg,
+      body: Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Please sign in to open your personalized dashboard.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: unlocked ? Colors.white : Colors.white.withOpacity(0.48),
-              fontSize: 12,
-              height: 1.3,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            progressText,
-            style: TextStyle(
-              color: unlocked
-                  ? const Color(0xFFCCFBF1)
-                  : Colors.white.withOpacity(0.40),
-              fontSize: 11,
+              color: _C.text,
+              fontSize: 16,
               fontWeight: FontWeight.w700,
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeLoadingState extends StatelessWidget {
+  const _HomeLoadingState();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: _C.bg,
+      body: Stack(
+        children: [
+          Positioned.fill(child: _Background()),
+          Center(child: CircularProgressIndicator(color: _C.cyan)),
         ],
       ),
     );
   }
+}
 
-  // Module 1
+class _ErrorState extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
 
-  Widget _moduleCard1({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required Color color,
-    required String tag,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(32),
-          gradient: const LinearGradient(
-            colors: [Color(0xFFFFA000), Color(0xFFFF6D00)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Color(0xFFFF9800),
-              blurRadius: 30,
-              spreadRadius: 1,
-              offset: Offset(0, 14),
-            ),
-          ],
-        ),
+  const _ErrorState({required this.message, required this.onRetry});
 
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.white.withOpacity(.25),
-                    Colors.white.withOpacity(.08),
-                  ],
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _C.bg,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.cloud_off_rounded,
+                color: Colors.redAccent,
+                size: 45,
+              ),
+              const SizedBox(height: 15),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: _C.text,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
                 ),
-                border: Border.all(color: Colors.white.withOpacity(.15)),
               ),
-              child: const Icon(
-                Icons.workspace_premium_rounded,
-                color: Colors.white,
-                size: 30,
-              ),
-            ),
-
-            const SizedBox(width: 18),
-
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 21,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -.4,
-                          ),
-                        ),
-                      ),
-
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(.18),
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        child: Text(
-                          tag,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(.92),
-                      fontSize: 13.5,
-                      height: 1.45,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.timer_outlined,
-                        color: Colors.white,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        "Real Exam Experience",
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(.95),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(width: 10),
-
-            Container(
-              height: 42,
-              width: 42,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(.18),
-              ),
-              child: const Icon(
-                Icons.arrow_forward_rounded,
-                color: Colors.white,
-                size: 22,
-              ),
-            ),
-          ],
+              const SizedBox(height: 15),
+              OutlinedButton(onPressed: onRetry, child: const Text('Retry')),
+            ],
+          ),
         ),
       ),
     );
   }
+}
 
-  Widget _moduleCard({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required Color startColor,
-    required Color endColor,
-    required String tag,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(30),
-          gradient: LinearGradient(
-            colors: [
-              startColor.withOpacity(.26),
-              endColor.withOpacity(.13),
-              const Color(0xFF111827).withOpacity(.35),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+class _Background extends StatelessWidget {
+  const _Background();
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF040A13),
+                Color(0xFF07111F),
+                Color(0xFF09182A),
+                Color(0xFF07111F),
+              ],
+            ),
           ),
-          border: Border.all(color: Colors.white.withOpacity(.10)),
-          boxShadow: [
-            BoxShadow(
-              color: startColor.withOpacity(.24),
-              blurRadius: 30,
-              spreadRadius: 1,
-              offset: const Offset(0, 14),
-            ),
-          ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  height: 48,
-                  width: 48,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.white.withOpacity(.20),
-                        Colors.white.withOpacity(.07),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    border: Border.all(color: Colors.white.withOpacity(.10)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: startColor.withOpacity(.20),
-                        blurRadius: 18,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Icon(icon, color: Colors.white, size: 22),
-                ),
+        const Positioned(
+          top: -150,
+          right: -120,
+          child: _Glow(size: 340, color: Color(0x2B2563EB)),
+        ),
+        const Positioned(
+          top: 390,
+          left: -160,
+          child: _Glow(size: 320, color: Color(0x1706B6D4)),
+        ),
+        const Positioned(
+          bottom: -180,
+          right: -150,
+          child: _Glow(size: 390, color: Color(0x178B5CF6)),
+        ),
+      ],
+    );
+  }
+}
 
-                const SizedBox(width: 6),
+class _Glow extends StatelessWidget {
+  final double size;
+  final Color color;
 
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: Container(
-                      constraints: const BoxConstraints(maxWidth: 65),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(.11),
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(.10),
-                        ),
-                      ),
-                      child: Text(
-                        tag,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Color(0xFFCCFBF1),
-                          fontSize: 9,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 22),
+  const _Glow({required this.size, required this.color});
 
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 19,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -.3,
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            Text(
-              subtitle,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Colors.white.withOpacity(.72),
-                fontSize: 13,
-                height: 1.45,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                // Expanded(
-                //   child: Container(
-                //     height: 4,
-                //     decoration: BoxDecoration(
-                //       borderRadius: BorderRadius.circular(20),
-                //       color: Colors.white.withOpacity(.10),
-                //     ),
-                //     child: FractionallySizedBox(
-                //       alignment: Alignment.centerLeft,
-                //       widthFactor: .65,
-                //       child: Container(
-                //         decoration: BoxDecoration(
-                //           borderRadius: BorderRadius.circular(20),
-                //           gradient: LinearGradient(
-                //             colors: [startColor, endColor],
-                //           ),
-                //         ),
-                //       ),
-                //     ),
-                //   ),
-                // ),
-                const SizedBox(width: 12),
-
-                Container(
-                  height: 34,
-                  width: 34,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.white.withOpacity(.20),
-                        Colors.white.withOpacity(.08),
-                      ],
-                    ),
-                    border: Border.all(color: Colors.white.withOpacity(.10)),
-                  ),
-                  child: const Icon(
-                    Icons.arrow_forward_rounded,
-                    color: Colors.white,
-                    size: 19,
-                  ),
-                ),
-              ],
-            ),
-          ],
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(colors: [color, color.withOpacity(0)]),
         ),
       ),
     );
+  }
+}
+
+class _C {
+  static const bg = Color(0xFF07111F);
+  static const surface = Color(0xFF101C2E);
+  static const surfaceLight = Color(0xFF182A40);
+  static const text = Color(0xFFF8FAFC);
+  static const secondary = Color(0xFFCBD5E1);
+  static const muted = Color(0xFF94A3B8);
+  static const border = Color(0xFF26364A);
+  static const blue = Color(0xFF2563EB);
+  static const cyan = Color(0xFF22D3EE);
+  static const violet = Color(0xFF8B5CF6);
+  static const green = Color(0xFF34D399);
+
+  static const gradient = LinearGradient(
+    colors: [Color(0xFF2563EB), Color(0xFF06B6D4), Color(0xFF7C3AED)],
+  );
+}
+
+BoxDecoration _card() {
+  return BoxDecoration(
+    color: _C.surface.withOpacity(.92),
+    borderRadius: BorderRadius.circular(20),
+    border: Border.all(color: Colors.white.withOpacity(.065)),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(.14),
+        blurRadius: 17,
+        offset: const Offset(0, 8),
+      ),
+    ],
+  );
+}
+
+Map<String, dynamic> _asMap(dynamic value) {
+  if (value is Map<String, dynamic>) return value;
+
+  if (value is Map) {
+    return value.map((key, item) => MapEntry(key.toString(), item));
+  }
+
+  return <String, dynamic>{};
+}
+
+List<dynamic> _asList(dynamic value) {
+  return value is List ? value : const [];
+}
+
+Set<String> _asStringSet(dynamic value) {
+  return _asList(value).map((item) => item.toString()).toSet();
+}
+
+List<String> _asStringList(dynamic value) {
+  return _asList(value).map((item) => item.toString()).toList();
+}
+
+double _asDouble(dynamic value, {double fallback = 0}) {
+  if (value is num) return value.toDouble();
+  return double.tryParse(value?.toString() ?? '') ?? fallback;
+}
+
+int _asInt(dynamic value, {int fallback = 0}) {
+  if (value is num) return value.toInt();
+  return int.tryParse(value?.toString() ?? '') ?? fallback;
+}
+
+String? _nullableString(dynamic value) {
+  final text = value?.toString().trim();
+
+  if (text == null || text.isEmpty || text == 'null') {
+    return null;
+  }
+
+  return text;
+}
+
+String _firstNonEmpty(List<dynamic> values) {
+  for (final value in values) {
+    final text = value?.toString().trim() ?? '';
+
+    if (text.isNotEmpty && text != 'null') {
+      return text;
+    }
+  }
+
+  return 'IELTS Learner';
+}
+
+int _examCountdown(dynamic value) {
+  DateTime? examDate;
+
+  if (value is Timestamp) {
+    examDate = value.toDate();
+  } else if (value is DateTime) {
+    examDate = value;
+  } else if (value is String) {
+    examDate = DateTime.tryParse(value);
+  }
+
+  if (examDate == null) return 0;
+
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final date = DateTime(examDate.year, examDate.month, examDate.day);
+  final difference = date.difference(today).inDays;
+
+  return math.max(0, difference);
+}
+
+int _calculateReadiness({
+  required double currentBand,
+  required double targetBand,
+  required int weeklyProgress,
+}) {
+  if (targetBand <= 0) return weeklyProgress;
+
+  final bandProgress = (currentBand / targetBand * 100).clamp(0, 100);
+  final readiness = (bandProgress * .75) + (weeklyProgress * .25);
+
+  return readiness.round().clamp(0, 100);
+}
+
+int _calculateWeeklyProgress(
+  List<dynamic> weeklyPlan,
+  Set<String> completedTaskIds,
+) {
+  int total = 0;
+  int completed = 0;
+
+  for (final rawDay in weeklyPlan) {
+    final day = _asMap(rawDay);
+
+    for (final rawTask in _asList(day['tasks'])) {
+      final task = _asMap(rawTask);
+      final id = (task['id'] ?? task['title'] ?? '').toString();
+
+      total++;
+
+      if (completedTaskIds.contains(id) || task['completed'] == true) {
+        completed++;
+      }
+    }
+  }
+
+  if (total == 0) return 0;
+
+  return ((completed / total) * 100).round();
+}
+
+String _weakestSkill(Map<String, double> skillValues) {
+  if (skillValues.isEmpty) return 'Writing';
+
+  return skillValues.entries.reduce((a, b) => a.value <= b.value ? a : b).key;
+}
+
+String _defaultWeakTopic(String skill) {
+  switch (skill.toLowerCase()) {
+    case 'listening':
+      return 'Map Labelling';
+    case 'reading':
+      return 'Matching Headings';
+    case 'writing':
+      return 'Coherence and Grammar';
+    case 'speaking':
+      return 'Fluency and Pronunciation';
+    default:
+      return 'Core IELTS Strategy';
+  }
+}
+
+String _defaultPendingTask(String skill) {
+  switch (skill.toLowerCase()) {
+    case 'listening':
+      return 'Listening section practice';
+    case 'reading':
+      return 'Reading strategy practice';
+    case 'writing':
+      return 'Writing task practice';
+    case 'speaking':
+      return 'Speaking drill';
+    default:
+      return 'Targeted practice';
+  }
+}
+
+String _findPendingSkillTask(
+  List<HomeTask> tasks,
+  String skill, {
+  required String fallback,
+}) {
+  for (final task in tasks) {
+    if (!task.completed &&
+        (task.title.toLowerCase().contains(skill.toLowerCase()) ||
+            task.type.toLowerCase().contains(skill.toLowerCase()))) {
+      return task.title;
+    }
+  }
+
+  return fallback;
+}
+
+double _skillTrend(Map<String, dynamic> userData, String skill) {
+  final trends = _asMap(userData['skillTrends']);
+
+  return _asDouble(
+    trends[skill.toLowerCase()] ??
+        trends[skill] ??
+        userData['${skill.toLowerCase()}Trend'],
+  );
+}
+
+List<bool> _activeWeekDays(dynamic value, {required int completedToday}) {
+  if (value is List) {
+    final result = value.map((item) => item == true).take(7).toList();
+
+    while (result.length < 7) {
+      result.add(false);
+    }
+
+    return result;
+  }
+
+  final now = DateTime.now();
+  final days = List<bool>.filled(7, false);
+
+  for (int index = 0; index < now.weekday - 1; index++) {
+    days[index] = true;
+  }
+
+  if (completedToday > 0) {
+    days[now.weekday - 1] = true;
+  }
+
+  return days;
+}
+
+String _dayName(int weekday) {
+  const days = [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
+  ];
+
+  return days[(weekday - 1).clamp(0, 6)];
+}
+
+extension _FirstOrNullExtension<T> on Iterable<T> {
+  T? get firstOrNull {
+    final iterator = this.iterator;
+
+    if (!iterator.moveNext()) return null;
+
+    return iterator.current;
   }
 }
