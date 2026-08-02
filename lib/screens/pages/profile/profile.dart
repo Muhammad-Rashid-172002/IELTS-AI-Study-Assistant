@@ -7,7 +7,6 @@ import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../controller/firebase_services/firebase_services.dart';
-import '../../../../resources/bottom_navigation_bar/botton_navigation.dart';
 import '../../../../resources/routes/routes_names.dart';
 
 class Profile extends StatefulWidget {
@@ -33,7 +32,6 @@ class _ProfileState extends State<Profile> {
     super.initState();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await services.loadUserProfile();
       _fillFields();
       setState(() {});
     });
@@ -123,7 +121,7 @@ class _ProfileState extends State<Profile> {
 
       return Scaffold(
         backgroundColor: const Color(0xFF08111F),
-        bottomNavigationBar: const BottomNavigation(index: 2),
+       // bottomNavigationBar: const IELTSMainNavigation(),
 
         body: CustomScrollView(
           slivers: [
@@ -212,7 +210,7 @@ class _ProfileState extends State<Profile> {
                                     });
 
                                     await services.updateProfileImage(image);
-                                    await services.loadUserProfile();
+                                    // await services.loadUserProfile();
 
                                     setState(() {
                                       selectedImagePath = null;

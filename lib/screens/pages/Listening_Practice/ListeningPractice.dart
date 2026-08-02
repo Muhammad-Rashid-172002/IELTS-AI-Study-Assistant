@@ -1,764 +1,565 @@
 import 'dart:async';
-import 'dart:io';
-import 'package:flutter/material.dart';
-import 'package:flutter_tts/flutter_tts.dart';
+import 'dart:math' as math;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
 
-import 'package:fyproject/services/ai_service.dart';
 
-class ListeningPractice extends StatefulWidget {
-  const ListeningPractice({super.key});
 
-  @override
-  State<ListeningPractice> createState() => _ListeningPracticeState();
-}
-
-class _ListeningPracticeState extends State<ListeningPractice> {
-  final AIService aiService = AIService();
-  final FlutterTts flutterTts = FlutterTts();
-
-  Map<String, dynamic> listeningTest = {};
-  String selectedPart = "part1";
-
-  String title = "";
-  String audioScript = "";
-  List<Map<String, dynamic>> questions = [];
-  List<String?> selectedAnswers = [];
-
-  bool generated = false;
-  bool isLoading = false;
-  bool isPlaying = false;
-  bool showResult = false;
-  bool isOfflineTest = false;
-  bool checkingSavedTest = true;
-  bool isTtsReady = false;
-  bool isTtsInitializing = false;
-  String? selectedTtsEngine;
-
-  int score = 0;
-  Timer? countdownTimer;
-  int totalSeconds = 1800;
-
-  Color get primary => const Color(0xFF14B8A6);
-  Color get secondary => const Color(0xFF0F766E);
-  Color get bg => const Color(0xFF08111F);
-
-  String get formattedTime {
-    final m = totalSeconds ~/ 60;
-    final s = totalSeconds % 60;
-    return "${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}";
-  }
+class ListeningScreen extends StatelessWidget {
+  const ListeningScreen({super.key});
 
   @override
-  void initState() {
-    super.initState();
-
-    flutterTts.setStartHandler(() {
-      debugPrint("TTS STARTED");
-
-      if (!mounted) return;
-
-      countdownTimer?.cancel();
-
-      setState(() {
-        isPlaying = true;
-      });
-
-      startTimer();
-    });
-
-    flutterTts.setCompletionHandler(() {
-      debugPrint("TTS COMPLETED");
-
-      if (!mounted) return;
-
-      countdownTimer?.cancel();
-
-      setState(() {
-        isPlaying = false;
-      });
-    });
-
-    flutterTts.setCancelHandler(() {
-      debugPrint("TTS CANCELLED");
-
-      if (!mounted) return;
-
-      countdownTimer?.cancel();
-
-      setState(() {
-        isPlaying = false;
-      });
-    });
-
-    flutterTts.setErrorHandler((message) {
-      debugPrint("TTS ERROR: $message");
-
-      if (!mounted) return;
-
-      countdownTimer?.cancel();
-
-      setState(() {
-        isPlaying = false;
-        isTtsReady = false;
-        isTtsInitializing = false;
-      });
-
-      _showSnack(
-        "Audio Playback Failed",
-        "The text-to-speech engine could not play the listening audio.",
-        isError: true,
-      );
-    });
-
-    _initializeTts();
-    _initializeListeningScreen();
-  }
-
-  @override
-  void dispose() {
-    countdownTimer?.cancel();
-    flutterTts.stop();
-    super.dispose();
-  }
-
-  Future<void> _initializeListeningScreen() async {
-    final hasInternet = await _hasInternetConnection();
-
-    if (!hasInternet) {
-      await _loadSavedListeningTest(showMessage: false);
-    }
-
-    if (mounted) {
-      setState(() {
-        checkingSavedTest = false;
-      });
-    }
-  }
-
-  Future<bool> _initializeTts() async {
-    if (isTtsReady) return true;
-    if (isTtsInitializing) return false;
-
-    if (mounted) {
-      setState(() {
-        isTtsInitializing = true;
-        isTtsReady = false;
-      });
-    }
-
-    try {
-      await flutterTts.awaitSpeakCompletion(true);
-
-      dynamic languageResult;
-
-      try {
-        languageResult = await flutterTts
-            .setLanguage("en-GB")
-            .timeout(const Duration(seconds: 5));
-      } catch (_) {
-        languageResult = await flutterTts
-            .setLanguage("en-US")
-            .timeout(const Duration(seconds: 5));
-      }
-
-      await flutterTts.setSpeechRate(0.43).timeout(const Duration(seconds: 3));
-
-      await flutterTts.setPitch(1.0).timeout(const Duration(seconds: 3));
-
-      await flutterTts.setVolume(1.0).timeout(const Duration(seconds: 3));
-
-      final bool ready = languageResult == 1 || languageResult == true;
-
-      debugPrint("TTS LANGUAGE RESULT: $languageResult");
-      debugPrint("TTS READY: $ready");
-
-      if (mounted) {
-        setState(() {
-          isTtsReady = ready;
-          isTtsInitializing = false;
-        });
-      }
-
-      return ready;
-    } on TimeoutException catch (e) {
-      debugPrint("TTS INITIALIZATION TIMEOUT: $e");
-
-      if (mounted) {
-        setState(() {
-          isTtsReady = false;
-          isTtsInitializing = false;
-        });
-      }
-
-      return false;
-    } catch (e, stackTrace) {
-      debugPrint("TTS INITIALIZATION ERROR: $e");
-      debugPrintStack(stackTrace: stackTrace);
-
-      if (mounted) {
-        setState(() {
-          isTtsReady = false;
-          isTtsInitializing = false;
-        });
-      }
-
-      return false;
-    }
-  }
-
-  Future<bool> _hasInternetConnection() async {
-    try {
-      final result = await InternetAddress.lookup(
-        'generativelanguage.googleapis.com',
-      ).timeout(const Duration(seconds: 5));
-
-      return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
-    } on SocketException {
-      return false;
-    } on TimeoutException {
-      return false;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<void> _saveListeningTestToFirebase(
-    Map<String, dynamic> testData,
-  ) async {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null || testData.isEmpty) return;
-
-    try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('cached_tests')
-          .doc('listening_full_test')
-          .set({
-            'testData': testData,
-            'testType': 'listening',
-            'updatedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
-    } catch (e) {
-      debugPrint('SAVE LISTENING TEST ERROR: $e');
-
-      // The test is already visible in the UI, so a Firebase save failure
-      // should not cause the test generation process to fail.
-    }
-  }
-
-  Future<bool> _loadSavedListeningTest({bool showMessage = false}) async {
+  Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      if (mounted) {
-        setState(() => checkingSavedTest = false);
-      }
-      return false;
-    }
-
-    try {
-      DocumentSnapshot<Map<String, dynamic>> snapshot;
-
-      try {
-        // First, try to retrieve the latest test from the server.
-        snapshot = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .collection('cached_tests')
-            .doc('listening_full_test')
-            .get(const GetOptions(source: Source.server))
-            .timeout(const Duration(seconds: 6));
-      } catch (_) {
-        // Internet na ho to local Firestore cache se load karega.
-        snapshot = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .collection('cached_tests')
-            .doc('listening_full_test')
-            .get(const GetOptions(source: Source.cache));
-      }
-
-      if (!snapshot.exists || snapshot.data() == null) {
-        if (mounted) {
-          setState(() => checkingSavedTest = false);
-        }
-        return false;
-      }
-
-      final documentData = snapshot.data()!;
-      final rawTestData = documentData['testData'];
-
-      if (rawTestData is! Map) {
-        if (mounted) {
-          setState(() => checkingSavedTest = false);
-        }
-        return false;
-      }
-
-      final savedTest = Map<String, dynamic>.from(rawTestData);
-
-      if (savedTest.isEmpty) {
-        if (mounted) {
-          setState(() => checkingSavedTest = false);
-        }
-        return false;
-      }
-
-      if (!mounted) return false;
-
-      setState(() {
-        listeningTest = savedTest;
-        generated = true;
-        isOfflineTest = snapshot.metadata.isFromCache;
-        checkingSavedTest = false;
-      });
-
-      loadPart('part1');
-
-      if (showMessage) {
-        _showSnack(
-          'Offline mode',
-          'Internet available nahi hai. Aapka saved listening test load kar diya gaya hai.',
-          isError: true,
-        );
-      }
-
-      return true;
-    } catch (e) {
-      debugPrint('LOAD SAVED LISTENING TEST ERROR: $e');
-
-      if (mounted) {
-        setState(() => checkingSavedTest = false);
-      }
-
-      return false;
-    }
-  }
-
-  Future<void> generateListeningTest() async {
-    if (isLoading) return;
-
-    final hasInternet = await _hasInternetConnection();
-
-    if (!hasInternet) {
-      final savedTestLoaded = await _loadSavedListeningTest(showMessage: true);
-
-      if (!savedTestLoaded && mounted) {
-        _showSnack(
-          'No Internet',
-          'Aapke paas internet connection nahi hai aur koi saved listening test bhi available nahi hai.',
-        );
-      }
-
-      return;
-    }
-
-    if (!mounted) return;
-
-    setState(() {
-      isLoading = true;
-      showResult = false;
-      score = 0;
-      totalSeconds = 1800;
-      isOfflineTest = false;
-    });
-
-    try {
-      final data = await aiService.generateListeningTest().timeout(
-        const Duration(seconds: 100),
-      );
-
-      if (data.isEmpty) {
-        throw Exception('Gemini returned empty test data');
-      }
-
-      if (!mounted) return;
-
-      setState(() {
-        listeningTest = Map<String, dynamic>.from(data);
-        generated = true;
-        isOfflineTest = false;
-      });
-
-      loadPart('part1');
-
-      // Save the complete AI-generated listening test to Firebase.
-      await _saveListeningTestToFirebase(Map<String, dynamic>.from(data));
-    } on TimeoutException {
-      final savedTestLoaded = await _loadSavedListeningTest(showMessage: true);
-
-      if (!savedTestLoaded && mounted) {
-        _showSnack(
-          'Request Timeout',
-          'The AI is taking too long to respond. Please try again.',
-        );
-      }
-    } on SocketException {
-      final savedTestLoaded = await _loadSavedListeningTest(showMessage: true);
-
-      if (!savedTestLoaded && mounted) {
-        _showSnack(
-          'No Internet',
-          'No internet connection is available. Please check your connection.',
-        );
-      }
-    } catch (e, stackTrace) {
-      debugPrint('GEMINI LISTENING ERROR: $e');
-      debugPrintStack(stackTrace: stackTrace);
-
-      final errorText = e.toString().toLowerCase();
-
-      if (errorText.contains('403') ||
-          errorText.contains('permission_denied') ||
-          errorText.contains('forbidden')) {
-        _showSnack(
-          'AI Permission Error',
-          'The Gemini API request was denied. Please check the API key, billing status, and API restrictions.',
-          isError: true,
-        );
-      } else if (errorText.contains('429') ||
-          errorText.contains('resource_exhausted') ||
-          errorText.contains('quota')) {
-        _showSnack(
-          'AI Limit Reached',
-          'The Gemini API quota or billing limit has been reached.',
-        );
-      } else {
-        final savedTestLoaded = await _loadSavedListeningTest(
-          showMessage: true,
-        );
-
-        if (!savedTestLoaded && mounted) {
-          _showSnack(
-            'Generation Failed',
-            'The listening test could not be generated. Please try again.',
-          );
-        }
-      }
-    } finally {
-      if (mounted) {
-        setState(() => isLoading = false);
-      }
-    }
-  }
-
-  void loadPart(String part) {
-    final partData = listeningTest[part] as Map<String, dynamic>? ?? {};
-    final qList = List<Map<String, dynamic>>.from(partData["questions"] ?? []);
-
-    setState(() {
-      selectedPart = part;
-      title = partData["title"] ?? "IELTS Listening ${part.toUpperCase()}";
-      audioScript = partData["audio_script"] ?? "";
-      questions = qList;
-      selectedAnswers = List.generate(qList.length, (_) => null);
-      showResult = false;
-      score = 0;
-      totalSeconds = 1800;
-    });
-  }
-
-Future<void> playAudio() async {
-  final script = audioScript.trim();
-
-  if (script.isEmpty) {
-    _showSnack(
-      "Audio Unavailable",
-      "Listening test generate nahi hua ya audio script empty hai.",
-      isError: true,
-    );
-    return;
-  }
-
-  if (isPlaying) {
-    await stopAudio();
-    return;
-  }
-
-  if (!isTtsReady) {
-    final initialized = await _initializeTts();
-
-    if (!initialized) {
-      _showSnack(
-        "Speech Engine Unavailable",
-        "Phone settings mein Speech Recognition & Synthesis by Google install ya enable karein.",
-        isError: true,
-      );
-      return;
-    }
-  }
-
-  try {
-    await flutterTts.stop();
-
-    final result = await flutterTts
-        .speak(script)
-        .timeout(const Duration(seconds: 10));
-
-    debugPrint("TTS SPEAK RESULT: $result");
-
-    if (result != 1 && result != true) {
-      if (!mounted) return;
-
-      setState(() {
-        isPlaying = false;
-      });
-
-      _showSnack(
-        "Playback Failed",
-        "Speech engine audio start nahi kar saka.",
-        isError: true,
+      return const _MessageScreen(
+        icon: Icons.login_rounded,
+        title: 'Sign in required',
+        message: 'Please sign in to open your listening dashboard.',
       );
     }
-  } on TimeoutException {
-    if (!mounted) return;
 
-    setState(() {
-      isPlaying = false;
-      isTtsReady = false;
-    });
+    final userRef =
+        FirebaseFirestore.instance.collection('users').doc(user.uid);
 
-    _showSnack(
-      "Playback Timeout",
-      "Speech engine ne response dene mein zyada waqt liya.",
-      isError: true,
-    );
-  } catch (e, stackTrace) {
-    debugPrint("PLAY AUDIO ERROR: $e");
-    debugPrintStack(stackTrace: stackTrace);
+    return Scaffold(
+      backgroundColor: LColors.bg,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: _Background()),
+          SafeArea(
+            bottom: false,
+            child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: userRef.snapshots(),
+              builder: (context, userSnapshot) {
+                if (!userSnapshot.hasData) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: LColors.cyan),
+                  );
+                }
 
-    if (!mounted) return;
+                final userData = userSnapshot.data!.data() ?? {};
 
-    countdownTimer?.cancel();
+                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: userRef
+                      .collection('listening_results')
+                      .orderBy('completedAt', descending: true)
+                      .limit(5)
+                      .snapshots(),
+                  builder: (context, resultSnapshot) {
+                    final results = resultSnapshot.data?.docs
+                            .map(ListeningRecentResult.fromDocument)
+                            .toList() ??
+                        [];
 
-    setState(() {
-      isPlaying = false;
-      isTtsReady = false;
-    });
-
-    _showSnack(
-      "Playback Error",
-      "Listening audio play nahi ho saka.",
-      isError: true,
+                    return _ListeningHome(
+                      currentBand: _asDouble(
+                        userData['listeningBand'] ??
+                            (results.isNotEmpty
+                                ? results.first.estimatedBand
+                                : 0),
+                      ),
+                      weakTypes: _asStringList(
+                        userData['weakQuestionTypes'],
+                      ),
+                      recentResults: results,
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
-  Future<void> stopAudio() async {
-    try {
-      await flutterTts.stop();
-    } catch (e) {
-      debugPrint("STOP AUDIO ERROR: $e");
-    }
 
-    countdownTimer?.cancel();
+class _ListeningHome extends StatelessWidget {
+  final double currentBand;
+  final List<String> weakTypes;
+  final List<ListeningRecentResult> recentResults;
 
-    if (!mounted) return;
+  const _ListeningHome({
+    required this.currentBand,
+    required this.weakTypes,
+    required this.recentResults,
+  });
 
-    setState(() {
-      isPlaying = false;
-    });
-  }
+  @override
+  Widget build(BuildContext context) {
+    final effectiveWeakTypes = weakTypes.isEmpty
+        ? const ['Matching', 'Map labelling', 'Multiple choice']
+        : weakTypes;
 
-  void startTimer() {
-    countdownTimer?.cancel();
-
-    countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (totalSeconds > 0) {
-        setState(() => totalSeconds--);
-      } else {
-        timer.cancel();
-        submitAnswers();
-      }
-    });
-  }
-
-  Future<void> submitAnswers() async {
-    if (questions.isEmpty) return;
-
-    int correct = 0;
-
-    for (int i = 0; i < questions.length; i++) {
-      final answer = _cleanAnswer(questions[i]["answer"]);
-      final userAnswer = _cleanAnswer(selectedAnswers[i]);
-
-      if (userAnswer == answer) correct++;
-    }
-
-    setState(() {
-      score = correct;
-      showResult = true;
-      isPlaying = false;
-    });
-
-    countdownTimer?.cancel();
-    await flutterTts.stop();
-    await saveResultToFirebase();
-  }
-
-  String _cleanAnswer(dynamic value) {
-    return value
-        .toString()
-        .trim()
-        .toLowerCase()
-        .replaceAll(".", "")
-        .replaceAll(",", "");
-  }
-
-  double calculateBandScore() {
-    if (questions.isEmpty) return 0;
-    final percent = score / questions.length;
-
-    if (percent >= 0.95) return 9.0;
-    if (percent >= 0.85) return 8.0;
-    if (percent >= 0.75) return 7.0;
-    if (percent >= 0.65) return 6.5;
-    if (percent >= 0.55) return 6.0;
-    if (percent >= 0.45) return 5.5;
-    if (percent >= 0.35) return 5.0;
-    return 4.0;
-  }
-
-  Future<void> saveResultToFirebase() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('listening_results')
-          .add({
-            'part': selectedPart,
-            'score': score,
-            'total': questions.length,
-            'band': calculateBandScore(),
-            'title': title,
-            'answers': selectedAnswers,
-            'createdAt': FieldValue.serverTimestamp(),
-          });
-
-      debugPrint('Listening result saved successfully');
-    } catch (e) {
-      debugPrint('SAVE RESULT ERROR: $e');
-
-      if (mounted) {
-        _showSnack(
-          'Result Pending',
-          'The result could not be saved online. Please check your internet connection and try again.',
-        );
-      }
-    }
-  }
-
-  void _showSnack(
-    String title,
-    String message, {
-    bool isError = false,
-    bool isSuccess = false,
-  }) {
-    if (!mounted) return;
-
-    final Color accentColor = isError
-        ? const Color(0xFFEF4444)
-        : isSuccess
-        ? const Color(0xFF22C55E)
-        : const Color(0xFF14B8A6);
-
-    final IconData icon = isError
-        ? Icons.error_outline_rounded
-        : isSuccess
-        ? Icons.check_circle_outline_rounded
-        : Icons.info_outline_rounded;
-
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          elevation: 0,
-          backgroundColor: Colors.transparent,
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-          duration: const Duration(seconds: 4),
-          content: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              color: const Color(0xFF111827),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: accentColor.withOpacity(0.45)),
-              boxShadow: [
-                BoxShadow(
-                  color: accentColor.withOpacity(0.18),
-                  blurRadius: 24,
-                  offset: const Offset(0, 10),
-                ),
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.30),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
-              ],
+    return CustomScrollView(
+      physics: const BouncingScrollPhysics(),
+      slivers: [
+        const SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(18, 16, 18, 0),
+            child: _Header(),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 20, 18, 0),
+            child: _BandCard(band: currentBand),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
+            child: _WeakTypesCard(types: effectiveWeakTypes),
+          ),
+        ),
+        const SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(18, 18, 18, 0),
+            child: _RecommendedLessonCard(),
+          ),
+        ),
+        const SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(18, 22, 18, 12),
+            child: _SectionTitle(
+              title: 'Practice Modes',
+              subtitle: 'Choose a section or complete test mode',
             ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  height: 42,
-                  width: 42,
-                  decoration: BoxDecoration(
-                    color: accentColor.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(icon, color: accentColor, size: 23),
-                ),
-                const SizedBox(width: 13),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                        ),
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          sliver: SliverGrid(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final mode = ListeningMode.values[index];
+                return _ModeCard(
+                  mode: mode,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ListeningTestBrowserScreen(
+                        mode: mode,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        message,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.72),
-                          fontSize: 13,
-                          height: 1.4,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                InkWell(
-                  borderRadius: BorderRadius.circular(20),
-                  onTap: () {
-                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: Icon(
-                      Icons.close_rounded,
-                      color: Colors.white.withOpacity(0.55),
-                      size: 19,
                     ),
+                  ),
+                );
+              },
+              childCount: ListeningMode.values.length,
+            ),
+            gridDelegate:
+                const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 11,
+              crossAxisSpacing: 11,
+              childAspectRatio: 1.18,
+            ),
+          ),
+        ),
+        const SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(18, 22, 18, 12),
+            child: _SectionTitle(
+              title: 'Question Type Practice',
+              subtitle: 'Practice a specific IELTS listening question type',
+            ),
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          sliver: SliverGrid(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final type = ListeningQuestionType.values[index];
+                final weak = effectiveWeakTypes
+                    .map((e) => e.toLowerCase())
+                    .contains(type.label.toLowerCase());
+
+                return _QuestionTypeCard(
+                  type: type,
+                  weak: weak,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ListeningTestBrowserScreen(
+                        questionType: type.label,
+                      ),
+                    ),
+                  ),
+                );
+              },
+              childCount: ListeningQuestionType.values.length,
+            ),
+            gridDelegate:
+                const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 1.65,
+            ),
+          ),
+        ),
+        const SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(18, 22, 18, 12),
+            child: _SectionTitle(
+              title: 'Recent Tests',
+              subtitle: 'Latest scores and estimated bands',
+            ),
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(18, 0, 18, 120),
+          sliver: recentResults.isEmpty
+              ? const SliverToBoxAdapter(
+                  child: _EmptyCard(
+                    title: 'No recent listening tests',
+                    subtitle:
+                        'Complete your first listening activity to see results here.',
+                  ),
+                )
+              : SliverList.separated(
+                  itemCount: recentResults.length,
+                  itemBuilder: (_, index) =>
+                      _RecentResultCard(result: recentResults[index]),
+                  separatorBuilder: (_, __) =>
+                      const SizedBox(height: 10),
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+class ListeningTestBrowserScreen extends StatelessWidget {
+  final ListeningMode? mode;
+  final String? questionType;
+
+  const ListeningTestBrowserScreen({
+    super.key,
+    this.mode,
+    this.questionType,
+  });
+
+  Query<Map<String, dynamic>> _query() {
+    Query<Map<String, dynamic>> query = FirebaseFirestore.instance
+        .collection('listening_tests')
+        .where('isPublished', isEqualTo: true);
+
+    if (questionType != null) {
+      query = query.where('questionType', isEqualTo: questionType);
+    } else if (mode?.section != null) {
+      query = query.where('section', isEqualTo: mode!.section);
+    } else if (mode != null) {
+      query = query.where('mode', isEqualTo: mode!.firestoreValue);
+    }
+
+    return query.orderBy('order');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final title = questionType ?? mode?.label ?? 'Listening Tests';
+
+    return Scaffold(
+      backgroundColor: LColors.bg,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: _Background()),
+          SafeArea(
+            child: Column(
+              children: [
+                _InnerHeader(
+                  title: title,
+                  subtitle: 'Select a published listening activity',
+                ),
+                Expanded(
+                  child: StreamBuilder<
+                      QuerySnapshot<Map<String, dynamic>>>(
+                    stream: _query().snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) {
+                        return const _MessageScreen(
+                          icon: Icons.cloud_off_rounded,
+                          title: 'Could not load tests',
+                          message:
+                              'Check Firestore rules and create the required index.',
+                          embedded: true,
+                        );
+                      }
+
+                      if (!snapshot.hasData) {
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            color: LColors.cyan,
+                          ),
+                        );
+                      }
+
+                      final tests = snapshot.data!.docs
+                          .map(ListeningTest.fromDocument)
+                          .toList();
+
+                      if (tests.isEmpty) {
+                        return _MessageScreen(
+                          icon: Icons.headphones_rounded,
+                          title: 'No tests available',
+                          message:
+                              'Publish matching listening tests in Firestore.',
+                          embedded: true,
+                        );
+                      }
+
+                      return ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+                        itemCount: tests.length,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: 11),
+                        itemBuilder: (_, index) {
+                          final test = tests[index];
+                          return _TestCard(
+                            test: test,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    ListeningPracticeScreen(test: test),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
                   ),
                 ),
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class ListeningPracticeScreen extends StatefulWidget {
+  final ListeningTest test;
+
+  const ListeningPracticeScreen({
+    super.key,
+    required this.test,
+  });
+
+  @override
+  State<ListeningPracticeScreen> createState() =>
+      _ListeningPracticeScreenState();
+}
+
+class _ListeningPracticeScreenState
+    extends State<ListeningPracticeScreen> {
+  final AudioPlayer _player = AudioPlayer();
+  final PageController _pageController = PageController();
+  final Map<int, String> _answers = {};
+  final Map<int, TextEditingController> _controllers = {};
+
+  Timer? _timer;
+  int _current = 0;
+  int _remainingSeconds = 0;
+  int _playCount = 0;
+  double _volume = 1;
+  double _speed = 1;
+  bool _loadingAudio = true;
+  bool _autoScroll = true;
+  bool _submitting = false;
+  String? _audioError;
+
+  bool get _examMode =>
+      widget.test.mode == 'exam' || widget.test.mode == 'full';
+
+  bool get _learningMode => widget.test.mode == 'learning';
+
+  @override
+  void initState() {
+    super.initState();
+    _remainingSeconds = widget.test.durationSeconds;
+
+    for (int i = 0; i < widget.test.questions.length; i++) {
+      if (widget.test.questions[i].options.isEmpty) {
+        _controllers[i] = TextEditingController();
+      }
+    }
+
+    _loadAudio();
+    _startTimer();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _player.dispose();
+    _pageController.dispose();
+    for (final controller in _controllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _loadAudio() async {
+    try {
+      String? url = widget.test.audioUrl;
+
+      if ((url == null || url.isEmpty) &&
+          widget.test.audioStoragePath != null) {
+        url = await FirebaseStorage.instance
+            .ref(widget.test.audioStoragePath!)
+            .getDownloadURL();
+      }
+
+      if (url == null || url.isEmpty) {
+        throw Exception('Audio URL or Storage path is missing.');
+      }
+
+      await _player.setUrl(url);
+      await _player.setVolume(_volume);
+    } catch (e) {
+      _audioError = e.toString();
+    } finally {
+      if (mounted) setState(() => _loadingAudio = false);
+    }
+  }
+
+  void _startTimer() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
+
+      if (_remainingSeconds <= 1) {
+        timer.cancel();
+        setState(() => _remainingSeconds = 0);
+        _submit();
+      } else {
+        setState(() => _remainingSeconds--);
+      }
+    });
+  }
+
+  Future<void> _togglePlay() async {
+    if (_loadingAudio || _audioError != null) return;
+
+    if (_player.playing) {
+      await _player.pause();
+      return;
+    }
+
+    if (_player.processingState == ProcessingState.completed) {
+      if (_examMode) {
+        _snack('Replay is disabled in exam mode.');
+        return;
+      }
+      await _player.seek(Duration.zero);
+    }
+
+    if (_player.position == Duration.zero) {
+      if (_examMode && _playCount > 0) {
+        _snack('Audio can only be played once in exam mode.');
+        return;
+      }
+      _playCount++;
+    }
+
+    await _player.play();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _goTo(int index) async {
+    if (index < 0 || index >= widget.test.questions.length) return;
+    await _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  Future<void> _submit() async {
+    if (_submitting) return;
+
+    for (final entry in _controllers.entries) {
+      _answers[entry.key] = entry.value.text.trim();
+    }
+
+    setState(() => _submitting = true);
+    _timer?.cancel();
+    await _player.pause();
+
+    final result = ListeningResultCalculator.calculate(
+      test: widget.test,
+      answers: _answers,
+      durationUsedSeconds:
+          widget.test.durationSeconds - _remainingSeconds,
+    );
+
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user != null) {
+      try {
+        final ref = FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('listening_results')
+            .doc();
+
+        await ref.set({
+          'resultId': ref.id,
+          'testId': widget.test.id,
+          'title': widget.test.title,
+          'rawScore': result.rawScore,
+          'totalQuestions': result.totalQuestions,
+          'estimatedBand': result.estimatedBand,
+          'accuracyPercent': result.accuracyPercent,
+          'sectionAccuracy': result.sectionAccuracy,
+          'questionTypeAccuracy': result.questionTypeAccuracy,
+          'spellingMistakes': result.spellingMistakes,
+          'missedKeywords': result.missedKeywords,
+          'durationUsedSeconds': result.durationUsedSeconds,
+          'completedAt': FieldValue.serverTimestamp(),
+        });
+
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .set({
+          'listeningBand': result.estimatedBand,
+          'weakQuestionTypes': result.weakQuestionTypes,
+          'lastListeningTestAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ListeningResultScreen(
+          test: widget.test,
+          result: result,
+        ),
+      ),
+    );
+  }
+
+  void _snack(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text(message),
         ),
       );
   }
@@ -766,149 +567,1677 @@ Future<void> playAudio() async {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF08111F),
-      body: Column(
+      backgroundColor: LColors.bg,
+      body: Stack(
         children: [
-          _header(),
-          Expanded(
-            child: checkingSavedTest
-                ? const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF14B8A6)),
-                  )
-                : isLoading
-                ? _loadingBody()
-                : generated
-                ? _testBody()
-                : _startBody(),
+          const Positioned.fill(child: _Background()),
+          SafeArea(
+            child: Column(
+              children: [
+                _PracticeHeader(
+                  title: widget.test.title,
+                  current: _current,
+                  total: widget.test.questions.length,
+                  seconds: _remainingSeconds,
+                ),
+                _AudioPlayerCard(
+                  player: _player,
+                  loading: _loadingAudio,
+                  error: _audioError,
+                  examMode: _examMode,
+                  learningMode: _learningMode,
+                  volume: _volume,
+                  speed: _speed,
+                  onPlay: _togglePlay,
+                  onVolumeChanged: (value) async {
+                    setState(() => _volume = value);
+                    await _player.setVolume(value);
+                  },
+                  onSpeedChanged: (value) async {
+                    if (!_learningMode) return;
+                    setState(() => _speed = value);
+                    await _player.setSpeed(value);
+                  },
+                ),
+                _QuestionNav(
+                  total: widget.test.questions.length,
+                  current: _current,
+                  answered: _answers.keys.toSet(),
+                  autoScroll: _autoScroll,
+                  onAutoScroll: (value) =>
+                      setState(() => _autoScroll = value),
+                  onTap: _goTo,
+                ),
+                Expanded(
+                  child: PageView.builder(
+                    controller: _pageController,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: widget.test.questions.length,
+                    onPageChanged: (index) =>
+                        setState(() => _current = index),
+                    itemBuilder: (_, index) {
+                      final question = widget.test.questions[index];
+
+                      return SingleChildScrollView(
+                        padding:
+                            const EdgeInsets.fromLTRB(18, 14, 18, 26),
+                        child: _QuestionCard(
+                          question: question,
+                          selected: _answers[index],
+                          controller: _controllers[index],
+                          onSelected: (answer) {
+                            setState(() => _answers[index] = answer);
+                            if (_autoScroll &&
+                                index <
+                                    widget.test.questions.length - 1) {
+                              Future.delayed(
+                                const Duration(milliseconds: 220),
+                                () => _goTo(index + 1),
+                              );
+                            }
+                          },
+                          onTextChanged: (value) =>
+                              _answers[index] = value.trim(),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                _BottomBar(
+                  current: _current,
+                  total: widget.test.questions.length,
+                  loading: _submitting,
+                  onBack: _current > 0 ? () => _goTo(_current - 1) : null,
+                  onNext: () {
+                    if (_current < widget.test.questions.length - 1) {
+                      _goTo(_current + 1);
+                    } else {
+                      _submit();
+                    }
+                  },
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _header() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 52, 20, 28),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF08111F), Color(0xFF102A43), Color(0xFF0F766E)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+class ListeningResultScreen extends StatelessWidget {
+  final ListeningTest test;
+  final ListeningTestResult result;
+
+  const ListeningResultScreen({
+    super.key,
+    required this.test,
+    required this.result,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: LColors.bg,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: _Background()),
+          SafeArea(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 30),
+              children: [
+                const _ResultHeader(),
+                const SizedBox(height: 20),
+                _ResultHero(result: result),
+                const SizedBox(height: 16),
+                _ResultMetrics(result: result),
+                const SizedBox(height: 20),
+                const _SectionTitle(
+                  title: 'Accuracy by Section',
+                  subtitle: 'Performance across listening sections',
+                ),
+                const SizedBox(height: 10),
+                ...result.sectionAccuracy.entries.map(
+                  (entry) => Padding(
+                    padding: const EdgeInsets.only(bottom: 9),
+                    child: _AccuracyCard(
+                      title: entry.key,
+                      value: entry.value,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const _SectionTitle(
+                  title: 'Accuracy by Question Type',
+                  subtitle: 'Question types requiring more practice',
+                ),
+                const SizedBox(height: 10),
+                ...result.questionTypeAccuracy.entries.map(
+                  (entry) => Padding(
+                    padding: const EdgeInsets.only(bottom: 9),
+                    child: _AccuracyCard(
+                      title: entry.key,
+                      value: entry.value,
+                      color: LColors.violet,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _AnalysisCard(result: result),
+                const SizedBox(height: 16),
+                _RecommendationCard(result: result),
+                if (test.transcript.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  _TranscriptCard(
+                    transcript: test.transcript,
+                    questions: test.questions,
+                    result: result,
+                  ),
+                ],
+                const SizedBox(height: 22),
+                _GradientButton(
+                  title: 'Back to Listening',
+                  icon: Icons.headphones_rounded,
+                  onPressed: () => Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          const ListeningScreen(),
+                    ),
+                    (route) => route.isFirst,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
+    );
+  }
+}
 
+class ListeningRecentResult {
+  final String title;
+  final int rawScore;
+  final int totalQuestions;
+  final double estimatedBand;
+  final int accuracyPercent;
+
+  const ListeningRecentResult({
+    required this.title,
+    required this.rawScore,
+    required this.totalQuestions,
+    required this.estimatedBand,
+    required this.accuracyPercent,
+  });
+
+  factory ListeningRecentResult.fromDocument(
+    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final data = doc.data();
+
+    return ListeningRecentResult(
+      title: (data['title'] ?? 'Listening Test').toString(),
+      rawScore: _asInt(data['rawScore']),
+      totalQuestions: _asInt(data['totalQuestions'], fallback: 40),
+      estimatedBand: _asDouble(data['estimatedBand']),
+      accuracyPercent: _asInt(data['accuracyPercent']),
+    );
+  }
+}
+
+class ListeningTest {
+  final String id;
+  final String title;
+  final String description;
+  final String mode;
+  final int section;
+  final String accent;
+  final String difficulty;
+  final int durationSeconds;
+  final String? audioUrl;
+  final String? audioStoragePath;
+  final String transcript;
+  final List<ListeningQuestion> questions;
+
+  const ListeningTest({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.mode,
+    required this.section,
+    required this.accent,
+    required this.difficulty,
+    required this.durationSeconds,
+    required this.audioUrl,
+    required this.audioStoragePath,
+    required this.transcript,
+    required this.questions,
+  });
+
+  factory ListeningTest.fromDocument(
+    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final data = doc.data();
+
+    return ListeningTest(
+      id: doc.id,
+      title: (data['title'] ?? 'Listening Test').toString(),
+      description: (data['description'] ?? '').toString(),
+      mode: (data['mode'] ?? 'practice').toString(),
+      section: _asInt(data['section']),
+      accent: (data['accent'] ?? 'British').toString(),
+      difficulty: (data['difficulty'] ?? 'Intermediate').toString(),
+      durationSeconds:
+          _asInt(data['durationSeconds'], fallback: 1800),
+      audioUrl: _nullableString(data['audioUrl']),
+      audioStoragePath: _nullableString(data['audioStoragePath']),
+      transcript: (data['transcript'] ?? '').toString(),
+      questions: _asList(data['questions'])
+          .map((item) => ListeningQuestion.fromMap(_asMap(item)))
+          .toList(),
+    );
+  }
+}
+
+class ListeningQuestion {
+  final int number;
+  final int section;
+  final String type;
+  final String prompt;
+  final List<String> options;
+  final String correctAnswer;
+  final List<String> acceptedAnswers;
+  final String explanation;
+  final List<String> keywords;
+
+  const ListeningQuestion({
+    required this.number,
+    required this.section,
+    required this.type,
+    required this.prompt,
+    required this.options,
+    required this.correctAnswer,
+    required this.acceptedAnswers,
+    required this.explanation,
+    required this.keywords,
+  });
+
+  factory ListeningQuestion.fromMap(Map<String, dynamic> map) {
+    final accepted = _asStringList(map['acceptedAnswers']);
+
+    return ListeningQuestion(
+      number: _asInt(map['number']),
+      section: _asInt(map['section'], fallback: 1),
+      type: (map['type'] ?? 'Short answers').toString(),
+      prompt: (map['prompt'] ?? '').toString(),
+      options: _asStringList(map['options']),
+      correctAnswer: (map['correctAnswer'] ?? '').toString(),
+      acceptedAnswers:
+          accepted.isEmpty ? [(map['correctAnswer'] ?? '').toString()] : accepted,
+      explanation: (map['explanation'] ?? '').toString(),
+      keywords: _asStringList(map['keywords']),
+    );
+  }
+}
+
+class ListeningTestResult {
+  final int rawScore;
+  final int totalQuestions;
+  final double estimatedBand;
+  final int accuracyPercent;
+  final Map<String, int> sectionAccuracy;
+  final Map<String, int> questionTypeAccuracy;
+  final List<String> spellingMistakes;
+  final List<String> missedKeywords;
+  final int durationUsedSeconds;
+  final List<String> weakQuestionTypes;
+  final Map<int, bool> correctByQuestion;
+
+  const ListeningTestResult({
+    required this.rawScore,
+    required this.totalQuestions,
+    required this.estimatedBand,
+    required this.accuracyPercent,
+    required this.sectionAccuracy,
+    required this.questionTypeAccuracy,
+    required this.spellingMistakes,
+    required this.missedKeywords,
+    required this.durationUsedSeconds,
+    required this.weakQuestionTypes,
+    required this.correctByQuestion,
+  });
+}
+
+class ListeningResultCalculator {
+  static ListeningTestResult calculate({
+    required ListeningTest test,
+    required Map<int, String> answers,
+    required int durationUsedSeconds,
+  }) {
+    int score = 0;
+    final sectionTotal = <int, int>{};
+    final sectionCorrect = <int, int>{};
+    final typeTotal = <String, int>{};
+    final typeCorrect = <String, int>{};
+    final spelling = <String>[];
+    final keywords = <String>[];
+    final correctMap = <int, bool>{};
+
+    for (int i = 0; i < test.questions.length; i++) {
+      final q = test.questions[i];
+      final answer = answers[i]?.trim() ?? '';
+      final correct = q.acceptedAnswers.any(
+        (item) => _normalize(item) == _normalize(answer),
+      );
+
+      correctMap[i] = correct;
+      sectionTotal[q.section] = (sectionTotal[q.section] ?? 0) + 1;
+      typeTotal[q.type] = (typeTotal[q.type] ?? 0) + 1;
+
+      if (correct) {
+        score++;
+        sectionCorrect[q.section] =
+            (sectionCorrect[q.section] ?? 0) + 1;
+        typeCorrect[q.type] = (typeCorrect[q.type] ?? 0) + 1;
+      } else {
+        if (_near(answer, q.correctAnswer)) {
+          spelling.add('$answer → ${q.correctAnswer}');
+        }
+        for (final keyword in q.keywords) {
+          if (!answer.toLowerCase().contains(keyword.toLowerCase())) {
+            keywords.add(keyword);
+          }
+        }
+      }
+    }
+
+    final sectionAccuracy = <String, int>{};
+    sectionTotal.forEach((section, total) {
+      sectionAccuracy['Section $section'] =
+          (((sectionCorrect[section] ?? 0) / total) * 100).round();
+    });
+
+    final typeAccuracy = <String, int>{};
+    typeTotal.forEach((type, total) {
+      typeAccuracy[type] =
+          (((typeCorrect[type] ?? 0) / total) * 100).round();
+    });
+
+    final weakTypes = typeAccuracy.entries
+        .where((entry) => entry.value < 70)
+        .map((entry) => entry.key)
+        .toList();
+
+    final total = test.questions.length;
+    final accuracy = total == 0 ? 0 : ((score / total) * 100).round();
+
+    return ListeningTestResult(
+      rawScore: score,
+      totalQuestions: total,
+      estimatedBand: _scoreToBand(score, total),
+      accuracyPercent: accuracy,
+      sectionAccuracy: sectionAccuracy,
+      questionTypeAccuracy: typeAccuracy,
+      spellingMistakes: spelling.toSet().toList(),
+      missedKeywords: keywords.toSet().toList(),
+      durationUsedSeconds: math.max(0, durationUsedSeconds),
+      weakQuestionTypes: weakTypes,
+      correctByQuestion: correctMap,
+    );
+  }
+
+  static String _normalize(String value) => value
+      .toLowerCase()
+      .trim()
+      .replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+  static bool _near(String a, String b) {
+    if (a.isEmpty || b.isEmpty) return false;
+    final x = _normalize(a);
+    final y = _normalize(b);
+    if (x == y) return false;
+    return (x.length - y.length).abs() <= 1 &&
+        x.isNotEmpty &&
+        y.isNotEmpty &&
+        x[0] == y[0];
+  }
+
+  static double _scoreToBand(int score, int total) {
+    if (total == 0) return 0;
+    final scaled = (score / total) * 40;
+    if (scaled >= 39) return 9;
+    if (scaled >= 37) return 8.5;
+    if (scaled >= 35) return 8;
+    if (scaled >= 32) return 7.5;
+    if (scaled >= 30) return 7;
+    if (scaled >= 26) return 6.5;
+    if (scaled >= 23) return 6;
+    if (scaled >= 18) return 5.5;
+    if (scaled >= 16) return 5;
+    if (scaled >= 13) return 4.5;
+    return 4;
+  }
+}
+
+enum ListeningMode {
+  section1('Section 1', 'section', 1, Icons.looks_one_rounded,
+      'Social conversation'),
+  section2('Section 2', 'section', 2, Icons.looks_two_rounded,
+      'Social monologue'),
+  section3('Section 3', 'section', 3, Icons.looks_3_rounded,
+      'Academic discussion'),
+  section4('Section 4', 'section', 4, Icons.looks_4_rounded,
+      'Academic lecture'),
+  timed('Timed Listening', 'timed', null, Icons.timer_outlined,
+      'Practice with a timer'),
+  full('Full Listening Test', 'full', null, Icons.assignment_outlined,
+      'Complete 40 questions'),
+  accent('Accent Training', 'accent', null,
+      Icons.record_voice_over_rounded, 'British, Australian and more'),
+  learning('Learning Mode', 'learning', null, Icons.school_outlined,
+      'Replay and speed control');
+
+  final String label;
+  final String firestoreValue;
+  final int? section;
+  final IconData icon;
+  final String subtitle;
+
+  const ListeningMode(
+    this.label,
+    this.firestoreValue,
+    this.section,
+    this.icon,
+    this.subtitle,
+  );
+}
+
+enum ListeningQuestionType {
+  form('Form completion', Icons.description_outlined),
+  note('Note completion', Icons.note_alt_outlined),
+  table('Table completion', Icons.table_chart_outlined),
+  flowchart('Flowchart completion', Icons.account_tree_outlined),
+  summary('Summary completion', Icons.summarize_outlined),
+  multipleChoice('Multiple choice', Icons.checklist_rtl_rounded),
+  matching('Matching', Icons.compare_arrows_rounded),
+  map('Map labelling', Icons.map_outlined),
+  diagram('Diagram labelling', Icons.schema_outlined),
+  sentence('Sentence completion', Icons.short_text_rounded),
+  shortAnswer('Short answers', Icons.question_answer_outlined);
+
+  final String label;
+  final IconData icon;
+
+  const ListeningQuestionType(this.label, this.icon);
+}
+
+class _Header extends StatelessWidget {
+  const _Header();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      children: [
+        _GradientIcon(icon: Icons.headphones_rounded),
+        SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Listening',
+                style: TextStyle(
+                  color: LColors.text,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              SizedBox(height: 4),
+              Text(
+                'Real-time IELTS listening practice and analytics',
+                style: TextStyle(
+                  color: LColors.muted,
+                  fontSize: 10.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BandCard extends StatelessWidget {
+  final double band;
+
+  const _BandCard({required this.band});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(19),
+      decoration: _heroDecoration(),
+      child: Row(
+        children: [
+          Container(
+            width: 90,
+            height: 90,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: LColors.cyan, width: 8),
+              boxShadow: [
+                BoxShadow(
+                  color: LColors.cyan.withOpacity(.2),
+                  blurRadius: 20,
+                )
+              ],
+            ),
+            child: Text(
+              band > 0 ? band.toStringAsFixed(1) : '—',
+              style: const TextStyle(
+                color: LColors.text,
+                fontSize: 26,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          const SizedBox(width: 15),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Current Estimated Band',
+                  style: TextStyle(
+                    color: LColors.text,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Updated automatically from your latest listening results.',
+                  style: TextStyle(
+                    color: LColors.secondary,
+                    fontSize: 10.7,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WeakTypesCard extends StatelessWidget {
+  final List<String> types;
+
+  const _WeakTypesCard({required this.types});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _card(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Weak Question Types',
+            style: TextStyle(
+              color: LColors.text,
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 11),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: types
+                .map(
+                  (type) => Chip(
+                    label: Text(type),
+                    backgroundColor:
+                        const Color(0xFFF97316).withOpacity(.12),
+                    side: BorderSide(
+                      color: const Color(0xFFF97316).withOpacity(.25),
+                    ),
+                    labelStyle: const TextStyle(
+                      color: Color(0xFFFDBA74),
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecommendedLessonCard extends StatelessWidget {
+  const _RecommendedLessonCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: LColors.green.withOpacity(.09),
+        border: Border.all(color: LColors.green.withOpacity(.2)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.recommend_outlined, color: LColors.green, size: 27),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Recommended Lesson',
+                  style: TextStyle(color: LColors.muted, fontSize: 9.5),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Map Labelling Essentials',
+                  style: TextStyle(
+                    color: LColors.text,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Improve direction vocabulary and location prediction.',
+                  style: TextStyle(
+                    color: LColors.secondary,
+                    fontSize: 9.8,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.arrow_forward_rounded, color: LColors.green),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModeCard extends StatelessWidget {
+  final ListeningMode mode;
+  final VoidCallback onTap;
+
+  const _ModeCard({
+    required this.mode,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _TapCard(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(mode.icon, color: LColors.cyan, size: 25),
+          const Spacer(),
+          Text(
+            mode.label,
+            style: const TextStyle(
+              color: LColors.text,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            mode.subtitle,
+            maxLines: 2,
+            style: const TextStyle(
+              color: LColors.muted,
+              fontSize: 9.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuestionTypeCard extends StatelessWidget {
+  final ListeningQuestionType type;
+  final bool weak;
+  final VoidCallback onTap;
+
+  const _QuestionTypeCard({
+    required this.type,
+    required this.weak,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = weak ? const Color(0xFFF97316) : LColors.cyan;
+
+    return _TapCard(
+      onTap: onTap,
+      child: Row(
+        children: [
+          Icon(type.icon, color: color, size: 20),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              type.label,
+              style: const TextStyle(
+                color: LColors.text,
+                fontSize: 10.3,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          if (weak)
+            const Icon(
+              Icons.warning_amber_rounded,
+              color: Color(0xFFF97316),
+              size: 16,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecentResultCard extends StatelessWidget {
+  final ListeningRecentResult result;
+
+  const _RecentResultCard({required this.result});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: _card(),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: LColors.cyan.withOpacity(.13),
+            child: Text(
+              result.estimatedBand.toStringAsFixed(1),
+              style: const TextStyle(
+                color: LColors.cyan,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  result.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: LColors.text,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  '${result.rawScore}/${result.totalQuestions} • ${result.accuracyPercent}% accuracy',
+                  style: const TextStyle(
+                    color: LColors.muted,
+                    fontSize: 9.8,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TestCard extends StatelessWidget {
+  final ListeningTest test;
+  final VoidCallback onTap;
+
+  const _TestCard({
+    required this.test,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _TapCard(
+      onTap: onTap,
+      child: Row(
+        children: [
+          const _GradientIcon(icon: Icons.play_circle_outline_rounded),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  test.title,
+                  style: const TextStyle(
+                    color: LColors.text,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  test.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: LColors.muted,
+                    fontSize: 9.8,
+                  ),
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  '${test.questions.length} questions • ${_formatClock(test.durationSeconds)} • ${test.accent}',
+                  style: const TextStyle(
+                    color: LColors.cyan,
+                    fontSize: 8.8,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PracticeHeader extends StatelessWidget {
+  final String title;
+  final int current;
+  final int total;
+  final int seconds;
+
+  const _PracticeHeader({
+    required this.title,
+    required this.current,
+    required this.total,
+    required this.seconds,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '$title\nQuestion ${current + 1} of $total',
+              style: const TextStyle(
+                color: LColors.text,
+                fontSize: 13,
+                height: 1.4,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          _Badge(text: _formatClock(seconds)),
+        ],
+      ),
+    );
+  }
+}
+
+class _AudioPlayerCard extends StatelessWidget {
+  final AudioPlayer player;
+  final bool loading;
+  final String? error;
+  final bool examMode;
+  final bool learningMode;
+  final double volume;
+  final double speed;
+  final VoidCallback onPlay;
+  final ValueChanged<double> onVolumeChanged;
+  final ValueChanged<double> onSpeedChanged;
+
+  const _AudioPlayerCard({
+    required this.player,
+    required this.loading,
+    required this.error,
+    required this.examMode,
+    required this.learningMode,
+    required this.volume,
+    required this.speed,
+    required this.onPlay,
+    required this.onVolumeChanged,
+    required this.onSpeedChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      padding: const EdgeInsets.all(13),
+      decoration: _heroDecoration(),
       child: Column(
         children: [
           Row(
             children: [
-              _circleButton(
-                icon: Icons.arrow_back_ios_new_rounded,
-                onTap: () => Navigator.pop(context),
+              StreamBuilder<PlayerState>(
+                stream: player.playerStateStream,
+                builder: (_, snapshot) {
+                  final playing = snapshot.data?.playing ?? false;
+                  return IconButton.filled(
+                    onPressed: loading || error != null ? null : onPlay,
+                    icon: loading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Icon(
+                            playing
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
+                          ),
+                  );
+                },
               ),
-
-              const SizedBox(width: 14),
-
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "IELTS Listening",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 28,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-
-                    SizedBox(height: 4),
-
-                    Text(
-                      "AI Powered Listening Practice",
-                      style: TextStyle(color: Colors.white70, fontSize: 13),
-                    ),
-                  ],
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  error != null
+                      ? 'Audio unavailable'
+                      : examMode
+                          ? 'Exam mode • one playback only'
+                          : 'Practice mode • replay available',
+                  style: TextStyle(
+                    color: error != null ? Colors.redAccent : LColors.text,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
-
-              _circleButton(icon: Icons.headphones_rounded, onTap: () {}),
+              if (learningMode)
+                DropdownButton<double>(
+                  value: speed,
+                  dropdownColor: LColors.surface,
+                  underline: const SizedBox.shrink(),
+                  items: const [
+                    DropdownMenuItem(value: .75, child: Text('0.75x')),
+                    DropdownMenuItem(value: 1, child: Text('1.0x')),
+                    DropdownMenuItem(value: 1.25, child: Text('1.25x')),
+                    DropdownMenuItem(value: 1.5, child: Text('1.5x')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) onSpeedChanged(value);
+                  },
+                ),
             ],
           ),
+          if (error == null)
+            Row(
+              children: [
+                const Icon(Icons.volume_down_rounded, color: LColors.muted),
+                Expanded(
+                  child: Slider(
+                    value: volume,
+                    onChanged: onVolumeChanged,
+                  ),
+                ),
+                const Icon(Icons.volume_up_rounded, color: LColors.muted),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
 
-          const SizedBox(height: 28),
+class _QuestionNav extends StatelessWidget {
+  final int total;
+  final int current;
+  final Set<int> answered;
+  final bool autoScroll;
+  final ValueChanged<bool> onAutoScroll;
+  final ValueChanged<int> onTap;
 
-          Row(
-            children: [
-              Expanded(
-                child: _topInfo(
-                  icon: Icons.timer_outlined,
-                  title: "Time Left",
-                  value: formattedTime,
+  const _QuestionNav({
+    required this.total,
+    required this.current,
+    required this.answered,
+    required this.autoScroll,
+    required this.onAutoScroll,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 54,
+      child: Row(
+        children: [
+          Expanded(
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              scrollDirection: Axis.horizontal,
+              itemCount: total,
+              separatorBuilder: (_, __) => const SizedBox(width: 7),
+              itemBuilder: (_, index) => InkWell(
+                onTap: () => onTap(index),
+                child: CircleAvatar(
+                  backgroundColor: index == current
+                      ? LColors.cyan
+                      : answered.contains(index)
+                          ? LColors.green
+                          : LColors.surface,
+                  child: Text(
+                    '${index + 1}',
+                    style: TextStyle(
+                      color: index == current ? LColors.bg : LColors.text,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
                 ),
               ),
-
-              const SizedBox(width: 12),
-
-              Expanded(
-                child: _topInfo(
-                  icon: Icons.quiz_outlined,
-                  title: "Questions",
-                  value: "${questions.length}",
-                ),
-              ),
-            ],
+            ),
+          ),
+          Switch(
+            value: autoScroll,
+            onChanged: onAutoScroll,
+            activeColor: LColors.cyan,
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _circleButton({required IconData icon, required VoidCallback onTap}) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(18),
-      onTap: onTap,
-      child: Container(
-        height: 46,
-        width: 46,
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.16),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.white.withOpacity(0.12)),
-        ),
-        child: Icon(icon, color: Colors.white, size: 21),
+class _QuestionCard extends StatelessWidget {
+  final ListeningQuestion question;
+  final String? selected;
+  final TextEditingController? controller;
+  final ValueChanged<String> onSelected;
+  final ValueChanged<String> onTextChanged;
+
+  const _QuestionCard({
+    required this.question,
+    required this.selected,
+    required this.controller,
+    required this.onSelected,
+    required this.onTextChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(17),
+      decoration: _card(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _Badge(text: '${question.type} • Section ${question.section}'),
+          const SizedBox(height: 14),
+          Text(
+            question.prompt,
+            style: const TextStyle(
+              color: LColors.text,
+              fontSize: 14,
+              height: 1.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (question.options.isNotEmpty)
+            ...question.options.map(
+              (option) => RadioListTile<String>(
+                value: option,
+                groupValue: selected,
+                onChanged: (value) {
+                  if (value != null) onSelected(value);
+                },
+                activeColor: LColors.cyan,
+                title: Text(
+                  option,
+                  style: const TextStyle(
+                    color: LColors.secondary,
+                    fontSize: 11.5,
+                  ),
+                ),
+              ),
+            )
+          else
+            TextField(
+              controller: controller,
+              onChanged: onTextChanged,
+              style: const TextStyle(color: LColors.text),
+              decoration: InputDecoration(
+                hintText: 'Enter the answer exactly as you hear it',
+                filled: true,
+                fillColor: LColors.bg.withOpacity(.4),
+                border: _border(LColors.border),
+                enabledBorder: _border(LColors.border),
+                focusedBorder: _border(LColors.cyan),
+              ),
+            ),
+        ],
       ),
     );
   }
+}
 
-  Widget _topInfo({
-    required IconData icon,
-    required String title,
-    required String value,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(22),
-      ),
+class _BottomBar extends StatelessWidget {
+  final int current;
+  final int total;
+  final bool loading;
+  final VoidCallback? onBack;
+  final VoidCallback onNext;
+
+  const _BottomBar({
+    required this.current,
+    required this.total,
+    required this.loading,
+    required this.onBack,
+    required this.onNext,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
       child: Row(
         children: [
-          Icon(icon, color: Colors.white),
-          const SizedBox(width: 10),
+          if (onBack != null)
+            Expanded(
+              child: OutlinedButton(
+                onPressed: onBack,
+                child: const Text('Back'),
+              ),
+            ),
+          if (onBack != null) const SizedBox(width: 10),
+          Expanded(
+            flex: 2,
+            child: _GradientButton(
+              title: current == total - 1 ? 'Submit Test' : 'Next',
+              icon: current == total - 1
+                  ? Icons.check_rounded
+                  : Icons.arrow_forward_rounded,
+              loading: loading,
+              onPressed: onNext,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ResultHeader extends StatelessWidget {
+  const _ResultHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      children: [
+        _GradientIcon(icon: Icons.analytics_outlined),
+        SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            'Listening Result',
+            style: TextStyle(
+              color: LColors.text,
+              fontSize: 21,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+        Icon(Icons.verified_rounded, color: LColors.green),
+      ],
+    );
+  }
+}
+
+class _ResultHero extends StatelessWidget {
+  final ListeningTestResult result;
+
+  const _ResultHero({required this.result});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: _heroDecoration(),
+      child: Column(
+        children: [
+          Text(
+            result.estimatedBand.toStringAsFixed(1),
+            style: const TextStyle(
+              color: LColors.cyan,
+              fontSize: 48,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const Text(
+            'ESTIMATED BAND',
+            style: TextStyle(
+              color: LColors.muted,
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '${result.rawScore}/${result.totalQuestions} correct • ${result.accuracyPercent}% accuracy',
+            style: const TextStyle(
+              color: LColors.text,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ResultMetrics extends StatelessWidget {
+  final ListeningTestResult result;
+
+  const _ResultMetrics({required this.result});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _Metric(
+            value: '${result.spellingMistakes.length}',
+            label: 'Spelling',
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _Metric(
+            value: '${result.missedKeywords.length}',
+            label: 'Keywords',
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _Metric(
+            value: _formatClock(result.durationUsedSeconds),
+            label: 'Time Used',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Metric extends StatelessWidget {
+  final String value;
+  final String label;
+
+  const _Metric({
+    required this.value,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: _card(),
+      child: Column(
+        children: [
+          FittedBox(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: LColors.cyan,
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: LColors.muted,
+              fontSize: 8.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AccuracyCard extends StatelessWidget {
+  final String title;
+  final int value;
+  final Color color;
+
+  const _AccuracyCard({
+    required this.title,
+    required this.value,
+    this.color = LColors.cyan,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: _card(),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: LColors.text,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Text(
+                '$value%',
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          LinearProgressIndicator(
+            value: value / 100,
+            minHeight: 7,
+            color: color,
+            backgroundColor: LColors.border,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AnalysisCard extends StatelessWidget {
+  final ListeningTestResult result;
+
+  const _AnalysisCard({required this.result});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _card(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Mistake Analysis',
+            style: TextStyle(
+              color: LColors.text,
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            result.spellingMistakes.isEmpty
+                ? 'Spelling mistakes: none detected'
+                : 'Spelling mistakes: ${result.spellingMistakes.join(', ')}',
+            style: const TextStyle(
+              color: LColors.secondary,
+              fontSize: 10.5,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            result.missedKeywords.isEmpty
+                ? 'Missed keywords: none detected'
+                : 'Missed keywords: ${result.missedKeywords.join(', ')}',
+            style: const TextStyle(
+              color: LColors.secondary,
+              fontSize: 10.5,
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecommendationCard extends StatelessWidget {
+  final ListeningTestResult result;
+
+  const _RecommendationCard({required this.result});
+
+  @override
+  Widget build(BuildContext context) {
+    final items = result.weakQuestionTypes.isEmpty
+        ? const ['Timed mixed listening', 'Section 4 academic lecture']
+        : result.weakQuestionTypes
+            .map((e) => '$e targeted practice')
+            .toList();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: LColors.green.withOpacity(.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: LColors.green.withOpacity(.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Recommended Practice',
+            style: TextStyle(
+              color: LColors.text,
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 10),
+          ...items.map(
+            (item) => Padding(
+              padding: const EdgeInsets.only(bottom: 7),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.check_circle_outline_rounded,
+                    color: LColors.green,
+                    size: 17,
+                  ),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Text(
+                      item,
+                      style: const TextStyle(
+                        color: LColors.secondary,
+                        fontSize: 10.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TranscriptCard extends StatelessWidget {
+  final String transcript;
+  final List<ListeningQuestion> questions;
+  final ListeningTestResult result;
+
+  const _TranscriptCard({
+    required this.transcript,
+    required this.questions,
+    required this.result,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ExpansionTile(
+      collapsedBackgroundColor: LColors.surface,
+      backgroundColor: LColors.surface,
+      collapsedIconColor: LColors.cyan,
+      iconColor: LColors.cyan,
+      title: const Text(
+        'Transcript, Correct Answers & Distractors',
+        style: TextStyle(
+          color: LColors.text,
+          fontSize: 13,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+      childrenPadding: const EdgeInsets.all(16),
+      children: [
+        SelectableText(
+          transcript,
+          style: const TextStyle(
+            color: LColors.secondary,
+            fontSize: 11,
+            height: 1.6,
+          ),
+        ),
+        const SizedBox(height: 14),
+        ...List.generate(
+          questions.length,
+          (index) {
+            final q = questions[index];
+            final correct = result.correctByQuestion[index] ?? false;
+            return Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 9),
+              padding: const EdgeInsets.all(11),
+              decoration: BoxDecoration(
+                color: (correct ? LColors.green : Colors.redAccent)
+                    .withOpacity(.08),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Text(
+                'Q${q.number}: ${q.correctAnswer}\n${q.explanation}',
+                style: const TextStyle(
+                  color: LColors.secondary,
+                  fontSize: 10,
+                  height: 1.45,
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  final String title;
+  final String subtitle;
+
+  const _SectionTitle({
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: LColors.text,
+            fontSize: 17,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: const TextStyle(
+            color: LColors.muted,
+            fontSize: 10.5,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _InnerHeader extends StatelessWidget {
+  final String title;
+  final String subtitle;
+
+  const _InnerHeader({
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 18, 12),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.arrow_back_rounded),
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  value,
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: LColors.text,
+                    fontSize: 18,
                     fontWeight: FontWeight.w900,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: LColors.muted,
+                    fontSize: 10,
                   ),
                 ),
               ],
@@ -918,1171 +2247,325 @@ Future<void> playAudio() async {
       ),
     );
   }
+}
 
-  Widget _loadingBody() {
-    return Center(
-      child: _whiteCard(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              height: 90,
-              width: 90,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
+class _TapCard extends StatelessWidget {
+  final Widget child;
+  final VoidCallback onTap;
 
-                gradient: LinearGradient(colors: [primary, secondary]),
+  const _TapCard({
+    required this.child,
+    required this.onTap,
+  });
 
-                boxShadow: [
-                  BoxShadow(
-                    color: primary.withOpacity(0.35),
-                    blurRadius: 28,
-                    offset: const Offset(0, 12),
-                  ),
-                ],
-              ),
-
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  SizedBox(
-                    height: 70,
-                    width: 70,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 3,
-                      valueColor: AlwaysStoppedAnimation(Colors.white),
-                      backgroundColor: Colors.white.withOpacity(0.12),
-                    ),
-                  ),
-
-                  const Icon(
-                    Icons.graphic_eq_rounded,
-                    color: Colors.white,
-                    size: 34,
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 26),
-
-            const Text(
-              "Generating Listening Test...",
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 24,
-                color: Colors.white,
-                letterSpacing: 0.2,
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            Text(
-              "AI is creating professional IELTS listening sections with realistic conversations, questions and answers.",
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.70),
-                fontSize: 14,
-                height: 1.6,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _loadingChip("Part 1"),
-                const SizedBox(width: 8),
-                _loadingChip("Part 2"),
-                const SizedBox(width: 8),
-                _loadingChip("Part 3"),
-                const SizedBox(width: 8),
-                _loadingChip("Part 4"),
-              ],
-            ),
-          ],
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: _card(),
+          child: child,
         ),
       ),
     );
   }
+}
 
-  // loading chip
-  Widget _loadingChip(String text) {
+class _GradientIcon extends StatelessWidget {
+  final IconData icon;
+
+  const _GradientIcon({required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      width: 48,
+      height: 48,
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        gradient: LColors.gradient,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Icon(icon, color: Colors.white, size: 24),
+    );
+  }
+}
+
+class _Badge extends StatelessWidget {
+  final String text;
+
+  const _Badge({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      decoration: BoxDecoration(
+        color: LColors.cyan.withOpacity(.1),
+        borderRadius: BorderRadius.circular(100),
       ),
       child: Text(
         text,
-        style: TextStyle(
-          color: Colors.white.withOpacity(0.82),
-          fontWeight: FontWeight.w700,
-          fontSize: 12,
-        ),
-      ),
-    );
-  }
-
-  Widget _startBody() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          const SizedBox(height: 28),
-          _whiteCard(
-            child: Column(
-              children: [
-                Container(
-                  height: 88,
-                  width: 88,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [primary, secondary]),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.graphic_eq_rounded,
-                    color: Colors.white,
-                    size: 44,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                const Text(
-                  "Start IELTS Listening",
-                  style: TextStyle(
-                    fontSize: 23,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  "Practice Part 1 to Part 4 with audio, mixed question types, auto-checking and estimated IELTS band.",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    height: 1.5,
-                    color: Color.fromARGB(255, 165, 174, 192),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                _featureTile(Icons.looks_one, "Part 1: daily conversation"),
-                _featureTile(Icons.looks_two, "Part 2: social monologue"),
-                _featureTile(Icons.looks_3, "Part 3: academic discussion"),
-                _featureTile(Icons.looks_4, "Part 4: academic lecture"),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          _gradientButton(
-            text: isLoading ? "Generating..." : "Generate Full Test",
-            icon: Icons.auto_awesome,
-            onTap: isLoading ? null : generateListeningTest,
-            loading: isLoading,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _testBody() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
-      child: Column(
-        children: [
-          if (isOfflineTest) ...[_offlineBanner(), const SizedBox(height: 14)],
-
-          _partTabs(),
-          const SizedBox(height: 14),
-          _audioCard(),
-          const SizedBox(height: 14),
-          _progressCard(),
-          const SizedBox(height: 14),
-          _questionList(),
-          const SizedBox(height: 16),
-          _gradientButton(
-            text: "Submit Answers",
-            icon: Icons.done_all_rounded,
-            onTap: submitAnswers,
-          ),
-          if (showResult) ...[const SizedBox(height: 18), _resultCard()],
-        ],
-      ),
-    );
-  }
-
-  Widget _offlineBanner() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.orange.withOpacity(0.14),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.orange.withOpacity(0.45)),
-      ),
-      child: const Row(
-        children: [
-          Icon(Icons.cloud_off_rounded, color: Colors.orangeAccent),
-          SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Offline mode: Your saved listening test is being displayed.',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _partTabs() {
-    return Row(
-      children: [
-        Expanded(child: _partButton("Part 1", "part1")),
-        const SizedBox(width: 8),
-        Expanded(child: _partButton("Part 2", "part2")),
-        const SizedBox(width: 8),
-        Expanded(child: _partButton("Part 3", "part3")),
-        const SizedBox(width: 8),
-        Expanded(child: _partButton("Part 4", "part4")),
-      ],
-    );
-  }
-
-  Widget _partButton(String text, String value) {
-    final selected = selectedPart == value;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeInOut,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: () => loadPart(value),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 15),
-
-          decoration: BoxDecoration(
-            gradient: selected
-                ? LinearGradient(
-                    colors: [
-                      const Color(0xFF2DD4BF),
-                      const Color(0xFF14B8A6),
-                      const Color(0xFF0F766E),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  )
-                : LinearGradient(
-                    colors: [
-                      Colors.white.withOpacity(0.08),
-                      Colors.white.withOpacity(0.04),
-                    ],
-                  ),
-
-            borderRadius: BorderRadius.circular(20),
-
-            border: Border.all(
-              color: selected
-                  ? Colors.transparent
-                  : Colors.white.withOpacity(0.08),
-              width: 1.2,
-            ),
-
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: primary.withOpacity(0.35),
-                      blurRadius: 22,
-                      offset: const Offset(0, 10),
-                    ),
-                  ]
-                : [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.15),
-                      blurRadius: 12,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-          ),
-
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (selected)
-                const Padding(
-                  padding: EdgeInsets.only(right: 6),
-                  child: Icon(
-                    Icons.graphic_eq_rounded,
-                    color: Colors.white,
-                    size: 16,
-                  ),
-                ),
-
-              Text(
-                text,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: selected
-                      ? Colors.white
-                      : Colors.white.withOpacity(0.72),
-                  fontWeight: FontWeight.w900,
-                  fontSize: 13,
-                  letterSpacing: 0.3,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _audioCard() {
-    return _whiteCard(
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [primary, secondary]),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Icon(
-                  Icons.headphones_rounded,
-                  color: Colors.white,
-                ),
-              ),
-
-              const SizedBox(width: 14),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 18,
-                      ),
-                    ),
-
-                    const SizedBox(height: 4),
-
-                    Text(
-                      selectedPart.toUpperCase(),
-                      style: TextStyle(color: Colors.white.withOpacity(0.60)),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 24),
-
-          ClipRRect(
-            borderRadius: BorderRadius.circular(30),
-            child: LinearProgressIndicator(
-              value: (totalSeconds / 1800).clamp(0.0, 1.0),
-              minHeight: 8,
-              backgroundColor: Colors.white.withOpacity(0.08),
-              valueColor: AlwaysStoppedAnimation(primary),
-            ),
-          ),
-
-          const SizedBox(height: 28),
-
-          InkWell(
-            borderRadius: BorderRadius.circular(100),
-            onTap: isPlaying ? stopAudio : playAudio,
-            child: Container(
-              height: 88,
-              width: 88,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(colors: [primary, secondary]),
-                boxShadow: [
-                  BoxShadow(
-                    color: primary.withOpacity(0.45),
-                    blurRadius: 28,
-                    offset: const Offset(0, 12),
-                  ),
-                ],
-              ),
-              child: Icon(
-                isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                color: Colors.white,
-                size: 46,
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 14),
-
-          Text(
-            isPlaying ? "Audio is playing..." : "Tap to play listening audio",
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.60),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _progressCard() {
-    final answered = selectedAnswers
-        .where((e) => e != null && e.trim().isNotEmpty)
-        .length;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xff111827),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.assignment_turned_in_outlined, color: Colors.white),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              "$answered of ${questions.length} answered",
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-          Text(
-            "${questions.isEmpty ? 0 : ((answered / questions.length) * 100).round()}%",
-            style: const TextStyle(
-              color: Color(0xff86EFAC),
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _questionList() {
-    return Column(
-      children: List.generate(questions.length, (i) {
-        final q = questions[i];
-        final options = List<String>.from(q["options"] ?? []);
-        final correctAnswer = q["answer"]?.toString();
-        final type = q["type"]?.toString() ?? "question";
-        final hasOptions = options.isNotEmpty;
-
-        final isCorrect =
-            showResult &&
-            _cleanAnswer(selectedAnswers[i]) == _cleanAnswer(correctAnswer);
-
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          margin: const EdgeInsets.only(bottom: 18),
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Colors.white.withOpacity(0.10),
-                Colors.white.withOpacity(0.045),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(
-              color: showResult
-                  ? isCorrect
-                        ? Colors.greenAccent.withOpacity(0.8)
-                        : Colors.redAccent.withOpacity(0.8)
-                  : Colors.white.withOpacity(0.10),
-              width: 1.4,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: showResult
-                    ? isCorrect
-                          ? Colors.greenAccent.withOpacity(0.18)
-                          : Colors.redAccent.withOpacity(0.16)
-                    : Colors.black.withOpacity(0.22),
-                blurRadius: 24,
-                offset: const Offset(0, 12),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    height: 38,
-                    width: 38,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(colors: [primary, secondary]),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Center(
-                      child: Text(
-                        "${i + 1}",
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(child: _typeChip(type)),
-                  if (showResult)
-                    Icon(
-                      isCorrect
-                          ? Icons.check_circle_rounded
-                          : Icons.cancel_rounded,
-                      color: isCorrect ? Colors.greenAccent : Colors.redAccent,
-                    ),
-                ],
-              ),
-
-              const SizedBox(height: 16),
-
-              Text(
-                q["question"]?.toString() ?? "",
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 18,
-                  height: 1.35,
-                ),
-              ),
-
-              const SizedBox(height: 18),
-
-              if (hasOptions)
-                ...options.map(
-                  (option) => _optionTile(i, option, correctAnswer),
-                )
-              else
-                _answerField(i),
-
-              if (showResult && q["explanation"] != null) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: primary.withOpacity(0.10),
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: primary.withOpacity(0.25)),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(Icons.lightbulb_rounded, color: primary, size: 20),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          "Explanation: ${q["explanation"]}",
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.82),
-                            height: 1.45,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ],
-          ),
-        );
-      }),
-    );
-  }
-
-  Widget _typeChip(String type) {
-    IconData icon;
-
-    switch (type.toLowerCase()) {
-      case "multiple_choice":
-        icon = Icons.radio_button_checked_rounded;
-        break;
-
-      case "fill_in_the_blank":
-        icon = Icons.edit_note_rounded;
-        break;
-
-      case "true_false":
-        icon = Icons.fact_check_rounded;
-        break;
-
-      default:
-        icon = Icons.quiz_rounded;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [primary.withOpacity(0.22), secondary.withOpacity(0.16)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-
-        borderRadius: BorderRadius.circular(30),
-
-        border: Border.all(color: primary.withOpacity(0.35), width: 1),
-
-        boxShadow: [
-          BoxShadow(
-            color: primary.withOpacity(0.12),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: primary, size: 16),
-
-          const SizedBox(width: 8),
-
-          Text(
-            type.replaceAll("_", " ").toUpperCase(),
-            style: TextStyle(
-              color: primary,
-              fontSize: 11.5,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _optionTile(int i, String option, String? correctAnswer) {
-    final isSelected = selectedAnswers[i] == option;
-
-    final isCorrect =
-        showResult && _cleanAnswer(correctAnswer) == _cleanAnswer(option);
-
-    final isWrong = showResult && isSelected && !isCorrect;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
-      margin: const EdgeInsets.only(bottom: 14),
-
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isCorrect
-              ? [Colors.green.withOpacity(0.22), Colors.green.withOpacity(0.10)]
-              : isWrong
-              ? [Colors.red.withOpacity(0.20), Colors.red.withOpacity(0.08)]
-              : isSelected
-              ? [primary.withOpacity(0.22), secondary.withOpacity(0.12)]
-              : [
-                  Colors.white.withOpacity(0.08),
-                  Colors.white.withOpacity(0.04),
-                ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-
-        borderRadius: BorderRadius.circular(22),
-
-        border: Border.all(
-          color: isCorrect
-              ? Colors.greenAccent
-              : isWrong
-              ? Colors.redAccent
-              : isSelected
-              ? primary
-              : Colors.white.withOpacity(0.08),
-          width: 1.3,
-        ),
-
-        boxShadow: [
-          BoxShadow(
-            color: isCorrect
-                ? Colors.green.withOpacity(0.16)
-                : isWrong
-                ? Colors.red.withOpacity(0.16)
-                : isSelected
-                ? primary.withOpacity(0.18)
-                : Colors.black.withOpacity(0.14),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(22),
-          onTap: showResult
-              ? null
-              : () => setState(() => selectedAnswers[i] = option),
-
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  height: 30,
-                  width: 30,
-
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-
-                    gradient: isCorrect
-                        ? const LinearGradient(
-                            colors: [Color(0xFF22C55E), Color(0xFF16A34A)],
-                          )
-                        : isWrong
-                        ? const LinearGradient(
-                            colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
-                          )
-                        : isSelected
-                        ? LinearGradient(colors: [primary, secondary])
-                        : null,
-
-                    color: !isCorrect && !isWrong && !isSelected
-                        ? Colors.white.withOpacity(0.08)
-                        : null,
-
-                    border: Border.all(
-                      color: isCorrect
-                          ? Colors.greenAccent
-                          : isWrong
-                          ? Colors.redAccent
-                          : isSelected
-                          ? primary
-                          : Colors.white.withOpacity(0.12),
-                    ),
-                  ),
-
-                  child: Icon(
-                    isCorrect
-                        ? Icons.check_rounded
-                        : isWrong
-                        ? Icons.close_rounded
-                        : isSelected
-                        ? Icons.done_rounded
-                        : Icons.circle_outlined,
-                    size: 16,
-                    color: Colors.white,
-                  ),
-                ),
-
-                const SizedBox(width: 14),
-
-                Expanded(
-                  child: Text(
-                    option,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15.5,
-                      height: 1.4,
-
-                      color: isCorrect
-                          ? Colors.greenAccent.shade100
-                          : isWrong
-                          ? Colors.redAccent.shade100
-                          : Colors.white.withOpacity(isSelected ? 1 : 0.88),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _answerField(int i) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        gradient: LinearGradient(
-          colors: [
-            Colors.white.withOpacity(0.08),
-            Colors.white.withOpacity(0.04),
-          ],
-        ),
-        border: Border.all(color: primary.withOpacity(0.35), width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: primary.withOpacity(0.10),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: TextField(
-        enabled: !showResult,
-        onChanged: (value) => selectedAnswers[i] = value,
         style: const TextStyle(
-          color: Colors.white,
-          fontSize: 15,
-          fontWeight: FontWeight.w600,
+          color: LColors.cyan,
+          fontSize: 9.5,
+          fontWeight: FontWeight.w800,
         ),
-        cursorColor: primary,
-        decoration: InputDecoration(
-          hintText: "Write your answer here...",
-          hintStyle: TextStyle(
-            color: Colors.white.withOpacity(0.45),
-            fontWeight: FontWeight.w500,
+      ),
+    );
+  }
+}
+
+class _GradientButton extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final bool loading;
+
+  const _GradientButton({
+    required this.title,
+    required this.icon,
+    required this.onPressed,
+    this.loading = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 52,
+      width: double.infinity,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LColors.gradient,
+          borderRadius: BorderRadius.circular(17),
+        ),
+        child: ElevatedButton.icon(
+          onPressed: loading ? null : onPressed,
+          icon: loading
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : Icon(icon),
+          label: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w900),
           ),
-
-          prefixIcon: Container(
-            margin: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [primary, secondary]),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(
-              Icons.edit_rounded,
-              color: Colors.white,
-              size: 20,
-            ),
-          ),
-
-          filled: true,
-          fillColor: Colors.transparent,
-
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 20,
-          ),
-
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(22),
-            borderSide: BorderSide.none,
-          ),
-
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(22),
-            borderSide: BorderSide(color: Colors.white.withOpacity(0.08)),
-          ),
-
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(22),
-            borderSide: BorderSide(color: primary, width: 1.6),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            disabledBackgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            foregroundColor: Colors.white,
           ),
         ),
       ),
     );
   }
+}
 
-  Widget _resultCard() {
-    final band = calculateBandScore();
-    final percent = questions.isEmpty ? 0.0 : score / questions.length;
+class _EmptyCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
 
+  const _EmptyCard({
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(34),
-        gradient: LinearGradient(
-          colors: [
-            primary.withOpacity(0.22),
-            const Color(0xFF111827),
-            const Color(0xFF0B1220),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        border: Border.all(color: primary.withOpacity(0.28)),
-        boxShadow: [
-          BoxShadow(
-            color: primary.withOpacity(0.25),
-            blurRadius: 30,
-            offset: const Offset(0, 14),
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.all(25),
+      decoration: _card(),
       child: Column(
         children: [
-          Container(
-            height: 86,
-            width: 86,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(colors: [primary, secondary]),
-              boxShadow: [
-                BoxShadow(
-                  color: primary.withOpacity(0.35),
-                  blurRadius: 24,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: const Icon(
-              Icons.workspace_premium_rounded,
-              color: Colors.white,
-              size: 42,
-            ),
+          const Icon(
+            Icons.history_toggle_off_rounded,
+            color: LColors.muted,
+            size: 40,
           ),
-
-          const SizedBox(height: 18),
-
+          const SizedBox(height: 12),
           Text(
-            "Estimated IELTS Band",
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.72),
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-
-          const SizedBox(height: 10),
-
-          Text(
-            band.toStringAsFixed(1),
+            title,
             style: const TextStyle(
-              color: Color(0xFF86EFAC),
-              fontSize: 64,
+              color: LColors.text,
               fontWeight: FontWeight.w900,
-              height: 1,
             ),
           ),
-
-          const SizedBox(height: 18),
-
-          ClipRRect(
-            borderRadius: BorderRadius.circular(30),
-            child: LinearProgressIndicator(
-              value: percent.clamp(0.0, 1.0),
-              minHeight: 10,
-              backgroundColor: Colors.white.withOpacity(0.08),
-              valueColor: AlwaysStoppedAnimation(primary),
-            ),
-          ),
-
-          const SizedBox(height: 14),
-
+          const SizedBox(height: 6),
           Text(
-            "Score: $score / ${questions.length}",
+            subtitle,
+            textAlign: TextAlign.center,
             style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-              fontSize: 16,
+              color: LColors.muted,
+              fontSize: 10.5,
             ),
-          ),
-
-          const SizedBox(height: 24),
-
-          _gradientButton(
-            text: "Generate New Test",
-            icon: Icons.refresh_rounded,
-            onTap: generateListeningTest,
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _featureTile(IconData icon, String text) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.07),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withOpacity(0.10)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            height: 38,
-            width: 38,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [primary, secondary]),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(icon, color: Colors.white, size: 20),
-          ),
+class _MessageScreen extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+  final bool embedded;
 
-          const SizedBox(width: 12),
+  const _MessageScreen({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.embedded = false,
+  });
 
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.86),
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-                height: 1.3,
+  @override
+  Widget build(BuildContext context) {
+    final content = Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: LColors.cyan, size: 46),
+            const SizedBox(height: 14),
+            Text(
+              title,
+              style: const TextStyle(
+                color: LColors.text,
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
               ),
             ),
-          ),
-
-          Icon(
-            Icons.check_circle_rounded,
-            color: primary.withOpacity(0.9),
-            size: 20,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _whiteCard({required Widget child}) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.all(22),
-
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.white.withOpacity(0.10),
-            Colors.white.withOpacity(0.04),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-
-        borderRadius: BorderRadius.circular(32),
-
-        border: Border.all(color: Colors.white.withOpacity(0.10), width: 1.2),
-
-        boxShadow: [
-          BoxShadow(
-            color: primary.withOpacity(0.10),
-            blurRadius: 28,
-            offset: const Offset(0, 14),
-          ),
-
-          BoxShadow(
-            color: Colors.black.withOpacity(0.22),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-
-      child: child,
-    );
-  }
-
-  Widget _gradientButton({
-    required String text,
-    required IconData icon,
-    required VoidCallback? onTap,
-    bool loading = false,
-  }) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
-
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(26),
-
-        gradient: const LinearGradient(
-          colors: [Color(0xFF2DD4BF), Color(0xFF14B8A6), Color(0xFF0F766E)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-
-        boxShadow: [
-          BoxShadow(
-            color: primary.withOpacity(0.35),
-            blurRadius: 26,
-            offset: const Offset(0, 12),
-          ),
-
-          BoxShadow(
-            color: Colors.black.withOpacity(0.18),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-
-      child: Material(
-        color: Colors.transparent,
-
-        child: InkWell(
-          borderRadius: BorderRadius.circular(26),
-          onTap: loading ? null : onTap,
-
-          child: Container(
-            width: double.infinity,
-
-            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
-
-            child: Center(
-              child: loading
-                  ? const SizedBox(
-                      height: 24,
-                      width: 24,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2.6,
-                      ),
-                    )
-                  : Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.16),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(icon, color: Colors.white, size: 20),
-                        ),
-
-                        const SizedBox(width: 14),
-
-                        Text(
-                          text,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16.5,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-
-                        const SizedBox(width: 10),
-
-                        const Icon(
-                          Icons.arrow_forward_rounded,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ],
-                    ),
+            const SizedBox(height: 7),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: LColors.muted,
+                fontSize: 11,
+                height: 1.5,
+              ),
             ),
-          ),
+          ],
+        ),
+      ),
+    );
+
+    if (embedded) return content;
+
+    return Scaffold(
+      backgroundColor: LColors.bg,
+      body: content,
+    );
+  }
+}
+
+class _Background extends StatelessWidget {
+  const _Background();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF040A13),
+            Color(0xFF07111F),
+            Color(0xFF09182A),
+            Color(0xFF07111F),
+          ],
         ),
       ),
     );
   }
+}
+
+class LColors {
+  static const bg = Color(0xFF07111F);
+  static const surface = Color(0xFF101C2E);
+  static const text = Color(0xFFF8FAFC);
+  static const secondary = Color(0xFFCBD5E1);
+  static const muted = Color(0xFF94A3B8);
+  static const border = Color(0xFF26364A);
+  static const cyan = Color(0xFF22D3EE);
+  static const violet = Color(0xFF8B5CF6);
+  static const green = Color(0xFF34D399);
+
+  static const gradient = LinearGradient(
+    colors: [
+      Color(0xFF2563EB),
+      Color(0xFF06B6D4),
+      Color(0xFF7C3AED),
+    ],
+  );
+}
+
+BoxDecoration _card() => BoxDecoration(
+      color: LColors.surface.withOpacity(.93),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: Colors.white.withOpacity(.06)),
+    );
+
+BoxDecoration _heroDecoration() => BoxDecoration(
+      borderRadius: BorderRadius.circular(24),
+      gradient: LinearGradient(
+        colors: [
+          const Color(0xFF2563EB).withOpacity(.23),
+          LColors.cyan.withOpacity(.1),
+          LColors.violet.withOpacity(.15),
+        ],
+      ),
+      border: Border.all(color: LColors.cyan.withOpacity(.18)),
+    );
+
+OutlineInputBorder _border(Color color) => OutlineInputBorder(
+      borderRadius: BorderRadius.circular(15),
+      borderSide: BorderSide(color: color),
+    );
+
+Map<String, dynamic> _asMap(dynamic value) {
+  if (value is Map<String, dynamic>) return value;
+  if (value is Map) {
+    return value.map((key, value) => MapEntry(key.toString(), value));
+  }
+  return {};
+}
+
+List<dynamic> _asList(dynamic value) => value is List ? value : const [];
+
+List<String> _asStringList(dynamic value) =>
+    _asList(value).map((e) => e.toString()).toList();
+
+int _asInt(dynamic value, {int fallback = 0}) {
+  if (value is num) return value.toInt();
+  return int.tryParse(value?.toString() ?? '') ?? fallback;
+}
+
+double _asDouble(dynamic value, {double fallback = 0}) {
+  if (value is num) return value.toDouble();
+  return double.tryParse(value?.toString() ?? '') ?? fallback;
+}
+
+String? _nullableString(dynamic value) {
+  final text = value?.toString().trim();
+  if (text == null || text.isEmpty || text == 'null') return null;
+  return text;
+}
+
+String _formatClock(int seconds) {
+  final safe = math.max(0, seconds);
+  final minutes = safe ~/ 60;
+  final rest = safe % 60;
+  return '${minutes.toString().padLeft(2, '0')}:${rest.toString().padLeft(2, '0')}';
 }

@@ -57,7 +57,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
     return Scaffold(
       backgroundColor: bg,
-      bottomNavigationBar: BottomNavigation(index: 1),
+     // bottomNavigationBar: IELTSMainNavigation(),
       body: FutureBuilder<Map<String, double>>(
         future: _progressFuture,
         builder: (context, snapshot) {
