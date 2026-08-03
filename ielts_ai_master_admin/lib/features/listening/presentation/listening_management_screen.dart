@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:ielts_ai_master_admin/features/reading_admin_generator/create_generation_job_sheet.dart';
 
 import '../../../core/theme/admin_theme.dart';
 import '../../../core/widgets/admin_scaffold.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_view.dart';
 import '../../../core/widgets/status_badge.dart';
-import '../../generation/presentation/create_generation_job_sheet.dart';
 import '../data/listening_admin_repository.dart';
 import '../domain/listening_admin_test.dart';
 import 'listening_test_preview_screen.dart';
@@ -32,7 +32,7 @@ class _ListeningManagementScreenState
         onPressed: () => showModalBottomSheet<void>(
           context: context,
           isScrollControlled: true,
-          builder: (_) => const CreateGenerationJobSheet(),
+          builder: (_) => const CreateReadingGenerationJobSheet(),
         ),
         icon: const Icon(Icons.auto_awesome_rounded),
         label: const Text('Generate with AI'),

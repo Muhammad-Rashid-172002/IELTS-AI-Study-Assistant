@@ -91,6 +91,24 @@ class _InitialProfileSetupScreenState extends State<InitialProfileSetupScreen> {
     'Working Professional',
     'Other',
   ];
+  final List<IconData> _educationIcons = const [
+    Icons.school_outlined,
+    Icons.account_balance_outlined,
+    Icons.workspace_premium_outlined,
+    Icons.menu_book_rounded,
+    Icons.science_outlined,
+    Icons.business_center_outlined,
+    Icons.more_horiz_rounded,
+  ];
+  final List<String> _educationSubtitles = const [
+    'Primary or secondary education',
+    'Higher secondary education',
+    'Undergraduate degree',
+    'Postgraduate degree',
+    'Doctoral studies',
+    'Currently employed',
+    'Different background',
+  ];
 
   final List<String> _purposes = const [
     'Bachelor admission',
@@ -110,6 +128,15 @@ class _InitialProfileSetupScreenState extends State<InitialProfileSetupScreen> {
     'United States',
     'Europe',
     'Other',
+  ];
+  final List<String> _destinationFlags = const [
+    '🇬🇧',
+    '🇦🇺',
+    '🇨🇦',
+    '🇳🇿',
+    '🇺🇸',
+    '🇪🇺',
+    '🌍',
   ];
 
   final List<String> _currentLevels = const [
@@ -137,6 +164,14 @@ class _InitialProfileSetupScreenState extends State<InitialProfileSetupScreen> {
     '60 minutes',
     '90 minutes',
     'Custom',
+  ];
+  final List<IconData> _studyTimeIcons = const [
+    Icons.timer_outlined,
+    Icons.schedule_outlined,
+    Icons.av_timer_rounded,
+    Icons.access_time_rounded,
+    Icons.hourglass_bottom_rounded,
+    Icons.tune_rounded,
   ];
 
   @override
@@ -567,6 +602,8 @@ class _InitialProfileSetupScreenState extends State<InitialProfileSetupScreen> {
       child: _SelectionGrid(
         options: _educationLevels,
         selectedValue: _educationLevel,
+        icons: _educationIcons,
+        subtitles: _educationSubtitles,
         onSelected: (value) {
           setState(() => _educationLevel = value);
         },
@@ -608,6 +645,7 @@ class _InitialProfileSetupScreenState extends State<InitialProfileSetupScreen> {
       child: _SelectionGrid(
         options: _destinations,
         selectedValue: _destination,
+        emojis: _destinationFlags,
         onSelected: (value) {
           setState(() => _destination = value);
         },
@@ -830,6 +868,7 @@ class _InitialProfileSetupScreenState extends State<InitialProfileSetupScreen> {
           _SelectionGrid(
             options: _studyTimes,
             selectedValue: _dailyStudyTime,
+            icons: _studyTimeIcons,
             onSelected: (value) {
               setState(() => _dailyStudyTime = value);
             },
@@ -1031,12 +1070,20 @@ class _StepContainer extends StatelessWidget {
 class _SelectionGrid extends StatelessWidget {
   final List<String> options;
   final String selectedValue;
+  final List<IconData>? icons;
+  final List<String>? subtitles;
   final ValueChanged<String> onSelected;
+  final List<String>? emojis;
+  final double childAspectRatio;
 
   const _SelectionGrid({
     required this.options,
     required this.selectedValue,
     required this.onSelected,
+    this.icons,
+    this.subtitles,
+    this.emojis,
+    this.childAspectRatio = 1.15,
   });
 
   @override
@@ -1045,11 +1092,11 @@ class _SelectionGrid extends StatelessWidget {
       itemCount: options.length,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         mainAxisSpacing: 12,
         crossAxisSpacing: 12,
-        childAspectRatio: 1.35,
+        childAspectRatio: childAspectRatio,
       ),
       itemBuilder: (context, index) {
         final option = options[index];
@@ -1070,15 +1117,15 @@ class _SelectionGrid extends StatelessWidget {
                 borderRadius: BorderRadius.circular(19),
                 border: Border.all(
                   color: selected
-                      ? ProfileColors.cyan.withOpacity(0.65)
+                      ? ProfileColors.cyan.withOpacity(0.70)
                       : Colors.white.withOpacity(0.065),
-                  width: selected ? 1.4 : 1,
+                  width: selected ? 1.5 : 1,
                 ),
                 boxShadow: selected
                     ? [
                         BoxShadow(
-                          color: ProfileColors.cyan.withOpacity(0.12),
-                          blurRadius: 18,
+                          color: ProfileColors.cyan.withOpacity(0.16),
+                          blurRadius: 20,
                           offset: const Offset(0, 8),
                         ),
                       ]
@@ -1087,40 +1134,96 @@ class _SelectionGrid extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Align(
-                    alignment: Alignment.topRight,
-                    child: Container(
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: selected
-                            ? ProfileColors.cyan
-                            : Colors.transparent,
-                        border: Border.all(
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(15),
                           color: selected
-                              ? ProfileColors.cyan
-                              : ProfileColors.border,
+                              ? ProfileColors.cyan.withOpacity(0.14)
+                              : ProfileColors.surfaceLight,
+                          border: Border.all(
+                            color: selected
+                                ? ProfileColors.cyan.withOpacity(0.30)
+                                : Colors.white.withOpacity(0.04),
+                          ),
+                        ),
+                        child: Center(
+                          child: emojis != null && index < emojis!.length
+                              ? Text(
+                                  emojis![index],
+                                  style: const TextStyle(fontSize: 27),
+                                )
+                              : Icon(
+                                  icons != null && index < icons!.length
+                                      ? icons![index]
+                                      : Icons.public_rounded,
+                                  color: selected
+                                      ? Colors.white
+                                      : ProfileColors.mutedText,
+                                  size: 24,
+                                ),
                         ),
                       ),
-                      child: selected
-                          ? const Icon(
-                              Icons.check_rounded,
-                              color: ProfileColors.background,
-                              size: 16,
-                            )
-                          : null,
-                    ),
+
+                      Container(
+                        width: 25,
+                        height: 25,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: selected
+                              ? ProfileColors.cyan
+                              : Colors.transparent,
+                          border: Border.all(
+                            color: selected
+                                ? ProfileColors.cyan
+                                : ProfileColors.border,
+                            width: 1.2,
+                          ),
+                        ),
+                        child: selected
+                            ? const Icon(
+                                Icons.check_rounded,
+                                color: ProfileColors.background,
+                                size: 17,
+                              )
+                            : null,
+                      ),
+                    ],
                   ),
+
                   const Spacer(),
+
                   Text(
                     option,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: ProfileColors.mainText,
-                      fontSize: 12.5,
+                      fontSize: 13,
                       fontWeight: FontWeight.w800,
+                      height: 1.15,
                     ),
                   ),
+
+                  if (subtitles != null && index < subtitles!.length) ...[
+                    const SizedBox(height: 5),
+                    Text(
+                      subtitles![index],
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: ProfileColors.mutedText,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w500,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
