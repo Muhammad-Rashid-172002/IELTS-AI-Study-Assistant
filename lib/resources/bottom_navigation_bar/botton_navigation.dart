@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:fyproject/AI_Coach/ai_coach_screen.dart';
+import 'package:fyproject/AI_Coach/presentation/ai_coach_screen.dart';
 import 'package:fyproject/screens/pages/Learn/LearnScreen.dart';
 import 'package:fyproject/screens/pages/Practice/PracticeScreen.dart';
 import 'package:fyproject/screens/pages/home/home.dart';
-import 'package:fyproject/screens/pages/profile/profile.dart';
-import 'package:fyproject/screens/pages/progress/progress.dart';
+import 'package:fyproject/screens/pages/profile/presentation/profile_screen.dart';
+import 'package:fyproject/screens/pages/progress/presentation/progress_dashboard_screen.dart';
 
 class IELTSMainNavigation extends StatefulWidget {
-  const IELTSMainNavigation({super.key,});
+  const IELTSMainNavigation({super.key});
 
   @override
   State<IELTSMainNavigation> createState() => _IELTSMainNavigationState();
@@ -20,8 +20,8 @@ class _IELTSMainNavigationState extends State<IELTSMainNavigation> {
     const HomeDashboard(),
     const LearnScreen(),
     const Practicescreen(),
-    const ProgressScreen(),
-    const Profile(),
+    const ProgressDashboardScreen(),
+    const ProfileScreen(),
   ];
 
   final List<_NavigationItemData> _items = const [
@@ -52,19 +52,19 @@ class _IELTSMainNavigationState extends State<IELTSMainNavigation> {
     ),
   ];
 
-
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: MainNavColors.background,
       extendBody: true,
       body: IndexedStack(index: _currentIndex, children: _screens),
-      floatingActionButton: _AICoachFloatingButton(onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const AiCoachScreen()),
-        );
-      }),
+      floatingActionButton: _AICoachFloatingButton(
+        onTap: () {
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const AiCoachScreen()));
+        },
+      ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: _PremiumBottomNavigation(
         currentIndex: _currentIndex,
@@ -325,9 +325,6 @@ class MainNavColors {
     colors: [Color(0xFF2563EB), Color(0xFF06B6D4), Color(0xFF7C3AED)],
   );
 }
-
-
-
 
 class _CoachWelcomeCard extends StatelessWidget {
   const _CoachWelcomeCard();

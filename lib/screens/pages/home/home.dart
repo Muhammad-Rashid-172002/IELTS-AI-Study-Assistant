@@ -3,13 +3,22 @@ import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:fyproject/screens/Full_Mock_Test/mock_test_setup_screen.dart';
+import 'package:fyproject/screens/Vocabulary_Builder/VocabularyBuilder.dart';
 import 'package:fyproject/screens/pages/Listening_Practice/ListeningPractice.dart';
 import 'package:fyproject/screens/pages/Reading_Practice/ReadingPractice.dart';
 import 'package:fyproject/screens/pages/Speaking_Practice/SpeakingPractice.dart';
 import 'package:fyproject/screens/pages/Writing_Checker/WritingChecker.dart';
 
-class HomeDashboard extends StatelessWidget {
+class HomeDashboard extends StatefulWidget {
   const HomeDashboard({super.key});
+
+  @override
+  State<HomeDashboard> createState() => _HomeDashboardState();
+}
+
+class _HomeDashboardState extends State<HomeDashboard> {
+  bool _activityRecorded = false;
 
   @override
   Widget build(BuildContext context) {
@@ -23,13 +32,20 @@ class HomeDashboard extends StatelessWidget {
         .collection('users')
         .doc(user.uid);
 
+    if (!_activityRecorded) {
+      _activityRecorded = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _recordDailyActivity(userRef);
+      });
+    }
+
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: userRef.snapshots(),
       builder: (context, userSnapshot) {
         if (userSnapshot.hasError) {
           return _ErrorState(
             message: 'Profile data could not be loaded.',
-            onRetry: () {},
+            onRetry: () => setState(() {}),
           );
         }
 
@@ -40,16 +56,11 @@ class HomeDashboard extends StatelessWidget {
         final userData = userSnapshot.data!.data() ?? <String, dynamic>{};
 
         return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: userRef
-              .collection('diagnosticResults')
-              .orderBy('completedAt', descending: true)
-              .limit(1)
-              .snapshots(),
+          stream: userRef.collection('diagnosticResults').snapshots(),
           builder: (context, diagnosticSnapshot) {
-            final diagnosticData =
-                diagnosticSnapshot.data?.docs.isNotEmpty == true
-                ? diagnosticSnapshot.data!.docs.first.data()
-                : <String, dynamic>{};
+            final diagnosticData = _latestDocumentData(
+              diagnosticSnapshot.data?.docs ?? const [],
+            );
 
             return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
               stream: userRef
@@ -60,14 +71,101 @@ class HomeDashboard extends StatelessWidget {
                 final planData =
                     planSnapshot.data?.data() ?? <String, dynamic>{};
 
-                final model = HomeDashboardModel.fromFirestore(
-                  authUser: user,
-                  userData: userData,
-                  diagnosticData: diagnosticData,
-                  planData: planData,
-                );
+                return _LiveSkillResults(
+                  userRef: userRef,
+                  builder: (latestResults) {
+                    final model = HomeDashboardModel.fromFirestore(
+                      authUser: user,
+                      userData: userData,
+                      diagnosticData: diagnosticData,
+                      planData: planData,
+                      latestResults: latestResults,
+                    );
 
-                return _HomeDashboardView(model: model, userRef: userRef);
+                    return _HomeDashboardView(model: model, userRef: userRef);
+                  },
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _recordDailyActivity(
+    DocumentReference<Map<String, dynamic>> userRef,
+  ) async {
+    try {
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final snapshot = await transaction.get(userRef);
+        final data = snapshot.data() ?? <String, dynamic>{};
+
+        final now = DateTime.now();
+        final today = _dateKey(now);
+        final yesterday = _dateKey(now.subtract(const Duration(days: 1)));
+        final lastActive = (data['lastActiveDate'] ?? '').toString();
+
+        if (lastActive == today) return;
+
+        final oldStreak = _asInt(data['currentStreak'] ?? data['streak']);
+        final newStreak = lastActive == yesterday ? oldStreak + 1 : 1;
+        final oldLongest = _asInt(data['longestStreak']);
+        final oldXp = _asInt(data['xpPoints'] ?? data['xp']);
+
+        transaction.set(userRef, {
+          'lastActiveDate': today,
+          'currentStreak': newStreak,
+          'streak': newStreak,
+          'longestStreak': math.max(oldLongest, newStreak),
+          'xpPoints': oldXp + 10,
+          'activityDates': FieldValue.arrayUnion([today]),
+          'lastDashboardVisitAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      });
+    } catch (_) {
+      // Dashboard must remain usable even if activity tracking fails.
+    }
+  }
+}
+
+class _LiveSkillResults extends StatelessWidget {
+  final DocumentReference<Map<String, dynamic>> userRef;
+  final Widget Function(Map<String, Map<String, dynamic>>) builder;
+
+  const _LiveSkillResults({required this.userRef, required this.builder});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: userRef.collection('listening_results').snapshots(),
+      builder: (context, listeningSnapshot) {
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: userRef.collection('reading_results').snapshots(),
+          builder: (context, readingSnapshot) {
+            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: userRef.collection('writing_results').snapshots(),
+              builder: (context, writingSnapshot) {
+                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: userRef.collection('speaking_results').snapshots(),
+                  builder: (context, speakingSnapshot) {
+                    return builder({
+                      'listening': _latestDocumentData(
+                        listeningSnapshot.data?.docs ?? const [],
+                      ),
+                      'reading': _latestDocumentData(
+                        readingSnapshot.data?.docs ?? const [],
+                      ),
+                      'writing': _latestDocumentData(
+                        writingSnapshot.data?.docs ?? const [],
+                      ),
+                      'speaking': _latestDocumentData(
+                        speakingSnapshot.data?.docs ?? const [],
+                      ),
+                    });
+                  },
+                );
               },
             );
           },
@@ -117,7 +215,50 @@ class _HomeDashboardView extends StatelessWidget {
   }
 
   void _openQuickAction(BuildContext context, String action) {
-    _showMessage(context, ' $action connect with your real router ');
+    switch (action) {
+      case 'Full Mock Test':
+        _push(context, const MockTestSetupScreen());
+        return;
+      case 'Writing Checker':
+        _push(context, const WritingChecker());
+        return;
+      case 'Speaking AI':
+        _push(context, const SpeakingPractice());
+        return;
+      case 'Vocabulary':
+      case 'Daily Quiz':
+        _push(context, const VocabularyScreen());
+        return;
+      case 'Weakness Practice':
+        _openSkillPractice(context, model.weakestSkill);
+        return;
+      default:
+        _showMessage(context, '$action is not available.');
+    }
+  }
+
+  void _openTask(BuildContext context, HomeTask task) {
+    final type = task.type.toLowerCase();
+
+    if (type.contains('mock')) {
+      _push(context, const MockTestSetupScreen());
+    } else if (type.contains('vocab') || type.contains('quiz')) {
+      _push(context, const VocabularyScreen());
+    } else if (type.contains('listening')) {
+      _push(context, const ListeningScreen());
+    } else if (type.contains('reading')) {
+      _push(context, const ReadingScreen());
+    } else if (type.contains('writing')) {
+      _push(context, const WritingChecker());
+    } else if (type.contains('speaking')) {
+      _push(context, const SpeakingPractice());
+    } else {
+      _showMessage(context, '${task.title} ka screen configure nahi hai.');
+    }
+  }
+
+  void _push(BuildContext context, Widget screen) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
   }
 
   void _openSkillPractice(BuildContext context, String skill) {
@@ -129,7 +270,7 @@ class _HomeDashboardView extends StatelessWidget {
         break;
 
       case 'reading':
-        screen = const ReadingPractice();
+        screen = const ReadingScreen();
         break;
 
       case 'writing':
@@ -145,7 +286,7 @@ class _HomeDashboardView extends StatelessWidget {
         return;
     }
 
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+    _push(context, screen);
   }
 
   @override
@@ -199,10 +340,7 @@ class _HomeDashboardView extends StatelessWidget {
                                   'Aaj ke tamam tasks complete ho chuke hain.',
                                 );
                               } else {
-                                _showMessage(
-                                  context,
-                                  '${firstPending.title} open karein.',
-                                );
+                                _openTask(context, firstPending);
                               }
                             },
                     ),
@@ -257,6 +395,7 @@ class HomeDashboardModel {
   final int todayTotalMinutes;
   final List<SkillOverview> skills;
   final String aiInsight;
+  final String weakestSkill;
 
   const HomeDashboardModel({
     required this.userName,
@@ -275,6 +414,7 @@ class HomeDashboardModel {
     required this.todayTotalMinutes,
     required this.skills,
     required this.aiInsight,
+    required this.weakestSkill,
   });
 
   factory HomeDashboardModel.fromFirestore({
@@ -282,14 +422,10 @@ class HomeDashboardModel {
     required Map<String, dynamic> userData,
     required Map<String, dynamic> diagnosticData,
     required Map<String, dynamic> planData,
+    required Map<String, Map<String, dynamic>> latestResults,
   }) {
     final skillBands = _asMap(diagnosticData['skillBands']);
     final targetBands = _asMap(userData['targetBands']);
-
-    final currentBand = _asDouble(
-      diagnosticData['overallBand'] ?? userData['currentBand'],
-      fallback: 0,
-    );
 
     final targetBand = _asDouble(
       targetBands['overall'] ?? userData['targetBand'],
@@ -297,13 +433,40 @@ class HomeDashboardModel {
     );
 
     final skillValues = <String, double>{
-      'Listening': _asDouble(
-        skillBands['listening'] ?? userData['listeningBand'],
+      'Listening': _latestBand(
+        latestResults['listening'],
+        fallback: _asDouble(
+          skillBands['listening'] ?? userData['listeningBand'],
+        ),
       ),
-      'Reading': _asDouble(skillBands['reading'] ?? userData['readingBand']),
-      'Writing': _asDouble(skillBands['writing'] ?? userData['writingBand']),
-      'Speaking': _asDouble(skillBands['speaking'] ?? userData['speakingBand']),
+      'Reading': _latestBand(
+        latestResults['reading'],
+        fallback: _asDouble(skillBands['reading'] ?? userData['readingBand']),
+      ),
+      'Writing': _latestBand(
+        latestResults['writing'],
+        fallback: _asDouble(skillBands['writing'] ?? userData['writingBand']),
+      ),
+      'Speaking': _latestBand(
+        latestResults['speaking'],
+        fallback: _asDouble(skillBands['speaking'] ?? userData['speakingBand']),
+      ),
     };
+
+    final availableBands = skillValues.values.where((value) => value > 0);
+    final liveOverallBand = availableBands.isEmpty
+        ? 0.0
+        : availableBands.reduce((a, b) => a + b) / availableBands.length;
+
+    final currentBand = liveOverallBand > 0
+        ? liveOverallBand
+        : _asDouble(
+            userData['estimatedBand'] ??
+                userData['overallBand'] ??
+                userData['currentBand'] ??
+                diagnosticData['overallBand'],
+            fallback: 0,
+          );
 
     final today = DateTime.now();
     final todayName = _dayName(today.weekday);
@@ -410,12 +573,13 @@ class HomeDashboardModel {
       longestStreak: _asInt(userData['longestStreak']),
       xpPoints: _asInt(userData['xpPoints'] ?? userData['xp']),
       activeWeekDays: _activeWeekDays(
-        userData['weeklyActivity'],
+        userData['activityDates'] ?? userData['weeklyActivity'],
         completedToday: completedToday,
       ),
       todayTasks: todayTasks,
       todayTotalMinutes: todayTotalMinutes,
       skills: skillList,
+      weakestSkill: weakest,
       aiInsight:
           'Your $weakest performance needs the most attention. '
           '$weakestTopic is currently the main focus area. '
@@ -1114,7 +1278,6 @@ class _SkillCard extends StatelessWidget {
   const _SkillCard({required this.skill, required this.onPractice});
 
   @override
-  @override
   Widget build(BuildContext context) {
     final trendText = skill.weeklyTrend >= 0
         ? '+${skill.weeklyTrend.toStringAsFixed(1)}'
@@ -1240,16 +1403,42 @@ class _QuickActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const actions = [
-      ('Full Mock Test', Icons.timer_outlined, Color(0xFF2563EB)),
-      ('Writing Checker', Icons.edit_note_rounded, Color(0xFF8B5CF6)),
-      ('Speaking AI', Icons.record_voice_over_rounded, Color(0xFF34D399)),
-      ('Vocabulary', Icons.auto_stories_rounded, Color(0xFF22D3EE)),
+      (
+        'Full Mock Test',
+        'Complete exam simulation',
+        Icons.timer_outlined,
+        Color(0xFF2563EB),
+      ),
+      (
+        'Writing Checker',
+        'Get an estimated writing band',
+        Icons.edit_note_rounded,
+        Color(0xFF8B5CF6),
+      ),
+      (
+        'Speaking AI',
+        'Record and evaluate speaking',
+        Icons.record_voice_over_rounded,
+        Color(0xFF34D399),
+      ),
+      (
+        'Vocabulary',
+        'Flashcards and daily words',
+        Icons.auto_stories_rounded,
+        Color(0xFF22D3EE),
+      ),
       (
         'Weakness Practice',
+        'Practise your lowest skill',
         Icons.center_focus_strong_rounded,
         Color(0xFFF97316),
       ),
-      ('Daily Quiz', Icons.quiz_outlined, Color(0xFFF59E0B)),
+      (
+        'Daily Quiz',
+        'Quick vocabulary challenge',
+        Icons.quiz_outlined,
+        Color(0xFFF59E0B),
+      ),
     ];
 
     return GridView.builder(
@@ -1257,46 +1446,67 @@ class _QuickActions extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
+        crossAxisCount: 2,
         mainAxisSpacing: 11,
         crossAxisSpacing: 11,
-        childAspectRatio: .92,
+        childAspectRatio: 1.35,
       ),
-      itemBuilder: (_, index) {
+      itemBuilder: (context, index) {
         final action = actions[index];
 
         return Material(
           color: Colors.transparent,
           child: InkWell(
             onTap: () => onTap(action.$1),
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(19),
             child: Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(13),
               decoration: _card(),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+              child: Row(
                 children: [
                   Container(
-                    width: 40,
-                    height: 40,
+                    width: 44,
+                    height: 44,
                     decoration: BoxDecoration(
-                      color: action.$3.withOpacity(.12),
-                      borderRadius: BorderRadius.circular(13),
+                      color: action.$4.withOpacity(.12),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    child: Icon(action.$2, color: action.$3, size: 20),
+                    child: Icon(action.$3, color: action.$4, size: 21),
                   ),
-                  const SizedBox(height: 9),
-                  Text(
-                    action.$1,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _C.text,
-                      fontSize: 9.4,
-                      height: 1.2,
-                      fontWeight: FontWeight.w800,
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          action.$1,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: _C.text,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          action.$2,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: _C.muted,
+                            fontSize: 8.5,
+                            height: 1.25,
+                          ),
+                        ),
+                      ],
                     ),
+                  ),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: action.$4,
+                    size: 13,
                   ),
                 ],
               ),
@@ -1880,28 +2090,42 @@ double _skillTrend(Map<String, dynamic> userData, String skill) {
 }
 
 List<bool> _activeWeekDays(dynamic value, {required int completedToday}) {
-  if (value is List) {
-    final result = value.map((item) => item == true).take(7).toList();
+  final now = DateTime.now();
+  final monday = DateTime(
+    now.year,
+    now.month,
+    now.day,
+  ).subtract(Duration(days: now.weekday - 1));
+  final result = List<bool>.filled(7, false);
 
-    while (result.length < 7) {
-      result.add(false);
+  if (value is List) {
+    final dateKeys = value.map((item) => item.toString()).toSet();
+
+    for (var index = 0; index < 7; index++) {
+      result[index] = dateKeys.contains(
+        _dateKey(monday.add(Duration(days: index))),
+      );
     }
 
     return result;
   }
 
-  final now = DateTime.now();
-  final days = List<bool>.filled(7, false);
-
-  for (int index = 0; index < now.weekday - 1; index++) {
-    days[index] = true;
+  if (value is Map) {
+    for (var index = 0; index < 7; index++) {
+      final date = monday.add(Duration(days: index));
+      final dayName = _dayName(date.weekday);
+      result[index] =
+          value[dayName] == true ||
+          value[dayName.toLowerCase()] == true ||
+          value[_dateKey(date)] == true;
+    }
   }
 
   if (completedToday > 0) {
-    days[now.weekday - 1] = true;
+    result[now.weekday - 1] = true;
   }
 
-  return days;
+  return result;
 }
 
 String _dayName(int weekday) {
@@ -1916,6 +2140,64 @@ String _dayName(int weekday) {
   ];
 
   return days[(weekday - 1).clamp(0, 6)];
+}
+
+String _dateKey(DateTime date) {
+  final month = date.month.toString().padLeft(2, '0');
+  final day = date.day.toString().padLeft(2, '0');
+  return '${date.year}-$month-$day';
+}
+
+Map<String, dynamic> _latestDocumentData(
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+) {
+  if (docs.isEmpty) return <String, dynamic>{};
+
+  final sorted = List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(docs)
+    ..sort((a, b) => _resultDate(b.data()).compareTo(_resultDate(a.data())));
+
+  return sorted.first.data();
+}
+
+DateTime _resultDate(Map<String, dynamic> data) {
+  for (final key in const [
+    'completedAt',
+    'timestamp',
+    'createdAt',
+    'updatedAt',
+    'submittedAt',
+  ]) {
+    final value = data[key];
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is String) {
+      final parsed = DateTime.tryParse(value);
+      if (parsed != null) return parsed;
+    }
+  }
+
+  return DateTime.fromMillisecondsSinceEpoch(0);
+}
+
+double _latestBand(Map<String, dynamic>? data, {required double fallback}) {
+  if (data == null || data.isEmpty) return fallback;
+
+  final report = _asMap(data['report']);
+  final candidates = [
+    data['overallBand'],
+    data['band'],
+    data['estimatedBand'],
+    data['bandScore'],
+    report['overallBand'],
+    report['band'],
+  ];
+
+  for (final candidate in candidates) {
+    final value = _asDouble(candidate);
+    if (value > 0 && value <= 9) return value;
+  }
+
+  return fallback;
 }
 
 extension _FirstOrNullExtension<T> on Iterable<T> {

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:fyproject/Language_selection_screen/language_selection_screen.dart';
 import 'package:fyproject/resources/bottom_navigation_bar/botton_navigation.dart';
 
@@ -17,18 +18,20 @@ class _SplashScreenState extends State<SplashScreen>
     with TickerProviderStateMixin {
   late final AnimationController _entranceController;
   late final AnimationController _glowController;
-  late final AnimationController _rotationController;
+  late final AnimationController _particleController;
 
   late final Animation<double> _logoScale;
   late final Animation<double> _logoOpacity;
-  late final Animation<double> _contentSlide;
   late final Animation<double> _contentOpacity;
+  late final Animation<Offset> _contentSlide;
 
   Timer? _navigationTimer;
 
   @override
   void initState() {
     super.initState();
+
+    _configureSystemUi();
 
     _entranceController = AnimationController(
       vsync: this,
@@ -40,7 +43,7 @@ class _SplashScreenState extends State<SplashScreen>
       duration: const Duration(milliseconds: 2200),
     )..repeat(reverse: true);
 
-    _rotationController = AnimationController(
+    _particleController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 12),
     )..repeat();
@@ -55,45 +58,57 @@ class _SplashScreenState extends State<SplashScreen>
       curve: const Interval(0.0, 0.45, curve: Curves.easeOut),
     );
 
-    _contentSlide = Tween<double>(begin: 30, end: 0).animate(
-      CurvedAnimation(
-        parent: _entranceController,
-        curve: const Interval(0.40, 1.0, curve: Curves.easeOutCubic),
-      ),
-    );
-
     _contentOpacity = CurvedAnimation(
       parent: _entranceController,
-      curve: const Interval(0.40, 1.0, curve: Curves.easeOut),
+      curve: const Interval(0.35, 1.0, curve: Curves.easeOut),
     );
+
+    _contentSlide =
+        Tween<Offset>(begin: const Offset(0, 0.20), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _entranceController,
+            curve: const Interval(0.35, 1.0, curve: Curves.easeOutCubic),
+          ),
+        );
 
     _entranceController.forward();
 
     _navigationTimer = Timer(const Duration(seconds: 4), _openNextScreen);
   }
 
+  Future<void> _configureSystemUi() async {
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: Color(0xFF040A13),
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+        systemNavigationBarIconBrightness: Brightness.light,
+        systemNavigationBarDividerColor: Colors.transparent,
+      ),
+    );
+  }
+
   void _openNextScreen() {
     if (!mounted) return;
-
-   // final user = FirebaseAuth.instance.currentUser;
 
     final Widget nextScreen = FirebaseAuth.instance.currentUser != null
         ? const IELTSMainNavigation()
         : const LanguageSelectionScreen();
 
     Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 700),
-        pageBuilder: (_, animation, secondaryAnimation) {
-          return nextScreen;
-        },
+      PageRouteBuilder<void>(
+        transitionDuration: const Duration(milliseconds: 650),
+        pageBuilder: (_, animation, secondaryAnimation) => nextScreen,
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           final fadeAnimation = CurvedAnimation(
             parent: animation,
             curve: Curves.easeOut,
           );
 
-          final scaleAnimation = Tween<double>(begin: 0.97, end: 1).animate(
+          final scaleAnimation = Tween<double>(begin: 0.98, end: 1.0).animate(
             CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
           );
 
@@ -111,121 +126,133 @@ class _SplashScreenState extends State<SplashScreen>
     _navigationTimer?.cancel();
     _entranceController.dispose();
     _glowController.dispose();
-    _rotationController.dispose();
+    _particleController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        children: [
-          const Positioned.fill(child: _PremiumBackground()),
+      backgroundColor: const Color(0xFF040A13),
+      resizeToAvoidBottomInset: false,
+      body: SizedBox.expand(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            const _PremiumBackground(),
 
-          Positioned.fill(
-            child: AnimatedBuilder(
-              animation: _rotationController,
+            AnimatedBuilder(
+              animation: _particleController,
               builder: (context, child) {
                 return CustomPaint(
                   painter: _ParticlePainter(
-                    progress: _rotationController.value,
+                    progress: _particleController.value,
                   ),
+                  size: Size.infinite,
                 );
               },
             ),
-          ),
 
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
-              child: Column(
-                children: [
-                  const Spacer(),
+            SafeArea(
+              minimum: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final screenWidth = constraints.maxWidth;
+                  final screenHeight = constraints.maxHeight;
 
-                  AnimatedBuilder(
-                    animation: Listenable.merge([
-                      _entranceController,
-                      _glowController,
-                    ]),
-                    builder: (context, child) {
-                      return Opacity(
-                        opacity: _logoOpacity.value,
-                        child: Transform.scale(
-                          scale: _logoScale.value,
-                          child: _PremiumLogo(
-                            glowProgress: _glowController.value,
+                  final logoSize = math
+                      .min(screenWidth * 0.42, screenHeight * 0.21)
+                      .clamp(128.0, 210.0);
+
+                  final compactHeight = screenHeight < 650;
+
+                  return Column(
+                    children: [
+                      SizedBox(
+                        height: compactHeight ? 10 : screenHeight * 0.055,
+                      ),
+
+                      Expanded(
+                        flex: compactHeight ? 5 : 6,
+                        child: Center(
+                          child: AnimatedBuilder(
+                            animation: Listenable.merge([
+                              _entranceController,
+                              _glowController,
+                            ]),
+                            builder: (context, child) {
+                              return Opacity(
+                                opacity: _logoOpacity.value,
+                                child: Transform.scale(
+                                  scale: _logoScale.value,
+                                  child: _PremiumLogo(
+                                    size: logoSize,
+                                    glowProgress: _glowController.value,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         ),
-                      );
-                    },
-                  ),
+                      ),
 
-                  const SizedBox(height: 34),
-
-                  AnimatedBuilder(
-                    animation: _entranceController,
-                    builder: (context, child) {
-                      return Opacity(
-                        opacity: _contentOpacity.value,
-                        child: Transform.translate(
-                          offset: Offset(0, _contentSlide.value),
-                          child: child,
-                        ),
-                      );
-                    },
-                    child: const Column(
-                      children: [
-                        _AppTitle(),
-                        SizedBox(height: 12),
-                        _Tagline(),
-                        SizedBox(height: 24),
-                        _FeatureBadge(),
-                      ],
-                    ),
-                  ),
-
-                  const Spacer(),
-
-                  AnimatedBuilder(
-                    animation: _entranceController,
-                    builder: (context, child) {
-                      return Opacity(
-                        opacity: _contentOpacity.value,
-                        child: child,
-                      );
-                    },
-                    child: Column(
-                      children: [
-                        const _PremiumLoadingIndicator(),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Preparing your intelligent learning experience',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.55),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w400,
-                            letterSpacing: 0.25,
+                      FadeTransition(
+                        opacity: _contentOpacity,
+                        child: SlideTransition(
+                          position: _contentSlide,
+                          child: const Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _AppTitle(),
+                              SizedBox(height: 12),
+                              _Tagline(),
+                              SizedBox(height: 20),
+                              _FeatureBadge(),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 26),
-                        Text(
-                          'VERSION 1.0.0',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.32),
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1.8,
-                          ),
+                      ),
+
+                      const Spacer(flex: 2),
+
+                      const _PremiumLoadingIndicator(),
+                      const SizedBox(height: 18),
+
+                      Text(
+                        'Preparing your intelligent learning experience',
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.55),
+                          fontSize: compactHeight ? 11.5 : 13,
+                          height: 1.35,
+                          letterSpacing: 0.15,
                         ),
-                      ],
-                    ),
-                  ),
-                ],
+                      ),
+
+                      const SizedBox(height: 22),
+
+                      // Text(
+                      //   'VERSION 1.0.0',
+                      //   textAlign: TextAlign.center,
+                      //   style: TextStyle(
+                      //     color: Colors.white.withValues(alpha: 0.34),
+                      //     fontSize: compactHeight ? 11 : 12,
+                      //     fontWeight: FontWeight.w500,
+                      //     letterSpacing: 2.4,
+                      //   ),
+                      // ),
+
+                      SizedBox(
+                        height: compactHeight ? 12 : screenHeight * 0.045,
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -237,9 +264,10 @@ class _PremiumBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Stack(
+      fit: StackFit.expand,
       children: [
-        Container(
-          decoration: const BoxDecoration(
+        const DecoratedBox(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
@@ -282,7 +310,7 @@ class _PremiumBackground extends StatelessWidget {
         ),
 
         Positioned.fill(
-          child: Container(
+          child: DecoratedBox(
             decoration: BoxDecoration(
               gradient: RadialGradient(
                 center: const Alignment(0, -0.25),
@@ -322,147 +350,161 @@ class _GlowOrb extends StatelessWidget {
 }
 
 class _PremiumLogo extends StatelessWidget {
+  final double size;
   final double glowProgress;
 
-  const _PremiumLogo({required this.glowProgress});
+  const _PremiumLogo({required this.size, required this.glowProgress});
 
   @override
   Widget build(BuildContext context) {
     final glowStrength = 0.22 + (glowProgress * 0.20);
     final glowBlur = 28 + (glowProgress * 16);
 
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        Container(
-          width: 168,
-          height: 168,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: RadialGradient(
-              colors: [
-                const Color(0xFF06B6D4).withValues(alpha: glowStrength),
-                const Color(0xFF2563EB).withValues(alpha: glowStrength * 0.45),
-                Colors.transparent,
-              ],
-            ),
-          ),
-        ),
-
-        Container(
-          width: 132,
-          height: 132,
-          padding: const EdgeInsets.all(1.4),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(38),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF60A5FA), Color(0xFF06B6D4), Color(0xFF8B5CF6)],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF06B6D4).withValues(alpha: glowStrength),
-                blurRadius: glowBlur,
-                spreadRadius: 2,
-              ),
-              BoxShadow(
-                color: const Color(
-                  0xFF8B5CF6,
-                ).withValues(alpha: glowStrength * 0.65),
-                blurRadius: glowBlur + 8,
-                spreadRadius: -4,
-              ),
-            ],
-          ),
-          child: Container(
+    return SizedBox.square(
+      dimension: size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: size,
+            height: size,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(36.5),
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  const Color(0xFF06B6D4).withValues(alpha: glowStrength),
+                  const Color(
+                    0xFF2563EB,
+                  ).withValues(alpha: glowStrength * 0.45),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+
+          Container(
+            width: size * 0.78,
+            height: size * 0.78,
+            padding: EdgeInsets.all(size * 0.008),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(size * 0.20),
               gradient: const LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  Color(0xFF13263D),
-                  Color(0xFF091523),
-                  Color(0xFF0A1526),
+                  Color(0xFF60A5FA),
+                  Color(0xFF06B6D4),
+                  Color(0xFF8B5CF6),
                 ],
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(
+                    0xFF06B6D4,
+                  ).withValues(alpha: glowStrength),
+                  blurRadius: glowBlur,
+                  spreadRadius: 2,
+                ),
+                BoxShadow(
+                  color: const Color(
+                    0xFF8B5CF6,
+                  ).withValues(alpha: glowStrength * 0.65),
+                  blurRadius: glowBlur + 8,
+                  spreadRadius: -4,
+                ),
+              ],
             ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Positioned(
-                  top: 12,
-                  left: 18,
-                  right: 18,
-                  child: Container(
-                    height: 38,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(24),
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.white.withValues(alpha: 0.09),
-                          Colors.transparent,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(size * 0.19),
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF13263D),
+                    Color(0xFF091523),
+                    Color(0xFF0A1526),
+                  ],
+                ),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Positioned(
+                    top: size * 0.08,
+                    left: size * 0.11,
+                    right: size * 0.11,
+                    child: Container(
+                      height: size * 0.18,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(size * 0.12),
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.white.withValues(alpha: 0.09),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  _BookAIIcon(size: size * 0.49),
+
+                  Positioned(
+                    top: size * 0.13,
+                    right: size * 0.14,
+                    child: Container(
+                      width: size * 0.055,
+                      height: size * 0.055,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFF67E8F9),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(
+                              0xFF22D3EE,
+                            ).withValues(alpha: 0.85),
+                            blurRadius: 14,
+                            spreadRadius: 3,
+                          ),
                         ],
                       ),
                     ),
                   ),
-                ),
-
-                const _BookAIIcon(),
-
-                Positioned(
-                  top: 21,
-                  right: 22,
-                  child: Container(
-                    width: 9,
-                    height: 9,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: const Color(0xFF67E8F9),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(
-                            0xFF22D3EE,
-                          ).withValues(alpha: 0.85),
-                          blurRadius: 14,
-                          spreadRadius: 3,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
 
 class _BookAIIcon extends StatelessWidget {
-  const _BookAIIcon();
+  final double size;
+
+  const _BookAIIcon({required this.size});
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 78,
-      height: 70,
+      width: size,
+      height: size * 0.90,
       child: Stack(
         alignment: Alignment.center,
         children: [
           Positioned(
-            bottom: 4,
+            bottom: size * 0.05,
             child: Container(
-              width: 70,
-              height: 45,
+              width: size * 0.90,
+              height: size * 0.58,
               decoration: BoxDecoration(
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(8),
-                  topRight: Radius.circular(8),
-                  bottomLeft: Radius.circular(13),
-                  bottomRight: Radius.circular(13),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(size * 0.10),
+                  topRight: Radius.circular(size * 0.10),
+                  bottomLeft: Radius.circular(size * 0.17),
+                  bottomRight: Radius.circular(size * 0.17),
                 ),
                 gradient: const LinearGradient(
                   colors: [Color(0xFF2563EB), Color(0xFF06B6D4)],
@@ -479,73 +521,33 @@ class _BookAIIcon extends StatelessWidget {
           ),
 
           Positioned(
-            left: 8,
-            bottom: 9,
+            left: size * 0.10,
+            bottom: size * 0.11,
             child: Transform(
               transform: Matrix4.identity()
                 ..setEntry(3, 2, 0.001)
                 ..rotateY(-0.18),
               alignment: Alignment.center,
-              child: Container(
-                width: 30,
-                height: 36,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(7),
-                    bottomLeft: Radius.circular(8),
-                    topRight: Radius.circular(3),
-                    bottomRight: Radius.circular(3),
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 9, 5, 7),
-                  child: Column(
-                    children: [
-                      _bookLine(18),
-                      const SizedBox(height: 4),
-                      _bookLine(14),
-                      const SizedBox(height: 4),
-                      _bookLine(17),
-                    ],
-                  ),
-                ),
+              child: _BookPage(
+                width: size * 0.38,
+                height: size * 0.46,
+                leftPage: true,
               ),
             ),
           ),
 
           Positioned(
-            right: 8,
-            bottom: 9,
+            right: size * 0.10,
+            bottom: size * 0.11,
             child: Transform(
               transform: Matrix4.identity()
                 ..setEntry(3, 2, 0.001)
                 ..rotateY(0.18),
               alignment: Alignment.center,
-              child: Container(
-                width: 30,
-                height: 36,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.only(
-                    topRight: Radius.circular(7),
-                    bottomRight: Radius.circular(8),
-                    topLeft: Radius.circular(3),
-                    bottomLeft: Radius.circular(3),
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(5, 9, 8, 7),
-                  child: Column(
-                    children: [
-                      _bookLine(18),
-                      const SizedBox(height: 4),
-                      _bookLine(14),
-                      const SizedBox(height: 4),
-                      _bookLine(17),
-                    ],
-                  ),
-                ),
+              child: _BookPage(
+                width: size * 0.38,
+                height: size * 0.46,
+                leftPage: false,
               ),
             ),
           ),
@@ -553,8 +555,8 @@ class _BookAIIcon extends StatelessWidget {
           Positioned(
             top: 0,
             child: Container(
-              width: 31,
-              height: 31,
+              width: size * 0.40,
+              height: size * 0.40,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: const LinearGradient(
@@ -572,10 +574,10 @@ class _BookAIIcon extends StatelessWidget {
                   ),
                 ],
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.auto_awesome_rounded,
                 color: Colors.white,
-                size: 17,
+                size: size * 0.22,
               ),
             ),
           ),
@@ -583,12 +585,58 @@ class _BookAIIcon extends StatelessWidget {
       ),
     );
   }
+}
 
-  static Widget _bookLine(double width) {
+class _BookPage extends StatelessWidget {
+  final double width;
+  final double height;
+  final bool leftPage;
+
+  const _BookPage({
+    required this.width,
+    required this.height,
+    required this.leftPage,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(leftPage ? width * 0.22 : width * 0.10),
+          bottomLeft: Radius.circular(leftPage ? width * 0.25 : width * 0.10),
+          topRight: Radius.circular(leftPage ? width * 0.10 : width * 0.22),
+          bottomRight: Radius.circular(leftPage ? width * 0.10 : width * 0.25),
+        ),
+      ),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          width * 0.22,
+          height * 0.25,
+          width * 0.16,
+          height * 0.16,
+        ),
+        child: Column(
+          children: [
+            _bookLine(width * 0.58),
+            SizedBox(height: height * 0.10),
+            _bookLine(width * 0.45),
+            SizedBox(height: height * 0.10),
+            _bookLine(width * 0.55),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _bookLine(double lineWidth) {
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
-        width: width,
+        width: lineWidth,
         height: 2,
         decoration: BoxDecoration(
           color: const Color(0xFF2563EB).withValues(alpha: 0.40),
@@ -604,20 +652,25 @@ class _AppTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final titleSize = (width * 0.075).clamp(26.0, 35.0);
+    final masterSize = (width * 0.064).clamp(22.0, 30.0);
+
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        const Text(
+        Text(
           'IELTS AI',
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: Color(0xFFF8FAFC),
-            fontSize: 34,
+            color: const Color(0xFFF8FAFC),
+            fontSize: titleSize,
             height: 1,
             fontWeight: FontWeight.w800,
-            letterSpacing: -1.1,
+            letterSpacing: -1.0,
           ),
         ),
-        const SizedBox(height: 5),
+        const SizedBox(height: 6),
         ShaderMask(
           blendMode: BlendMode.srcIn,
           shaderCallback: (bounds) {
@@ -625,14 +678,15 @@ class _AppTitle extends StatelessWidget {
               colors: [Color(0xFF60A5FA), Color(0xFF22D3EE), Color(0xFFA78BFA)],
             ).createShader(bounds);
           },
-          child: const Text(
+          child: Text(
             'MASTER',
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 29,
+              color: Colors.white,
+              fontSize: masterSize,
               height: 1,
               fontWeight: FontWeight.w800,
-              letterSpacing: 5,
+              letterSpacing: 4.5,
             ),
           ),
         ),
@@ -664,44 +718,47 @@ class _FeatureBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.045),
-        borderRadius: BorderRadius.circular(100),
-        border: Border.all(
-          color: const Color(0xFF38BDF8).withValues(alpha: 0.20),
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.045),
+          borderRadius: BorderRadius.circular(100),
+          border: Border.all(
+            color: const Color(0xFF38BDF8).withValues(alpha: 0.20),
+          ),
         ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 7,
-            height: 7,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: const Color(0xFF22D3EE),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF22D3EE).withValues(alpha: 0.55),
-                  blurRadius: 8,
-                  spreadRadius: 1,
-                ),
-              ],
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF22D3EE),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF22D3EE).withValues(alpha: 0.55),
+                    blurRadius: 8,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            'ADAPTIVE  •  INTELLIGENT  •  PERSONALIZED',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.65),
-              fontSize: 8.5,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.85,
+            const SizedBox(width: 8),
+            Text(
+              'ADAPTIVE  •  INTELLIGENT  •  PERSONALIZED',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.65),
+                fontSize: 8.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.80,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -738,7 +795,7 @@ class _PremiumLoadingIndicatorState extends State<_PremiumLoadingIndicator>
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 74,
+      width: 84,
       height: 5,
       child: AnimatedBuilder(
         animation: _controller,
@@ -754,7 +811,7 @@ class _PremiumLoadingIndicatorState extends State<_PremiumLoadingIndicator>
               Align(
                 alignment: Alignment((_controller.value * 2) - 1, 0),
                 child: Container(
-                  width: 24,
+                  width: 28,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
                     gradient: const LinearGradient(

@@ -7,8 +7,6 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 
-
-
 class ListeningScreen extends StatelessWidget {
   const ListeningScreen({super.key});
 
@@ -24,8 +22,9 @@ class ListeningScreen extends StatelessWidget {
       );
     }
 
-    final userRef =
-        FirebaseFirestore.instance.collection('users').doc(user.uid);
+    final userRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid);
 
     return Scaffold(
       backgroundColor: LColors.bg,
@@ -52,7 +51,8 @@ class ListeningScreen extends StatelessWidget {
                       .limit(5)
                       .snapshots(),
                   builder: (context, resultSnapshot) {
-                    final results = resultSnapshot.data?.docs
+                    final results =
+                        resultSnapshot.data?.docs
                             .map(ListeningRecentResult.fromDocument)
                             .toList() ??
                         [];
@@ -64,9 +64,7 @@ class ListeningScreen extends StatelessWidget {
                                 ? results.first.estimatedBand
                                 : 0),
                       ),
-                      weakTypes: _asStringList(
-                        userData['weakQuestionTypes'],
-                      ),
+                      weakTypes: _asStringList(userData['weakQuestionTypes']),
                       recentResults: results,
                     );
                   },
@@ -136,25 +134,19 @@ class _ListeningHome extends StatelessWidget {
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 18),
           sliver: SliverGrid(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final mode = ListeningMode.values[index];
-                return _ModeCard(
-                  mode: mode,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ListeningTestBrowserScreen(
-                        mode: mode,
-                      ),
-                    ),
+            delegate: SliverChildBuilderDelegate((context, index) {
+              final mode = ListeningMode.values[index];
+              return _ModeCard(
+                mode: mode,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ListeningTestBrowserScreen(mode: mode),
                   ),
-                );
-              },
-              childCount: ListeningMode.values.length,
-            ),
-            gridDelegate:
-                const SliverGridDelegateWithFixedCrossAxisCount(
+                ),
+              );
+            }, childCount: ListeningMode.values.length),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
               mainAxisSpacing: 11,
               crossAxisSpacing: 11,
@@ -174,30 +166,25 @@ class _ListeningHome extends StatelessWidget {
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 18),
           sliver: SliverGrid(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final type = ListeningQuestionType.values[index];
-                final weak = effectiveWeakTypes
-                    .map((e) => e.toLowerCase())
-                    .contains(type.label.toLowerCase());
+            delegate: SliverChildBuilderDelegate((context, index) {
+              final type = ListeningQuestionType.values[index];
+              final weak = effectiveWeakTypes
+                  .map((e) => e.toLowerCase())
+                  .contains(type.label.toLowerCase());
 
-                return _QuestionTypeCard(
-                  type: type,
-                  weak: weak,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ListeningTestBrowserScreen(
-                        questionType: type.label,
-                      ),
-                    ),
+              return _QuestionTypeCard(
+                type: type,
+                weak: weak,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        ListeningTestBrowserScreen(questionType: type.label),
                   ),
-                );
-              },
-              childCount: ListeningQuestionType.values.length,
-            ),
-            gridDelegate:
-                const SliverGridDelegateWithFixedCrossAxisCount(
+                ),
+              );
+            }, childCount: ListeningQuestionType.values.length),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
               mainAxisSpacing: 10,
               crossAxisSpacing: 10,
@@ -228,8 +215,7 @@ class _ListeningHome extends StatelessWidget {
                   itemCount: recentResults.length,
                   itemBuilder: (_, index) =>
                       _RecentResultCard(result: recentResults[index]),
-                  separatorBuilder: (_, __) =>
-                      const SizedBox(height: 10),
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
                 ),
         ),
       ],
@@ -237,36 +223,300 @@ class _ListeningHome extends StatelessWidget {
   }
 }
 
-class ListeningTestBrowserScreen extends StatelessWidget {
+class ListeningTestBrowserScreen extends StatefulWidget {
   final ListeningMode? mode;
   final String? questionType;
 
-  const ListeningTestBrowserScreen({
-    super.key,
-    this.mode,
-    this.questionType,
-  });
+  const ListeningTestBrowserScreen({super.key, this.mode, this.questionType});
 
-  Query<Map<String, dynamic>> _query() {
-    Query<Map<String, dynamic>> query = FirebaseFirestore.instance
-        .collection('listening_tests')
-        .where('isPublished', isEqualTo: true);
+  @override
+  State<ListeningTestBrowserScreen> createState() =>
+      _ListeningTestBrowserScreenState();
+}
 
-    if (questionType != null) {
-      query = query.where('questionType', isEqualTo: questionType);
-    } else if (mode?.section != null) {
-      query = query.where('section', isEqualTo: mode!.section);
-    } else if (mode != null) {
-      query = query.where('mode', isEqualTo: mode!.firestoreValue);
+class _ListeningTestBrowserScreenState extends State<ListeningTestBrowserScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _animationController;
+  late final Animation<double> _pulseAnimation;
+
+  String? _error;
+  bool _loading = true;
+  int _availableCount = 0;
+
+  String get _title =>
+      widget.questionType ?? widget.mode?.label ?? 'Listening Practice';
+
+  String get _subtitle {
+    if (widget.questionType != null) {
+      return 'Preparing a ${widget.questionType} activity';
     }
 
-    return query.orderBy('order');
+    if (widget.mode?.section != null) {
+      return 'Preparing IELTS Listening Section ${widget.mode!.section}';
+    }
+
+    return 'Finding the best published listening test for you';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat(reverse: true);
+
+    _pulseAnimation = Tween<double>(begin: .92, end: 1.08).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
+
+    _loadAndOpenTest();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadAndOpenTest() async {
+    if (!mounted) return;
+
+    setState(() {
+      _loading = true;
+      _error = null;
+      _availableCount = 0;
+    });
+
+    final minimumLoading = Future<void>.delayed(
+      const Duration(milliseconds: 1100),
+    );
+
+    try {
+      final tests = await _fetchMatchingTests();
+      await minimumLoading;
+
+      if (!mounted) return;
+
+      if (tests.isEmpty) {
+        setState(() {
+          _loading = false;
+          _error =
+              'No published audio-ready test is available for this selection.';
+        });
+        return;
+      }
+
+      _availableCount = tests.length;
+
+      if (widget.mode == ListeningMode.full) {
+        final fullMockTests = await _selectFullMockTests(tests);
+
+        if (!mounted) return;
+
+        if (fullMockTests.length != 4) {
+          setState(() {
+            _loading = false;
+            _error =
+                'Full Listening Test requires one published, audio-ready exam test for each Section 1–4.';
+          });
+          return;
+        }
+
+        await Navigator.pushReplacement(
+          context,
+          PageRouteBuilder<void>(
+            transitionDuration: const Duration(milliseconds: 450),
+            reverseTransitionDuration: const Duration(milliseconds: 300),
+            pageBuilder: (_, animation, __) => FadeTransition(
+              opacity: CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+              ),
+              child: FullListeningPracticeScreen(tests: fullMockTests),
+            ),
+          ),
+        );
+        return;
+      }
+
+      final selectedTest = await _selectBestTest(tests);
+
+      if (!mounted) return;
+
+      await Navigator.pushReplacement(
+        context,
+        PageRouteBuilder<void>(
+          transitionDuration: const Duration(milliseconds: 450),
+          reverseTransitionDuration: const Duration(milliseconds: 300),
+          pageBuilder: (_, animation, __) => FadeTransition(
+            opacity: CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            ),
+            child: ListeningPracticeScreen(test: selectedTest),
+          ),
+        ),
+      );
+    } on FirebaseException catch (error) {
+      await minimumLoading;
+
+      if (!mounted) return;
+
+      setState(() {
+        _loading = false;
+        _error = error.code == 'permission-denied'
+            ? 'You do not have permission to load listening tests.'
+            : 'Listening tests could not be loaded. Please try again.';
+      });
+    } catch (_) {
+      await minimumLoading;
+
+      if (!mounted) return;
+
+      setState(() {
+        _loading = false;
+        _error = 'Something went wrong while preparing your test.';
+      });
+    }
+  }
+
+  Future<List<ListeningTest>> _fetchMatchingTests() async {
+    try {
+      Query<Map<String, dynamic>> query = FirebaseFirestore.instance
+          .collection('listening_tests')
+          .where('status', isEqualTo: 'published')
+          .where('audioStatus', isEqualTo: 'ready');
+
+      if (widget.questionType != null) {
+        query = query.where('questionType', isEqualTo: widget.questionType);
+      } else if (widget.mode?.section != null) {
+        query = query.where('section', isEqualTo: widget.mode!.section);
+      } else if (widget.mode != null) {
+        query = query.where(
+          'mode',
+          isEqualTo: widget.mode == ListeningMode.full
+              ? 'exam'
+              : widget.mode!.firestoreValue,
+        );
+      }
+
+      final snapshot = await query
+          .limit(widget.mode == ListeningMode.full ? 120 : 40)
+          .get();
+
+      return snapshot.docs
+          .map(ListeningTest.fromDocument)
+          .where(_isUsableTest)
+          .toList();
+    } on FirebaseException catch (error) {
+      if (error.code != 'failed-precondition') rethrow;
+
+      // Safe fallback while a composite Firestore index is being created.
+      final snapshot = await FirebaseFirestore.instance
+          .collection('listening_tests')
+          .where('status', isEqualTo: 'published')
+          .limit(200)
+          .get();
+
+      return snapshot.docs
+          .where((doc) => _matchesSelection(doc.data()))
+          .map(ListeningTest.fromDocument)
+          .where(_isUsableTest)
+          .toList();
+    }
+  }
+
+  bool _matchesSelection(Map<String, dynamic> data) {
+    if ((data['audioStatus'] ?? '').toString().toLowerCase() != 'ready') {
+      return false;
+    }
+
+    if (widget.questionType != null) {
+      return (data['questionType'] ?? '').toString() == widget.questionType;
+    }
+
+    if (widget.mode?.section != null) {
+      return _asInt(data['section']) == widget.mode!.section;
+    }
+
+    if (widget.mode != null) {
+      final expectedMode = widget.mode == ListeningMode.full
+          ? 'exam'
+          : widget.mode!.firestoreValue;
+      return (data['mode'] ?? '').toString() == expectedMode;
+    }
+
+    return true;
+  }
+
+  bool _isUsableTest(ListeningTest test) {
+    final hasAudio =
+        (test.audioUrl?.trim().isNotEmpty ?? false) ||
+        (test.audioStoragePath?.trim().isNotEmpty ?? false);
+
+    return hasAudio &&
+        test.questions.isNotEmpty &&
+        test.transcript.trim().isNotEmpty;
+  }
+
+  Future<ListeningTest> _selectBestTest(List<ListeningTest> tests) async {
+    if (tests.length == 1) return tests.first;
+
+    final user = FirebaseAuth.instance.currentUser;
+    final attemptedIds = <String>{};
+
+    if (user != null) {
+      try {
+        final recentResults = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('listening_results')
+            .orderBy('completedAt', descending: true)
+            .limit(20)
+            .get();
+
+        for (final doc in recentResults.docs) {
+          final testId = (doc.data()['testId'] ?? '').toString();
+          if (testId.isNotEmpty) attemptedIds.add(testId);
+        }
+      } catch (_) {
+        // Recent-history lookup is optional; selection still works without it.
+      }
+    }
+
+    final unseenTests = tests
+        .where((test) => !attemptedIds.contains(test.id))
+        .toList();
+
+    final pool = unseenTests.isNotEmpty ? unseenTests : tests;
+    return pool[math.Random.secure().nextInt(pool.length)];
+  }
+
+  Future<List<ListeningTest>> _selectFullMockTests(
+    List<ListeningTest> tests,
+  ) async {
+    final selected = <ListeningTest>[];
+
+    for (int section = 1; section <= 4; section++) {
+      final sectionTests = tests
+          .where((test) => test.section == section)
+          .toList();
+
+      if (sectionTests.isEmpty) {
+        return const <ListeningTest>[];
+      }
+
+      selected.add(await _selectBestTest(sectionTests));
+    }
+
+    selected.sort((a, b) => a.section.compareTo(b.section));
+    return selected;
   }
 
   @override
   Widget build(BuildContext context) {
-    final title = questionType ?? mode?.label ?? 'Listening Tests';
-
     return Scaffold(
       backgroundColor: LColors.bg,
       body: Stack(
@@ -276,69 +526,813 @@ class ListeningTestBrowserScreen extends StatelessWidget {
             child: Column(
               children: [
                 _InnerHeader(
-                  title: title,
-                  subtitle: 'Select a published listening activity',
+                  title: _title,
+                  subtitle: _loading
+                      ? 'Personalizing your next activity'
+                      : 'Listening activity unavailable',
                 ),
                 Expanded(
-                  child: StreamBuilder<
-                      QuerySnapshot<Map<String, dynamic>>>(
-                    stream: _query().snapshots(),
-                    builder: (context, snapshot) {
-                      if (snapshot.hasError) {
-                        return const _MessageScreen(
-                          icon: Icons.cloud_off_rounded,
-                          title: 'Could not load tests',
-                          message:
-                              'Check Firestore rules and create the required index.',
-                          embedded: true,
-                        );
-                      }
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 350),
+                    child: _loading ? _buildLoadingState() : _buildErrorState(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-                      if (!snapshot.hasData) {
-                        return const Center(
-                          child: CircularProgressIndicator(
-                            color: LColors.cyan,
+  Widget _buildLoadingState() {
+    return Center(
+      key: const ValueKey('listening-loading'),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 430),
+          padding: const EdgeInsets.fromLTRB(24, 30, 24, 26),
+          decoration: _heroDecoration(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ScaleTransition(
+                scale: _pulseAnimation,
+                child: Container(
+                  width: 92,
+                  height: 92,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      colors: [LColors.cyan, LColors.violet],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: LColors.cyan.withOpacity(.22),
+                        blurRadius: 30,
+                        spreadRadius: 3,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.headphones_rounded,
+                    color: Colors.white,
+                    size: 44,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                _title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: LColors.text,
+                  fontSize: 21,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 9),
+              Text(
+                _subtitle,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: LColors.secondary,
+                  fontSize: 12,
+                  height: 1.55,
+                ),
+              ),
+              const SizedBox(height: 25),
+              const LinearProgressIndicator(
+                minHeight: 5,
+                borderRadius: BorderRadius.all(Radius.circular(20)),
+                color: LColors.cyan,
+                backgroundColor: LColors.border,
+              ),
+              const SizedBox(height: 21),
+              const _PreparationStep(
+                icon: Icons.cloud_done_outlined,
+                title: 'Loading published test',
+                active: true,
+              ),
+              const SizedBox(height: 11),
+              const _PreparationStep(
+                icon: Icons.graphic_eq_rounded,
+                title: 'Preparing listening audio',
+                active: true,
+              ),
+              const SizedBox(height: 11),
+              const _PreparationStep(
+                icon: Icons.psychology_alt_outlined,
+                title: 'Matching the best activity',
+                active: true,
+              ),
+              const SizedBox(height: 22),
+              const Text(
+                'Your test will start automatically',
+                style: TextStyle(
+                  color: LColors.muted,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      key: const ValueKey('listening-error'),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 430),
+          padding: const EdgeInsets.all(24),
+          decoration: _card(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFFF97316).withOpacity(.12),
+                  border: Border.all(
+                    color: const Color(0xFFF97316).withOpacity(.28),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.headset_off_rounded,
+                  color: Color(0xFFF97316),
+                  size: 34,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'No matching test yet',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: LColors.text,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 9),
+              Text(
+                _error ?? 'Please try another listening activity.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: LColors.secondary,
+                  fontSize: 11.5,
+                  height: 1.55,
+                ),
+              ),
+              if (_availableCount > 0) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '$_availableCount activities were checked.',
+                  style: const TextStyle(color: LColors.muted, fontSize: 10),
+                ),
+              ],
+              const SizedBox(height: 22),
+              SizedBox(
+                width: double.infinity,
+                child: _GradientButton(
+                  title: 'Try Again',
+                  icon: Icons.refresh_rounded,
+                  onPressed: _loadAndOpenTest,
+                ),
+              ),
+              const SizedBox(height: 9),
+              TextButton.icon(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.arrow_back_rounded),
+                label: const Text('Choose another activity'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PreparationStep extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final bool active;
+
+  const _PreparationStep({
+    required this.icon,
+    required this.title,
+    required this.active,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: active ? LColors.cyan.withOpacity(.12) : LColors.surface,
+            border: Border.all(
+              color: active ? LColors.cyan.withOpacity(.3) : LColors.border,
+            ),
+          ),
+          child: Icon(
+            icon,
+            size: 17,
+            color: active ? LColors.cyan : LColors.muted,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            title,
+            style: TextStyle(
+              color: active ? LColors.text : LColors.muted,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        if (active)
+          const Icon(
+            Icons.check_circle_rounded,
+            color: LColors.green,
+            size: 18,
+          ),
+      ],
+    );
+  }
+}
+
+class FullListeningPracticeScreen extends StatefulWidget {
+  final List<ListeningTest> tests;
+
+  const FullListeningPracticeScreen({super.key, required this.tests});
+
+  @override
+  State<FullListeningPracticeScreen> createState() =>
+      _FullListeningPracticeScreenState();
+}
+
+class _FullListeningPracticeScreenState
+    extends State<FullListeningPracticeScreen> {
+  final AudioPlayer _player = AudioPlayer();
+  final PageController _pageController = PageController();
+  final Map<int, String> _answers = {};
+  final Map<int, TextEditingController> _controllers = {};
+  final Map<int, int> _playCounts = {};
+
+  Timer? _timer;
+  late final List<ListeningTest> _tests;
+  late final int _totalDurationSeconds;
+
+  int _sectionIndex = 0;
+  int _currentQuestion = 0;
+  int _remainingSeconds = 0;
+  double _volume = 1;
+  bool _loadingAudio = true;
+  bool _autoScroll = false;
+  bool _submitting = false;
+  String? _audioError;
+
+  ListeningTest get _currentTest => _tests[_sectionIndex];
+
+  int get _questionOffset {
+    int offset = 0;
+    for (int i = 0; i < _sectionIndex; i++) {
+      offset += _tests[i].questions.length;
+    }
+    return offset;
+  }
+
+  int get _globalQuestionIndex => _questionOffset + _currentQuestion;
+
+  int get _totalQuestions =>
+      _tests.fold(0, (total, test) => total + test.questions.length);
+
+  Set<int> get _answeredInCurrentSection {
+    final answered = <int>{};
+    for (int i = 0; i < _currentTest.questions.length; i++) {
+      final value = _answers[_questionOffset + i]?.trim() ?? '';
+      if (value.isNotEmpty) answered.add(i);
+    }
+    return answered;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    _tests = [...widget.tests]..sort((a, b) => a.section.compareTo(b.section));
+
+    _totalDurationSeconds = _tests.fold(
+      0,
+      (total, test) => total + test.durationSeconds,
+    );
+    _remainingSeconds = _totalDurationSeconds;
+
+    int globalIndex = 0;
+    for (final test in _tests) {
+      for (final question in test.questions) {
+        if (question.options.isEmpty) {
+          _controllers[globalIndex] = TextEditingController();
+        }
+        globalIndex++;
+      }
+    }
+
+    _loadCurrentAudio();
+    _startTimer();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _player.dispose();
+    _pageController.dispose();
+
+    for (final controller in _controllers.values) {
+      controller.dispose();
+    }
+
+    super.dispose();
+  }
+
+  void _startTimer() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
+
+      if (_remainingSeconds <= 1) {
+        timer.cancel();
+        setState(() => _remainingSeconds = 0);
+        _submitFullTest();
+      } else {
+        setState(() => _remainingSeconds--);
+      }
+    });
+  }
+
+  Future<void> _loadCurrentAudio() async {
+    if (mounted) {
+      setState(() {
+        _loadingAudio = true;
+        _audioError = null;
+      });
+    }
+
+    try {
+      await _player.stop();
+
+      String? url = _currentTest.audioUrl;
+
+      if ((url == null || url.isEmpty) &&
+          _currentTest.audioStoragePath != null) {
+        url = await FirebaseStorage.instance
+            .ref(_currentTest.audioStoragePath!)
+            .getDownloadURL();
+      }
+
+      if (url == null || url.isEmpty) {
+        throw Exception(
+          'Section ${_currentTest.section} audio is unavailable.',
+        );
+      }
+
+      await _player.setUrl(url);
+      await _player.setVolume(_volume);
+    } catch (error) {
+      _audioError = error.toString();
+    } finally {
+      if (mounted) {
+        setState(() => _loadingAudio = false);
+      }
+    }
+  }
+
+  Future<void> _togglePlay() async {
+    if (_loadingAudio || _audioError != null) return;
+
+    if (_player.playing) {
+      await _player.pause();
+      return;
+    }
+
+    final section = _currentTest.section;
+    final playCount = _playCounts[section] ?? 0;
+
+    if (_player.processingState == ProcessingState.completed) {
+      _snack('Audio replay is disabled in Full Test mode.');
+      return;
+    }
+
+    if (_player.position == Duration.zero && playCount > 0) {
+      _snack('Section audio can only be played once.');
+      return;
+    }
+
+    if (_player.position == Duration.zero) {
+      _playCounts[section] = playCount + 1;
+    }
+
+    await _player.play();
+
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _goToQuestion(int index) async {
+    if (index < 0 || index >= _currentTest.questions.length) return;
+
+    await _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  Future<void> _changeSection(int newSectionIndex) async {
+    if (newSectionIndex < 0 || newSectionIndex >= _tests.length) return;
+
+    await _player.pause();
+
+    setState(() {
+      _sectionIndex = newSectionIndex;
+      _currentQuestion = 0;
+    });
+
+    if (_pageController.hasClients) {
+      _pageController.jumpToPage(0);
+    }
+
+    await _loadCurrentAudio();
+  }
+
+  Future<void> _next() async {
+    if (_currentQuestion < _currentTest.questions.length - 1) {
+      await _goToQuestion(_currentQuestion + 1);
+      return;
+    }
+
+    if (_sectionIndex < _tests.length - 1) {
+      await _changeSection(_sectionIndex + 1);
+      return;
+    }
+
+    await _submitFullTest();
+  }
+
+  Future<void> _back() async {
+    if (_currentQuestion > 0) {
+      await _goToQuestion(_currentQuestion - 1);
+      return;
+    }
+
+    if (_sectionIndex > 0) {
+      final previousSectionIndex = _sectionIndex - 1;
+      await _player.pause();
+
+      setState(() {
+        _sectionIndex = previousSectionIndex;
+        _currentQuestion = _tests[previousSectionIndex].questions.length - 1;
+      });
+
+      if (_pageController.hasClients) {
+        _pageController.jumpToPage(_currentQuestion);
+      }
+
+      await _loadCurrentAudio();
+    }
+  }
+
+  ListeningTest _buildCombinedTest() {
+    final combinedQuestions = <ListeningQuestion>[];
+    int number = 1;
+
+    for (final test in _tests) {
+      for (final question in test.questions) {
+        combinedQuestions.add(
+          ListeningQuestion(
+            number: number,
+            section: test.section,
+            type: question.type,
+            prompt: question.prompt,
+            options: question.options,
+            correctAnswer: question.correctAnswer,
+            acceptedAnswers: question.acceptedAnswers,
+            explanation: question.explanation,
+            keywords: question.keywords,
+          ),
+        );
+        number++;
+      }
+    }
+
+    return ListeningTest(
+      id: _tests.map((test) => test.id).join('_'),
+      title: 'Full IELTS Listening Test',
+      description:
+          'Complete IELTS Listening mock containing Sections 1, 2, 3 and 4.',
+      mode: 'full',
+      section: 0,
+      accent: _tests.map((test) => test.accent).toSet().join(', '),
+      difficulty: _tests.first.difficulty,
+      durationSeconds: _totalDurationSeconds,
+      audioUrl: null,
+      audioStoragePath: null,
+      transcript: _tests
+          .map(
+            (test) =>
+                'SECTION ${test.section}: ${test.title}\n\n${test.transcript}',
+          )
+          .join('\n\n'),
+      questions: combinedQuestions,
+    );
+  }
+
+  Future<void> _submitFullTest() async {
+    if (_submitting) return;
+
+    for (final entry in _controllers.entries) {
+      _answers[entry.key] = entry.value.text.trim();
+    }
+
+    setState(() => _submitting = true);
+
+    _timer?.cancel();
+    await _player.pause();
+
+    final combinedTest = _buildCombinedTest();
+    final result = ListeningResultCalculator.calculate(
+      test: combinedTest,
+      answers: _answers,
+      durationUsedSeconds: _totalDurationSeconds - _remainingSeconds,
+    );
+
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user != null) {
+      try {
+        final ref = FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('listening_results')
+            .doc();
+
+        await ref.set({
+          'resultId': ref.id,
+          'testId': combinedTest.id,
+          'testIds': _tests.map((test) => test.id).toList(),
+          'title': combinedTest.title,
+          'mode': 'full',
+          'rawScore': result.rawScore,
+          'totalQuestions': result.totalQuestions,
+          'estimatedBand': result.estimatedBand,
+          'accuracyPercent': result.accuracyPercent,
+          'sectionAccuracy': result.sectionAccuracy,
+          'questionTypeAccuracy': result.questionTypeAccuracy,
+          'spellingMistakes': result.spellingMistakes,
+          'missedKeywords': result.missedKeywords,
+          'durationUsedSeconds': result.durationUsedSeconds,
+          'completedAt': FieldValue.serverTimestamp(),
+        });
+
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'listeningBand': result.estimatedBand,
+          'weakQuestionTypes': result.weakQuestionTypes,
+          'lastListeningTestAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (_) {
+        // Result screen still opens if result persistence temporarily fails.
+      }
+    }
+
+    if (!mounted) return;
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            ListeningResultScreen(test: combinedTest, result: result),
+      ),
+    );
+  }
+
+  void _snack(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(behavior: SnackBarBehavior.floating, content: Text(message)),
+      );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final globalIndex = _globalQuestionIndex;
+
+    return Scaffold(
+      backgroundColor: LColors.bg,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: _Background()),
+          SafeArea(
+            child: Column(
+              children: [
+                _PracticeHeader(
+                  title:
+                      'Full Listening Test • Section ${_currentTest.section}',
+                  current: globalIndex,
+                  total: _totalQuestions,
+                  seconds: _remainingSeconds,
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Row(
+                    children: List.generate(_tests.length, (index) {
+                      final selected = index == _sectionIndex;
+                      final completed = index < _sectionIndex;
+
+                      return Expanded(
+                        child: Container(
+                          height: 5,
+                          margin: EdgeInsets.only(
+                            right: index == _tests.length - 1 ? 0 : 7,
                           ),
-                        );
-                      }
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            color: selected || completed
+                                ? LColors.cyan
+                                : LColors.border,
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+                _AudioPlayerCard(
+                  player: _player,
+                  loading: _loadingAudio,
+                  error: _audioError,
+                  examMode: true,
+                  learningMode: false,
+                  volume: _volume,
+                  speed: 1,
+                  onPlay: _togglePlay,
+                  onVolumeChanged: (value) async {
+                    setState(() => _volume = value);
+                    await _player.setVolume(value);
+                  },
+                  onSpeedChanged: (_) {},
+                ),
+                _QuestionNav(
+                  total: _currentTest.questions.length,
+                  current: _currentQuestion,
+                  answered: _answeredInCurrentSection,
+                  autoScroll: _autoScroll,
+                  onAutoScroll: (value) => setState(() => _autoScroll = value),
+                  onTap: _goToQuestion,
+                ),
+                Expanded(
+                  child: PageView.builder(
+                    controller: _pageController,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _currentTest.questions.length,
+                    onPageChanged: (index) {
+                      setState(() => _currentQuestion = index);
+                    },
+                    itemBuilder: (_, index) {
+                      final localQuestion = _currentTest.questions[index];
+                      final answerIndex = _questionOffset + index;
 
-                      final tests = snapshot.data!.docs
-                          .map(ListeningTest.fromDocument)
-                          .toList();
-
-                      if (tests.isEmpty) {
-                        return _MessageScreen(
-                          icon: Icons.headphones_rounded,
-                          title: 'No tests available',
-                          message:
-                              'Publish matching listening tests in Firestore.',
-                          embedded: true,
-                        );
-                      }
-
-                      return ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
-                        itemCount: tests.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: 11),
-                        itemBuilder: (_, index) {
-                          final test = tests[index];
-                          return _TestCard(
-                            test: test,
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    ListeningPracticeScreen(test: test),
-                              ),
+                      return SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(18, 14, 18, 26),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _FullSectionBanner(
+                              section: _currentTest.section,
+                              title: _currentTest.title,
+                              questionNumber: answerIndex + 1,
+                              totalQuestions: _totalQuestions,
                             ),
-                          );
-                        },
+                            const SizedBox(height: 12),
+                            _QuestionCard(
+                              question: localQuestion,
+                              selected: _answers[answerIndex],
+                              controller: _controllers[answerIndex],
+                              onSelected: (answer) {
+                                setState(() {
+                                  _answers[answerIndex] = answer;
+                                });
+
+                                if (_autoScroll &&
+                                    index < _currentTest.questions.length - 1) {
+                                  Future.delayed(
+                                    const Duration(milliseconds: 220),
+                                    () => _goToQuestion(index + 1),
+                                  );
+                                }
+                              },
+                              onTextChanged: (value) {
+                                _answers[answerIndex] = value.trim();
+                              },
+                            ),
+                          ],
+                        ),
                       );
                     },
                   ),
                 ),
+                _BottomBar(
+                  current: globalIndex,
+                  total: _totalQuestions,
+                  loading: _submitting,
+                  onBack: globalIndex > 0 ? () => _back() : null,
+                  onNext: _next,
+                ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FullSectionBanner extends StatelessWidget {
+  final int section;
+  final String title;
+  final int questionNumber;
+  final int totalQuestions;
+
+  const _FullSectionBanner({
+    required this.section,
+    required this.title,
+    required this.questionNumber,
+    required this.totalQuestions,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: LColors.cyan.withOpacity(.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: LColors.cyan.withOpacity(.22)),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: LColors.cyan.withOpacity(.15),
+            child: Text(
+              '$section',
+              style: const TextStyle(
+                color: LColors.cyan,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Section $section',
+                  style: const TextStyle(
+                    color: LColors.text,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: LColors.muted, fontSize: 9.5),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '$questionNumber/$totalQuestions',
+            style: const TextStyle(
+              color: LColors.cyan,
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
             ),
           ),
         ],
@@ -350,18 +1344,14 @@ class ListeningTestBrowserScreen extends StatelessWidget {
 class ListeningPracticeScreen extends StatefulWidget {
   final ListeningTest test;
 
-  const ListeningPracticeScreen({
-    super.key,
-    required this.test,
-  });
+  const ListeningPracticeScreen({super.key, required this.test});
 
   @override
   State<ListeningPracticeScreen> createState() =>
       _ListeningPracticeScreenState();
 }
 
-class _ListeningPracticeScreenState
-    extends State<ListeningPracticeScreen> {
+class _ListeningPracticeScreenState extends State<ListeningPracticeScreen> {
   final AudioPlayer _player = AudioPlayer();
   final PageController _pageController = PageController();
   final Map<int, String> _answers = {};
@@ -498,8 +1488,7 @@ class _ListeningPracticeScreenState
     final result = ListeningResultCalculator.calculate(
       test: widget.test,
       answers: _answers,
-      durationUsedSeconds:
-          widget.test.durationSeconds - _remainingSeconds,
+      durationUsedSeconds: widget.test.durationSeconds - _remainingSeconds,
     );
 
     final user = FirebaseAuth.instance.currentUser;
@@ -528,10 +1517,7 @@ class _ListeningPracticeScreenState
           'completedAt': FieldValue.serverTimestamp(),
         });
 
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .set({
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
           'listeningBand': result.estimatedBand,
           'weakQuestionTypes': result.weakQuestionTypes,
           'lastListeningTestAt': FieldValue.serverTimestamp(),
@@ -545,10 +1531,8 @@ class _ListeningPracticeScreenState
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => ListeningResultScreen(
-          test: widget.test,
-          result: result,
-        ),
+        builder: (_) =>
+            ListeningResultScreen(test: widget.test, result: result),
       ),
     );
   }
@@ -557,10 +1541,7 @@ class _ListeningPracticeScreenState
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Text(message),
-        ),
+        SnackBar(behavior: SnackBarBehavior.floating, content: Text(message)),
       );
   }
 
@@ -604,8 +1585,7 @@ class _ListeningPracticeScreenState
                   current: _current,
                   answered: _answers.keys.toSet(),
                   autoScroll: _autoScroll,
-                  onAutoScroll: (value) =>
-                      setState(() => _autoScroll = value),
+                  onAutoScroll: (value) => setState(() => _autoScroll = value),
                   onTap: _goTo,
                 ),
                 Expanded(
@@ -613,14 +1593,12 @@ class _ListeningPracticeScreenState
                     controller: _pageController,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: widget.test.questions.length,
-                    onPageChanged: (index) =>
-                        setState(() => _current = index),
+                    onPageChanged: (index) => setState(() => _current = index),
                     itemBuilder: (_, index) {
                       final question = widget.test.questions[index];
 
                       return SingleChildScrollView(
-                        padding:
-                            const EdgeInsets.fromLTRB(18, 14, 18, 26),
+                        padding: const EdgeInsets.fromLTRB(18, 14, 18, 26),
                         child: _QuestionCard(
                           question: question,
                           selected: _answers[index],
@@ -628,8 +1606,7 @@ class _ListeningPracticeScreenState
                           onSelected: (answer) {
                             setState(() => _answers[index] = answer);
                             if (_autoScroll &&
-                                index <
-                                    widget.test.questions.length - 1) {
+                                index < widget.test.questions.length - 1) {
                               Future.delayed(
                                 const Duration(milliseconds: 220),
                                 () => _goTo(index + 1),
@@ -700,10 +1677,7 @@ class ListeningResultScreen extends StatelessWidget {
                 ...result.sectionAccuracy.entries.map(
                   (entry) => Padding(
                     padding: const EdgeInsets.only(bottom: 9),
-                    child: _AccuracyCard(
-                      title: entry.key,
-                      value: entry.value,
-                    ),
+                    child: _AccuracyCard(title: entry.key, value: entry.value),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -740,10 +1714,7 @@ class ListeningResultScreen extends StatelessWidget {
                   icon: Icons.headphones_rounded,
                   onPressed: () => Navigator.pushAndRemoveUntil(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          const ListeningScreen(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const ListeningScreen()),
                     (route) => route.isFirst,
                   ),
                 ),
@@ -828,14 +1799,13 @@ class ListeningTest {
       section: _asInt(data['section']),
       accent: (data['accent'] ?? 'British').toString(),
       difficulty: (data['difficulty'] ?? 'Intermediate').toString(),
-      durationSeconds:
-          _asInt(data['durationSeconds'], fallback: 1800),
+      durationSeconds: _asInt(data['durationSeconds'], fallback: 1800),
       audioUrl: _nullableString(data['audioUrl']),
       audioStoragePath: _nullableString(data['audioStoragePath']),
       transcript: (data['transcript'] ?? '').toString(),
-      questions: _asList(data['questions'])
-          .map((item) => ListeningQuestion.fromMap(_asMap(item)))
-          .toList(),
+      questions: _asList(
+        data['questions'],
+      ).map((item) => ListeningQuestion.fromMap(_asMap(item))).toList(),
     );
   }
 }
@@ -873,8 +1843,9 @@ class ListeningQuestion {
       prompt: (map['prompt'] ?? '').toString(),
       options: _asStringList(map['options']),
       correctAnswer: (map['correctAnswer'] ?? '').toString(),
-      acceptedAnswers:
-          accepted.isEmpty ? [(map['correctAnswer'] ?? '').toString()] : accepted,
+      acceptedAnswers: accepted.isEmpty
+          ? [(map['correctAnswer'] ?? '').toString()]
+          : accepted,
       explanation: (map['explanation'] ?? '').toString(),
       keywords: _asStringList(map['keywords']),
     );
@@ -937,8 +1908,7 @@ class ListeningResultCalculator {
 
       if (correct) {
         score++;
-        sectionCorrect[q.section] =
-            (sectionCorrect[q.section] ?? 0) + 1;
+        sectionCorrect[q.section] = (sectionCorrect[q.section] ?? 0) + 1;
         typeCorrect[q.type] = (typeCorrect[q.type] ?? 0) + 1;
       } else {
         if (_near(answer, q.correctAnswer)) {
@@ -960,8 +1930,7 @@ class ListeningResultCalculator {
 
     final typeAccuracy = <String, int>{};
     typeTotal.forEach((type, total) {
-      typeAccuracy[type] =
-          (((typeCorrect[type] ?? 0) / total) * 100).round();
+      typeAccuracy[type] = (((typeCorrect[type] ?? 0) / total) * 100).round();
     });
 
     final weakTypes = typeAccuracy.entries
@@ -987,10 +1956,8 @@ class ListeningResultCalculator {
     );
   }
 
-  static String _normalize(String value) => value
-      .toLowerCase()
-      .trim()
-      .replaceAll(RegExp(r'[^a-z0-9]'), '');
+  static String _normalize(String value) =>
+      value.toLowerCase().trim().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
   static bool _near(String a, String b) {
     if (a.isEmpty || b.isEmpty) return false;
@@ -1021,22 +1988,62 @@ class ListeningResultCalculator {
 }
 
 enum ListeningMode {
-  section1('Section 1', 'section', 1, Icons.looks_one_rounded,
-      'Social conversation'),
-  section2('Section 2', 'section', 2, Icons.looks_two_rounded,
-      'Social monologue'),
-  section3('Section 3', 'section', 3, Icons.looks_3_rounded,
-      'Academic discussion'),
-  section4('Section 4', 'section', 4, Icons.looks_4_rounded,
-      'Academic lecture'),
-  timed('Timed Listening', 'timed', null, Icons.timer_outlined,
-      'Practice with a timer'),
-  full('Full Listening Test', 'full', null, Icons.assignment_outlined,
-      'Complete 40 questions'),
-  accent('Accent Training', 'accent', null,
-      Icons.record_voice_over_rounded, 'British, Australian and more'),
-  learning('Learning Mode', 'learning', null, Icons.school_outlined,
-      'Replay and speed control');
+  section1(
+    'Section 1',
+    'section',
+    1,
+    Icons.looks_one_rounded,
+    'Social conversation',
+  ),
+  section2(
+    'Section 2',
+    'section',
+    2,
+    Icons.looks_two_rounded,
+    'Social monologue',
+  ),
+  section3(
+    'Section 3',
+    'section',
+    3,
+    Icons.looks_3_rounded,
+    'Academic discussion',
+  ),
+  section4(
+    'Section 4',
+    'section',
+    4,
+    Icons.looks_4_rounded,
+    'Academic lecture',
+  ),
+  timed(
+    'Timed Listening',
+    'timed',
+    null,
+    Icons.timer_outlined,
+    'Practice with a timer',
+  ),
+  full(
+    'Full Listening Test',
+    'full',
+    null,
+    Icons.assignment_outlined,
+    'Complete 40 questions',
+  ),
+  accent(
+    'Accent Training',
+    'accent',
+    null,
+    Icons.record_voice_over_rounded,
+    'British, Australian and more',
+  ),
+  learning(
+    'Learning Mode',
+    'learning',
+    null,
+    Icons.school_outlined,
+    'Replay and speed control',
+  );
 
   final String label;
   final String firestoreValue;
@@ -1096,10 +2103,7 @@ class _Header extends StatelessWidget {
               SizedBox(height: 4),
               Text(
                 'Real-time IELTS listening practice and analytics',
-                style: TextStyle(
-                  color: LColors.muted,
-                  fontSize: 10.5,
-                ),
+                style: TextStyle(color: LColors.muted, fontSize: 10.5),
               ),
             ],
           ),
@@ -1129,10 +2133,7 @@ class _BandCard extends StatelessWidget {
               shape: BoxShape.circle,
               border: Border.all(color: LColors.cyan, width: 8),
               boxShadow: [
-                BoxShadow(
-                  color: LColors.cyan.withOpacity(.2),
-                  blurRadius: 20,
-                )
+                BoxShadow(color: LColors.cyan.withOpacity(.2), blurRadius: 20),
               ],
             ),
             child: Text(
@@ -1204,8 +2205,7 @@ class _WeakTypesCard extends StatelessWidget {
                 .map(
                   (type) => Chip(
                     label: Text(type),
-                    backgroundColor:
-                        const Color(0xFFF97316).withOpacity(.12),
+                    backgroundColor: const Color(0xFFF97316).withOpacity(.12),
                     side: BorderSide(
                       color: const Color(0xFFF97316).withOpacity(.25),
                     ),
@@ -1260,10 +2260,7 @@ class _RecommendedLessonCard extends StatelessWidget {
                 SizedBox(height: 4),
                 Text(
                   'Improve direction vocabulary and location prediction.',
-                  style: TextStyle(
-                    color: LColors.secondary,
-                    fontSize: 9.8,
-                  ),
+                  style: TextStyle(color: LColors.secondary, fontSize: 9.8),
                 ),
               ],
             ),
@@ -1279,10 +2276,7 @@ class _ModeCard extends StatelessWidget {
   final ListeningMode mode;
   final VoidCallback onTap;
 
-  const _ModeCard({
-    required this.mode,
-    required this.onTap,
-  });
+  const _ModeCard({required this.mode, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1305,10 +2299,7 @@ class _ModeCard extends StatelessWidget {
           Text(
             mode.subtitle,
             maxLines: 2,
-            style: const TextStyle(
-              color: LColors.muted,
-              fontSize: 9.3,
-            ),
+            style: const TextStyle(color: LColors.muted, fontSize: 9.3),
           ),
         ],
       ),
@@ -1399,10 +2390,7 @@ class _RecentResultCard extends StatelessWidget {
                 const SizedBox(height: 5),
                 Text(
                   '${result.rawScore}/${result.totalQuestions} • ${result.accuracyPercent}% accuracy',
-                  style: const TextStyle(
-                    color: LColors.muted,
-                    fontSize: 9.8,
-                  ),
+                  style: const TextStyle(color: LColors.muted, fontSize: 9.8),
                 ),
               ],
             ),
@@ -1417,10 +2405,7 @@ class _TestCard extends StatelessWidget {
   final ListeningTest test;
   final VoidCallback onTap;
 
-  const _TestCard({
-    required this.test,
-    required this.onTap,
-  });
+  const _TestCard({required this.test, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1447,10 +2432,7 @@ class _TestCard extends StatelessWidget {
                   test.description,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: LColors.muted,
-                    fontSize: 9.8,
-                  ),
+                  style: const TextStyle(color: LColors.muted, fontSize: 9.8),
                 ),
                 const SizedBox(height: 7),
                 Text(
@@ -1571,8 +2553,8 @@ class _AudioPlayerCard extends StatelessWidget {
                   error != null
                       ? 'Audio unavailable'
                       : examMode
-                          ? 'Exam mode • one playback only'
-                          : 'Practice mode • replay available',
+                      ? 'Exam mode • one playback only'
+                      : 'Practice mode • replay available',
                   style: TextStyle(
                     color: error != null ? Colors.redAccent : LColors.text,
                     fontSize: 10.5,
@@ -1602,10 +2584,7 @@ class _AudioPlayerCard extends StatelessWidget {
               children: [
                 const Icon(Icons.volume_down_rounded, color: LColors.muted),
                 Expanded(
-                  child: Slider(
-                    value: volume,
-                    onChanged: onVolumeChanged,
-                  ),
+                  child: Slider(value: volume, onChanged: onVolumeChanged),
                 ),
                 const Icon(Icons.volume_up_rounded, color: LColors.muted),
               ],
@@ -1651,8 +2630,8 @@ class _QuestionNav extends StatelessWidget {
                   backgroundColor: index == current
                       ? LColors.cyan
                       : answered.contains(index)
-                          ? LColors.green
-                          : LColors.surface,
+                      ? LColors.green
+                      : LColors.surface,
                   child: Text(
                     '${index + 1}',
                     style: TextStyle(
@@ -1900,10 +2879,7 @@ class _Metric extends StatelessWidget {
   final String value;
   final String label;
 
-  const _Metric({
-    required this.value,
-    required this.label,
-  });
+  const _Metric({required this.value, required this.label});
 
   @override
   Widget build(BuildContext context) {
@@ -1925,10 +2901,7 @@ class _Metric extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(
-              color: LColors.muted,
-              fontSize: 8.5,
-            ),
+            style: const TextStyle(color: LColors.muted, fontSize: 8.5),
           ),
         ],
       ),
@@ -1968,10 +2941,7 @@ class _AccuracyCard extends StatelessWidget {
               ),
               Text(
                 '$value%',
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.w900,
-                ),
+                style: TextStyle(color: color, fontWeight: FontWeight.w900),
               ),
             ],
           ),
@@ -2046,9 +3016,7 @@ class _RecommendationCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final items = result.weakQuestionTypes.isEmpty
         ? const ['Timed mixed listening', 'Section 4 academic lecture']
-        : result.weakQuestionTypes
-            .map((e) => '$e targeted practice')
-            .toList();
+        : result.weakQuestionTypes.map((e) => '$e targeted practice').toList();
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -2136,31 +3104,29 @@ class _TranscriptCard extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 14),
-        ...List.generate(
-          questions.length,
-          (index) {
-            final q = questions[index];
-            final correct = result.correctByQuestion[index] ?? false;
-            return Container(
-              width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 9),
-              padding: const EdgeInsets.all(11),
-              decoration: BoxDecoration(
-                color: (correct ? LColors.green : Colors.redAccent)
-                    .withOpacity(.08),
-                borderRadius: BorderRadius.circular(13),
+        ...List.generate(questions.length, (index) {
+          final q = questions[index];
+          final correct = result.correctByQuestion[index] ?? false;
+          return Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 9),
+            padding: const EdgeInsets.all(11),
+            decoration: BoxDecoration(
+              color: (correct ? LColors.green : Colors.redAccent).withOpacity(
+                .08,
               ),
-              child: Text(
-                'Q${q.number}: ${q.correctAnswer}\n${q.explanation}',
-                style: const TextStyle(
-                  color: LColors.secondary,
-                  fontSize: 10,
-                  height: 1.45,
-                ),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Text(
+              'Q${q.number}: ${q.correctAnswer}\n${q.explanation}',
+              style: const TextStyle(
+                color: LColors.secondary,
+                fontSize: 10,
+                height: 1.45,
               ),
-            );
-          },
-        ),
+            ),
+          );
+        }),
       ],
     );
   }
@@ -2170,10 +3136,7 @@ class _SectionTitle extends StatelessWidget {
   final String title;
   final String subtitle;
 
-  const _SectionTitle({
-    required this.title,
-    required this.subtitle,
-  });
+  const _SectionTitle({required this.title, required this.subtitle});
 
   @override
   Widget build(BuildContext context) {
@@ -2191,10 +3154,7 @@ class _SectionTitle extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           subtitle,
-          style: const TextStyle(
-            color: LColors.muted,
-            fontSize: 10.5,
-          ),
+          style: const TextStyle(color: LColors.muted, fontSize: 10.5),
         ),
       ],
     );
@@ -2205,10 +3165,7 @@ class _InnerHeader extends StatelessWidget {
   final String title;
   final String subtitle;
 
-  const _InnerHeader({
-    required this.title,
-    required this.subtitle,
-  });
+  const _InnerHeader({required this.title, required this.subtitle});
 
   @override
   Widget build(BuildContext context) {
@@ -2235,10 +3192,7 @@ class _InnerHeader extends StatelessWidget {
                 ),
                 Text(
                   subtitle,
-                  style: const TextStyle(
-                    color: LColors.muted,
-                    fontSize: 10,
-                  ),
+                  style: const TextStyle(color: LColors.muted, fontSize: 10),
                 ),
               ],
             ),
@@ -2253,10 +3207,7 @@ class _TapCard extends StatelessWidget {
   final Widget child;
   final VoidCallback onTap;
 
-  const _TapCard({
-    required this.child,
-    required this.onTap,
-  });
+  const _TapCard({required this.child, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -2374,10 +3325,7 @@ class _EmptyCard extends StatelessWidget {
   final String title;
   final String subtitle;
 
-  const _EmptyCard({
-    required this.title,
-    required this.subtitle,
-  });
+  const _EmptyCard({required this.title, required this.subtitle});
 
   @override
   Widget build(BuildContext context) {
@@ -2403,10 +3351,7 @@ class _EmptyCard extends StatelessWidget {
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: LColors.muted,
-              fontSize: 10.5,
-            ),
+            style: const TextStyle(color: LColors.muted, fontSize: 10.5),
           ),
         ],
       ),
@@ -2462,10 +3407,7 @@ class _MessageScreen extends StatelessWidget {
 
     if (embedded) return content;
 
-    return Scaffold(
-      backgroundColor: LColors.bg,
-      body: content,
-    );
+    return Scaffold(backgroundColor: LColors.bg, body: content);
   }
 }
 
@@ -2503,36 +3445,32 @@ class LColors {
   static const green = Color(0xFF34D399);
 
   static const gradient = LinearGradient(
-    colors: [
-      Color(0xFF2563EB),
-      Color(0xFF06B6D4),
-      Color(0xFF7C3AED),
-    ],
+    colors: [Color(0xFF2563EB), Color(0xFF06B6D4), Color(0xFF7C3AED)],
   );
 }
 
 BoxDecoration _card() => BoxDecoration(
-      color: LColors.surface.withOpacity(.93),
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: Colors.white.withOpacity(.06)),
-    );
+  color: LColors.surface.withOpacity(.93),
+  borderRadius: BorderRadius.circular(20),
+  border: Border.all(color: Colors.white.withOpacity(.06)),
+);
 
 BoxDecoration _heroDecoration() => BoxDecoration(
-      borderRadius: BorderRadius.circular(24),
-      gradient: LinearGradient(
-        colors: [
-          const Color(0xFF2563EB).withOpacity(.23),
-          LColors.cyan.withOpacity(.1),
-          LColors.violet.withOpacity(.15),
-        ],
-      ),
-      border: Border.all(color: LColors.cyan.withOpacity(.18)),
-    );
+  borderRadius: BorderRadius.circular(24),
+  gradient: LinearGradient(
+    colors: [
+      const Color(0xFF2563EB).withOpacity(.23),
+      LColors.cyan.withOpacity(.1),
+      LColors.violet.withOpacity(.15),
+    ],
+  ),
+  border: Border.all(color: LColors.cyan.withOpacity(.18)),
+);
 
 OutlineInputBorder _border(Color color) => OutlineInputBorder(
-      borderRadius: BorderRadius.circular(15),
-      borderSide: BorderSide(color: color),
-    );
+  borderRadius: BorderRadius.circular(15),
+  borderSide: BorderSide(color: color),
+);
 
 Map<String, dynamic> _asMap(dynamic value) {
   if (value is Map<String, dynamic>) return value;

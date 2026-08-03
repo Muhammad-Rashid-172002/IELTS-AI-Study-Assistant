@@ -40,6 +40,8 @@ dependencies:
   firebase_storage: ^13.4.5
   just_audio: ^0.10.6
   just_audio_web: ^0.4.16
+  file_picker: ^10.3.2
+  cloud_functions: ^6.3.6
 
 dev_dependencies:
   flutter_test:

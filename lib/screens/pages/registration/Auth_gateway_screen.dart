@@ -908,17 +908,21 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                         ),
                       ),
                       const SizedBox(height: 22),
+
                       const Text(
                         'Verify your email',
+                        textAlign: TextAlign.center,
                         style: TextStyle(
                           color: AuthColors.mainText,
                           fontSize: 25,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
+
                       const SizedBox(height: 11),
+
                       Text(
-                        'A verification link has been sent to\n${widget.email}',
+                        'We sent a verification link to\n${widget.email}',
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           color: AuthColors.mutedText,
@@ -926,14 +930,81 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                           height: 1.55,
                         ),
                       ),
-                      const SizedBox(height: 10),
-                      const Text(
-                        'Open your inbox, verify your address and return here.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AuthColors.secondaryText,
-                          fontSize: 12,
-                          height: 1.5,
+
+                      const SizedBox(height: 16),
+
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 13,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AuthColors.cyan.withOpacity(0.06),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: AuthColors.cyan.withOpacity(0.16),
+                          ),
+                        ),
+                        child: const Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.info_outline_rounded,
+                              color: AuthColors.cyan,
+                              size: 19,
+                            ),
+                            SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Check your Inbox for the verification email. If it is not there, please check your Spam or Junk folder.',
+                                style: TextStyle(
+                                  color: AuthColors.secondaryText,
+                                  fontSize: 12,
+                                  height: 1.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+                      const SizedBox(height: 16),
+
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 13,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AuthColors.cyan.withOpacity(0.06),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: AuthColors.cyan.withOpacity(0.16),
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.info_outline_rounded,
+                              color: AuthColors.cyan,
+                              size: 19,
+                            ),
+                            SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Check your Inbox for the verification email. If it is not there, please check your Spam or Junk folder.',
+                                style: TextStyle(
+                                  color: AuthColors.secondaryText,
+                                  fontSize: 12,
+                                  height: 1.5,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 24),

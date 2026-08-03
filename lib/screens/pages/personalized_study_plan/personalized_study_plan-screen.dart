@@ -4,22 +4,22 @@ import 'package:flutter/material.dart';
 import 'package:fyproject/resources/bottom_navigation_bar/botton_navigation.dart';
 
 class PersonalizedStudyPlanScreen extends StatefulWidget {
-  final double currentBand;
-  final double targetBand;
-  final int dailyStudyMinutes;
-  final List<String> availableDays;
+  final double? currentBand;
+  final double? targetBand;
+  final int? dailyStudyMinutes;
+  final List<String>? availableDays;
   final DateTime? examDate;
-  final List<String> weakQuestionTypes;
-  final Map<String, double> recentScores;
+  final List<String>? weakQuestionTypes;
+  final Map<String, double>? recentScores;
 
   const PersonalizedStudyPlanScreen({
     super.key,
-    required this.currentBand,
-    required this.targetBand,
-    required this.dailyStudyMinutes,
-    required this.availableDays,
-    required this.weakQuestionTypes,
-    required this.recentScores,
+    this.currentBand,
+    this.targetBand,
+    this.dailyStudyMinutes,
+    this.availableDays,
+    this.weakQuestionTypes,
+    this.recentScores,
     this.examDate,
   });
 
@@ -33,22 +33,234 @@ class _PersonalizedStudyPlanScreenState
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  late final List<StudyDayPlan> _weeklyPlan;
+  List<StudyDayPlan> _weeklyPlan = const [];
+
+  double _currentBand = 0;
+  double _targetBand = 7;
+  int _dailyStudyMinutes = 45;
+  List<String> _availableDays = const [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+  ];
+  DateTime? _examDate;
+  List<String> _weakQuestionTypes = const [];
+  Map<String, double> _recentScores = const {};
 
   int _selectedDayIndex = 0;
   bool _isSaving = false;
+  bool _isLoading = true;
+  String? _loadError;
   final Set<String> _completedTaskIds = {};
 
   @override
   void initState() {
     super.initState();
-    _weeklyPlan = _generateAdaptivePlan();
+    _loadProductionPlanInputs();
+  }
+
+  Future<void> _loadProductionPlanInputs() async {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _loadError = 'User is not signed in.';
+      });
+      return;
+    }
+
+    try {
+      final userRef = _firestore.collection('users').doc(user.uid);
+      final results = await Future.wait([
+        userRef.get(),
+        userRef
+            .collection('diagnostic_results')
+            .orderBy('completedAt', descending: true)
+            .limit(1)
+            .get(),
+        userRef.collection('ai_coach').doc('profile').get(),
+        userRef.collection('studyPlans').doc('active').get(),
+      ]);
+
+      final userDoc = results[0] as DocumentSnapshot<Map<String, dynamic>>;
+      final diagnosticSnapshot =
+          results[1] as QuerySnapshot<Map<String, dynamic>>;
+      final coachDoc = results[2] as DocumentSnapshot<Map<String, dynamic>>;
+      final activePlanDoc =
+          results[3] as DocumentSnapshot<Map<String, dynamic>>;
+
+      final userData = userDoc.data() ?? const <String, dynamic>{};
+      final diagnosticData = diagnosticSnapshot.docs.isEmpty
+          ? const <String, dynamic>{}
+          : diagnosticSnapshot.docs.first.data();
+      final coachData = coachDoc.data() ?? const <String, dynamic>{};
+      final activePlanData = activePlanDoc.data() ?? const <String, dynamic>{};
+
+      final diagnosticSkills = _readSkillBands(
+        diagnosticData['skillBands'] ??
+            userData['skillBands'] ??
+            coachData['skillBands'],
+      );
+
+      final resolvedScores = widget.recentScores?.isNotEmpty == true
+          ? Map<String, double>.from(widget.recentScores!)
+          : diagnosticSkills;
+
+      final resolvedWeakTypes = widget.weakQuestionTypes?.isNotEmpty == true
+          ? List<String>.from(widget.weakQuestionTypes!)
+          : _readWeakQuestionTypes(coachData['weakQuestionTypes']);
+
+      final resolvedDays = widget.availableDays?.isNotEmpty == true
+          ? List<String>.from(widget.availableDays!)
+          : _readStringList(activePlanData['availableDays']);
+
+      final currentBand =
+          widget.currentBand ??
+          _asDouble(
+            diagnosticData['overallBand'] ??
+                userData['estimatedBand'] ??
+                userData['overallBand'] ??
+                userData['currentBand'],
+          );
+
+      final targetBand =
+          widget.targetBand ?? _asDouble(userData['targetBand'], fallback: 7);
+
+      final dailyMinutes =
+          widget.dailyStudyMinutes ??
+          _asInt(
+            activePlanData['dailyStudyMinutes'] ??
+                userData['dailyStudyMinutes'],
+            fallback: 45,
+          );
+
+      final examDate =
+          widget.examDate ??
+          _asDate(userData['examDate']) ??
+          _asDate(activePlanData['examDate']);
+
+      if (!mounted) return;
+
+      setState(() {
+        _currentBand = currentBand.clamp(0, 9).toDouble();
+        _targetBand = targetBand.clamp(0, 9).toDouble();
+        _dailyStudyMinutes = dailyMinutes.clamp(15, 120).toInt();
+        _availableDays = resolvedDays.isEmpty
+            ? const ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+            : resolvedDays;
+        _examDate = examDate;
+        _weakQuestionTypes = resolvedWeakTypes;
+        _recentScores = resolvedScores;
+        _weeklyPlan = _generateAdaptivePlan();
+        _selectedDayIndex = 0;
+        _isLoading = false;
+        _loadError = null;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('Load study-plan inputs error: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+
+      setState(() {
+        _currentBand = widget.currentBand ?? 0;
+        _targetBand = widget.targetBand ?? 7;
+        _dailyStudyMinutes = widget.dailyStudyMinutes ?? 45;
+        _availableDays = widget.availableDays?.isNotEmpty == true
+            ? List<String>.from(widget.availableDays!)
+            : const ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+        _examDate = widget.examDate;
+        _weakQuestionTypes = List<String>.from(
+          widget.weakQuestionTypes ?? const [],
+        );
+        _recentScores = Map<String, double>.from(
+          widget.recentScores ?? const {},
+        );
+        _weeklyPlan = _generateAdaptivePlan();
+        _isLoading = false;
+        _loadError =
+            'Some saved data could not be loaded. A safe plan was created.';
+      });
+    }
+  }
+
+  Map<String, double> _readSkillBands(dynamic value) {
+    if (value is! Map) return <String, double>{};
+
+    final result = <String, double>{};
+
+    for (final entry in value.entries) {
+      final band = _asDouble(entry.value);
+      if (band > 0 && band <= 9) {
+        final key = entry.key.toString();
+        result[key.substring(0, 1).toUpperCase() +
+                key.substring(1).toLowerCase()] =
+            band;
+      }
+    }
+
+    return result;
+  }
+
+  List<String> _readWeakQuestionTypes(dynamic value) {
+    if (value is Map) {
+      final output = <String>[];
+
+      for (final skillEntry in value.entries) {
+        final items = skillEntry.value;
+
+        if (items is List) {
+          for (final item in items) {
+            if (item is Map && item['type'] != null) {
+              output.add(item['type'].toString());
+            } else if (item != null) {
+              output.add(item.toString());
+            }
+          }
+        }
+      }
+
+      return output.toSet().take(10).toList();
+    }
+
+    return _readStringList(value);
+  }
+
+  List<String> _readStringList(dynamic value) {
+    if (value is! List) return <String>[];
+
+    return value
+        .map((item) => item.toString().trim())
+        .where((item) => item.isNotEmpty)
+        .toSet()
+        .toList();
+  }
+
+  double _asDouble(dynamic value, {double fallback = 0}) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+
+  int _asInt(dynamic value, {int fallback = 0}) {
+    if (value is num) return value.round();
+    return int.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+
+  DateTime? _asDate(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value);
+    return null;
   }
 
   List<StudyDayPlan> _generateAdaptivePlan() {
-    final days = widget.availableDays.isEmpty
+    final days = _availableDays.isEmpty
         ? const ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
-        : widget.availableDays;
+        : _availableDays;
 
     final weakestSkill = _getWeakestSkill();
     final secondWeakestSkill = _getSecondWeakestSkill();
@@ -82,12 +294,12 @@ class _PersonalizedStudyPlanScreenState
     required String weakestSkill,
     required String secondWeakestSkill,
   }) {
-    final dailyMinutes = widget.dailyStudyMinutes.clamp(15, 120);
+    final dailyMinutes = _dailyStudyMinutes.clamp(15, 120).toInt();
     final baseTaskMinutes = dailyMinutes >= 60 ? 20 : 15;
     final shortTaskMinutes = dailyMinutes >= 45 ? 10 : 8;
 
-    final weakTopic = widget.weakQuestionTypes.isNotEmpty
-        ? widget.weakQuestionTypes[dayIndex % widget.weakQuestionTypes.length]
+    final weakTopic = _weakQuestionTypes.isNotEmpty
+        ? _weakQuestionTypes[dayIndex % _weakQuestionTypes.length]
         : 'Core IELTS Strategy';
 
     final taskTemplates = <List<StudyTask>>[
@@ -273,21 +485,21 @@ class _PersonalizedStudyPlanScreenState
   }
 
   String _getWeakestSkill() {
-    if (widget.recentScores.isEmpty) {
+    if (_recentScores.isEmpty) {
       return 'Writing';
     }
 
-    return widget.recentScores.entries
+    return _recentScores.entries
         .reduce((a, b) => a.value <= b.value ? a : b)
         .key;
   }
 
   String _getSecondWeakestSkill() {
-    if (widget.recentScores.length < 2) {
+    if (_recentScores.length < 2) {
       return 'Reading';
     }
 
-    final sorted = widget.recentScores.entries.toList()
+    final sorted = _recentScores.entries.toList()
       ..sort((a, b) => a.value.compareTo(b.value));
 
     return sorted[1].key;
@@ -334,8 +546,8 @@ class _PersonalizedStudyPlanScreenState
   }
 
   int get _daysUntilExam {
-    if (widget.examDate == null) return 0;
-    final difference = widget.examDate!.difference(DateTime.now()).inDays;
+    if (_examDate == null) return 0;
+    final difference = _examDate!.difference(DateTime.now()).inDays;
     return difference < 0 ? 0 : difference;
   }
 
@@ -371,15 +583,13 @@ class _PersonalizedStudyPlanScreenState
           .doc('active');
 
       await planRef.set({
-        'currentBand': widget.currentBand,
-        'targetBand': widget.targetBand,
-        'dailyStudyMinutes': widget.dailyStudyMinutes,
-        'availableDays': widget.availableDays,
-        'examDate': widget.examDate == null
-            ? null
-            : Timestamp.fromDate(widget.examDate!),
-        'weakQuestionTypes': widget.weakQuestionTypes,
-        'recentScores': widget.recentScores,
+        'currentBand': _currentBand,
+        'targetBand': _targetBand,
+        'dailyStudyMinutes': _dailyStudyMinutes,
+        'availableDays': _availableDays,
+        'examDate': _examDate == null ? null : Timestamp.fromDate(_examDate!),
+        'weakQuestionTypes': _weakQuestionTypes,
+        'recentScores': _recentScores,
         'completionProgress': _completionProgress,
         'completedTaskIds': _completedTaskIds.toList(),
         'weeklyPlan': _weeklyPlan.map((day) => day.toMap()).toList(),
@@ -434,7 +644,31 @@ class _PersonalizedStudyPlanScreenState
 
   @override
   Widget build(BuildContext context) {
-    final selectedDay = _weeklyPlan[_selectedDayIndex];
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: StudyPlanColors.background,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_weeklyPlan.isEmpty) {
+      return Scaffold(
+        backgroundColor: StudyPlanColors.background,
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              _loadError ?? 'Study plan could not be created.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: StudyPlanColors.mutedText),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final selectedDay =
+        _weeklyPlan[_selectedDayIndex.clamp(0, _weeklyPlan.length - 1).toInt()];
 
     return Scaffold(
       backgroundColor: StudyPlanColors.background,
@@ -557,7 +791,7 @@ class _PersonalizedStudyPlanScreenState
   }
 
   Widget _buildPlanHero() {
-    final bandGap = (widget.targetBand - widget.currentBand).clamp(0.0, 9.0);
+    final bandGap = (_targetBand - _currentBand).clamp(0.0, 9.0);
 
     return Container(
       width: double.infinity,
@@ -586,7 +820,7 @@ class _PersonalizedStudyPlanScreenState
             children: [
               _BandCircle(
                 label: 'Current',
-                value: widget.currentBand,
+                value: _currentBand,
                 accent: StudyPlanColors.cyan,
               ),
               const Expanded(
@@ -615,7 +849,7 @@ class _PersonalizedStudyPlanScreenState
               ),
               _BandCircle(
                 label: 'Target',
-                value: widget.targetBand,
+                value: _targetBand,
                 accent: StudyPlanColors.violet,
               ),
             ],
@@ -626,7 +860,7 @@ class _PersonalizedStudyPlanScreenState
               Expanded(
                 child: _MiniMetric(
                   icon: Icons.schedule_rounded,
-                  title: '${widget.dailyStudyMinutes} min',
+                  title: '${_dailyStudyMinutes} min',
                   subtitle: 'Daily study',
                 ),
               ),
@@ -648,7 +882,7 @@ class _PersonalizedStudyPlanScreenState
               ),
             ],
           ),
-          if (widget.examDate != null) ...[
+          if (_examDate != null) ...[
             const SizedBox(height: 12),
             Container(
               width: double.infinity,
@@ -695,9 +929,9 @@ class _PersonalizedStudyPlanScreenState
 
   Widget _buildAdaptiveInsight() {
     final weakestSkill = _getWeakestSkill();
-    final weakTopic = widget.weakQuestionTypes.isEmpty
+    final weakTopic = _weakQuestionTypes.isEmpty
         ? 'Core IELTS Strategy'
-        : widget.weakQuestionTypes.first;
+        : _weakQuestionTypes.first;
 
     return Container(
       padding: const EdgeInsets.all(16),

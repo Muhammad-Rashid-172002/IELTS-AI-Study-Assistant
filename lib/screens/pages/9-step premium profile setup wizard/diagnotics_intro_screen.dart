@@ -1,10 +1,38 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
+
 import 'package:fyproject/screens/pages/personalized_study_plan/personalized_study_plan-screen.dart';
+
+/// Production diagnostic flow:
+/// 1. Loads a published diagnostic test from Firestore.
+/// 2. Plays the real Listening audio URL.
+/// 3. Scores Listening and Reading against Firestore answer keys.
+/// 4. Records Speaking audio and uploads it to Firebase Storage.
+/// 5. Evaluates Writing and Speaking through callable Cloud Functions.
+/// 6. Saves one normalized diagnostic result and updates the user document.
+///
+/// Firestore:
+/// diagnostic_tests/{testId}
+///   status: published
+///   ieltsType: Academic | General Training
+///   listening: {audioUrl, durationSeconds, questions: [...]}
+///   reading: {passageTitle, passage, questions: [...]}
+///   writing: {taskType, prompt, minimumWords, recommendedMinutes}
+///   speaking: {prompts: [...]}
+///
+/// Callable functions:
+/// evaluateDiagnosticWriting
+/// evaluateDiagnosticSpeaking
 
 class DiagnosticIntroScreen extends StatelessWidget {
   final String ieltsType;
@@ -16,33 +44,6 @@ class DiagnosticIntroScreen extends StatelessWidget {
     this.targetBand = 7.0,
   });
 
-  void _startTest(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) =>
-            DiagnosticTestScreen(ieltsType: ieltsType, targetBand: targetBand),
-      ),
-    );
-  }
-
-  Future<void> _takeLater(BuildContext context) async {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user != null) {
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'diagnosticDeferred': true,
-        'diagnosticDeferredAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    }
-
-    if (!context.mounted) return;
-
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const DiagnosticDeferredScreen()),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -53,37 +54,36 @@ class DiagnosticIntroScreen extends StatelessWidget {
           SafeArea(
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(22, 16, 22, 26),
+              padding: const EdgeInsets.fromLTRB(22, 16, 22, 28),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _IntroTopBar(onBack: () => Navigator.maybePop(context)),
-                  const SizedBox(height: 25),
+                  const SizedBox(height: 24),
                   _DiagnosticHeroCard(
                     ieltsType: ieltsType,
                     targetBand: targetBand,
                   ),
                   const SizedBox(height: 24),
                   const Text(
-                    'Your personalized starting point',
+                    'Your real IELTS starting point',
                     style: TextStyle(
                       color: DiagnosticColors.mainText,
                       fontSize: 27,
-                      height: 1.15,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.7,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -.7,
                     ),
                   ),
-                  const SizedBox(height: 11),
+                  const SizedBox(height: 10),
                   const Text(
-                    'Complete a short four-skill assessment so IELTS AI Master can estimate your level and build a focused study plan.',
+                    'Complete a four-skill diagnostic using published questions, real listening audio, AI writing evaluation and recorded speaking analysis.',
                     style: TextStyle(
                       color: DiagnosticColors.mutedText,
                       fontSize: 14,
                       height: 1.55,
                     ),
                   ),
-                  const SizedBox(height: 23),
+                  const SizedBox(height: 22),
                   const _DiagnosticInformationGrid(),
                   const SizedBox(height: 18),
                   const _PreparationNotice(),
@@ -91,17 +91,43 @@ class DiagnosticIntroScreen extends StatelessWidget {
                   _GradientButton(
                     title: 'Start Diagnostic Test',
                     icon: Icons.play_arrow_rounded,
-                    onPressed: () => _startTest(context),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => DiagnosticTestScreen(
+                            ieltsType: ieltsType,
+                            targetBand: targetBand,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 10),
                   SizedBox(
                     width: double.infinity,
                     height: 53,
                     child: OutlinedButton(
-                      onPressed: () => _takeLater(context),
+                      onPressed: () async {
+                        final user = FirebaseAuth.instance.currentUser;
+                        if (user != null) {
+                          await FirebaseFirestore.instance
+                              .collection('users')
+                              .doc(user.uid)
+                              .set({
+                                'diagnosticDeferred': true,
+                                'diagnosticDeferredAt':
+                                    FieldValue.serverTimestamp(),
+                                'updatedAt': FieldValue.serverTimestamp(),
+                              }, SetOptions(merge: true));
+                        }
+
+                        if (!context.mounted) return;
+                        Navigator.maybePop(context);
+                      },
                       style: OutlinedButton.styleFrom(
                         foregroundColor: DiagnosticColors.mainText,
-                        side: BorderSide(color: Colors.white.withOpacity(0.09)),
+                        side: BorderSide(color: Colors.white.withOpacity(.09)),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(17),
                         ),
@@ -109,18 +135,6 @@ class DiagnosticIntroScreen extends StatelessWidget {
                       child: const Text(
                         'Take Later',
                         style: TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 13),
-                  const Center(
-                    child: Text(
-                      'Your answers are saved securely during the assessment.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: DiagnosticColors.subtleText,
-                        fontSize: 10.5,
-                        height: 1.4,
                       ),
                     ),
                   ),
@@ -150,89 +164,83 @@ class DiagnosticTestScreen extends StatefulWidget {
 
 class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
     with TickerProviderStateMixin {
-  final PageController _sectionController = PageController();
-  final TextEditingController _listeningFormController =
-      TextEditingController();
-  final TextEditingController _listeningShortController =
-      TextEditingController();
-  final TextEditingController _writingController = TextEditingController();
-  final TextEditingController _speakingNotesController =
-      TextEditingController();
+  final _repository = DiagnosticRepository();
+  final _pageController = PageController();
+  final _writingController = TextEditingController();
+  final _audioPlayer = AudioPlayer();
+  final _recorder = AudioRecorder();
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
-  late final AnimationController _audioController;
   late final AnimationController _waveController;
 
-  Timer? _testTimer;
-  Timer? _audioTimer;
+  DiagnosticTestModel? _test;
+  Timer? _timer;
+  StreamSubscription<Duration>? _positionSubscription;
+
+  final Map<String, dynamic> _listeningAnswers = {};
+  final Map<String, dynamic> _readingAnswers = {};
 
   int _currentSection = 0;
   int _remainingSeconds = 30 * 60;
-  int _audioSeconds = 0;
-  bool _audioPlaying = false;
+  Duration _audioPosition = Duration.zero;
+  Duration _audioDuration = Duration.zero;
+
+  bool _loading = true;
   bool _submitting = false;
-  bool _speakingCompleted = false;
-
-  final Map<int, String> _listeningAnswers = {};
-  final Map<int, String> _readingAnswers = {};
-
-  final List<String> _listeningCorrect = const [
-    'B',
-    'Wednesday',
-    'C',
-    'Library',
-    'A',
-    'B',
-    'C',
-    '18',
-  ];
-
-  final List<String> _readingCorrect = const [
-    'True',
-    'False',
-    'Not Given',
-    'B',
-    'A',
-    'C',
-    'B',
-    'A',
-  ];
+  bool _recording = false;
+  String? _recordingPath;
+  String? _loadError;
 
   @override
   void initState() {
     super.initState();
 
-    _audioController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    );
-
     _waveController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 850),
+      duration: const Duration(milliseconds: 750),
     );
 
-    _startTestTimer();
+    _loadTest();
   }
 
-  @override
-  void dispose() {
-    _sectionController.dispose();
-    _listeningFormController.dispose();
-    _listeningShortController.dispose();
-    _writingController.dispose();
-    _speakingNotesController.dispose();
-    _audioController.dispose();
-    _waveController.dispose();
-    _testTimer?.cancel();
-    _audioTimer?.cancel();
-    super.dispose();
+  Future<void> _loadTest() async {
+    try {
+      final test = await _repository.loadPublishedTest(
+        ieltsType: widget.ieltsType,
+      );
+
+      await _audioPlayer.setUrl(test.listening.audioUrl);
+
+      _positionSubscription = _audioPlayer.positionStream.listen((position) {
+        if (!mounted) return;
+        setState(() => _audioPosition = position);
+      });
+
+      _audioPlayer.durationStream.listen((duration) {
+        if (!mounted || duration == null) return;
+        setState(() => _audioDuration = duration);
+      });
+
+      if (!mounted) return;
+
+      setState(() {
+        _test = test;
+        _remainingSeconds = test.totalDurationMinutes * 60;
+        _loading = false;
+      });
+
+      _startTimer();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = error.toString();
+      });
+    }
   }
 
-  void _startTestTimer() {
-    _testTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
 
       if (_remainingSeconds <= 1) {
@@ -240,54 +248,81 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
         setState(() => _remainingSeconds = 0);
         _submitDiagnostic();
       } else {
-        setState(() => _remainingSeconds -= 1);
+        setState(() => _remainingSeconds--);
       }
     });
   }
 
-  void _toggleAudio() {
-    if (_audioPlaying) {
-      _audioTimer?.cancel();
-      _audioController.stop();
-      setState(() => _audioPlaying = false);
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _positionSubscription?.cancel();
+    _pageController.dispose();
+    _writingController.dispose();
+    _audioPlayer.dispose();
+    _recorder.dispose();
+    _waveController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggleAudio() async {
+    if (_audioPlayer.playing) {
+      await _audioPlayer.pause();
+    } else {
+      await _audioPlayer.play();
+    }
+
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _toggleRecording() async {
+    if (_recording) {
+      final path = await _recorder.stop();
+      _waveController.stop();
+
+      if (!mounted) return;
+      setState(() {
+        _recording = false;
+        _recordingPath = path;
+      });
       return;
     }
 
-    setState(() => _audioPlaying = true);
-    _audioController.repeat(reverse: true);
-
-    _audioTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    if (!await _recorder.hasPermission()) {
       if (!mounted) return;
-
-      if (_audioSeconds >= 75) {
-        timer.cancel();
-        _audioController.stop();
-        setState(() {
-          _audioPlaying = false;
-          _audioSeconds = 75;
-        });
-      } else {
-        setState(() => _audioSeconds += 1);
-      }
-    });
-  }
-
-  void _toggleSpeakingRecording() {
-    setState(() => _speakingCompleted = !_speakingCompleted);
-
-    if (_speakingCompleted) {
-      _waveController.repeat(reverse: true);
-    } else {
-      _waveController.stop();
+      _showMessage('Microphone permission is required.');
+      return;
     }
+
+    final directory = await getTemporaryDirectory();
+    final path =
+        '${directory.path}/diagnostic_'
+        '${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+    await _recorder.start(
+      const RecordConfig(
+        encoder: AudioEncoder.aacLc,
+        bitRate: 128000,
+        sampleRate: 44100,
+      ),
+      path: path,
+    );
+
+    _waveController.repeat(reverse: true);
+
+    if (!mounted) return;
+    setState(() {
+      _recording = true;
+      _recordingPath = null;
+    });
   }
 
   Future<void> _goNext() async {
     FocusScope.of(context).unfocus();
 
     if (_currentSection < 3) {
-      await _sectionController.nextPage(
-        duration: const Duration(milliseconds: 420),
+      await _pageController.nextPage(
+        duration: const Duration(milliseconds: 380),
         curve: Curves.easeOutCubic,
       );
       return;
@@ -300,266 +335,191 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
     FocusScope.of(context).unfocus();
 
     if (_currentSection > 0) {
-      await _sectionController.previousPage(
-        duration: const Duration(milliseconds: 420),
+      await _pageController.previousPage(
+        duration: const Duration(milliseconds: 380),
         curve: Curves.easeOutCubic,
       );
     }
   }
 
   Future<void> _submitDiagnostic() async {
-    if (_submitting) return;
+    if (_submitting || _test == null) return;
+
+    if (_recording) {
+      await _toggleRecording();
+    }
+
+    final test = _test!;
+    final writing = _writingController.text.trim();
+
+    if (writing.split(RegExp(r'\s+')).where((e) => e.isNotEmpty).length <
+        test.writing.minimumWords) {
+      _showMessage(
+        'Writing response must contain at least '
+        '${test.writing.minimumWords} words.',
+      );
+      return;
+    }
+
+    if (_recordingPath == null || !File(_recordingPath!).existsSync()) {
+      _showMessage('Please record your Speaking response.');
+      return;
+    }
 
     setState(() => _submitting = true);
-    _testTimer?.cancel();
+    _timer?.cancel();
 
-    final listeningScore = _calculateListeningScore();
-    final readingScore = _calculateReadingScore();
-    final writingBand = _estimateWritingBand();
-    final speakingBand = _estimateSpeakingBand();
+    try {
+      final listeningResult = DiagnosticScoring.scoreObjectiveSection(
+        questions: test.listening.questions,
+        answers: _listeningAnswers,
+      );
 
-    final listeningBand = _scoreToDiagnosticBand(listeningScore, 8);
-    final readingBand = _scoreToDiagnosticBand(readingScore, 8);
+      final readingResult = DiagnosticScoring.scoreObjectiveSection(
+        questions: test.reading.questions,
+        answers: _readingAnswers,
+      );
 
-    final overallBand = _roundToHalfBand(
-      (listeningBand + readingBand + writingBand + speakingBand) / 4,
-    );
+      final speakingUrl = await _repository.uploadSpeakingRecording(
+        testId: test.id,
+        localPath: _recordingPath!,
+      );
 
-    final skillBands = <String, double>{
-      'Listening': listeningBand,
-      'Reading': readingBand,
-      'Writing': writingBand,
-      'Speaking': speakingBand,
-    };
+      final evaluations = await Future.wait([
+        _repository.evaluateWriting(
+          testId: test.id,
+          ieltsType: widget.ieltsType,
+          prompt: test.writing.prompt,
+          answer: writing,
+        ),
+        _repository.evaluateSpeaking(
+          testId: test.id,
+          prompts: test.speaking.prompts,
+          audioUrl: speakingUrl,
+        ),
+      ]);
 
-    final strongestSkill = skillBands.entries
-        .reduce((a, b) => a.value >= b.value ? a : b)
-        .key;
+      final writingEvaluation = evaluations[0] as DiagnosticWritingEvaluation;
+      final speakingEvaluation = evaluations[1] as DiagnosticSpeakingEvaluation;
 
-    final weakestSkills = skillBands.entries.toList()
-      ..sort((a, b) => a.value.compareTo(b.value));
+      final listeningBand = DiagnosticScoring.scoreToBand(
+        listeningResult.correct,
+        listeningResult.total,
+      );
 
-    final weakestSkill = weakestSkills.first.key;
-    final secondWeakestSkill = weakestSkills[1].key;
+      final readingBand = DiagnosticScoring.scoreToBand(
+        readingResult.correct,
+        readingResult.total,
+      );
 
-    final targetGap = math.max(0.0, widget.targetBand - overallBand).toDouble();
+      final overallBand = DiagnosticScoring.roundIeltsOverallBand(
+        (listeningBand +
+                readingBand +
+                writingEvaluation.overallBand +
+                speakingEvaluation.overallBand) /
+            4,
+      );
 
-    final recommendedWeeks = _recommendedWeeks(targetGap);
-    final startingLevel = _startingLevel(overallBand);
+      final result = DiagnosticResultData(
+        testId: test.id,
+        overallBand: overallBand,
+        listeningBand: listeningBand,
+        readingBand: readingBand,
+        writingBand: writingEvaluation.overallBand,
+        speakingBand: speakingEvaluation.overallBand,
+        targetBand: widget.targetBand,
+        ieltsType: widget.ieltsType,
+        listeningCorrect: listeningResult.correct,
+        listeningTotal: listeningResult.total,
+        readingCorrect: readingResult.correct,
+        readingTotal: readingResult.total,
+        writingEvaluation: writingEvaluation,
+        speakingEvaluation: speakingEvaluation,
+        speakingAudioUrl: speakingUrl,
+        durationUsedSeconds: test.totalDurationMinutes * 60 - _remainingSeconds,
+      );
 
-    final result = DiagnosticResultData(
-      overallBand: overallBand,
-      listeningBand: listeningBand,
-      readingBand: readingBand,
-      writingBand: writingBand,
-      speakingBand: speakingBand,
-      strongestSkill: strongestSkill,
-      weakestSkill: weakestSkill,
-      secondWeakestSkill: secondWeakestSkill,
-      targetBand: widget.targetBand,
-      targetGap: targetGap,
-      recommendedWeeks: recommendedWeeks,
-      startingLevel: startingLevel,
-      ieltsType: widget.ieltsType,
-    );
+      await _repository.saveResult(result);
 
-    await _saveDiagnosticResult(result);
+      if (!mounted) return;
 
-    if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => DiagnosticResultScreen(result: result),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
 
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => DiagnosticResultScreen(result: result)),
-    );
-  }
-
-  int _calculateListeningScore() {
-    final answers = <String>[
-      _listeningAnswers[0] ?? '',
-      _listeningFormController.text.trim(),
-      _listeningAnswers[2] ?? '',
-      _listeningAnswers[3] ?? '',
-      _listeningAnswers[4] ?? '',
-      _listeningAnswers[5] ?? '',
-      _listeningAnswers[6] ?? '',
-      _listeningShortController.text.trim(),
-    ];
-
-    int score = 0;
-
-    for (int index = 0; index < _listeningCorrect.length; index++) {
-      if (answers[index].trim().toLowerCase() ==
-          _listeningCorrect[index].trim().toLowerCase()) {
-        score++;
-      }
+      setState(() => _submitting = false);
+      _startTimer();
+      _showMessage('Diagnostic submission failed: $error');
     }
-
-    return score;
-  }
-
-  int _calculateReadingScore() {
-    int score = 0;
-
-    for (int index = 0; index < _readingCorrect.length; index++) {
-      final answer = _readingAnswers[index] ?? '';
-
-      if (answer.toLowerCase() == _readingCorrect[index].toLowerCase()) {
-        score++;
-      }
-    }
-
-    return score;
-  }
-
-  double _estimateWritingBand() {
-    final text = _writingController.text.trim();
-    final words = text.isEmpty ? 0 : text.split(RegExp(r'\s+')).length;
-
-    if (words >= 180) return 7.0;
-    if (words >= 140) return 6.5;
-    if (words >= 100) return 6.0;
-    if (words >= 70) return 5.5;
-    if (words >= 40) return 5.0;
-    return 4.0;
-  }
-
-  double _estimateSpeakingBand() {
-    final notesLength = _speakingNotesController.text.trim().length;
-
-    if (_speakingCompleted && notesLength >= 100) return 6.5;
-    if (_speakingCompleted && notesLength >= 50) return 6.0;
-    if (_speakingCompleted) return 5.5;
-    if (notesLength >= 40) return 5.0;
-    return 4.0;
-  }
-
-  double _scoreToDiagnosticBand(int score, int total) {
-    final ratio = score / total;
-
-    if (ratio >= 0.88) return 7.5;
-    if (ratio >= 0.75) return 7.0;
-    if (ratio >= 0.63) return 6.5;
-    if (ratio >= 0.50) return 6.0;
-    if (ratio >= 0.38) return 5.5;
-    if (ratio >= 0.25) return 5.0;
-    return 4.0;
-  }
-
-  double _roundToHalfBand(double value) {
-    return (value * 2).round() / 2;
-  }
-
-  int _recommendedWeeks(double gap) {
-    if (gap <= 0.5) return 6;
-    if (gap <= 1.0) return 8;
-    if (gap <= 1.5) return 12;
-    if (gap <= 2.0) return 16;
-    return 20;
-  }
-
-  String _startingLevel(double band) {
-    if (band < 4.0) return 'Foundation';
-    if (band < 5.0) return 'Developing';
-    if (band < 6.0) return 'Intermediate';
-    if (band < 7.0) return 'Upper Intermediate';
-    if (band < 8.0) return 'Advanced';
-    return 'Expert';
-  }
-
-  Future<void> _saveDiagnosticResult(DiagnosticResultData result) async {
-    final user = _auth.currentUser;
-    if (user == null) return;
-
-    final resultRef = _firestore
-        .collection('users')
-        .doc(user.uid)
-        .collection('diagnosticResults')
-        .doc();
-
-    await resultRef.set({
-      'resultId': resultRef.id,
-      'ieltsType': result.ieltsType,
-      'overallBand': result.overallBand,
-      'targetBand': result.targetBand,
-      'targetGap': result.targetGap,
-      'skillBands': {
-        'listening': result.listeningBand,
-        'reading': result.readingBand,
-        'writing': result.writingBand,
-        'speaking': result.speakingBand,
-      },
-      'strongestSkill': result.strongestSkill,
-      'weakestSkill': result.weakestSkill,
-      'secondWeakestSkill': result.secondWeakestSkill,
-      'recommendedWeeks': result.recommendedWeeks,
-      'startingLevel': result.startingLevel,
-      'writingWordCount': _writingController.text
-          .trim()
-          .split(RegExp(r'\s+'))
-          .where((word) => word.isNotEmpty)
-          .length,
-      'durationUsedSeconds': (30 * 60) - _remainingSeconds,
-      'completedAt': FieldValue.serverTimestamp(),
-    });
-
-    await _firestore.collection('users').doc(user.uid).set({
-      'diagnosticCompleted': true,
-      'diagnosticCompletedAt': FieldValue.serverTimestamp(),
-      'currentBand': result.overallBand,
-      'recommendedStartingLevel': result.startingLevel,
-      'strongestSkill': result.strongestSkill,
-      'weakestSkills': [result.weakestSkill, result.secondWeakestSkill],
-      'recommendedPlanWeeks': result.recommendedWeeks,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(
+        backgroundColor: DiagnosticColors.background,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_loadError != null || _test == null) {
+      return Scaffold(
+        backgroundColor: DiagnosticColors.background,
+        body: _ErrorState(
+          message: _loadError ?? 'No published diagnostic test found.',
+          onRetry: () {
+            setState(() {
+              _loading = true;
+              _loadError = null;
+            });
+            _loadTest();
+          },
+        ),
+      );
+    }
+
     return PopScope(
       canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) {
-          _showExitDialog();
-        }
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _showExitDialog();
       },
       child: Scaffold(
         backgroundColor: DiagnosticColors.background,
-        body: Stack(
-          children: [
-            const Positioned.fill(child: _DiagnosticBackground()),
-            SafeArea(
-              child: Column(
-                children: [
-                  _buildTestHeader(),
-                  Expanded(
-                    child: PageView(
-                      controller: _sectionController,
-                      physics: const NeverScrollableScrollPhysics(),
-                      onPageChanged: (index) {
-                        setState(() => _currentSection = index);
-                      },
-                      children: [
-                        _buildListeningSection(),
-                        _buildReadingSection(),
-                        _buildWritingSection(),
-                        _buildSpeakingSection(),
-                      ],
-                    ),
-                  ),
-                  _buildBottomNavigation(),
-                ],
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(),
+              Expanded(
+                child: PageView(
+                  controller: _pageController,
+                  physics: const NeverScrollableScrollPhysics(),
+                  onPageChanged: (index) {
+                    setState(() => _currentSection = index);
+                  },
+                  children: [
+                    _buildListening(),
+                    _buildReading(),
+                    _buildWriting(),
+                    _buildSpeaking(),
+                  ],
+                ),
               ),
-            ),
-          ],
+              _buildBottomNavigation(),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildTestHeader() {
-    const sectionNames = ['Listening', 'Reading', 'Writing', 'Speaking'];
-
-    const sectionIcons = [
+  Widget _buildHeader() {
+    const names = ['Listening', 'Reading', 'Writing', 'Speaking'];
+    const icons = [
       Icons.headphones_rounded,
       Icons.menu_book_rounded,
       Icons.edit_note_rounded,
@@ -585,14 +545,10 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
                   gradient: DiagnosticColors.gradient,
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(
-                  sectionIcons[_currentSection],
-                  color: Colors.white,
-                  size: 21,
-                ),
+                child: Icon(icons[_currentSection], color: Colors.white),
               ),
               const SizedBox(width: 11),
               Expanded(
@@ -600,20 +556,18 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      sectionNames[_currentSection],
+                      names[_currentSection],
                       style: const TextStyle(
                         color: DiagnosticColors.mainText,
                         fontSize: 18,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
-                    const SizedBox(height: 3),
                     Text(
                       'Section ${_currentSection + 1} of 4',
                       style: const TextStyle(
                         color: DiagnosticColors.mutedText,
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 10,
                       ),
                     ),
                   ],
@@ -648,127 +602,32 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
     );
   }
 
-  Widget _buildListeningSection() {
+  Widget _buildListening() {
+    final section = _test!.listening;
+
     return _SectionScrollView(
       title: 'Listening Diagnostic',
       description:
-          'Listen to the short practice conversation and answer all 8 questions.',
+          'Play the recording and answer all questions. Answers are scored against the published test key.',
       child: Column(
         children: [
-          _AudioPlayerCard(
-            isPlaying: _audioPlaying,
-            seconds: _audioSeconds,
-            controller: _audioController,
+          _RealAudioPlayerCard(
+            title: section.title,
+            playing: _audioPlayer.playing,
+            position: _audioPosition,
+            duration: _audioDuration,
             onPlay: _toggleAudio,
           ),
-          const SizedBox(height: 15),
-          const _TestNotice(
-            icon: Icons.info_outline_rounded,
-            text:
-                'Demo note: connect your real audio file later. The current player simulates a 75-second IELTS recording.',
-          ),
-          const SizedBox(height: 17),
-          _QuestionCard(
-            number: 1,
-            title: 'Why is the student calling the learning centre?',
-            child: _OptionGroup(
-              options: const {
-                'A': 'To cancel a course',
-                'B': 'To ask about an English class',
-                'C': 'To report a payment problem',
+          const SizedBox(height: 16),
+          ...section.questions.map(
+            (question) => _DiagnosticQuestionCard(
+              question: question,
+              value: _listeningAnswers[question.id],
+              onChanged: (value) {
+                setState(() {
+                  _listeningAnswers[question.id] = value;
+                });
               },
-              selected: _listeningAnswers[0],
-              onSelected: (value) {
-                setState(() => _listeningAnswers[0] = value);
-              },
-            ),
-          ),
-          _QuestionCard(
-            number: 2,
-            title: 'Complete the form: The evening class starts on ______.',
-            child: _CompactTextField(
-              controller: _listeningFormController,
-              hint: 'One word only',
-            ),
-          ),
-          _QuestionCard(
-            number: 3,
-            title: 'Which course level does the adviser recommend?',
-            child: _OptionGroup(
-              options: const {
-                'A': 'Beginner',
-                'B': 'Elementary',
-                'C': 'Intermediate',
-              },
-              selected: _listeningAnswers[2],
-              onSelected: (value) {
-                setState(() => _listeningAnswers[2] = value);
-              },
-            ),
-          ),
-          _QuestionCard(
-            number: 4,
-            title: 'Where will the placement test take place?',
-            child: _TextChoiceGroup(
-              options: const ['Reception', 'Library', 'Computer room'],
-              selected: _listeningAnswers[3],
-              onSelected: (value) {
-                setState(() => _listeningAnswers[3] = value);
-              },
-            ),
-          ),
-          _QuestionCard(
-            number: 5,
-            title: 'What does the student need to bring?',
-            child: _OptionGroup(
-              options: const {
-                'A': 'Photo identification',
-                'B': 'A laptop',
-                'C': 'A passport photograph',
-              },
-              selected: _listeningAnswers[4],
-              onSelected: (value) {
-                setState(() => _listeningAnswers[4] = value);
-              },
-            ),
-          ),
-          _QuestionCard(
-            number: 6,
-            title: 'Which payment method is preferred?',
-            child: _OptionGroup(
-              options: const {
-                'A': 'Cash',
-                'B': 'Bank card',
-                'C': 'Online transfer',
-              },
-              selected: _listeningAnswers[5],
-              onSelected: (value) {
-                setState(() => _listeningAnswers[5] = value);
-              },
-            ),
-          ),
-          _QuestionCard(
-            number: 7,
-            title: 'Which extra facility is included?',
-            child: _OptionGroup(
-              options: const {
-                'A': 'Free transport',
-                'B': 'Private tutoring',
-                'C': 'Online practice',
-              },
-              selected: _listeningAnswers[6],
-              onSelected: (value) {
-                setState(() => _listeningAnswers[6] = value);
-              },
-            ),
-          ),
-          _QuestionCard(
-            number: 8,
-            title: 'How many students are normally in one class?',
-            child: _CompactTextField(
-              controller: _listeningShortController,
-              hint: 'Enter a number',
-              keyboardType: TextInputType.number,
             ),
           ),
         ],
@@ -776,121 +635,28 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
     );
   }
 
-  Widget _buildReadingSection() {
+  Widget _buildReading() {
+    final section = _test!.reading;
+
     return _SectionScrollView(
       title: 'Reading Diagnostic',
       description:
-          'Read the passage and answer 8 questions using different IELTS question types.',
+          'Read the passage carefully and complete each IELTS-style question.',
       child: Column(
         children: [
-          const _ReadingPassageCard(),
-          const SizedBox(height: 17),
-          _QuestionCard(
-            number: 1,
-            title:
-                'Community libraries are changing the services they provide.',
-            child: _TextChoiceGroup(
-              options: const ['True', 'False', 'Not Given'],
-              selected: _readingAnswers[0],
-              onSelected: (value) {
-                setState(() => _readingAnswers[0] = value);
-              },
-            ),
+          _ReadingPassageCard(
+            title: section.passageTitle,
+            passage: section.passage,
           ),
-          _QuestionCard(
-            number: 2,
-            title: 'All modern libraries have stopped lending printed books.',
-            child: _TextChoiceGroup(
-              options: const ['True', 'False', 'Not Given'],
-              selected: _readingAnswers[1],
-              onSelected: (value) {
-                setState(() => _readingAnswers[1] = value);
-              },
-            ),
-          ),
-          _QuestionCard(
-            number: 3,
-            title: 'The first digital library opened in Canada.',
-            child: _TextChoiceGroup(
-              options: const ['True', 'False', 'Not Given'],
-              selected: _readingAnswers[2],
-              onSelected: (value) {
-                setState(() => _readingAnswers[2] = value);
-              },
-            ),
-          ),
-          _QuestionCard(
-            number: 4,
-            title: 'Which heading best matches paragraph two?',
-            child: _OptionGroup(
-              options: const {
-                'A': 'The decline of public reading',
-                'B': 'New functions for shared spaces',
-                'C': 'Problems caused by technology',
-              },
-              selected: _readingAnswers[3],
-              onSelected: (value) {
-                setState(() => _readingAnswers[3] = value);
-              },
-            ),
-          ),
-          _QuestionCard(
-            number: 5,
-            title: 'What is one benefit of library workshops?',
-            child: _OptionGroup(
-              options: const {
-                'A': 'They help people develop practical skills',
-                'B': 'They replace formal education',
-                'C': 'They reduce the need for staff',
-              },
-              selected: _readingAnswers[4],
-              onSelected: (value) {
-                setState(() => _readingAnswers[4] = value);
-              },
-            ),
-          ),
-          _QuestionCard(
-            number: 6,
-            title: 'Why do some visitors still prefer physical libraries?',
-            child: _OptionGroup(
-              options: const {
-                'A': 'They dislike all digital tools',
-                'B': 'Printed books are always free',
-                'C': 'They value quiet study and human support',
-              },
-              selected: _readingAnswers[5],
-              onSelected: (value) {
-                setState(() => _readingAnswers[5] = value);
-              },
-            ),
-          ),
-          _QuestionCard(
-            number: 7,
-            title: 'The writer suggests successful libraries should:',
-            child: _OptionGroup(
-              options: const {
-                'A': 'focus only on technology',
-                'B': 'balance traditional and modern services',
-                'C': 'be managed entirely by volunteers',
-              },
-              selected: _readingAnswers[6],
-              onSelected: (value) {
-                setState(() => _readingAnswers[6] = value);
-              },
-            ),
-          ),
-          _QuestionCard(
-            number: 8,
-            title: 'What is the main purpose of the passage?',
-            child: _OptionGroup(
-              options: const {
-                'A': 'To explain how libraries are adapting',
-                'B': 'To compare libraries in different countries',
-                'C': 'To argue that books are no longer useful',
-              },
-              selected: _readingAnswers[7],
-              onSelected: (value) {
-                setState(() => _readingAnswers[7] = value);
+          const SizedBox(height: 16),
+          ...section.questions.map(
+            (question) => _DiagnosticQuestionCard(
+              question: question,
+              value: _readingAnswers[question.id],
+              onChanged: (value) {
+                setState(() {
+                  _readingAnswers[question.id] = value;
+                });
               },
             ),
           ),
@@ -899,17 +665,8 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
     );
   }
 
-  Widget _buildWritingSection() {
-    final isAcademic = widget.ieltsType.toLowerCase().contains('academic');
-
-    final taskTitle = isAcademic
-        ? 'Academic short writing task'
-        : 'General Training short writing task';
-
-    final taskText = isAcademic
-        ? 'The chart shows the percentage of students using three learning methods: classroom lessons (45%), online courses (35%), and private tutoring (20%). Summarize the main information and make relevant comparisons.'
-        : 'You recently joined an English course, but the class schedule is unsuitable. Write a letter to the course manager. Explain the problem, describe your preferred schedule, and request a solution.';
-
+  Widget _buildWriting() {
+    final writing = _test!.writing;
     final wordCount = _writingController.text
         .trim()
         .split(RegExp(r'\s+'))
@@ -919,14 +676,10 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
     return _SectionScrollView(
       title: 'Writing Diagnostic',
       description:
-          'Write a focused response. This short task helps estimate your grammar, vocabulary and organization.',
+          'Your answer will be evaluated for IELTS criteria by the secure backend.',
       child: Column(
         children: [
-          _WritingTaskCard(
-            title: taskTitle,
-            text: taskText,
-            isAcademic: isAcademic,
-          ),
+          _WritingTaskCard(task: writing),
           const SizedBox(height: 15),
           Container(
             padding: const EdgeInsets.all(16),
@@ -939,18 +692,16 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
                       'Your response',
                       style: TextStyle(
                         color: DiagnosticColors.mainText,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
                     const Spacer(),
                     Text(
-                      '$wordCount words',
+                      '$wordCount / ${writing.minimumWords}+ words',
                       style: TextStyle(
-                        color: wordCount >= 100
+                        color: wordCount >= writing.minimumWords
                             ? DiagnosticColors.success
                             : DiagnosticColors.cyan,
-                        fontSize: 11,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -959,8 +710,8 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
                 const SizedBox(height: 12),
                 TextField(
                   controller: _writingController,
-                  maxLines: 15,
-                  minLines: 10,
+                  minLines: 13,
+                  maxLines: 22,
                   onChanged: (_) => setState(() {}),
                   cursorColor: DiagnosticColors.cyan,
                   style: const TextStyle(
@@ -969,15 +720,9 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
                     height: 1.55,
                   ),
                   decoration: InputDecoration(
-                    hintText:
-                        'Write your answer here. Aim for at least 100–150 words for this short diagnostic task.',
-                    hintStyle: const TextStyle(
-                      color: DiagnosticColors.subtleText,
-                      fontSize: 12.5,
-                      height: 1.5,
-                    ),
+                    hintText: 'Write your complete answer here...',
                     filled: true,
-                    fillColor: DiagnosticColors.background.withOpacity(0.58),
+                    fillColor: DiagnosticColors.background.withOpacity(.58),
                     border: _fieldBorder(DiagnosticColors.border),
                     enabledBorder: _fieldBorder(DiagnosticColors.border),
                     focusedBorder: _fieldBorder(
@@ -988,105 +733,33 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 14),
-          const _TestNotice(
-            icon: Icons.auto_awesome_rounded,
-            text:
-                'After submission, the production AI evaluator can analyze Task Response, Coherence, Vocabulary and Grammar.',
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSpeakingSection() {
+  Widget _buildSpeaking() {
+    final speaking = _test!.speaking;
+
     return _SectionScrollView(
       title: 'Speaking Diagnostic',
       description:
-          'Complete three short speaking prompts. Record naturally without reading a prepared answer.',
+          'Record one continuous response. The backend evaluates Fluency, Lexical Resource, Grammar and Pronunciation.',
       child: Column(
         children: [
-          const _SpeakingPromptCard(
-            part: 'Introduction',
-            duration: '30–45 seconds',
-            prompt:
-                'Please introduce yourself and explain why you are preparing for IELTS.',
-            icon: Icons.person_outline_rounded,
-          ),
-          const SizedBox(height: 12),
-          const _SpeakingPromptCard(
-            part: 'Cue Card',
-            duration: '1–2 minutes',
-            prompt:
-                'Describe a skill you would like to learn. You should say what the skill is, why you want to learn it, how you would learn it, and explain how it would help you.',
-            icon: Icons.style_outlined,
-          ),
-          const SizedBox(height: 12),
-          const _SpeakingPromptCard(
-            part: 'Follow-up',
-            duration: '45–60 seconds',
-            prompt:
-                'Do you think technology has made it easier for people to learn new skills? Why or why not?',
-            icon: Icons.forum_outlined,
-          ),
-          const SizedBox(height: 16),
-          _SpeakingRecorderCard(
-            isRecording: _speakingCompleted,
-            controller: _waveController,
-            onTap: _toggleSpeakingRecording,
-          ),
-          const SizedBox(height: 15),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: _cardDecoration(),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Preparation notes',
-                  style: TextStyle(
-                    color: DiagnosticColors.mainText,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _speakingNotesController,
-                  minLines: 4,
-                  maxLines: 7,
-                  cursorColor: DiagnosticColors.cyan,
-                  style: const TextStyle(
-                    color: DiagnosticColors.mainText,
-                    fontSize: 13,
-                    height: 1.5,
-                  ),
-                  decoration: InputDecoration(
-                    hintText:
-                        'Add keywords or note what you discussed. Do not write a complete script.',
-                    hintStyle: const TextStyle(
-                      color: DiagnosticColors.subtleText,
-                      fontSize: 12,
-                    ),
-                    filled: true,
-                    fillColor: DiagnosticColors.background.withOpacity(0.58),
-                    border: _fieldBorder(DiagnosticColors.border),
-                    enabledBorder: _fieldBorder(DiagnosticColors.border),
-                    focusedBorder: _fieldBorder(
-                      DiagnosticColors.cyan,
-                      width: 1.4,
-                    ),
-                  ),
-                ),
-              ],
+          ...speaking.prompts.map(
+            (prompt) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _SpeakingPromptCard(prompt: prompt),
             ),
           ),
-          const SizedBox(height: 14),
-          const _TestNotice(
-            icon: Icons.mic_none_rounded,
-            text:
-                'Demo note: connect a real recorder and pronunciation analysis service later. This screen already contains the full production flow.',
+          const SizedBox(height: 4),
+          _SpeakingRecorderCard(
+            isRecording: _recording,
+            hasRecording: _recordingPath != null,
+            controller: _waveController,
+            onTap: _toggleRecording,
           ),
         ],
       ),
@@ -1097,8 +770,8 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 13, 16, 17),
       decoration: BoxDecoration(
-        color: DiagnosticColors.background.withOpacity(0.97),
-        border: Border(top: BorderSide(color: Colors.white.withOpacity(0.05))),
+        color: DiagnosticColors.background.withOpacity(.98),
+        border: Border(top: BorderSide(color: Colors.white.withOpacity(.05))),
       ),
       child: Row(
         children: [
@@ -1107,18 +780,8 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
               child: SizedBox(
                 height: 53,
                 child: OutlinedButton(
-                  onPressed: _goBack,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: DiagnosticColors.mainText,
-                    side: BorderSide(color: Colors.white.withOpacity(0.09)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(17),
-                    ),
-                  ),
-                  child: const Text(
-                    'Back',
-                    style: TextStyle(fontWeight: FontWeight.w800),
-                  ),
+                  onPressed: _submitting ? null : _goBack,
+                  child: const Text('Back'),
                 ),
               ),
             ),
@@ -1140,48 +803,43 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
   }
 
   Future<void> _showExitDialog() async {
-    final shouldExit = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: DiagnosticColors.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(23),
-          ),
-          title: const Text(
-            'Leave diagnostic test?',
-            style: TextStyle(
-              color: DiagnosticColors.mainText,
-              fontWeight: FontWeight.w800,
+    final exit =
+        await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: DiagnosticColors.surface,
+            title: const Text(
+              'Leave diagnostic test?',
+              style: TextStyle(color: DiagnosticColors.mainText),
             ),
-          ),
-          content: const Text(
-            'Your current answers on this device will be lost.',
-            style: TextStyle(color: DiagnosticColors.mutedText, height: 1.5),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text(
-                'Continue Test',
-                style: TextStyle(color: DiagnosticColors.cyan),
+            content: const Text(
+              'Your current unsaved answers and recording will be lost.',
+              style: TextStyle(color: DiagnosticColors.mutedText),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Continue Test'),
               ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text(
-                'Leave',
-                style: TextStyle(color: DiagnosticColors.error),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text(
+                  'Leave',
+                  style: TextStyle(color: DiagnosticColors.error),
+                ),
               ),
-            ),
-          ],
-        );
-      },
-    );
+            ],
+          ),
+        ) ??
+        false;
 
-    if (shouldExit == true && mounted) {
-      Navigator.pop(context);
-    }
+    if (exit && mounted) Navigator.pop(context);
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
   }
 }
 
@@ -1192,342 +850,186 @@ class DiagnosticResultScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bands = {
+      'Listening': result.listeningBand,
+      'Reading': result.readingBand,
+      'Writing': result.writingBand,
+      'Speaking': result.speakingBand,
+    };
+
+    final sorted = bands.entries.toList()
+      ..sort((a, b) => a.value.compareTo(b.value));
+
+    final gap = math.max(0, result.targetBand - result.overallBand);
+
     return Scaffold(
       backgroundColor: DiagnosticColors.background,
       body: Stack(
         children: [
           const Positioned.fill(child: _DiagnosticBackground()),
           SafeArea(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 15, 20, 28),
-              child: Column(
-                children: [
-                  const _ResultHeader(),
-                  const SizedBox(height: 22),
-                  _OverallBandHero(result: result),
-                  const SizedBox(height: 17),
-                  _SkillBandGrid(result: result),
-                  const SizedBox(height: 17),
-                  _StrengthWeaknessCard(result: result),
-                  const SizedBox(height: 17),
-                  _RecommendedPlanCard(result: result),
-                  const SizedBox(height: 17),
-                  _TargetGapCard(result: result),
-                  const SizedBox(height: 24),
-                  _GradientButton(
-                    title: 'Create My Study Plan',
-                    icon: Icons.auto_awesome_rounded,
-                    onPressed: () {
-                      Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              StudyPlanPreviewScreen(result: result),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 53,
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).pushReplacement(
-                          MaterialPageRoute(
-                            builder: (_) => const DiagnosticIntroScreen(),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.refresh_rounded),
-                      label: const Text('Retake Diagnostic'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: DiagnosticColors.mainText,
-                        side: BorderSide(color: Colors.white.withOpacity(0.09)),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(17),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class DiagnosticResultData {
-  final double overallBand;
-  final double listeningBand;
-  final double readingBand;
-  final double writingBand;
-  final double speakingBand;
-  final String strongestSkill;
-  final String weakestSkill;
-  final String secondWeakestSkill;
-  final double targetBand;
-  final double targetGap;
-  final int recommendedWeeks;
-  final String startingLevel;
-  final String ieltsType;
-
-  const DiagnosticResultData({
-    required this.overallBand,
-    required this.listeningBand,
-    required this.readingBand,
-    required this.writingBand,
-    required this.speakingBand,
-    required this.strongestSkill,
-    required this.weakestSkill,
-    required this.secondWeakestSkill,
-    required this.targetBand,
-    required this.targetGap,
-    required this.recommendedWeeks,
-    required this.startingLevel,
-    required this.ieltsType,
-  });
-}
-
-class _DiagnosticInformationGrid extends StatelessWidget {
-  const _DiagnosticInformationGrid();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _IntroFeatureCard(
-                icon: Icons.schedule_rounded,
-                title: '20–30 min',
-                subtitle: 'Estimated duration',
-                accent: Color(0xFF22D3EE),
-              ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: _IntroFeatureCard(
-                icon: Icons.grid_view_rounded,
-                title: '4 Skills',
-                subtitle: 'Complete assessment',
-                accent: Color(0xFF60A5FA),
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _IntroFeatureCard(
-                icon: Icons.headphones_rounded,
-                title: 'Headphones',
-                subtitle: 'Recommended',
-                accent: Color(0xFFA78BFA),
-              ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: _IntroFeatureCard(
-                icon: Icons.psychology_alt_rounded,
-                title: 'AI Plan',
-                subtitle: 'After your result',
-                accent: Color(0xFF34D399),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _IntroFeatureCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Color accent;
-
-  const _IntroFeatureCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.accent,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 105,
-      padding: const EdgeInsets.all(14),
-      decoration: _cardDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: accent.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: accent, size: 19),
-          ),
-          const Spacer(),
-          Text(
-            title,
-            style: const TextStyle(
-              color: DiagnosticColors.mainText,
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            subtitle,
-            style: const TextStyle(
-              color: DiagnosticColors.mutedText,
-              fontSize: 10,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _IntroTopBar extends StatelessWidget {
-  final VoidCallback onBack;
-
-  const _IntroTopBar({required this.onBack});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        IconButton(
-          onPressed: onBack,
-          style: IconButton.styleFrom(
-            backgroundColor: DiagnosticColors.surface,
-            foregroundColor: DiagnosticColors.mainText,
-          ),
-          icon: const Icon(Icons.arrow_back_rounded),
-        ),
-        const SizedBox(width: 11),
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(15),
-            gradient: DiagnosticColors.gradient,
-          ),
-          child: const Icon(
-            Icons.analytics_outlined,
-            color: Colors.white,
-            size: 22,
-          ),
-        ),
-        const SizedBox(width: 11),
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Diagnostic Assessment',
-                style: TextStyle(
-                  color: DiagnosticColors.mainText,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              SizedBox(height: 3),
-              Text(
-                'Personalized IELTS starting point',
-                style: TextStyle(
-                  color: DiagnosticColors.mutedText,
-                  fontSize: 10,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _DiagnosticHeroCard extends StatelessWidget {
-  final String ieltsType;
-  final double targetBand;
-
-  const _DiagnosticHeroCard({
-    required this.ieltsType,
-    required this.targetBand,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(19),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            DiagnosticColors.blue.withOpacity(0.27),
-            DiagnosticColors.cyan.withOpacity(0.12),
-            DiagnosticColors.violet.withOpacity(0.19),
-          ],
-        ),
-        border: Border.all(color: DiagnosticColors.cyan.withOpacity(0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: DiagnosticColors.blue.withOpacity(0.13),
-            blurRadius: 30,
-            offset: const Offset(0, 14),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          const _DiagnosticRing(),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
               children: [
                 const Text(
-                  'Adaptive Level Check',
+                  'Diagnostic Result',
                   style: TextStyle(
                     color: DiagnosticColors.mainText,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 25,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
-                const SizedBox(height: 7),
-                Text(
-                  '$ieltsType • Target Band ${targetBand.toStringAsFixed(1)}',
-                  style: const TextStyle(
-                    color: DiagnosticColors.cyan,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
+                const SizedBox(height: 18),
+                Container(
+                  padding: const EdgeInsets.all(22),
+                  decoration: _heroDecoration(),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Estimated Overall Band',
+                        style: TextStyle(color: DiagnosticColors.secondaryText),
+                      ),
+                      const SizedBox(height: 7),
+                      Text(
+                        result.overallBand.toStringAsFixed(1),
+                        style: const TextStyle(
+                          color: DiagnosticColors.mainText,
+                          fontSize: 55,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      Text(
+                        gap <= 0
+                            ? 'Target reached'
+                            : '${gap.toStringAsFixed(1)} band gap to target',
+                        style: const TextStyle(
+                          color: DiagnosticColors.cyan,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 9),
-                const Text(
-                  'Listening, Reading, Writing and Speaking are combined into one intelligent baseline.',
-                  style: TextStyle(
-                    color: DiagnosticColors.secondaryText,
-                    fontSize: 10.5,
-                    height: 1.45,
+                const SizedBox(height: 15),
+                GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  childAspectRatio: 1.75,
+                  children: bands.entries.map((entry) {
+                    return Container(
+                      padding: const EdgeInsets.all(15),
+                      decoration: _cardDecoration(),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            entry.value.toStringAsFixed(1),
+                            style: const TextStyle(
+                              color: DiagnosticColors.cyan,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          Text(
+                            entry.key,
+                            style: const TextStyle(
+                              color: DiagnosticColors.mutedText,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 15),
+                _FeedbackPanel(
+                  title: 'Writing Evaluation',
+                  rows: {
+                    'Task Response': result.writingEvaluation.taskResponse,
+                    'Coherence': result.writingEvaluation.coherenceCohesion,
+                    'Lexical Resource':
+                        result.writingEvaluation.lexicalResource,
+                    'Grammar': result.writingEvaluation.grammarAccuracy,
+                  },
+                  summary: result.writingEvaluation.summary,
+                ),
+                const SizedBox(height: 15),
+                _FeedbackPanel(
+                  title: 'Speaking Evaluation',
+                  rows: {
+                    'Fluency': result.speakingEvaluation.fluencyCoherence,
+                    'Lexical Resource':
+                        result.speakingEvaluation.lexicalResource,
+                    'Grammar': result.speakingEvaluation.grammarAccuracy,
+                    'Pronunciation': result.speakingEvaluation.pronunciation,
+                  },
+                  summary: result.speakingEvaluation.summary,
+                ),
+                const SizedBox(height: 15),
+                Container(
+                  padding: const EdgeInsets.all(17),
+                  decoration: _cardDecoration(),
+                  child: Text(
+                    'Strongest skill: ${sorted.last.key}\n'
+                    'Priority skill: ${sorted.first.key}\n'
+                    'Listening: ${result.listeningCorrect}/${result.listeningTotal}\n'
+                    'Reading: ${result.readingCorrect}/${result.readingTotal}',
+                    style: const TextStyle(
+                      color: DiagnosticColors.secondaryText,
+                      height: 1.7,
+                    ),
                   ),
+                ),
+                const SizedBox(height: 22),
+                _GradientButton(
+                  title: 'Create My Study Plan',
+                  icon: Icons.auto_awesome_rounded,
+                  onPressed: () {
+                    final recentScores = <String, double>{
+                      'Listening': result.listeningBand,
+                      'Reading': result.readingBand,
+                      'Writing': result.writingBand,
+                      'Speaking': result.speakingBand,
+                    };
+
+                    final weakQuestionTypes =
+                        <String>[
+                              ...result.writingEvaluation.improvements,
+                              ...result.speakingEvaluation.improvements,
+                            ]
+                            .map((item) => item.trim())
+                            .where((item) => item.isNotEmpty)
+                            .toSet()
+                            .take(8)
+                            .toList();
+
+                    final dailyStudyMinutes = _recommendedDailyMinutes(
+                      gap.toDouble(),
+                    );
+
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PersonalizedStudyPlanScreen(
+                          currentBand: result.overallBand,
+                          targetBand: result.targetBand,
+                          dailyStudyMinutes: dailyStudyMinutes,
+                          availableDays: const [
+                            'Monday',
+                            'Tuesday',
+                            'Wednesday',
+                            'Thursday',
+                            'Friday',
+                          ],
+                          weakQuestionTypes: weakQuestionTypes,
+                          recentScores: recentScores,
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -1536,116 +1038,1042 @@ class _DiagnosticHeroCard extends StatelessWidget {
       ),
     );
   }
+
+  static int _recommendedDailyMinutes(double gap) {
+    if (gap <= .5) return 30;
+    if (gap <= 1) return 45;
+    if (gap <= 1.5) return 60;
+    if (gap <= 2) return 75;
+    return 90;
+  }
 }
 
-class _DiagnosticRing extends StatelessWidget {
-  const _DiagnosticRing();
+class DiagnosticRepository {
+  DiagnosticRepository({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? auth,
+    FirebaseStorage? storage,
+    FirebaseFunctions? functions,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _auth = auth ?? FirebaseAuth.instance,
+       _storage = storage ?? FirebaseStorage.instance,
+       _functions =
+           functions ?? FirebaseFunctions.instanceFor(region: 'us-central1');
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 82,
-      height: 82,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: const SweepGradient(
-          colors: [
-            Color(0xFF2563EB),
-            Color(0xFF06B6D4),
-            Color(0xFF8B5CF6),
-            Color(0xFF2563EB),
-          ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: DiagnosticColors.cyan.withOpacity(0.2),
-            blurRadius: 20,
-          ),
-        ],
+  final FirebaseFirestore _firestore;
+  final FirebaseAuth _auth;
+  final FirebaseStorage _storage;
+  final FirebaseFunctions _functions;
+
+  User get _user {
+    final user = _auth.currentUser;
+    if (user == null) throw StateError('User is not signed in.');
+    return user;
+  }
+
+  Future<DiagnosticTestModel> loadPublishedTest({
+    required String ieltsType,
+  }) async {
+    final snapshot = await _firestore
+        .collection('diagnostic_tests')
+        .where('status', isEqualTo: 'published')
+        .where('ieltsType', isEqualTo: ieltsType)
+        .limit(20)
+        .get();
+
+    if (snapshot.docs.isEmpty) {
+      throw StateError('No published $ieltsType diagnostic test is available.');
+    }
+
+    final docs = [...snapshot.docs]..shuffle();
+    return DiagnosticTestModel.fromDocument(docs.first);
+  }
+
+  Future<String> uploadSpeakingRecording({
+    required String testId,
+    required String localPath,
+  }) async {
+    final file = File(localPath);
+    if (!file.existsSync()) {
+      throw StateError('Speaking recording file does not exist.');
+    }
+
+    final ref = _storage.ref(
+      'diagnostic_speaking/${_user.uid}/$testId/'
+      '${DateTime.now().millisecondsSinceEpoch}.m4a',
+    );
+
+    await ref.putFile(file, SettableMetadata(contentType: 'audio/mp4'));
+
+    return ref.getDownloadURL();
+  }
+
+  Future<DiagnosticWritingEvaluation> evaluateWriting({
+    required String testId,
+    required String ieltsType,
+    required String prompt,
+    required String answer,
+  }) async {
+    final callable = _functions.httpsCallable('evaluateDiagnosticWriting');
+
+    final response = await callable.call({
+      'testId': testId,
+      'ieltsType': ieltsType,
+      'prompt': prompt,
+      'answer': answer,
+    });
+
+    return DiagnosticWritingEvaluation.fromMap(
+      Map<String, dynamic>.from(response.data as Map),
+    );
+  }
+
+  Future<DiagnosticSpeakingEvaluation> evaluateSpeaking({
+    required String testId,
+    required List<SpeakingPrompt> prompts,
+    required String audioUrl,
+  }) async {
+    final callable = _functions.httpsCallable('evaluateDiagnosticSpeaking');
+
+    final response = await callable.call({
+      'testId': testId,
+      'audioUrl': audioUrl,
+      'prompts': prompts.map((e) => e.toMap()).toList(),
+    });
+
+    return DiagnosticSpeakingEvaluation.fromMap(
+      Map<String, dynamic>.from(response.data as Map),
+    );
+  }
+
+  Future<void> saveResult(DiagnosticResultData result) async {
+    final userRef = _firestore.collection('users').doc(_user.uid);
+    final resultRef = userRef.collection('diagnostic_results').doc();
+
+    final skillBands = {
+      'listening': result.listeningBand,
+      'reading': result.readingBand,
+      'writing': result.writingBand,
+      'speaking': result.speakingBand,
+    };
+
+    final batch = _firestore.batch();
+
+    batch.set(resultRef, {
+      'resultId': resultRef.id,
+      'testId': result.testId,
+      'ieltsType': result.ieltsType,
+      'targetBand': result.targetBand,
+      'overallBand': result.overallBand,
+      'skillBands': skillBands,
+      'objectiveScores': {
+        'listening': {
+          'correct': result.listeningCorrect,
+          'total': result.listeningTotal,
+        },
+        'reading': {
+          'correct': result.readingCorrect,
+          'total': result.readingTotal,
+        },
+      },
+      'writingEvaluation': result.writingEvaluation.toMap(),
+      'speakingEvaluation': result.speakingEvaluation.toMap(),
+      'speakingAudioUrl': result.speakingAudioUrl,
+      'durationUsedSeconds': result.durationUsedSeconds,
+      'completedAt': FieldValue.serverTimestamp(),
+    });
+
+    batch.set(userRef, {
+      'diagnosticCompleted': true,
+      'diagnosticCompletedAt': FieldValue.serverTimestamp(),
+      'currentBand': result.overallBand,
+      'estimatedBand': result.overallBand,
+      'overallBand': result.overallBand,
+      'skillBands': skillBands,
+      'ieltsType': result.ieltsType,
+      'targetBand': result.targetBand,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    await batch.commit();
+  }
+}
+
+class DiagnosticScoring {
+  static ObjectiveScore scoreObjectiveSection({
+    required List<DiagnosticQuestion> questions,
+    required Map<String, dynamic> answers,
+  }) {
+    var correct = 0;
+
+    for (final question in questions) {
+      final userAnswer = answers[question.id];
+
+      if (_isCorrect(question, userAnswer)) {
+        correct++;
+      }
+    }
+
+    return ObjectiveScore(correct: correct, total: questions.length);
+  }
+
+  static bool _isCorrect(DiagnosticQuestion question, dynamic userAnswer) {
+    if (userAnswer == null) return false;
+
+    String normalize(dynamic value) {
+      return value.toString().trim().toLowerCase().replaceAll(
+        RegExp(r'\s+'),
+        ' ',
+      );
+    }
+
+    final normalized = normalize(userAnswer);
+
+    return question.acceptedAnswers.any(
+      (answer) => normalize(answer) == normalized,
+    );
+  }
+
+  static double scoreToBand(int correct, int total) {
+    if (total <= 0) return 0;
+
+    final ratio = correct / total;
+
+    if (ratio >= .975) return 9;
+    if (ratio >= .925) return 8.5;
+    if (ratio >= .875) return 8;
+    if (ratio >= .80) return 7.5;
+    if (ratio >= .725) return 7;
+    if (ratio >= .65) return 6.5;
+    if (ratio >= .575) return 6;
+    if (ratio >= .50) return 5.5;
+    if (ratio >= .425) return 5;
+    if (ratio >= .35) return 4.5;
+    return 4;
+  }
+
+  static double roundIeltsOverallBand(double value) {
+    final whole = value.floor();
+    final fraction = value - whole;
+
+    if (fraction < .25) return whole.toDouble();
+    if (fraction < .75) return whole + .5;
+    return whole + 1.0;
+  }
+}
+
+class DiagnosticTestModel {
+  final String id;
+  final String title;
+  final String ieltsType;
+  final int totalDurationMinutes;
+  final ListeningDiagnosticSection listening;
+  final ReadingDiagnosticSection reading;
+  final WritingDiagnosticTask writing;
+  final SpeakingDiagnosticSection speaking;
+
+  const DiagnosticTestModel({
+    required this.id,
+    required this.title,
+    required this.ieltsType,
+    required this.totalDurationMinutes,
+    required this.listening,
+    required this.reading,
+    required this.writing,
+    required this.speaking,
+  });
+
+  factory DiagnosticTestModel.fromDocument(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final data = doc.data() ?? const <String, dynamic>{};
+
+    return DiagnosticTestModel(
+      id: doc.id,
+      title: (data['title'] ?? 'IELTS Diagnostic Test').toString(),
+      ieltsType: (data['ieltsType'] ?? 'Academic').toString(),
+      totalDurationMinutes: _int(data['totalDurationMinutes'], 30),
+      listening: ListeningDiagnosticSection.fromMap(
+        Map<String, dynamic>.from(data['listening'] as Map? ?? {}),
       ),
-      child: Container(
-        width: 69,
-        height: 69,
-        decoration: const BoxDecoration(
-          color: Color(0xFF0B1726),
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(
-          Icons.auto_awesome_rounded,
-          color: DiagnosticColors.cyan,
-          size: 28,
-        ),
+      reading: ReadingDiagnosticSection.fromMap(
+        Map<String, dynamic>.from(data['reading'] as Map? ?? {}),
       ),
+      writing: WritingDiagnosticTask.fromMap(
+        Map<String, dynamic>.from(data['writing'] as Map? ?? {}),
+      ),
+      speaking: SpeakingDiagnosticSection.fromMap(
+        Map<String, dynamic>.from(data['speaking'] as Map? ?? {}),
+      ),
+    );
+  }
+
+  static int _int(dynamic value, [int fallback = 0]) {
+    if (value is num) return value.round();
+    return int.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+}
+
+class ListeningDiagnosticSection {
+  final String title;
+  final String audioUrl;
+  final List<DiagnosticQuestion> questions;
+
+  const ListeningDiagnosticSection({
+    required this.title,
+    required this.audioUrl,
+    required this.questions,
+  });
+
+  factory ListeningDiagnosticSection.fromMap(Map<String, dynamic> data) {
+    final audioUrl = (data['audioUrl'] ?? '').toString();
+
+    if (audioUrl.isEmpty) {
+      throw StateError('Published diagnostic test has no Listening audio URL.');
+    }
+
+    return ListeningDiagnosticSection(
+      title: (data['title'] ?? 'Listening Recording').toString(),
+      audioUrl: audioUrl,
+      questions: _questions(data['questions']),
     );
   }
 }
 
-class _PreparationNotice extends StatelessWidget {
-  const _PreparationNotice();
+class ReadingDiagnosticSection {
+  final String passageTitle;
+  final String passage;
+  final List<DiagnosticQuestion> questions;
+
+  const ReadingDiagnosticSection({
+    required this.passageTitle,
+    required this.passage,
+    required this.questions,
+  });
+
+  factory ReadingDiagnosticSection.fromMap(Map<String, dynamic> data) {
+    return ReadingDiagnosticSection(
+      passageTitle: (data['passageTitle'] ?? 'Reading Passage').toString(),
+      passage: (data['passage'] ?? '').toString(),
+      questions: _questions(data['questions']),
+    );
+  }
+}
+
+List<DiagnosticQuestion> _questions(dynamic raw) {
+  if (raw is! List) return const [];
+
+  return raw
+      .whereType<Map>()
+      .map(
+        (value) => DiagnosticQuestion.fromMap(Map<String, dynamic>.from(value)),
+      )
+      .toList();
+}
+
+class DiagnosticQuestion {
+  final String id;
+  final String type;
+  final String prompt;
+  final Map<String, String> options;
+  final List<String> acceptedAnswers;
+  final String instruction;
+
+  const DiagnosticQuestion({
+    required this.id,
+    required this.type,
+    required this.prompt,
+    required this.options,
+    required this.acceptedAnswers,
+    required this.instruction,
+  });
+
+  factory DiagnosticQuestion.fromMap(Map<String, dynamic> data) {
+    final options = <String, String>{};
+
+    if (data['options'] is Map) {
+      for (final entry in (data['options'] as Map).entries) {
+        options[entry.key.toString()] = entry.value.toString();
+      }
+    }
+
+    final accepted = data['acceptedAnswers'] is List
+        ? (data['acceptedAnswers'] as List).map((e) => e.toString()).toList()
+        : [if (data['answer'] != null) data['answer'].toString()];
+
+    return DiagnosticQuestion(
+      id: (data['id'] ?? data['questionId'] ?? '').toString(),
+      type: (data['type'] ?? 'text').toString(),
+      prompt: (data['prompt'] ?? data['question'] ?? '').toString(),
+      options: options,
+      acceptedAnswers: accepted,
+      instruction: (data['instruction'] ?? '').toString(),
+    );
+  }
+}
+
+class WritingDiagnosticTask {
+  final String taskType;
+  final String prompt;
+  final int minimumWords;
+  final int recommendedMinutes;
+
+  const WritingDiagnosticTask({
+    required this.taskType,
+    required this.prompt,
+    required this.minimumWords,
+    required this.recommendedMinutes,
+  });
+
+  factory WritingDiagnosticTask.fromMap(Map<String, dynamic> data) {
+    return WritingDiagnosticTask(
+      taskType: (data['taskType'] ?? 'Task 2').toString(),
+      prompt: (data['prompt'] ?? '').toString(),
+      minimumWords: _int(data['minimumWords'], 150),
+      recommendedMinutes: _int(data['recommendedMinutes'], 20),
+    );
+  }
+
+  static int _int(dynamic value, [int fallback = 0]) {
+    if (value is num) return value.round();
+    return int.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+}
+
+class SpeakingDiagnosticSection {
+  final List<SpeakingPrompt> prompts;
+
+  const SpeakingDiagnosticSection({required this.prompts});
+
+  factory SpeakingDiagnosticSection.fromMap(Map<String, dynamic> data) {
+    final raw = data['prompts'];
+
+    return SpeakingDiagnosticSection(
+      prompts: raw is List
+          ? raw
+                .whereType<Map>()
+                .map(
+                  (value) =>
+                      SpeakingPrompt.fromMap(Map<String, dynamic>.from(value)),
+                )
+                .toList()
+          : const [],
+    );
+  }
+}
+
+class SpeakingPrompt {
+  final String part;
+  final String prompt;
+  final String duration;
+
+  const SpeakingPrompt({
+    required this.part,
+    required this.prompt,
+    required this.duration,
+  });
+
+  factory SpeakingPrompt.fromMap(Map<String, dynamic> data) {
+    return SpeakingPrompt(
+      part: (data['part'] ?? 'Speaking').toString(),
+      prompt: (data['prompt'] ?? '').toString(),
+      duration: (data['duration'] ?? '').toString(),
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'part': part,
+    'prompt': prompt,
+    'duration': duration,
+  };
+}
+
+class DiagnosticWritingEvaluation {
+  final double overallBand;
+  final double taskResponse;
+  final double coherenceCohesion;
+  final double lexicalResource;
+  final double grammarAccuracy;
+  final String summary;
+  final List<String> improvements;
+
+  const DiagnosticWritingEvaluation({
+    required this.overallBand,
+    required this.taskResponse,
+    required this.coherenceCohesion,
+    required this.lexicalResource,
+    required this.grammarAccuracy,
+    required this.summary,
+    required this.improvements,
+  });
+
+  factory DiagnosticWritingEvaluation.fromMap(Map<String, dynamic> data) {
+    return DiagnosticWritingEvaluation(
+      overallBand: _double(data['overallBand']),
+      taskResponse: _double(data['taskResponse'] ?? data['taskAchievement']),
+      coherenceCohesion: _double(data['coherenceCohesion']),
+      lexicalResource: _double(data['lexicalResource']),
+      grammarAccuracy: _double(
+        data['grammarAccuracy'] ?? data['grammaticalRangeAndAccuracy'],
+      ),
+      summary: (data['summary'] ?? '').toString(),
+      improvements: data['improvements'] is List
+          ? (data['improvements'] as List).map((e) => e.toString()).toList()
+          : const [],
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'overallBand': overallBand,
+    'taskResponse': taskResponse,
+    'coherenceCohesion': coherenceCohesion,
+    'lexicalResource': lexicalResource,
+    'grammarAccuracy': grammarAccuracy,
+    'summary': summary,
+    'improvements': improvements,
+  };
+}
+
+class DiagnosticSpeakingEvaluation {
+  final double overallBand;
+  final double fluencyCoherence;
+  final double lexicalResource;
+  final double grammarAccuracy;
+  final double pronunciation;
+  final String transcript;
+  final String summary;
+  final List<String> improvements;
+
+  const DiagnosticSpeakingEvaluation({
+    required this.overallBand,
+    required this.fluencyCoherence,
+    required this.lexicalResource,
+    required this.grammarAccuracy,
+    required this.pronunciation,
+    required this.transcript,
+    required this.summary,
+    required this.improvements,
+  });
+
+  factory DiagnosticSpeakingEvaluation.fromMap(Map<String, dynamic> data) {
+    return DiagnosticSpeakingEvaluation(
+      overallBand: _double(data['overallBand']),
+      fluencyCoherence: _double(data['fluencyCoherence']),
+      lexicalResource: _double(data['lexicalResource']),
+      grammarAccuracy: _double(
+        data['grammarAccuracy'] ?? data['grammaticalRangeAndAccuracy'],
+      ),
+      pronunciation: _double(data['pronunciation']),
+      transcript: (data['transcript'] ?? '').toString(),
+      summary: (data['summary'] ?? '').toString(),
+      improvements: data['improvements'] is List
+          ? (data['improvements'] as List).map((e) => e.toString()).toList()
+          : const [],
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'overallBand': overallBand,
+    'fluencyCoherence': fluencyCoherence,
+    'lexicalResource': lexicalResource,
+    'grammarAccuracy': grammarAccuracy,
+    'pronunciation': pronunciation,
+    'transcript': transcript,
+    'summary': summary,
+    'improvements': improvements,
+  };
+}
+
+class DiagnosticResultData {
+  final String testId;
+  final double overallBand;
+  final double listeningBand;
+  final double readingBand;
+  final double writingBand;
+  final double speakingBand;
+  final double targetBand;
+  final String ieltsType;
+  final int listeningCorrect;
+  final int listeningTotal;
+  final int readingCorrect;
+  final int readingTotal;
+  final DiagnosticWritingEvaluation writingEvaluation;
+  final DiagnosticSpeakingEvaluation speakingEvaluation;
+  final String speakingAudioUrl;
+  final int durationUsedSeconds;
+
+  const DiagnosticResultData({
+    required this.testId,
+    required this.overallBand,
+    required this.listeningBand,
+    required this.readingBand,
+    required this.writingBand,
+    required this.speakingBand,
+    required this.targetBand,
+    required this.ieltsType,
+    required this.listeningCorrect,
+    required this.listeningTotal,
+    required this.readingCorrect,
+    required this.readingTotal,
+    required this.writingEvaluation,
+    required this.speakingEvaluation,
+    required this.speakingAudioUrl,
+    required this.durationUsedSeconds,
+  });
+}
+
+class ObjectiveScore {
+  final int correct;
+  final int total;
+
+  const ObjectiveScore({required this.correct, required this.total});
+}
+
+double _double(dynamic value, [double fallback = 0]) {
+  if (value is num) return value.toDouble();
+  return double.tryParse(value?.toString() ?? '') ?? fallback;
+}
+
+class _DiagnosticQuestionCard extends StatelessWidget {
+  final DiagnosticQuestion question;
+  final dynamic value;
+  final ValueChanged<dynamic> onChanged;
+
+  const _DiagnosticQuestionCard({
+    required this.question,
+    required this.value,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final isChoice = question.options.isNotEmpty;
+
     return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: DiagnosticColors.surface.withOpacity(0.9),
-        borderRadius: BorderRadius.circular(19),
-        border: Border.all(color: Colors.white.withOpacity(0.07)),
-      ),
-      child: const Column(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 13),
+      padding: const EdgeInsets.all(16),
+      decoration: _cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _PreparationRow(
-            icon: Icons.volume_up_outlined,
-            text: 'Use headphones for the listening section.',
-          ),
-          SizedBox(height: 12),
-          _PreparationRow(
-            icon: Icons.do_not_disturb_on_outlined,
-            text: 'Choose a quiet place with minimal interruption.',
-          ),
-          SizedBox(height: 12),
-          _PreparationRow(
-            icon: Icons.route_outlined,
-            text: 'Your result will generate a personalized preparation plan.',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PreparationRow extends StatelessWidget {
-  final IconData icon;
-  final String text;
-
-  const _PreparationRow({required this.icon, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 35,
-          height: 35,
-          decoration: BoxDecoration(
-            color: DiagnosticColors.cyan.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(11),
-          ),
-          child: Icon(icon, color: DiagnosticColors.cyan, size: 18),
-        ),
-        const SizedBox(width: 11),
-        Expanded(
-          child: Text(
-            text,
+          if (question.instruction.isNotEmpty) ...[
+            Text(
+              question.instruction,
+              style: const TextStyle(
+                color: DiagnosticColors.cyan,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 7),
+          ],
+          Text(
+            question.prompt,
             style: const TextStyle(
-              color: DiagnosticColors.secondaryText,
-              fontSize: 11.5,
-              height: 1.4,
+              color: DiagnosticColors.mainText,
+              fontSize: 14,
+              height: 1.45,
+              fontWeight: FontWeight.w800,
             ),
           ),
+          const SizedBox(height: 14),
+          if (isChoice)
+            ...question.options.entries.map(
+              (entry) => _ChoiceTile(
+                selected: value?.toString() == entry.key,
+                label: entry.key,
+                text: entry.value,
+                onTap: () => onChanged(entry.key),
+              ),
+            )
+          else
+            TextFormField(
+              initialValue: value?.toString() ?? '',
+              onChanged: onChanged,
+              style: const TextStyle(color: DiagnosticColors.mainText),
+              decoration: const InputDecoration(
+                hintText: 'Type your answer...',
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChoiceTile extends StatelessWidget {
+  final bool selected;
+  final String label;
+  final String text;
+  final VoidCallback onTap;
+
+  const _ChoiceTile({
+    required this.selected,
+    required this.label,
+    required this.text,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: selected
+              ? DiagnosticColors.cyan.withOpacity(.12)
+              : DiagnosticColors.background.withOpacity(.45),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? DiagnosticColors.cyan : DiagnosticColors.border,
+          ),
         ),
-      ],
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 15,
+              backgroundColor: selected
+                  ? DiagnosticColors.cyan
+                  : DiagnosticColors.surface,
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: selected
+                      ? Colors.white
+                      : DiagnosticColors.secondaryText,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Text(
+                text,
+                style: const TextStyle(color: DiagnosticColors.secondaryText),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RealAudioPlayerCard extends StatelessWidget {
+  final String title;
+  final bool playing;
+  final Duration position;
+  final Duration duration;
+  final VoidCallback onPlay;
+
+  const _RealAudioPlayerCard({
+    required this.title,
+    required this.playing,
+    required this.position,
+    required this.duration,
+    required this.onPlay,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final total = duration.inMilliseconds <= 0 ? 1 : duration.inMilliseconds;
+    final progress = (position.inMilliseconds / total).clamp(0.0, 1.0);
+
+    return Container(
+      padding: const EdgeInsets.all(17),
+      decoration: _heroDecoration(),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              IconButton.filled(
+                onPressed: onPlay,
+                icon: Icon(
+                  playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: DiagnosticColors.mainText,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              Text(
+                '${_formatDuration(position)} / '
+                '${_formatDuration(duration)}',
+                style: const TextStyle(
+                  color: DiagnosticColors.cyan,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 10,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 15),
+          LinearProgressIndicator(
+            value: progress,
+            minHeight: 6,
+            borderRadius: BorderRadius.circular(20),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReadingPassageCard extends StatelessWidget {
+  final String title;
+  final String passage;
+
+  const _ReadingPassageCard({required this.title, required this.passage});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: _cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: DiagnosticColors.mainText,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SelectableText(
+            passage,
+            style: const TextStyle(
+              color: DiagnosticColors.secondaryText,
+              fontSize: 13,
+              height: 1.7,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WritingTaskCard extends StatelessWidget {
+  final WritingDiagnosticTask task;
+
+  const _WritingTaskCard({required this.task});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: _heroDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            task.taskType,
+            style: const TextStyle(
+              color: DiagnosticColors.cyan,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 10),
+          SelectableText(
+            task.prompt,
+            style: const TextStyle(
+              color: DiagnosticColors.mainText,
+              fontSize: 14,
+              height: 1.55,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '${task.minimumWords}+ words • '
+            '${task.recommendedMinutes} minutes',
+            style: const TextStyle(color: DiagnosticColors.mutedText),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SpeakingPromptCard extends StatelessWidget {
+  final SpeakingPrompt prompt;
+
+  const _SpeakingPromptCard({required this.prompt});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(17),
+      decoration: _cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${prompt.part} • ${prompt.duration}',
+            style: const TextStyle(
+              color: DiagnosticColors.cyan,
+              fontWeight: FontWeight.w900,
+              fontSize: 10,
+            ),
+          ),
+          const SizedBox(height: 9),
+          Text(
+            prompt.prompt,
+            style: const TextStyle(
+              color: DiagnosticColors.mainText,
+              fontSize: 14,
+              height: 1.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SpeakingRecorderCard extends StatelessWidget {
+  final bool isRecording;
+  final bool hasRecording;
+  final AnimationController controller;
+  final VoidCallback onTap;
+
+  const _SpeakingRecorderCard({
+    required this.isRecording,
+    required this.hasRecording,
+    required this.controller,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(19),
+      decoration: _heroDecoration(),
+      child: Column(
+        children: [
+          AnimatedBuilder(
+            animation: controller,
+            builder: (_, __) {
+              final scale = isRecording ? 1 + controller.value * .08 : 1.0;
+
+              return Transform.scale(
+                scale: scale,
+                child: IconButton.filled(
+                  onPressed: onTap,
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(78, 78),
+                    backgroundColor: isRecording
+                        ? DiagnosticColors.error
+                        : DiagnosticColors.cyan,
+                  ),
+                  icon: Icon(
+                    isRecording ? Icons.stop_rounded : Icons.mic_rounded,
+                    size: 35,
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          Text(
+            isRecording
+                ? 'Recording… tap to stop'
+                : hasRecording
+                ? 'Recording saved • tap to record again'
+                : 'Tap to start your Speaking recording',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: DiagnosticColors.secondaryText,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FeedbackPanel extends StatelessWidget {
+  final String title;
+  final Map<String, double> rows;
+  final String summary;
+
+  const _FeedbackPanel({
+    required this.title,
+    required this.rows,
+    required this.summary,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(17),
+      decoration: _cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: DiagnosticColors.mainText,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 13),
+          ...rows.entries.map(
+            (entry) => Padding(
+              padding: const EdgeInsets.only(bottom: 9),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      entry.key,
+                      style: const TextStyle(
+                        color: DiagnosticColors.secondaryText,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    entry.value.toStringAsFixed(1),
+                    style: const TextStyle(
+                      color: DiagnosticColors.cyan,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (summary.isNotEmpty) ...[
+            const Divider(color: DiagnosticColors.border),
+            Text(
+              summary,
+              style: const TextStyle(
+                color: DiagnosticColors.mutedText,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -1674,8 +2102,7 @@ class _SectionScrollView extends StatelessWidget {
             style: const TextStyle(
               color: DiagnosticColors.mainText,
               fontSize: 22,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.45,
+              fontWeight: FontWeight.w900,
             ),
           ),
           const SizedBox(height: 7),
@@ -1683,758 +2110,11 @@ class _SectionScrollView extends StatelessWidget {
             description,
             style: const TextStyle(
               color: DiagnosticColors.mutedText,
-              fontSize: 12.5,
               height: 1.5,
             ),
           ),
           const SizedBox(height: 18),
           child,
-        ],
-      ),
-    );
-  }
-}
-
-class _AudioPlayerCard extends StatelessWidget {
-  final bool isPlaying;
-  final int seconds;
-  final AnimationController controller;
-  final VoidCallback onPlay;
-
-  const _AudioPlayerCard({
-    required this.isPlaying,
-    required this.seconds,
-    required this.controller,
-    required this.onPlay,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(17),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(23),
-        gradient: LinearGradient(
-          colors: [
-            DiagnosticColors.blue.withOpacity(0.2),
-            DiagnosticColors.cyan.withOpacity(0.09),
-          ],
-        ),
-        border: Border.all(color: DiagnosticColors.cyan.withOpacity(0.18)),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: onPlay,
-                  borderRadius: BorderRadius.circular(100),
-                  child: Container(
-                    width: 53,
-                    height: 53,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: DiagnosticColors.gradient,
-                      boxShadow: [
-                        BoxShadow(
-                          color: DiagnosticColors.cyan.withOpacity(0.22),
-                          blurRadius: 18,
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      isPlaying
-                          ? Icons.pause_rounded
-                          : Icons.play_arrow_rounded,
-                      color: Colors.white,
-                      size: 29,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 14),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Learning Centre Enquiry',
-                      style: TextStyle(
-                        color: DiagnosticColors.mainText,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    SizedBox(height: 5),
-                    Text(
-                      'Diagnostic Listening • One playback recommended',
-                      style: TextStyle(
-                        color: DiagnosticColors.mutedText,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Text(
-                '${_formatSeconds(seconds)} / 01:15',
-                style: const TextStyle(
-                  color: DiagnosticColors.cyan,
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 17),
-          AnimatedBuilder(
-            animation: controller,
-            builder: (context, child) {
-              return _AudioWave(progress: isPlaying ? controller.value : 0.3);
-            },
-          ),
-          const SizedBox(height: 13),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(100),
-            child: LinearProgressIndicator(
-              value: seconds / 75,
-              minHeight: 5,
-              backgroundColor: DiagnosticColors.border,
-              valueColor: const AlwaysStoppedAnimation<Color>(
-                DiagnosticColors.cyan,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AudioWave extends StatelessWidget {
-  final double progress;
-
-  const _AudioWave({required this.progress});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 35,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: List.generate(32, (index) {
-          final base = 8 + (math.sin(index * 0.85 + progress * 5) + 1) * 8;
-
-          return Expanded(
-            child: Container(
-              height: base,
-              margin: const EdgeInsets.symmetric(horizontal: 1.5),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                gradient: const LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter,
-                  colors: [Color(0xFF2563EB), Color(0xFF22D3EE)],
-                ),
-              ),
-            ),
-          );
-        }),
-      ),
-    );
-  }
-}
-
-class _QuestionCard extends StatelessWidget {
-  final int number;
-  final String title;
-  final Widget child;
-
-  const _QuestionCard({
-    required this.number,
-    required this.title,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 13),
-      padding: const EdgeInsets.all(16),
-      decoration: _cardDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 31,
-                height: 31,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
-                  gradient: DiagnosticColors.gradient,
-                ),
-                child: Text(
-                  '$number',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    color: DiagnosticColors.mainText,
-                    fontSize: 12.8,
-                    height: 1.45,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          child,
-        ],
-      ),
-    );
-  }
-}
-
-class _OptionGroup extends StatelessWidget {
-  final Map<String, String> options;
-  final String? selected;
-  final ValueChanged<String> onSelected;
-
-  const _OptionGroup({
-    required this.options,
-    required this.selected,
-    required this.onSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: options.entries.map((entry) {
-        final isSelected = entry.key == selected;
-
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 9),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => onSelected(entry.key),
-              borderRadius: BorderRadius.circular(14),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? DiagnosticColors.blue.withOpacity(0.17)
-                      : DiagnosticColors.background.withOpacity(0.42),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: isSelected
-                        ? DiagnosticColors.cyan.withOpacity(0.55)
-                        : Colors.white.withOpacity(0.055),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 27,
-                      height: 27,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isSelected
-                            ? DiagnosticColors.cyan
-                            : Colors.transparent,
-                        border: Border.all(
-                          color: isSelected
-                              ? DiagnosticColors.cyan
-                              : DiagnosticColors.border,
-                        ),
-                      ),
-                      child: Text(
-                        entry.key,
-                        style: TextStyle(
-                          color: isSelected
-                              ? DiagnosticColors.background
-                              : DiagnosticColors.mutedText,
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 11),
-                    Expanded(
-                      child: Text(
-                        entry.value,
-                        style: const TextStyle(
-                          color: DiagnosticColors.secondaryText,
-                          fontSize: 11.5,
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-}
-
-class _TextChoiceGroup extends StatelessWidget {
-  final List<String> options;
-  final String? selected;
-  final ValueChanged<String> onSelected;
-
-  const _TextChoiceGroup({
-    required this.options,
-    required this.selected,
-    required this.onSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 9,
-      runSpacing: 9,
-      children: options.map((option) {
-        final isSelected = option == selected;
-
-        return ChoiceChip(
-          selected: isSelected,
-          onSelected: (_) => onSelected(option),
-          label: Text(option),
-          labelStyle: TextStyle(
-            color: isSelected
-                ? DiagnosticColors.background
-                : DiagnosticColors.secondaryText,
-            fontSize: 10.5,
-            fontWeight: FontWeight.w700,
-          ),
-          selectedColor: DiagnosticColors.cyan,
-          backgroundColor: DiagnosticColors.background.withOpacity(0.48),
-          side: BorderSide(
-            color: isSelected
-                ? DiagnosticColors.cyan
-                : Colors.white.withOpacity(0.06),
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(100),
-          ),
-        );
-      }).toList(),
-    );
-  }
-}
-
-class _CompactTextField extends StatelessWidget {
-  final TextEditingController controller;
-  final String hint;
-  final TextInputType? keyboardType;
-
-  const _CompactTextField({
-    required this.controller,
-    required this.hint,
-    this.keyboardType,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      keyboardType: keyboardType,
-      cursorColor: DiagnosticColors.cyan,
-      style: const TextStyle(color: DiagnosticColors.mainText, fontSize: 13),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: const TextStyle(
-          color: DiagnosticColors.subtleText,
-          fontSize: 12,
-        ),
-        filled: true,
-        fillColor: DiagnosticColors.background.withOpacity(0.48),
-        border: _fieldBorder(DiagnosticColors.border),
-        enabledBorder: _fieldBorder(DiagnosticColors.border),
-        focusedBorder: _fieldBorder(DiagnosticColors.cyan, width: 1.4),
-      ),
-    );
-  }
-}
-
-class _ReadingPassageCard extends StatelessWidget {
-  const _ReadingPassageCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(17),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF3F7FB),
-        borderRadius: BorderRadius.circular(21),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.17),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'THE CHANGING ROLE OF COMMUNITY LIBRARIES',
-            style: TextStyle(
-              color: Color(0xFF0F172A),
-              fontSize: 14,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.2,
-            ),
-          ),
-          SizedBox(height: 12),
-          Text(
-            'For generations, public libraries were mainly places where people borrowed printed books. Although that service remains important, many libraries are now expanding their role. They offer digital resources, internet access, study areas and assistance for people who need help using technology.',
-            style: TextStyle(
-              color: Color(0xFF334155),
-              fontSize: 12.2,
-              height: 1.62,
-            ),
-          ),
-          SizedBox(height: 11),
-          Text(
-            'Some libraries also organize language classes, employment workshops and creative activities. These programmes allow visitors to develop practical skills while meeting other members of the community. For students and remote workers, the library may provide a quiet environment that is difficult to find at home.',
-            style: TextStyle(
-              color: Color(0xFF334155),
-              fontSize: 12.2,
-              height: 1.62,
-            ),
-          ),
-          SizedBox(height: 11),
-          Text(
-            'Digital services have not removed the need for physical libraries. Many people still value personal support from trained staff and access to reliable information. The most successful libraries appear to combine traditional services with modern facilities, adapting to local needs rather than following a single model.',
-            style: TextStyle(
-              color: Color(0xFF334155),
-              fontSize: 12.2,
-              height: 1.62,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _WritingTaskCard extends StatelessWidget {
-  final String title;
-  final String text;
-  final bool isAcademic;
-
-  const _WritingTaskCard({
-    required this.title,
-    required this.text,
-    required this.isAcademic,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(17),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        gradient: LinearGradient(
-          colors: [
-            DiagnosticColors.violet.withOpacity(0.18),
-            DiagnosticColors.blue.withOpacity(0.12),
-          ],
-        ),
-        border: Border.all(color: DiagnosticColors.violet.withOpacity(0.22)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 39,
-                height: 39,
-                decoration: BoxDecoration(
-                  color: DiagnosticColors.violet.withOpacity(0.13),
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: Icon(
-                  isAcademic
-                      ? Icons.bar_chart_rounded
-                      : Icons.mail_outline_rounded,
-                  color: const Color(0xFFA78BFA),
-                  size: 21,
-                ),
-              ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    color: DiagnosticColors.mainText,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              const Text(
-                '15 min',
-                style: TextStyle(
-                  color: Color(0xFFA78BFA),
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Text(
-            text,
-            style: const TextStyle(
-              color: DiagnosticColors.secondaryText,
-              fontSize: 12.2,
-              height: 1.55,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SpeakingPromptCard extends StatelessWidget {
-  final String part;
-  final String duration;
-  final String prompt;
-  final IconData icon;
-
-  const _SpeakingPromptCard({
-    required this.part,
-    required this.duration,
-    required this.prompt,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: _cardDecoration(),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: DiagnosticColors.success.withOpacity(0.11),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(icon, color: DiagnosticColors.success, size: 21),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      part,
-                      style: const TextStyle(
-                        color: DiagnosticColors.mainText,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      duration,
-                      style: const TextStyle(
-                        color: DiagnosticColors.success,
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  prompt,
-                  style: const TextStyle(
-                    color: DiagnosticColors.secondaryText,
-                    fontSize: 11.5,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SpeakingRecorderCard extends StatelessWidget {
-  final bool isRecording;
-  final AnimationController controller;
-  final VoidCallback onTap;
-
-  const _SpeakingRecorderCard({
-    required this.isRecording,
-    required this.controller,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(17),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        gradient: LinearGradient(
-          colors: [
-            DiagnosticColors.success.withOpacity(0.13),
-            DiagnosticColors.cyan.withOpacity(0.08),
-          ],
-        ),
-        border: Border.all(color: DiagnosticColors.success.withOpacity(0.19)),
-      ),
-      child: Column(
-        children: [
-          AnimatedBuilder(
-            animation: controller,
-            builder: (context, child) {
-              return SizedBox(
-                height: 45,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: List.generate(22, (index) {
-                    final height = isRecording
-                        ? 8 +
-                              (math.sin(index * 0.8 + controller.value * 7) +
-                                      1) *
-                                  10
-                        : 7.0;
-
-                    return Container(
-                      width: 4,
-                      height: height,
-                      margin: const EdgeInsets.symmetric(horizontal: 2),
-                      decoration: BoxDecoration(
-                        color: isRecording
-                            ? DiagnosticColors.success
-                            : DiagnosticColors.border,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    );
-                  }),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: onTap,
-              borderRadius: BorderRadius.circular(100),
-              child: Container(
-                width: 66,
-                height: 66,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isRecording
-                      ? DiagnosticColors.error
-                      : DiagnosticColors.success,
-                  boxShadow: [
-                    BoxShadow(
-                      color:
-                          (isRecording
-                                  ? DiagnosticColors.error
-                                  : DiagnosticColors.success)
-                              .withOpacity(0.25),
-                      blurRadius: 20,
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  isRecording ? Icons.stop_rounded : Icons.mic_rounded,
-                  color: Colors.white,
-                  size: 30,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 11),
-          Text(
-            isRecording
-                ? 'Tap to finish your speaking response'
-                : 'Tap to start the speaking simulation',
-            style: const TextStyle(
-              color: DiagnosticColors.secondaryText,
-              fontSize: 10.5,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TestNotice extends StatelessWidget {
-  final IconData icon;
-  final String text;
-
-  const _TestNotice({required this.icon, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: DiagnosticColors.blue.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: DiagnosticColors.cyan.withOpacity(0.13)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: DiagnosticColors.cyan, size: 18),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(
-                color: DiagnosticColors.mutedText,
-                fontSize: 10.5,
-                height: 1.45,
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -2448,463 +2128,151 @@ class _TimerBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final danger = seconds <= 300;
-
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
-        color: (danger ? DiagnosticColors.error : DiagnosticColors.blue)
-            .withOpacity(0.12),
+        color: DiagnosticColors.surface,
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(
-          color: (danger ? DiagnosticColors.error : DiagnosticColors.cyan)
-              .withOpacity(0.22),
-        ),
+        border: Border.all(color: DiagnosticColors.border),
       ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.timer_outlined,
-            color: danger ? DiagnosticColors.error : DiagnosticColors.cyan,
-            size: 16,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            _formatSeconds(seconds),
-            style: TextStyle(
-              color: danger
-                  ? DiagnosticColors.error
-                  : DiagnosticColors.mainText,
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
+      child: Text(
+        '${(seconds ~/ 60).toString().padLeft(2, '0')}:'
+        '${(seconds % 60).toString().padLeft(2, '0')}',
+        style: const TextStyle(
+          color: DiagnosticColors.cyan,
+          fontWeight: FontWeight.w900,
+        ),
       ),
     );
   }
 }
 
-class _ResultHeader extends StatelessWidget {
-  const _ResultHeader();
+class _ErrorState extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _ErrorState({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.all(22),
+        padding: const EdgeInsets.all(22),
+        decoration: _cardDecoration(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.error_outline_rounded,
+              color: DiagnosticColors.error,
+              size: 48,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: DiagnosticColors.secondaryText),
+            ),
+            const SizedBox(height: 15),
+            FilledButton(onPressed: onRetry, child: const Text('Retry')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _IntroTopBar extends StatelessWidget {
+  final VoidCallback onBack;
+
+  const _IntroTopBar({required this.onBack});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: DiagnosticColors.gradient,
-          ),
-          child: const Icon(
-            Icons.workspace_premium_rounded,
-            color: Colors.white,
-            size: 24,
-          ),
+        IconButton(
+          onPressed: onBack,
+          icon: const Icon(Icons.arrow_back_rounded),
         ),
-        const SizedBox(width: 12),
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Diagnostic Complete',
-                style: TextStyle(
-                  color: DiagnosticColors.mainText,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              SizedBox(height: 4),
-              Text(
-                'Your personalized IELTS baseline',
-                style: TextStyle(
-                  color: DiagnosticColors.mutedText,
-                  fontSize: 11,
-                ),
-              ),
-            ],
+        const SizedBox(width: 8),
+        const Text(
+          'Diagnostic Assessment',
+          style: TextStyle(
+            color: DiagnosticColors.mainText,
+            fontSize: 17,
+            fontWeight: FontWeight.w900,
           ),
-        ),
-        const Icon(
-          Icons.verified_rounded,
-          color: DiagnosticColors.success,
-          size: 25,
         ),
       ],
     );
   }
 }
 
-class _OverallBandHero extends StatelessWidget {
-  final DiagnosticResultData result;
+class _DiagnosticHeroCard extends StatelessWidget {
+  final String ieltsType;
+  final double targetBand;
 
-  const _OverallBandHero({required this.result});
+  const _DiagnosticHeroCard({
+    required this.ieltsType,
+    required this.targetBand,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(21),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(
-          colors: [
-            DiagnosticColors.blue.withOpacity(0.25),
-            DiagnosticColors.cyan.withOpacity(0.11),
-            DiagnosticColors.violet.withOpacity(0.18),
-          ],
-        ),
-        border: Border.all(color: DiagnosticColors.cyan.withOpacity(0.2)),
-      ),
-      child: Column(
+      padding: const EdgeInsets.all(19),
+      decoration: _heroDecoration(),
+      child: Row(
         children: [
           Container(
-            width: 127,
-            height: 127,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
+            width: 78,
+            height: 78,
+            decoration: const BoxDecoration(
               shape: BoxShape.circle,
-              gradient: const SweepGradient(
+              gradient: SweepGradient(
                 colors: [
-                  Color(0xFF2563EB),
-                  Color(0xFF06B6D4),
-                  Color(0xFF8B5CF6),
-                  Color(0xFF2563EB),
-                ],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: DiagnosticColors.cyan.withOpacity(0.2),
-                  blurRadius: 25,
-                ),
-              ],
-            ),
-            child: Container(
-              width: 108,
-              height: 108,
-              alignment: Alignment.center,
-              decoration: const BoxDecoration(
-                color: Color(0xFF0B1726),
-                shape: BoxShape.circle,
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    result.overallBand.toStringAsFixed(1),
-                    style: const TextStyle(
-                      color: DiagnosticColors.mainText,
-                      fontSize: 37,
-                      height: 1,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'ESTIMATED BAND',
-                    style: TextStyle(
-                      color: DiagnosticColors.cyan,
-                      fontSize: 8,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
+                  DiagnosticColors.blue,
+                  DiagnosticColors.cyan,
+                  DiagnosticColors.violet,
+                  DiagnosticColors.blue,
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 18),
-          Text(
-            result.startingLevel,
-            style: const TextStyle(
-              color: DiagnosticColors.mainText,
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
+            child: const Icon(
+              Icons.analytics_outlined,
+              color: Colors.white,
+              size: 31,
             ),
           ),
-          const SizedBox(height: 7),
-          Text(
-            '${result.ieltsType} preparation starting level',
-            style: const TextStyle(
-              color: DiagnosticColors.mutedText,
-              fontSize: 11.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SkillBandGrid extends StatelessWidget {
-  final DiagnosticResultData result;
-
-  const _SkillBandGrid({required this.result});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _ResultSkillCard(
-                icon: Icons.headphones_rounded,
-                title: 'Listening',
-                band: result.listeningBand,
-                accent: const Color(0xFF22D3EE),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _ResultSkillCard(
-                icon: Icons.menu_book_rounded,
-                title: 'Reading',
-                band: result.readingBand,
-                accent: const Color(0xFF60A5FA),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _ResultSkillCard(
-                icon: Icons.edit_note_rounded,
-                title: 'Writing',
-                band: result.writingBand,
-                accent: const Color(0xFFA78BFA),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _ResultSkillCard(
-                icon: Icons.mic_rounded,
-                title: 'Speaking',
-                band: result.speakingBand,
-                accent: const Color(0xFF34D399),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _ResultSkillCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final double band;
-  final Color accent;
-
-  const _ResultSkillCard({
-    required this.icon,
-    required this.title,
-    required this.band,
-    required this.accent,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 112,
-      padding: const EdgeInsets.all(15),
-      decoration: _cardDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 35,
-                height: 35,
-                decoration: BoxDecoration(
-                  color: accent.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: accent, size: 19),
-              ),
-              const Spacer(),
-              Text(
-                band.toStringAsFixed(1),
-                style: TextStyle(
-                  color: accent,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
-          const Spacer(),
-          Text(
-            title,
-            style: const TextStyle(
-              color: DiagnosticColors.mainText,
-              fontSize: 12.5,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StrengthWeaknessCard extends StatelessWidget {
-  final DiagnosticResultData result;
-
-  const _StrengthWeaknessCard({required this.result});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(17),
-      decoration: _cardDecoration(),
-      child: Column(
-        children: [
-          _InsightRow(
-            icon: Icons.emoji_events_outlined,
-            title: 'Strongest Skill',
-            value: result.strongestSkill,
-            accent: DiagnosticColors.success,
-          ),
-          const SizedBox(height: 14),
-          Divider(color: Colors.white.withOpacity(0.06), height: 1),
-          const SizedBox(height: 14),
-          _InsightRow(
-            icon: Icons.center_focus_strong_rounded,
-            title: 'Main Focus',
-            value: '${result.weakestSkill} & ${result.secondWeakestSkill}',
-            accent: const Color(0xFFF59E0B),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InsightRow extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String value;
-  final Color accent;
-
-  const _InsightRow({
-    required this.icon,
-    required this.title,
-    required this.value,
-    required this.accent,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: accent.withOpacity(0.11),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Icon(icon, color: accent, size: 21),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  color: DiagnosticColors.mutedText,
-                  fontSize: 10.5,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                value,
-                style: const TextStyle(
-                  color: DiagnosticColors.mainText,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _RecommendedPlanCard extends StatelessWidget {
-  final DiagnosticResultData result;
-
-  const _RecommendedPlanCard({required this.result});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        gradient: LinearGradient(
-          colors: [
-            DiagnosticColors.success.withOpacity(0.13),
-            DiagnosticColors.cyan.withOpacity(0.08),
-          ],
-        ),
-        border: Border.all(color: DiagnosticColors.success.withOpacity(0.18)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 67,
-            height: 67,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: DiagnosticColors.success.withOpacity(0.13),
-              border: Border.all(
-                color: DiagnosticColors.success.withOpacity(0.35),
-              ),
-            ),
-            child: Text(
-              '${result.recommendedWeeks}',
-              style: const TextStyle(
-                color: DiagnosticColors.success,
-                fontSize: 25,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 15),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Recommended Plan',
+                  'Adaptive Level Check',
                   style: TextStyle(
                     color: DiagnosticColors.mainText,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 17,
                   ),
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  '${result.recommendedWeeks} weeks of focused preparation based on your target and current performance.',
+                  '$ieltsType • Target ${targetBand.toStringAsFixed(1)}',
                   style: const TextStyle(
-                    color: DiagnosticColors.secondaryText,
-                    fontSize: 10.8,
-                    height: 1.45,
+                    color: DiagnosticColors.cyan,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 7),
+                const Text(
+                  'Real content, real audio and criterion-based evaluation.',
+                  style: TextStyle(
+                    color: DiagnosticColors.mutedText,
+                    height: 1.4,
                   ),
                 ),
               ],
@@ -2916,179 +2284,67 @@ class _RecommendedPlanCard extends StatelessWidget {
   }
 }
 
-class _TargetGapCard extends StatelessWidget {
-  final DiagnosticResultData result;
-
-  const _TargetGapCard({required this.result});
+class _DiagnosticInformationGrid extends StatelessWidget {
+  const _DiagnosticInformationGrid();
 
   @override
   Widget build(BuildContext context) {
-    final progress = result.targetBand == 0
-        ? 0.0
-        : (result.overallBand / result.targetBand).clamp(0.0, 1.0);
+    return const Row(
+      children: [
+        Expanded(
+          child: _InfoCard(
+            icon: Icons.schedule_rounded,
+            title: '30 min',
+            subtitle: 'Timed assessment',
+          ),
+        ),
+        SizedBox(width: 10),
+        Expanded(
+          child: _InfoCard(
+            icon: Icons.grid_view_rounded,
+            title: '4 Skills',
+            subtitle: 'Complete baseline',
+          ),
+        ),
+      ],
+    );
+  }
+}
 
+class _InfoCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  const _InfoCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(17),
+      height: 105,
+      padding: const EdgeInsets.all(14),
       decoration: _cardDecoration(),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Text(
-                'Target Band Progress',
-                style: TextStyle(
-                  color: DiagnosticColors.mainText,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '${result.overallBand.toStringAsFixed(1)} → ${result.targetBand.toStringAsFixed(1)}',
-                style: const TextStyle(
-                  color: DiagnosticColors.cyan,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 13),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(100),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 8,
-              backgroundColor: DiagnosticColors.border,
-              valueColor: const AlwaysStoppedAnimation<Color>(
-                DiagnosticColors.cyan,
-              ),
+          Icon(icon, color: DiagnosticColors.cyan),
+          const Spacer(),
+          Text(
+            title,
+            style: const TextStyle(
+              color: DiagnosticColors.mainText,
+              fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 11),
-          Row(
-            children: [
-              const Text(
-                'Target gap',
-                style: TextStyle(
-                  color: DiagnosticColors.mutedText,
-                  fontSize: 10.5,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '${result.targetGap.toStringAsFixed(1)} band',
-                style: const TextStyle(
-                  color: DiagnosticColors.mainText,
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class StudyPlanPreviewScreen extends StatelessWidget {
-  final DiagnosticResultData result;
-
-  const StudyPlanPreviewScreen({super.key, required this.result});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: DiagnosticColors.background,
-      body: Stack(
-        children: [
-          const Positioned.fill(child: _DiagnosticBackground()),
-          SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(22),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(26),
-                  decoration: _cardDecoration(),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 76,
-                        height: 76,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(24),
-                          gradient: DiagnosticColors.gradient,
-                        ),
-                        child: const Icon(
-                          Icons.route_rounded,
-                          color: Colors.white,
-                          size: 34,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      const Text(
-                        'Study plan ready',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: DiagnosticColors.mainText,
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'A ${result.recommendedWeeks}-week plan will focus first '
-                        'on ${result.weakestSkill} and '
-                        '${result.secondWeakestSkill}.',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: DiagnosticColors.mutedText,
-                          fontSize: 13.5,
-                          height: 1.55,
-                        ),
-                      ),
-                      const SizedBox(height: 22),
-                      _GradientButton(
-                        title: 'Continue to Dashboard',
-                        icon: Icons.dashboard_outlined,
-                        onPressed: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const PersonalizedStudyPlanScreen(
-                                currentBand: 5.5,
-                                targetBand: 7.0,
-                                dailyStudyMinutes: 45,
-                                availableDays: [
-                                  'Monday',
-                                  'Tuesday',
-                                  'Wednesday',
-                                  'Thursday',
-                                  'Friday',
-                                ],
-                                weakQuestionTypes: [
-                                  'Matching Headings',
-                                  'Map Labelling',
-                                  'Writing Coherence',
-                                ],
-                                recentScores: {
-                                  'Listening': 6.0,
-                                  'Reading': 5.0,
-                                  'Writing': 5.5,
-                                  'Speaking': 6.0,
-                                },
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+          Text(
+            subtitle,
+            style: const TextStyle(
+              color: DiagnosticColors.mutedText,
+              fontSize: 10,
             ),
           ),
         ],
@@ -3097,59 +2353,55 @@ class StudyPlanPreviewScreen extends StatelessWidget {
   }
 }
 
-class DiagnosticDeferredScreen extends StatelessWidget {
-  const DiagnosticDeferredScreen({super.key});
+class _PreparationNotice extends StatelessWidget {
+  const _PreparationNotice();
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: DiagnosticColors.background,
-      body: Stack(
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: _cardDecoration(),
+      child: const Column(
         children: [
-          const Positioned.fill(child: _DiagnosticBackground()),
-          SafeArea(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(22),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(26),
-                  decoration: _cardDecoration(),
-                  child: const Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.schedule_rounded,
-                        color: DiagnosticColors.cyan,
-                        size: 47,
-                      ),
-                      SizedBox(height: 18),
-                      Text(
-                        'Diagnostic saved for later',
-                        style: TextStyle(
-                          color: DiagnosticColors.mainText,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      SizedBox(height: 9),
-                      Text(
-                        'You can start the assessment anytime from your dashboard.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: DiagnosticColors.mutedText,
-                          fontSize: 13,
-                          height: 1.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+          _PreparationRow(
+            icon: Icons.headphones_rounded,
+            text: 'Use headphones for the Listening section.',
+          ),
+          SizedBox(height: 11),
+          _PreparationRow(
+            icon: Icons.mic_none_rounded,
+            text: 'Allow microphone permission for Speaking.',
+          ),
+          SizedBox(height: 11),
+          _PreparationRow(
+            icon: Icons.wifi_rounded,
+            text: 'Keep a stable internet connection for AI evaluation.',
           ),
         ],
       ),
+    );
+  }
+}
+
+class _PreparationRow extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _PreparationRow({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, color: DiagnosticColors.cyan),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(color: DiagnosticColors.secondaryText),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -3157,7 +2409,7 @@ class DiagnosticDeferredScreen extends StatelessWidget {
 class _GradientButton extends StatelessWidget {
   final String title;
   final IconData icon;
-  final VoidCallback? onPressed;
+  final VoidCallback onPressed;
   final bool isLoading;
 
   const _GradientButton({
@@ -3169,56 +2421,27 @@ class _GradientButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return Container(
       width: double.infinity,
       height: 54,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(17),
-          gradient: DiagnosticColors.gradient,
-          boxShadow: [
-            BoxShadow(
-              color: DiagnosticColors.blue.withOpacity(0.26),
-              blurRadius: 22,
-              offset: const Offset(0, 11),
-            ),
-          ],
+      decoration: BoxDecoration(
+        gradient: DiagnosticColors.gradient,
+        borderRadius: BorderRadius.circular(17),
+      ),
+      child: FilledButton.icon(
+        onPressed: isLoading ? null : onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
         ),
-        child: ElevatedButton(
-          onPressed: isLoading ? null : onPressed,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.transparent,
-            disabledBackgroundColor: Colors.transparent,
-            shadowColor: Colors.transparent,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(17),
-            ),
-          ),
-          child: isLoading
-              ? const SizedBox(
-                  width: 23,
-                  height: 23,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.3,
-                    color: Colors.white,
-                  ),
-                )
-              : Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Icon(icon, size: 20),
-                  ],
-                ),
-        ),
+        icon: isLoading
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Icon(icon),
+        label: Text(title),
       ),
     );
   }
@@ -3229,58 +2452,15 @@ class _DiagnosticBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF040A13),
-                Color(0xFF07111F),
-                Color(0xFF09182A),
-                Color(0xFF07111F),
-              ],
-              stops: [0, 0.35, 0.72, 1],
-            ),
-          ),
-        ),
-        const Positioned(
-          top: -150,
-          right: -120,
-          child: _GlowOrb(size: 340, color: Color(0x2B2563EB)),
-        ),
-        const Positioned(
-          top: 340,
-          left: -160,
-          child: _GlowOrb(size: 320, color: Color(0x1706B6D4)),
-        ),
-        const Positioned(
-          bottom: -180,
-          right: -150,
-          child: _GlowOrb(size: 390, color: Color(0x178B5CF6)),
-        ),
-      ],
-    );
-  }
-}
-
-class _GlowOrb extends StatelessWidget {
-  final double size;
-  final Color color;
-
-  const _GlowOrb({required this.size, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: RadialGradient(colors: [color, color.withOpacity(0)]),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: RadialGradient(
+          center: const Alignment(.7, -.9),
+          radius: 1.1,
+          colors: [
+            DiagnosticColors.blue.withOpacity(.11),
+            DiagnosticColors.background,
+          ],
         ),
       ),
     );
@@ -3288,37 +2468,49 @@ class _GlowOrb extends StatelessWidget {
 }
 
 class DiagnosticColors {
-  static const background = Color(0xFF07111F);
-  static const surface = Color(0xFF101C2E);
-  static const surfaceLight = Color(0xFF182A40);
+  static const background = Color(0xFF08111F);
+  static const surface = Color(0xFF111C2E);
+  static const border = Color(0xFF25344C);
   static const mainText = Color(0xFFF8FAFC);
   static const secondaryText = Color(0xFFCBD5E1);
   static const mutedText = Color(0xFF94A3B8);
   static const subtleText = Color(0xFF64748B);
-  static const border = Color(0xFF26364A);
+  static const cyan = Color(0xFF06B6D4);
   static const blue = Color(0xFF2563EB);
-  static const cyan = Color(0xFF22D3EE);
   static const violet = Color(0xFF8B5CF6);
-  static const success = Color(0xFF34D399);
+  static const success = Color(0xFF22C55E);
   static const error = Color(0xFFEF4444);
 
-  static const gradient = LinearGradient(
-    colors: [Color(0xFF2563EB), Color(0xFF06B6D4), Color(0xFF7C3AED)],
-  );
+  static const gradient = LinearGradient(colors: [cyan, blue, violet]);
 }
 
 BoxDecoration _cardDecoration() {
   return BoxDecoration(
-    color: DiagnosticColors.surface.withOpacity(0.92),
+    color: DiagnosticColors.surface,
     borderRadius: BorderRadius.circular(20),
-    border: Border.all(color: Colors.white.withOpacity(0.065)),
+    border: Border.all(color: DiagnosticColors.border),
     boxShadow: [
       BoxShadow(
-        color: Colors.black.withOpacity(0.14),
-        blurRadius: 17,
+        color: Colors.black.withOpacity(.12),
+        blurRadius: 18,
         offset: const Offset(0, 8),
       ),
     ],
+  );
+}
+
+BoxDecoration _heroDecoration() {
+  return BoxDecoration(
+    gradient: LinearGradient(
+      colors: [
+        DiagnosticColors.surface,
+        DiagnosticColors.blue.withOpacity(.18),
+        DiagnosticColors.cyan.withOpacity(.10),
+        DiagnosticColors.violet.withOpacity(.10),
+      ],
+    ),
+    borderRadius: BorderRadius.circular(23),
+    border: Border.all(color: DiagnosticColors.cyan.withOpacity(.24)),
   );
 }
 
@@ -3329,9 +2521,8 @@ OutlineInputBorder _fieldBorder(Color color, {double width = 1}) {
   );
 }
 
-String _formatSeconds(int totalSeconds) {
-  final minutes = totalSeconds ~/ 60;
-  final seconds = totalSeconds % 60;
-
-  return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+String _formatDuration(Duration value) {
+  final minutes = value.inMinutes;
+  final seconds = value.inSeconds.remainder(60);
+  return '$minutes:${seconds.toString().padLeft(2, '0')}';
 }
