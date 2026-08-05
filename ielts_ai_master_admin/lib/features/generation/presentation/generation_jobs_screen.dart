@@ -67,6 +67,17 @@ class GenerationJobsScreen extends StatelessWidget {
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
                 sliver: SliverToBoxAdapter(
+                  child: _JobsOverviewHero(
+                    total: total,
+                    active: queued + generating,
+                    completed: completed,
+                    failed: failed,
+                  ),
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
+                sliver: SliverToBoxAdapter(
                   child: _JobsSummary(
                     total: total,
                     queued: queued,
@@ -127,6 +138,224 @@ class GenerationJobsScreen extends StatelessWidget {
     }
 
     return 'Generation jobs load nahi huay.\n$message';
+  }
+}
+
+class _JobsOverviewHero extends StatelessWidget {
+  final int total;
+  final int active;
+  final int completed;
+  final int failed;
+
+  const _JobsOverviewHero({
+    required this.total,
+    required this.active,
+    required this.completed,
+    required this.failed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final completionRate = total == 0 ? 0.0 : completed / total;
+    final safeRate = completionRate.clamp(0.0, 1.0);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF102A43), Color(0xFF173B57), Color(0xFF2A245E)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: Colors.white.withOpacity(.08)),
+        boxShadow: [
+          BoxShadow(
+            color: AdminColors.cyan.withOpacity(.10),
+            blurRadius: 28,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 620;
+
+          final heading = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(.08),
+                  borderRadius: BorderRadius.circular(99),
+                  border: Border.all(color: Colors.white.withOpacity(.08)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.auto_awesome_rounded,
+                      color: AdminColors.cyan,
+                      size: 15,
+                    ),
+                    SizedBox(width: 7),
+                    Text(
+                      'AI CONTENT PIPELINE',
+                      style: TextStyle(
+                        color: AdminColors.cyan,
+                        fontSize: 9.5,
+                        letterSpacing: 1.1,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'Generation Operations',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 23,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -.4,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '$active active job${active == 1 ? '' : 's'} across Listening and Reading',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(.70),
+                  fontSize: 11.5,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          );
+
+          final progress = Container(
+            width: compact ? double.infinity : 220,
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(.16),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withOpacity(.08)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      'Completion rate',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${(safeRate * 100).round()}%',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 11),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(99),
+                  child: LinearProgressIndicator(
+                    minHeight: 8,
+                    value: safeRate,
+                    backgroundColor: Colors.white.withOpacity(.10),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      AdminColors.success,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    _HeroMiniStat(
+                      icon: Icons.check_circle_rounded,
+                      value: '$completed',
+                      label: 'Done',
+                      color: AdminColors.success,
+                    ),
+                    const SizedBox(width: 16),
+                    _HeroMiniStat(
+                      icon: Icons.error_rounded,
+                      value: '$failed',
+                      label: 'Failed',
+                      color: Color(0xFFFF6B6B),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [heading, const SizedBox(height: 18), progress],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: heading),
+              const SizedBox(width: 20),
+              progress,
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _HeroMiniStat extends StatelessWidget {
+  final IconData icon;
+  final String value;
+  final String label;
+  final Color color;
+
+  const _HeroMiniStat({
+    required this.icon,
+    required this.value,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 17),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              '$value $label',
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -221,49 +450,81 @@ class _JobMetric extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 86,
+      height: 94,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AdminColors.surface,
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: AdminColors.border),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: color.withOpacity(.12),
-              borderRadius: BorderRadius.circular(13),
-            ),
-            child: Icon(icon, color: color, size: 21),
+        borderRadius: BorderRadius.circular(19),
+        border: Border.all(color: color.withOpacity(.20)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(.06),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '$value',
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 21,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AdminColors.textMuted,
-                    fontSize: 10.5,
-                  ),
-                ),
-              ],
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: -14,
+            top: -18,
+            child: Container(
+              width: 68,
+              height: 68,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: color.withOpacity(.06),
+              ),
             ),
+          ),
+          Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [color.withOpacity(.22), color.withOpacity(.08)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(color: color.withOpacity(.18)),
+                ),
+                child: Icon(icon, color: color, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$value',
+                      style: const TextStyle(
+                        color: AdminColors.text,
+                        fontSize: 23,
+                        fontWeight: FontWeight.w900,
+                        height: 1,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 10,
+                        letterSpacing: .3,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -346,188 +607,316 @@ class _GenerationJobCard extends StatelessWidget {
     final lastError = (data['lastError'] ?? data['errorMessage'] ?? '')
         .toString()
         .trim();
+    final normalizedStatus = _status.trim().toLowerCase();
+    final statusColor = _statusColor(normalizedStatus);
+    final createdAt = _formatTimestamp(data['createdAt']);
 
-    return Card(
-      margin: EdgeInsets.zero,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => _showDetails(context),
-        child: Padding(
-          padding: const EdgeInsets.all(15),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: _moduleColor.withOpacity(.11),
-                  borderRadius: BorderRadius.circular(14),
+    return Container(
+      decoration: BoxDecoration(
+        color: AdminColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: statusColor.withOpacity(.18)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.08),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => _showDetails(context),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        _moduleColor.withOpacity(.22),
+                        _moduleColor.withOpacity(.08),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: _moduleColor.withOpacity(.20)),
+                  ),
+                  child: Icon(_icon, color: _moduleColor, size: 25),
                 ),
-                child: Icon(_icon, color: _moduleColor),
-              ),
-              const SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _title,
-                            style: const TextStyle(
-                              color: AdminColors.text,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w900,
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _title,
+                              style: const TextStyle(
+                                color: AdminColors.text,
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w900,
+                                height: 1.25,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        StatusBadge(status: _status),
-                      ],
-                    ),
-                    const SizedBox(height: 7),
-                    Text(
-                      _subtitle,
-                      style: const TextStyle(
-                        color: AdminColors.textMuted,
-                        height: 1.45,
+                          const SizedBox(width: 10),
+                          StatusBadge(status: _status),
+                        ],
                       ),
-                    ),
-                    if (lastError.isNotEmpty) ...[
-                      const SizedBox(height: 9),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEF4444).withOpacity(.08),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: const Color(0xFFEF4444).withOpacity(.20),
+                      const SizedBox(height: 8),
+                      Text(
+                        _subtitle,
+                        style: const TextStyle(
+                          color: AdminColors.textMuted,
+                          fontSize: 11,
+                          height: 1.5,
+                        ),
+                      ),
+                      if (lastError.isNotEmpty) ...[
+                        const SizedBox(height: 11),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(11),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444).withOpacity(.08),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: const Color(0xFFEF4444).withOpacity(.20),
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(
+                                Icons.warning_amber_rounded,
+                                color: Color(0xFFFF6B6B),
+                                size: 17,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  lastError,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Color(0xFFFF8A8A),
+                                    fontSize: 10.5,
+                                    height: 1.4,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        child: Text(
-                          lastError,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Color(0xFFEF4444),
-                            fontSize: 10.5,
-                            height: 1.35,
+                      ],
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 9,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _moduleColor.withOpacity(.08),
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                            child: Text(
+                              _isReading ? 'READING' : 'LISTENING',
+                              style: TextStyle(
+                                color: _moduleColor,
+                                fontSize: 8.5,
+                                letterSpacing: .7,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 8),
+                          if (createdAt.isNotEmpty)
+                            Expanded(
+                              child: Text(
+                                createdAt,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: AdminColors.textMuted,
+                                  fontSize: 9.5,
+                                ),
+                              ),
+                            )
+                          else
+                            const Spacer(),
+                          const Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            size: 13,
+                            color: AdminColors.textMuted,
+                          ),
+                        ],
                       ),
                     ],
-                    const SizedBox(height: 8),
-                    Text(
-                      'Job ID: $jobId',
-                      style: const TextStyle(
-                        color: AdminColors.textMuted,
-                        fontSize: 9,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 5),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: AdminColors.textMuted,
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'completed':
+        return AdminColors.success;
+      case 'failed':
+        return const Color(0xFFEF4444);
+      case 'generating':
+        return AdminColors.violet;
+      case 'queued':
+      default:
+        return AdminColors.warning;
+    }
+  }
+
+  String _formatTimestamp(dynamic value) {
+    DateTime? date;
+    if (value is Timestamp) date = value.toDate();
+    if (value is DateTime) date = value;
+    if (date == null) return '';
+
+    final local = date.toLocal();
+    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final minute = local.minute.toString().padLeft(2, '0');
+    final period = local.hour >= 12 ? 'PM' : 'AM';
+    return '${local.day}/${local.month}/${local.year} • $hour:$minute $period';
+  }
+
   void _showDetails(BuildContext context) {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AdminColors.surface,
+      backgroundColor: Colors.transparent,
+      useSafeArea: true,
       builder: (sheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(_icon, color: _moduleColor),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          _title,
-                          style: const TextStyle(
-                            color: AdminColors.text,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                          ),
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * .84,
+          ),
+          decoration: const BoxDecoration(
+            color: AdminColors.surface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 48,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: AdminColors.textMuted.withOpacity(.35),
+                          borderRadius: BorderRadius.circular(99),
                         ),
                       ),
-                      IconButton(
-                        onPressed: () {
-                          Navigator.pop(sheetContext);
-                        },
-                        icon: const Icon(Icons.close_rounded),
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: _moduleColor.withOpacity(.12),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Icon(_icon, color: _moduleColor),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _title,
+                            style: const TextStyle(
+                              color: AdminColors.text,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () {
+                            Navigator.pop(sheetContext);
+                          },
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _DetailRow(
+                      label: 'Content type',
+                      value: _isReading ? 'Reading' : 'Listening',
+                    ),
+                    _DetailRow(label: 'Status', value: _status),
+                    _DetailRow(
+                      label: 'Requested',
+                      value: '${_asInt(data['requestedCount'])}',
+                    ),
+                    _DetailRow(
+                      label: 'Generated',
+                      value: '${_asInt(data['generatedCount'])}',
+                    ),
+                    _DetailRow(
+                      label: 'Failed',
+                      value: '${_asInt(data['failedCount'])}',
+                    ),
+                    if (_isReading) ...[
+                      _DetailRow(
+                        label: 'Mode',
+                        value: _readingModeTitle(
+                          (data['mode'] ?? 'passage').toString(),
+                        ),
+                      ),
+                      _DetailRow(
+                        label: 'IELTS type',
+                        value: (data['ieltsType'] ?? 'Academic').toString(),
+                      ),
+                      _DetailRow(
+                        label: 'Question type',
+                        value:
+                            (data['primaryQuestionType'] ??
+                                    data['questionType'] ??
+                                    'Mixed')
+                                .toString(),
+                      ),
+                    ] else ...[
+                      _DetailRow(
+                        label: 'Section',
+                        value: (data['section'] ?? '-').toString(),
+                      ),
+                      _DetailRow(
+                        label: 'Question type',
+                        value: (data['questionType'] ?? '-').toString(),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 16),
-                  _DetailRow(
-                    label: 'Content type',
-                    value: _isReading ? 'Reading' : 'Listening',
-                  ),
-                  _DetailRow(label: 'Status', value: _status),
-                  _DetailRow(
-                    label: 'Requested',
-                    value: '${_asInt(data['requestedCount'])}',
-                  ),
-                  _DetailRow(
-                    label: 'Generated',
-                    value: '${_asInt(data['generatedCount'])}',
-                  ),
-                  _DetailRow(
-                    label: 'Failed',
-                    value: '${_asInt(data['failedCount'])}',
-                  ),
-                  if (_isReading) ...[
-                    _DetailRow(
-                      label: 'Mode',
-                      value: _readingModeTitle(
-                        (data['mode'] ?? 'passage').toString(),
-                      ),
-                    ),
-                    _DetailRow(
-                      label: 'IELTS type',
-                      value: (data['ieltsType'] ?? 'Academic').toString(),
-                    ),
-                    _DetailRow(
-                      label: 'Question type',
-                      value:
-                          (data['primaryQuestionType'] ??
-                                  data['questionType'] ??
-                                  'Mixed')
-                              .toString(),
-                    ),
-                  ] else ...[
-                    _DetailRow(
-                      label: 'Section',
-                      value: (data['section'] ?? '-').toString(),
-                    ),
-                    _DetailRow(
-                      label: 'Question type',
-                      value: (data['questionType'] ?? '-').toString(),
-                    ),
+                    _DetailRow(label: 'Job ID', value: jobId),
                   ],
-                  _DetailRow(label: 'Job ID', value: jobId),
-                ],
+                ),
               ),
             ),
           ),
@@ -578,36 +967,52 @@ class _DetailRow extends StatelessWidget {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 9),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
       decoration: BoxDecoration(
-        color: AdminColors.background,
-        borderRadius: BorderRadius.circular(12),
+        color: AdminColors.background.withOpacity(.72),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AdminColors.border),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 110,
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: AdminColors.textMuted,
-                fontSize: 11,
-              ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final narrow = constraints.maxWidth < 360;
+
+          final labelWidget = Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              color: AdminColors.textMuted,
+              fontSize: 9,
+              letterSpacing: .7,
+              fontWeight: FontWeight.w800,
             ),
-          ),
-          Expanded(
-            child: SelectableText(
-              value,
-              style: const TextStyle(
-                color: AdminColors.text,
-                fontWeight: FontWeight.w700,
-                fontSize: 11,
-              ),
+          );
+
+          final valueWidget = SelectableText(
+            value,
+            style: const TextStyle(
+              color: AdminColors.text,
+              fontWeight: FontWeight.w700,
+              fontSize: 11.5,
+              height: 1.35,
             ),
-          ),
-        ],
+          );
+
+          if (narrow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [labelWidget, const SizedBox(height: 6), valueWidget],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(width: 112, child: labelWidget),
+              const SizedBox(width: 12),
+              Expanded(child: valueWidget),
+            ],
+          );
+        },
       ),
     );
   }

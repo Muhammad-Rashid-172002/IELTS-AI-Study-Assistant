@@ -345,6 +345,15 @@ class _ListeningTestBrowserScreenState extends State<ListeningTestBrowserScreen>
 
       if (!mounted) return;
 
+      if (selectedTest == null) {
+        setState(() {
+          _loading = false;
+          _error =
+              'You have completed every available Listening test for this selection. New tests will appear when the administrator publishes them.';
+        });
+        return;
+      }
+
       await Navigator.pushReplacement(
         context,
         PageRouteBuilder<void>(
@@ -461,8 +470,8 @@ class _ListeningTestBrowserScreenState extends State<ListeningTestBrowserScreen>
         test.transcript.trim().isNotEmpty;
   }
 
-  Future<ListeningTest> _selectBestTest(List<ListeningTest> tests) async {
-    if (tests.length == 1) return tests.first;
+  Future<ListeningTest?> _selectBestTest(List<ListeningTest> tests) async {
+    if (tests.isEmpty) return null;
 
     final user = FirebaseAuth.instance.currentUser;
     final attemptedIds = <String>{};
@@ -490,8 +499,8 @@ class _ListeningTestBrowserScreenState extends State<ListeningTestBrowserScreen>
         .where((test) => !attemptedIds.contains(test.id))
         .toList();
 
-    final pool = unseenTests.isNotEmpty ? unseenTests : tests;
-    return pool[math.Random.secure().nextInt(pool.length)];
+    if (unseenTests.isEmpty) return null;
+    return unseenTests[math.Random.secure().nextInt(unseenTests.length)];
   }
 
   Future<List<ListeningTest>> _selectFullMockTests(
@@ -508,7 +517,9 @@ class _ListeningTestBrowserScreenState extends State<ListeningTestBrowserScreen>
         return const <ListeningTest>[];
       }
 
-      selected.add(await _selectBestTest(sectionTests));
+      final next = await _selectBestTest(sectionTests);
+      if (next == null) return const <ListeningTest>[];
+      selected.add(next);
     }
 
     selected.sort((a, b) => a.section.compareTo(b.section));
@@ -2084,30 +2095,55 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
+    return Row(
       children: [
-        _GradientIcon(icon: Icons.headphones_rounded),
-        SizedBox(width: 12),
-        Expanded(
+        Container(
+          width: 54,
+          height: 54,
+          decoration: BoxDecoration(
+            gradient: LColors.gradient,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: LColors.cyan.withOpacity(.22),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.headphones_rounded,
+            color: Colors.white,
+            size: 28,
+          ),
+        ),
+        const SizedBox(width: 14),
+        const Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Listening',
+                'Listening Lab',
                 style: TextStyle(
                   color: LColors.text,
-                  fontSize: 24,
+                  fontSize: 25,
+                  letterSpacing: -.5,
                   fontWeight: FontWeight.w900,
                 ),
               ),
-              SizedBox(height: 4),
+              SizedBox(height: 5),
               Text(
-                'Real-time IELTS listening practice and analytics',
-                style: TextStyle(color: LColors.muted, fontSize: 10.5),
+                'Train smarter with IELTS-focused practice',
+                style: TextStyle(
+                  color: LColors.muted,
+                  fontSize: 11.5,
+                  height: 1.35,
+                ),
               ),
             ],
           ),
         ),
+        _Badge(text: 'AI READY'),
       ],
     );
   }
@@ -2120,55 +2156,124 @@ class _BandCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final progress = band <= 0 ? 0.0 : (band / 9).clamp(0.0, 1.0);
+    final label = band <= 0
+        ? 'Complete a test to unlock your estimate'
+        : band >= 7
+        ? 'Strong performance — keep refining accuracy'
+        : band >= 5.5
+        ? 'Good progress — focus on weak question types'
+        : 'Build consistency with short daily sessions';
+
     return Container(
-      padding: const EdgeInsets.all(19),
+      padding: const EdgeInsets.all(20),
       decoration: _heroDecoration(),
-      child: Row(
+      child: Column(
         children: [
-          Container(
-            width: 90,
-            height: 90,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: LColors.cyan, width: 8),
-              boxShadow: [
-                BoxShadow(color: LColors.cyan.withOpacity(.2), blurRadius: 20),
-              ],
-            ),
-            child: Text(
-              band > 0 ? band.toStringAsFixed(1) : '—',
-              style: const TextStyle(
-                color: LColors.text,
-                fontSize: 26,
-                fontWeight: FontWeight.w900,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 98,
+                height: 98,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      width: 98,
+                      height: 98,
+                      child: CircularProgressIndicator(
+                        value: progress,
+                        strokeWidth: 8,
+                        strokeCap: StrokeCap.round,
+                        color: LColors.cyan,
+                        backgroundColor: Colors.white.withOpacity(.08),
+                      ),
+                    ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          band > 0 ? band.toStringAsFixed(1) : '—',
+                          style: const TextStyle(
+                            color: LColors.text,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const Text(
+                          'BAND',
+                          style: TextStyle(
+                            color: LColors.muted,
+                            fontSize: 8.5,
+                            letterSpacing: 1.4,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ),
-          const SizedBox(width: 15),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Current Estimated Band',
-                  style: TextStyle(
-                    color: LColors.text,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                  ),
+              const SizedBox(width: 18),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Current Listening Level',
+                      style: TextStyle(
+                        color: LColors.text,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        color: LColors.secondary,
+                        fontSize: 11,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 13),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(.06),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(.07),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.auto_graph_rounded,
+                            size: 15,
+                            color: LColors.green,
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'Updates after every test',
+                            style: TextStyle(
+                              color: LColors.secondary,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                SizedBox(height: 8),
-                Text(
-                  'Updated automatically from your latest listening results.',
-                  style: TextStyle(
-                    color: LColors.secondary,
-                    fontSize: 10.7,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),
@@ -2184,35 +2289,76 @@ class _WeakTypesCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(17),
       decoration: _card(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Weak Question Types',
-            style: TextStyle(
-              color: LColors.text,
-              fontSize: 14,
-              fontWeight: FontWeight.w900,
-            ),
+          const Row(
+            children: [
+              _MiniIcon(
+                icon: Icons.track_changes_rounded,
+                color: LColors.orange,
+              ),
+              SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Focus Areas',
+                      style: TextStyle(
+                        color: LColors.text,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Prioritize these question types next',
+                      style: TextStyle(color: LColors.muted, fontSize: 9.7),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 11),
+          const SizedBox(height: 14),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: types
                 .map(
-                  (type) => Chip(
-                    label: Text(type),
-                    backgroundColor: const Color(0xFFF97316).withOpacity(.12),
-                    side: BorderSide(
-                      color: const Color(0xFFF97316).withOpacity(.25),
+                  (type) => Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 11,
+                      vertical: 8,
                     ),
-                    labelStyle: const TextStyle(
-                      color: Color(0xFFFDBA74),
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w800,
+                    decoration: BoxDecoration(
+                      color: LColors.orange.withOpacity(.10),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: LColors.orange.withOpacity(.23),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.bolt_rounded,
+                          color: LColors.orange,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          type,
+                          style: const TextStyle(
+                            color: Color(0xFFFFC28A),
+                            fontSize: 9.8,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 )
@@ -2230,42 +2376,87 @@ class _RecommendedLessonCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(17),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        color: LColors.green.withOpacity(.09),
-        border: Border.all(color: LColors.green.withOpacity(.2)),
+        borderRadius: BorderRadius.circular(22),
+        gradient: LinearGradient(
+          colors: [
+            LColors.green.withOpacity(.14),
+            LColors.cyan.withOpacity(.07),
+          ],
+        ),
+        border: Border.all(color: LColors.green.withOpacity(.22)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.16),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
-      child: const Row(
+      child: Row(
         children: [
-          Icon(Icons.recommend_outlined, color: LColors.green, size: 27),
-          SizedBox(width: 12),
-          Expanded(
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: LColors.green.withOpacity(.13),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: const Icon(
+              Icons.lightbulb_rounded,
+              color: LColors.green,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 13),
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Recommended Lesson',
-                  style: TextStyle(color: LColors.muted, fontSize: 9.5),
+                  'RECOMMENDED FOR YOU',
+                  style: TextStyle(
+                    color: LColors.green,
+                    fontSize: 8.8,
+                    letterSpacing: .8,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
-                SizedBox(height: 4),
+                SizedBox(height: 5),
                 Text(
                   'Map Labelling Essentials',
                   style: TextStyle(
                     color: LColors.text,
-                    fontSize: 13,
+                    fontSize: 13.5,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
                 SizedBox(height: 4),
                 Text(
-                  'Improve direction vocabulary and location prediction.',
-                  style: TextStyle(color: LColors.secondary, fontSize: 9.8),
+                  'Master directions, landmarks and location prediction.',
+                  style: TextStyle(
+                    color: LColors.secondary,
+                    fontSize: 9.8,
+                    height: 1.35,
+                  ),
                 ),
               ],
             ),
           ),
-          Icon(Icons.arrow_forward_rounded, color: LColors.green),
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(.07),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.arrow_forward_rounded,
+              color: LColors.green,
+              size: 18,
+            ),
+          ),
         ],
       ),
     );
@@ -2282,24 +2473,78 @@ class _ModeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return _TapCard(
       onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Icon(mode.icon, color: LColors.cyan, size: 25),
-          const Spacer(),
-          Text(
-            mode.label,
-            style: const TextStyle(
-              color: LColors.text,
-              fontSize: 12.5,
-              fontWeight: FontWeight.w900,
+          Positioned(
+            right: -16,
+            top: -18,
+            child: Container(
+              width: 58,
+              height: 58,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: LColors.cyan.withOpacity(.07),
+              ),
             ),
           ),
-          const SizedBox(height: 5),
-          Text(
-            mode.subtitle,
-            maxLines: 2,
-            style: const TextStyle(color: LColors.muted, fontSize: 9.3),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      LColors.cyan.withOpacity(.22),
+                      LColors.violet.withOpacity(.18),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: LColors.cyan.withOpacity(.18)),
+                ),
+                child: Icon(mode.icon, color: LColors.cyan, size: 22),
+              ),
+              const Spacer(),
+              Text(
+                mode.label,
+                style: const TextStyle(
+                  color: LColors.text,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                mode.subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: LColors.muted,
+                  fontSize: 9.5,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 9),
+              const Row(
+                children: [
+                  Text(
+                    'Start practice',
+                    style: TextStyle(
+                      color: LColors.cyan,
+                      fontSize: 9.2,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  SizedBox(width: 4),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    color: LColors.cyan,
+                    size: 14,
+                  ),
+                ],
+              ),
+            ],
           ),
         ],
       ),
@@ -2320,29 +2565,55 @@ class _QuestionTypeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = weak ? const Color(0xFFF97316) : LColors.cyan;
-
+    final color = weak ? LColors.orange : LColors.cyan;
     return _TapCard(
       onTap: onTap,
       child: Row(
         children: [
-          Icon(type.icon, color: color, size: 20),
-          const SizedBox(width: 9),
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: color.withOpacity(.11),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: color.withOpacity(.18)),
+            ),
+            child: Icon(type.icon, color: color, size: 18),
+          ),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
               type.label,
+              maxLines: 2,
               style: const TextStyle(
                 color: LColors.text,
                 fontSize: 10.3,
+                height: 1.25,
                 fontWeight: FontWeight.w800,
               ),
             ),
           ),
           if (weak)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+              decoration: BoxDecoration(
+                color: LColors.orange.withOpacity(.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text(
+                'FOCUS',
+                style: TextStyle(
+                  color: LColors.orange,
+                  fontSize: 7.5,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            )
+          else
             const Icon(
-              Icons.warning_amber_rounded,
-              color: Color(0xFFF97316),
-              size: 16,
+              Icons.chevron_right_rounded,
+              color: LColors.muted,
+              size: 18,
             ),
         ],
       ),
@@ -2362,12 +2633,25 @@ class _RecentResultCard extends StatelessWidget {
       decoration: _card(),
       child: Row(
         children: [
-          CircleAvatar(
-            backgroundColor: LColors.cyan.withOpacity(.13),
+          Container(
+            width: 48,
+            height: 48,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  LColors.cyan.withOpacity(.18),
+                  LColors.violet.withOpacity(.14),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: LColors.cyan.withOpacity(.16)),
+            ),
             child: Text(
               result.estimatedBand.toStringAsFixed(1),
               style: const TextStyle(
                 color: LColors.cyan,
+                fontSize: 14,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -2387,14 +2671,46 @@ class _RecentResultCard extends StatelessWidget {
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-                const SizedBox(height: 5),
-                Text(
-                  '${result.rawScore}/${result.totalQuestions} • ${result.accuracyPercent}% accuracy',
-                  style: const TextStyle(color: LColors.muted, fontSize: 9.8),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.check_circle_outline_rounded,
+                      color: LColors.green,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      '${result.rawScore}/${result.totalQuestions} correct',
+                      style: const TextStyle(
+                        color: LColors.secondary,
+                        fontSize: 9.7,
+                      ),
+                    ),
+                    const SizedBox(width: 9),
+                    Container(
+                      width: 3,
+                      height: 3,
+                      decoration: const BoxDecoration(
+                        color: LColors.muted,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 9),
+                    Text(
+                      '${result.accuracyPercent}% accuracy',
+                      style: const TextStyle(
+                        color: LColors.cyan,
+                        fontSize: 9.7,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
+          const Icon(Icons.chevron_right_rounded, color: LColors.muted),
         ],
       ),
     );
@@ -2467,22 +2783,79 @@ class _PracticeHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final progress = total == 0 ? 0.0 : ((current + 1) / total).clamp(0.0, 1.0);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+      child: Column(
         children: [
-          Expanded(
-            child: Text(
-              '$title\nQuestion ${current + 1} of $total',
-              style: const TextStyle(
-                color: LColors.text,
-                fontSize: 13,
-                height: 1.4,
-                fontWeight: FontWeight.w800,
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: LColors.text,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Question ${current + 1} of $total',
+                      style: const TextStyle(
+                        color: LColors.muted,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 11,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: LColors.orange.withOpacity(.10),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: LColors.orange.withOpacity(.18)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.timer_outlined,
+                      color: LColors.orange,
+                      size: 15,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _formatClock(seconds),
+                      style: const TextStyle(
+                        color: Color(0xFFFFC28A),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 5,
+              color: LColors.cyan,
+              backgroundColor: LColors.border,
             ),
           ),
-          _Badge(text: _formatClock(seconds)),
         ],
       ),
     );
@@ -2614,40 +2987,72 @@ class _QuestionNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 54,
+    return Container(
+      height: 62,
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: LColors.surface.withOpacity(.72),
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: Colors.white.withOpacity(.05)),
+      ),
       child: Row(
         children: [
           Expanded(
             child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
               scrollDirection: Axis.horizontal,
               itemCount: total,
               separatorBuilder: (_, __) => const SizedBox(width: 7),
-              itemBuilder: (_, index) => InkWell(
-                onTap: () => onTap(index),
-                child: CircleAvatar(
-                  backgroundColor: index == current
-                      ? LColors.cyan
-                      : answered.contains(index)
-                      ? LColors.green
-                      : LColors.surface,
-                  child: Text(
-                    '${index + 1}',
-                    style: TextStyle(
-                      color: index == current ? LColors.bg : LColors.text,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
+              itemBuilder: (_, index) {
+                final selected = index == current;
+                final done = answered.contains(index);
+                return InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => onTap(index),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: 40,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      gradient: selected ? LColors.gradient : null,
+                      color: selected
+                          ? null
+                          : done
+                          ? LColors.green.withOpacity(.14)
+                          : LColors.bg.withOpacity(.65),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: selected
+                            ? Colors.transparent
+                            : done
+                            ? LColors.green.withOpacity(.28)
+                            : LColors.border,
+                      ),
+                    ),
+                    child: Text(
+                      '${index + 1}',
+                      style: TextStyle(
+                        color: selected
+                            ? Colors.white
+                            : done
+                            ? LColors.green
+                            : LColors.secondary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ),
-                ),
-              ),
+                );
+              },
             ),
           ),
-          Switch(
-            value: autoScroll,
-            onChanged: onAutoScroll,
-            activeColor: LColors.cyan,
+          Tooltip(
+            message: 'Auto next',
+            child: Switch(
+              value: autoScroll,
+              onChanged: onAutoScroll,
+              activeColor: LColors.cyan,
+            ),
           ),
         ],
       ),
@@ -2673,50 +3078,127 @@ class _QuestionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(17),
+      padding: const EdgeInsets.all(18),
       decoration: _card(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _Badge(text: '${question.type} • Section ${question.section}'),
-          const SizedBox(height: 14),
+          Row(
+            children: [
+              _Badge(text: question.type.toUpperCase()),
+              const Spacer(),
+              Text(
+                'Section ${question.section}',
+                style: const TextStyle(
+                  color: LColors.muted,
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
           Text(
             question.prompt,
             style: const TextStyle(
               color: LColors.text,
-              fontSize: 14,
-              height: 1.5,
+              fontSize: 15,
+              height: 1.55,
               fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           if (question.options.isNotEmpty)
-            ...question.options.map(
-              (option) => RadioListTile<String>(
-                value: option,
-                groupValue: selected,
-                onChanged: (value) {
-                  if (value != null) onSelected(value);
-                },
-                activeColor: LColors.cyan,
-                title: Text(
-                  option,
-                  style: const TextStyle(
-                    color: LColors.secondary,
-                    fontSize: 11.5,
+            ...question.options.map((option) {
+              final isSelected = option == selected;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(15),
+                  onTap: () => onSelected(option),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 13,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? LColors.cyan.withOpacity(.10)
+                          : LColors.bg.withOpacity(.42),
+                      borderRadius: BorderRadius.circular(15),
+                      border: Border.all(
+                        color: isSelected
+                            ? LColors.cyan.withOpacity(.55)
+                            : LColors.border,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 22,
+                          height: 22,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isSelected
+                                ? LColors.cyan
+                                : Colors.transparent,
+                            border: Border.all(
+                              color: isSelected ? LColors.cyan : LColors.muted,
+                              width: 1.5,
+                            ),
+                          ),
+                          child: isSelected
+                              ? const Icon(
+                                  Icons.check_rounded,
+                                  color: LColors.bg,
+                                  size: 15,
+                                )
+                              : null,
+                        ),
+                        const SizedBox(width: 11),
+                        Expanded(
+                          child: Text(
+                            option,
+                            style: TextStyle(
+                              color: isSelected
+                                  ? LColors.text
+                                  : LColors.secondary,
+                              fontSize: 11.5,
+                              height: 1.35,
+                              fontWeight: isSelected
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            )
+              );
+            })
           else
             TextField(
               controller: controller,
               onChanged: onTextChanged,
-              style: const TextStyle(color: LColors.text),
+              style: const TextStyle(color: LColors.text, fontSize: 12.5),
               decoration: InputDecoration(
-                hintText: 'Enter the answer exactly as you hear it',
+                hintText: 'Type the answer exactly as you hear it',
+                hintStyle: const TextStyle(
+                  color: LColors.muted,
+                  fontSize: 10.5,
+                ),
+                prefixIcon: const Icon(
+                  Icons.edit_note_rounded,
+                  color: LColors.cyan,
+                ),
                 filled: true,
-                fillColor: LColors.bg.withOpacity(.4),
+                fillColor: LColors.bg.withOpacity(.45),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 15,
+                ),
                 border: _border(LColors.border),
                 enabledBorder: _border(LColors.border),
                 focusedBorder: _border(LColors.cyan),
@@ -2745,30 +3227,52 @@ class _BottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-      child: Row(
-        children: [
-          if (onBack != null)
-            Expanded(
-              child: OutlinedButton(
-                onPressed: onBack,
-                child: const Text('Back'),
-              ),
-            ),
-          if (onBack != null) const SizedBox(width: 10),
-          Expanded(
-            flex: 2,
-            child: _GradientButton(
-              title: current == total - 1 ? 'Submit Test' : 'Next',
-              icon: current == total - 1
-                  ? Icons.check_rounded
-                  : Icons.arrow_forward_rounded,
-              loading: loading,
-              onPressed: onNext,
-            ),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 11, 16, 16),
+      decoration: BoxDecoration(
+        color: LColors.bg.withOpacity(.94),
+        border: Border(top: BorderSide(color: Colors.white.withOpacity(.05))),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.20),
+            blurRadius: 24,
+            offset: const Offset(0, -8),
           ),
         ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            if (onBack != null)
+              SizedBox(
+                height: 50,
+                child: OutlinedButton.icon(
+                  onPressed: loading ? null : onBack,
+                  icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                  label: const Text('Back'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: LColors.secondary,
+                    side: const BorderSide(color: LColors.border),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                  ),
+                ),
+              ),
+            if (onBack != null) const SizedBox(width: 10),
+            Expanded(
+              child: _GradientButton(
+                title: current == total - 1 ? 'Submit Test' : 'Next Question',
+                icon: current == total - 1
+                    ? Icons.check_circle_rounded
+                    : Icons.arrow_forward_rounded,
+                loading: loading,
+                onPressed: onNext,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -3411,60 +3915,151 @@ class _MessageScreen extends StatelessWidget {
   }
 }
 
+class _MiniIcon extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+
+  const _MiniIcon({required this.icon, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        color: color.withOpacity(.11),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(.18)),
+      ),
+      child: Icon(icon, color: color, size: 19),
+    );
+  }
+}
+
 class _Background extends StatelessWidget {
   const _Background();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF040A13),
-            Color(0xFF07111F),
-            Color(0xFF09182A),
-            Color(0xFF07111F),
-          ],
+    return Stack(
+      children: [
+        Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF030914),
+                Color(0xFF071321),
+                Color(0xFF091A2E),
+                Color(0xFF06101C),
+              ],
+              stops: [0, .35, .72, 1],
+            ),
+          ),
         ),
-      ),
+        Positioned(
+          top: -110,
+          right: -80,
+          child: Container(
+            width: 280,
+            height: 280,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: LColors.violet.withOpacity(.08),
+              boxShadow: [
+                BoxShadow(
+                  color: LColors.violet.withOpacity(.09),
+                  blurRadius: 90,
+                  spreadRadius: 30,
+                ),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          top: 240,
+          left: -110,
+          child: Container(
+            width: 240,
+            height: 240,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: LColors.cyan.withOpacity(.055),
+              boxShadow: [
+                BoxShadow(
+                  color: LColors.cyan.withOpacity(.07),
+                  blurRadius: 90,
+                  spreadRadius: 25,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
 
 class LColors {
-  static const bg = Color(0xFF07111F);
-  static const surface = Color(0xFF101C2E);
+  static const bg = Color(0xFF06101C);
+  static const surface = Color(0xFF101E31);
+  static const surface2 = Color(0xFF14243A);
   static const text = Color(0xFFF8FAFC);
-  static const secondary = Color(0xFFCBD5E1);
-  static const muted = Color(0xFF94A3B8);
-  static const border = Color(0xFF26364A);
+  static const secondary = Color(0xFFD3DCE8);
+  static const muted = Color(0xFF8FA1B7);
+  static const border = Color(0xFF273A52);
   static const cyan = Color(0xFF22D3EE);
   static const violet = Color(0xFF8B5CF6);
   static const green = Color(0xFF34D399);
+  static const orange = Color(0xFFF59E0B);
 
   static const gradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
     colors: [Color(0xFF2563EB), Color(0xFF06B6D4), Color(0xFF7C3AED)],
   );
 }
 
 BoxDecoration _card() => BoxDecoration(
-  color: LColors.surface.withOpacity(.93),
-  borderRadius: BorderRadius.circular(20),
-  border: Border.all(color: Colors.white.withOpacity(.06)),
+  gradient: LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      LColors.surface.withOpacity(.96),
+      LColors.surface2.withOpacity(.88),
+    ],
+  ),
+  borderRadius: BorderRadius.circular(22),
+  border: Border.all(color: Colors.white.withOpacity(.065)),
+  boxShadow: [
+    BoxShadow(
+      color: Colors.black.withOpacity(.18),
+      blurRadius: 22,
+      offset: const Offset(0, 12),
+    ),
+  ],
 );
 
 BoxDecoration _heroDecoration() => BoxDecoration(
-  borderRadius: BorderRadius.circular(24),
+  borderRadius: BorderRadius.circular(26),
   gradient: LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
     colors: [
-      const Color(0xFF2563EB).withOpacity(.23),
-      LColors.cyan.withOpacity(.1),
-      LColors.violet.withOpacity(.15),
+      const Color(0xFF2563EB).withOpacity(.28),
+      LColors.cyan.withOpacity(.10),
+      LColors.violet.withOpacity(.17),
     ],
   ),
-  border: Border.all(color: LColors.cyan.withOpacity(.18)),
+  border: Border.all(color: LColors.cyan.withOpacity(.20)),
+  boxShadow: [
+    BoxShadow(
+      color: Colors.black.withOpacity(.22),
+      blurRadius: 28,
+      offset: const Offset(0, 14),
+    ),
+  ],
 );
 
 OutlineInputBorder _border(Color color) => OutlineInputBorder(

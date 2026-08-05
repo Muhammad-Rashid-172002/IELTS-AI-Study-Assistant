@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fyproject/AI_Coach/presentation/ai_coach_screen.dart';
 import 'package:fyproject/screens/pages/Learn/LearnScreen.dart';
-import 'package:fyproject/screens/pages/Practice/PracticeScreen.dart';
 import 'package:fyproject/screens/pages/home/home.dart';
 import 'package:fyproject/screens/pages/profile/presentation/profile_screen.dart';
 import 'package:fyproject/screens/pages/progress/presentation/progress_dashboard_screen.dart';
@@ -19,7 +18,6 @@ class _IELTSMainNavigationState extends State<IELTSMainNavigation> {
   final List<Widget> _screens = [
     const HomeDashboard(),
     const LearnScreen(),
-    const Practicescreen(),
     const ProgressDashboardScreen(),
     const ProfileScreen(),
   ];
@@ -35,11 +33,7 @@ class _IELTSMainNavigationState extends State<IELTSMainNavigation> {
       icon: Icons.auto_stories_outlined,
       activeIcon: Icons.auto_stories_rounded,
     ),
-    _NavigationItemData(
-      label: 'Practice',
-      icon: Icons.bolt_outlined,
-      activeIcon: Icons.bolt_rounded,
-    ),
+
     _NavigationItemData(
       label: 'Progress',
       icon: Icons.insights_outlined,
@@ -57,7 +51,10 @@ class _IELTSMainNavigationState extends State<IELTSMainNavigation> {
     return Scaffold(
       backgroundColor: MainNavColors.background,
       extendBody: true,
-      body: IndexedStack(index: _currentIndex, children: _screens),
+      body: IndexedStack(
+        index: _currentIndex.clamp(0, _screens.length - 1),
+        children: _screens,
+      ),
       floatingActionButton: _AICoachFloatingButton(
         onTap: () {
           Navigator.of(
@@ -70,7 +67,11 @@ class _IELTSMainNavigationState extends State<IELTSMainNavigation> {
         currentIndex: _currentIndex,
         items: _items,
         onTap: (index) {
-          setState(() => _currentIndex = index);
+          if (index < 0 || index >= _screens.length) return;
+
+          setState(() {
+            _currentIndex = index;
+          });
         },
       ),
     );
@@ -134,16 +135,16 @@ class _PremiumBottomNavigation extends StatelessWidget {
           const SizedBox(width: 72),
           Expanded(
             child: _NavigationItem(
-              data: items[3],
-              selected: currentIndex == 3,
-              onTap: () => onTap(3),
+              data: items[2],
+              selected: currentIndex == 2,
+              onTap: () => onTap(2),
             ),
           ),
           Expanded(
             child: _NavigationItem(
-              data: items[4],
-              selected: currentIndex == 4,
-              onTap: () => onTap(4),
+              data: items[3],
+              selected: currentIndex == 3,
+              onTap: () => onTap(3),
             ),
           ),
         ],

@@ -10,15 +10,13 @@ import 'config/keys.dart';
 import 'controller/feedback_controller/feedback_controller.dart';
 import 'firebase_options.dart';
 
-void main()async{
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  Gemini.init(apiKey: AppKeys.geminiApiKey);  
+  Gemini.init(apiKey: AppKeys.geminiApiKey);
   Get.put(IELTSController(), permanent: true);
-  Get.put(FirebaseServices(),permanent: true);
+  Get.put(FirebaseServices(), permanent: true);
 
   runApp(const MyApp());
 }
@@ -34,7 +32,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         //colorScheme: .fromSeed(seedColor: Colors.deepPurple),
       ),
-    getPages: AppRoutes.appRoutes(),
+      getPages: AppRoutes.appRoutes(),
     );
   }
 }

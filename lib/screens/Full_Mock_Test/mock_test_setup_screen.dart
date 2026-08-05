@@ -1,6 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:fyproject/data/mock_test_repository.dart';
 import 'package:fyproject/models/mock_test_models.dart';
+
+import '../content_queue_service.dart';
 
 import 'mock_shared_ui.dart';
 import 'mock_test_runner_screen.dart';
@@ -25,6 +29,23 @@ class _MockTestSetupScreenState extends State<MockTestSetupScreen> {
   double _targetBand = 7;
   DateTime _testDate = DateTime.now();
   bool _loading = false;
+  bool _loadingHistory = true;
+  Set<String> _completedMockIds = <String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCompletedMocks();
+  }
+
+  Future<void> _loadCompletedMocks() async {
+    final completed = await ContentQueueService().completedIds('mock_test');
+    if (!mounted) return;
+    setState(() {
+      _completedMockIds = completed;
+      _loadingHistory = false;
+    });
+  }
 
   Future<void> _startMock() async {
     if (_loading) return;
@@ -151,7 +172,16 @@ class _MockTestSetupScreenState extends State<MockTestSetupScreen> {
 
                     final rawTests =
                         snapshot.data ?? const <PublishedMockTest>[];
-                    final tests = _uniquePublishedTests(rawTests);
+                    if (_loadingHistory) {
+                      return const _PublishedMockStatus(
+                        icon: Icons.history_rounded,
+                        message: 'Checking your completed mock tests...',
+                        showProgress: true,
+                      );
+                    }
+                    final tests = _uniquePublishedTests(rawTests)
+                        .where((test) => !_completedMockIds.contains(test.id))
+                        .toList(growable: false);
                     _publishedTests = tests;
 
                     if (tests.isEmpty) {
@@ -159,7 +189,7 @@ class _MockTestSetupScreenState extends State<MockTestSetupScreen> {
                       return const _PublishedMockStatus(
                         icon: Icons.info_outline_rounded,
                         message:
-                            'No published mock is available. Ask the administrator to generate, review and publish a mock test.',
+                            'No new mock test is available. Completed mocks are hidden and the next mock will appear when the administrator publishes it.',
                       );
                     }
 

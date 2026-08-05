@@ -231,6 +231,7 @@ class _ReadingTestBrowserScreenState extends State<ReadingTestBrowserScreen>
 
   bool _loading = true;
   String? _error;
+  int _availableCount = 0;
 
   String get _title =>
       widget.questionType ?? widget.mode?.label ?? 'Reading Practice';
@@ -261,6 +262,7 @@ class _ReadingTestBrowserScreenState extends State<ReadingTestBrowserScreen>
     setState(() {
       _loading = true;
       _error = null;
+      _availableCount = 0;
     });
 
     final minimumDelay = Future<void>.delayed(
@@ -281,8 +283,21 @@ class _ReadingTestBrowserScreenState extends State<ReadingTestBrowserScreen>
         return;
       }
 
-      final test = await _selectBestTest(tests);
+      _availableCount = tests.length;
+      final test = await _selectUnseenTest(tests);
 
+      if (!mounted) return;
+
+      if (test == null) {
+        setState(() {
+          _loading = false;
+          _error =
+              'You have completed or already received every available Reading test for this selection. New tests will appear when the administrator publishes them.';
+        });
+        return;
+      }
+
+      await _markTestAsSeen(test);
       if (!mounted) return;
 
       Navigator.pushReplacement(
@@ -387,34 +402,62 @@ class _ReadingTestBrowserScreenState extends State<ReadingTestBrowserScreen>
     return true;
   }
 
-  Future<ReadingTest> _selectBestTest(List<ReadingTest> tests) async {
-    if (tests.length == 1) return tests.first;
+  Future<ReadingTest?> _selectUnseenTest(List<ReadingTest> tests) async {
+    if (tests.isEmpty) return null;
 
     final user = FirebaseAuth.instance.currentUser;
-    final attemptedIds = <String>{};
+    if (user == null) return tests[math.Random.secure().nextInt(tests.length)];
 
-    if (user != null) {
-      try {
-        final recent = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .collection('reading_results')
-            .orderBy('completedAt', descending: true)
-            .limit(20)
-            .get();
+    final seenIds = <String>{};
 
-        for (final doc in recent.docs) {
-          final id = (doc.data()['testId'] ?? '').toString();
-          if (id.isNotEmpty) attemptedIds.add(id);
-        }
-      } catch (_) {}
+    try {
+      final seenSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('reading_seen_tests')
+          .get();
+
+      seenIds.addAll(seenSnapshot.docs.map((doc) => doc.id));
+
+      // Backward compatibility for tests completed before reading_seen_tests
+      // was introduced.
+      final completedSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('reading_results')
+          .get();
+
+      for (final doc in completedSnapshot.docs) {
+        final testId = (doc.data()['testId'] ?? '').toString().trim();
+        if (testId.isNotEmpty) seenIds.add(testId);
+      }
+    } catch (_) {
+      // Never show a known repeated test merely because history lookup failed.
+      return null;
     }
 
-    final unseen = tests
-        .where((test) => !attemptedIds.contains(test.id))
-        .toList();
-    final pool = unseen.isNotEmpty ? unseen : tests;
-    return pool[math.Random.secure().nextInt(pool.length)];
+    final unseen = tests.where((test) => !seenIds.contains(test.id)).toList();
+    if (unseen.isEmpty) return null;
+
+    return unseen[math.Random.secure().nextInt(unseen.length)];
+  }
+
+  Future<void> _markTestAsSeen(ReadingTest test) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('reading_seen_tests')
+        .doc(test.id)
+        .set({
+          'testId': test.id,
+          'title': test.title,
+          'ieltsType': test.ieltsType,
+          'mode': test.mode,
+          'firstShownAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
   }
 
   @override
@@ -545,10 +588,26 @@ class _ReadingTestBrowserScreenState extends State<ReadingTestBrowserScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
-                Icons.find_in_page_outlined,
-                size: 58,
-                color: Color(0xFFF97316),
+              Container(
+                width: 82,
+                height: 82,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFFF97316).withOpacity(.22),
+                      RColors.violet.withOpacity(.12),
+                    ],
+                  ),
+                  border: Border.all(
+                    color: const Color(0xFFF97316).withOpacity(.35),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.auto_stories_rounded,
+                  size: 38,
+                  color: Color(0xFFF97316),
+                ),
               ),
               const SizedBox(height: 18),
               const Text(
@@ -565,6 +624,17 @@ class _ReadingTestBrowserScreenState extends State<ReadingTestBrowserScreen>
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: RColors.secondary, height: 1.5),
               ),
+              if (_availableCount > 0) ...[
+                const SizedBox(height: 10),
+                Text(
+                  '$_availableCount published readings checked',
+                  style: const TextStyle(
+                    color: RColors.muted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
               const SizedBox(height: 22),
               SizedBox(
                 width: double.infinity,
@@ -813,15 +883,6 @@ class _ReadingPracticeScreenState extends State<ReadingPracticeScreen> {
       _currentQuestionIndex = 0;
       _lastTrackedPassage = widget.test.passages[index].passageNumber;
       _mobileShowQuestions = showQuestions;
-    });
-    _scheduleAutoSave();
-  }
-
-  void _goToQuestion(int localIndex) {
-    if (localIndex < 0 || localIndex >= _currentPassageQuestions.length) return;
-    setState(() {
-      _currentQuestionIndex = localIndex;
-      _mobileShowQuestions = true;
     });
     _scheduleAutoSave();
   }
@@ -3685,8 +3746,9 @@ class _Glow extends StatelessWidget {
 
 abstract final class RColors {
   static const bg = Color(0xFF08111F);
-  static const surface = Color(0xFF111C2E);
-  static const border = Color(0xFF22324A);
+  static const surface = Color(0xFF101D31);
+  static const surfaceHigh = Color(0xFF162740);
+  static const border = Color(0xFF29405F);
   static const cyan = Color(0xFF06B6D4);
   static const violet = Color(0xFF8B5CF6);
   static const green = Color(0xFF22C55E);
@@ -3696,14 +3758,21 @@ abstract final class RColors {
 }
 
 BoxDecoration _cardDecoration() => BoxDecoration(
-  color: RColors.surface.withOpacity(.92),
-  borderRadius: BorderRadius.circular(19),
+  gradient: LinearGradient(
+    colors: [
+      RColors.surfaceHigh.withOpacity(.96),
+      RColors.surface.withOpacity(.94),
+    ],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  ),
+  borderRadius: BorderRadius.circular(26),
   border: Border.all(color: RColors.border),
   boxShadow: [
     BoxShadow(
       color: Colors.black.withOpacity(.12),
-      blurRadius: 18,
-      offset: const Offset(0, 8),
+      blurRadius: 26,
+      offset: const Offset(0, 12),
     ),
   ],
 );

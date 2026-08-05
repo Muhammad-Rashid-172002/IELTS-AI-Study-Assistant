@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:fyproject/resources/bottom_navigation_bar/botton_navigation.dart';
 import 'package:fyproject/screens/pages/9-step%20premium%20profile%20setup%20wizard/initial_profile_setup.dart';
 
 enum AuthMode { createAccount, signIn }
@@ -46,12 +47,26 @@ class _AuthenticationGatewayScreenState
                       ? 'Create Account'
                       : 'Welcome Back',
                   subtitle: _mode == AuthMode.createAccount
-                      ? 'Build your personalized IELTS learning profile.'
-                      : 'Sign in to continue from your saved progress.',
+                      ? 'Create your personalized IELTS learning experience.'
+                      : 'Continue learning from exactly where you stopped.',
                   onBack: () => Navigator.maybePop(context),
                 ),
                 Expanded(
-                  child: _mode == AuthMode.createAccount
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 280),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    transitionBuilder: (child, animation) => FadeTransition(
+                      opacity: animation,
+                      child: SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0.03, 0),
+                          end: Offset.zero,
+                        ).animate(animation),
+                        child: child,
+                      ),
+                    ),
+                    child: _mode == AuthMode.createAccount
                       ? CreateAccountForm(
                           key: const ValueKey('create'),
                           onOpenSignIn: () {
@@ -64,6 +79,7 @@ class _AuthenticationGatewayScreenState
                             setState(() => _mode = AuthMode.createAccount);
                           },
                         ),
+                  ),
                 ),
               ],
             ),
@@ -201,59 +217,6 @@ class _CreateAccountFormState extends State<CreateAccountForm> {
     }
   }
 
-  Future<void> _socialSignIn(AuthProvider provider) async {
-    setState(() => _isLoading = true);
-
-    try {
-      final UserCredential credential;
-
-      if (kIsWeb) {
-        credential = await _auth.signInWithPopup(provider);
-      } else {
-        credential = await _auth.signInWithProvider(provider);
-      }
-
-      final user = credential.user;
-      if (user == null) return;
-
-      await _firestore.collection('users').doc(user.uid).set({
-        'uid': user.uid,
-        'fullName': user.displayName ?? 'IELTS Learner',
-        'email': user.email,
-        'country': _country,
-        'role': 'student',
-        'authProvider': provider.providerId,
-        'emailVerified': user.emailVerified,
-        'phoneVerified': user.phoneNumber != null,
-        'termsAccepted': true,
-        'termsAcceptedAt': FieldValue.serverTimestamp(),
-        'profileCompleted': false,
-        'diagnosticCompleted': false,
-        'accountStatus': 'active',
-        'photoUrl': user.photoURL,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'lastLoginAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      await _recordLoginEvent(user: user, method: provider.providerId);
-
-      if (!mounted) return;
-
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => AuthenticatedPreviewScreen(user: user),
-        ),
-      );
-    } on FirebaseAuthException catch (error) {
-      _showMessage(_authErrorMessage(error), isError: true);
-    } catch (_) {
-      _showMessage('Social sign-in could not be completed.', isError: true);
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
   Future<void> _recordLoginEvent({
     required User user,
     required String method,
@@ -381,31 +344,8 @@ class _CreateAccountFormState extends State<CreateAccountForm> {
               onPressed: _createAccount,
             ),
             const SizedBox(height: 18),
-            const _AuthDivider(),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _SocialAuthButton(
-                    title: 'Google',
-                    icon: Icons.g_mobiledata_rounded,
-                    onPressed: _isLoading
-                        ? null
-                        : () => _socialSignIn(GoogleAuthProvider()),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _SocialAuthButton(
-                    title: 'Apple',
-                    icon: Icons.apple_rounded,
-                    onPressed: _isLoading
-                        ? null
-                        : () => _socialSignIn(AppleAuthProvider()),
-                  ),
-                ),
-              ],
-            ),
+         
+
             const SizedBox(height: 20),
             _ModeSwitchText(
               normalText: 'Already have an account? ',
@@ -517,63 +457,13 @@ class _SignInFormState extends State<SignInForm> {
         return;
       }
 
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => AuthenticatedPreviewScreen(user: user),
-        ),
-      );
+      await _routeAuthenticatedUser(context, user);
     } on FirebaseAuthException catch (error) {
       _localFailedAttempts += 1;
       await _recordFailedAttempt(error.code);
       _showMessage(_authErrorMessage(error), isError: true);
     } catch (_) {
       _showMessage('Sign-in could not be completed.', isError: true);
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _socialSignIn(AuthProvider provider) async {
-    setState(() => _isLoading = true);
-
-    try {
-      final UserCredential credential;
-
-      if (kIsWeb) {
-        credential = await _auth.signInWithPopup(provider);
-      } else {
-        credential = await _auth.signInWithProvider(provider);
-      }
-
-      final user = credential.user;
-      if (user == null) return;
-
-      await _firestore.collection('users').doc(user.uid).set({
-        'uid': user.uid,
-        'fullName': user.displayName ?? 'IELTS Learner',
-        'email': user.email,
-        'photoUrl': user.photoURL,
-        'authProvider': provider.providerId,
-        'emailVerified': user.emailVerified,
-        'accountStatus': 'active',
-        'lastLoginAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'createdAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      await _recordSession(user, provider.providerId);
-
-      if (!mounted) return;
-
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => AuthenticatedPreviewScreen(user: user),
-        ),
-      );
-    } on FirebaseAuthException catch (error) {
-      _showMessage(_authErrorMessage(error), isError: true);
-    } catch (_) {
-      _showMessage('Social sign-in could not be completed.', isError: true);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -711,31 +601,7 @@ class _SignInFormState extends State<SignInForm> {
               onPressed: _signIn,
             ),
             const SizedBox(height: 18),
-            const _AuthDivider(),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _SocialAuthButton(
-                    title: 'Google',
-                    icon: Icons.g_mobiledata_rounded,
-                    onPressed: _isLoading
-                        ? null
-                        : () => _socialSignIn(GoogleAuthProvider()),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _SocialAuthButton(
-                    title: 'Apple',
-                    icon: Icons.apple_rounded,
-                    onPressed: _isLoading
-                        ? null
-                        : () => _socialSignIn(AppleAuthProvider()),
-                  ),
-                ),
-              ],
-            ),
+
             const SizedBox(height: 20),
             _ModeSwitchText(
               normalText: 'New to IELTS AI Master? ',
@@ -816,11 +682,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
 
         if (!mounted) return;
 
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => AuthenticatedPreviewScreen(user: user),
-          ),
-        );
+        await _routeAuthenticatedUser(context, user);
       } else {
         _message('Email is not verified yet.');
       }
@@ -969,45 +831,8 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                         ),
                       ),
 
-                      const SizedBox(height: 24),
                       const SizedBox(height: 16),
 
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 13,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AuthColors.cyan.withOpacity(0.06),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: AuthColors.cyan.withOpacity(0.16),
-                          ),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(
-                              Icons.info_outline_rounded,
-                              color: AuthColors.cyan,
-                              size: 19,
-                            ),
-                            SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                'Check your Inbox for the verification email. If it is not there, please check your Spam or Junk folder.',
-                                style: TextStyle(
-                                  color: AuthColors.secondaryText,
-                                  fontSize: 12,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
                       _PrimaryAuthButton(
                         title: 'I Have Verified My Email',
                         icon: Icons.verified_rounded,
@@ -1060,6 +885,69 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
       ),
     );
   }
+}
+
+Future<void> _routeAuthenticatedUser(
+  BuildContext context,
+  User user,
+) async {
+  final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+  var snapshot = await userRef.get();
+
+  // Firebase Auth account exists, but an older user may not have a Firestore
+  // profile document. Create a safe starter profile for that case.
+  if (!snapshot.exists) {
+    await userRef.set({
+      'uid': user.uid,
+      'fullName': user.displayName ?? '',
+      'email': user.email?.trim().toLowerCase(),
+      'role': 'student',
+      'authProvider': 'password',
+      'emailVerified': user.emailVerified,
+      'phoneVerified': user.phoneNumber != null,
+      'profileCompleted': false,
+      'diagnosticCompleted': false,
+      'accountStatus': 'active',
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'lastLoginAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    snapshot = await userRef.get();
+  }
+
+  final data = snapshot.data() ?? <String, dynamic>{};
+  final accountStatus =
+      (data['accountStatus'] ?? 'active').toString().toLowerCase();
+  final profileCompleted = data['profileCompleted'] == true;
+
+  if (accountStatus == 'disabled' ||
+      accountStatus == 'blocked' ||
+      accountStatus == 'suspended') {
+    await FirebaseAuth.instance.signOut();
+
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: AuthColors.error,
+        content: Text('This account is currently unavailable.'),
+      ),
+    );
+    return;
+  }
+
+  if (!context.mounted) return;
+
+  Navigator.of(context).pushAndRemoveUntil(
+    MaterialPageRoute(
+      builder: (_) => profileCompleted
+          ? const IELTSMainNavigation()
+          : const InitialProfileSetupScreen(),
+    ),
+    (_) => false,
+  );
 }
 
 /// Optional phone verification screen.
@@ -1760,65 +1648,6 @@ class _PrimaryAuthButton extends StatelessWidget {
   }
 }
 
-class _SocialAuthButton extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final VoidCallback? onPressed;
-
-  const _SocialAuthButton({
-    required this.title,
-    required this.icon,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 52,
-      child: OutlinedButton.icon(
-        onPressed: onPressed,
-        icon: Icon(icon, size: 23),
-        label: Text(
-          title,
-          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800),
-        ),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AuthColors.mainText,
-          backgroundColor: AuthColors.surface.withOpacity(0.88),
-          side: BorderSide(color: Colors.white.withOpacity(0.075)),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(17),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AuthDivider extends StatelessWidget {
-  const _AuthDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(child: Divider(color: Colors.white.withOpacity(0.08))),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12),
-          child: Text(
-            'or continue with',
-            style: TextStyle(
-              color: AuthColors.subtleText,
-              fontSize: 10.5,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        Expanded(child: Divider(color: Colors.white.withOpacity(0.08))),
-      ],
-    );
-  }
-}
 
 class _ModeSwitchText extends StatelessWidget {
   final String normalText;

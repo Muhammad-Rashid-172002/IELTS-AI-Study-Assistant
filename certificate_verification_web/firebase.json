@@ -1,0 +1,29 @@
+{
+  "flutter": {
+    "platforms": {
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "ielts-ai-study-assistant",
+          "configurations": {
+            "web": "1:600359875882:web:ce99dd15b5317e3750da53"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "target": "verification",
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

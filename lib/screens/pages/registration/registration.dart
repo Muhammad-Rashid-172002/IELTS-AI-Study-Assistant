@@ -37,46 +37,33 @@ class _RegistrationScreenState extends State<RegistrationScreen>
     super.dispose();
   }
 
-  void _openPreview(String title, IconData icon) {
+  void _openAuthentication(AuthMode mode) {
     Navigator.of(context).push(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 520),
+        reverseTransitionDuration: const Duration(milliseconds: 380),
         pageBuilder: (_, animation, secondaryAnimation) {
-          return AuthenticationGatewayScreen(
-            initialMode: AuthMode.createAccount,
-          );
+          return AuthenticationGatewayScreen(initialMode: mode);
         },
         transitionsBuilder: (_, animation, secondaryAnimation, child) {
-          final fade = CurvedAnimation(
+          final curved = CurvedAnimation(
             parent: animation,
-            curve: Curves.easeOut,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
           );
 
-          final slide =
-              Tween<Offset>(
-                begin: const Offset(0.04, 0),
-                end: Offset.zero,
-              ).animate(
-                CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-              );
-
           return FadeTransition(
-            opacity: fade,
-            child: SlideTransition(position: slide, child: child),
+            opacity: curved,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0.06, 0),
+                end: Offset.zero,
+              ).animate(curved),
+              child: child,
+            ),
           );
         },
       ),
-    );
-  }
-
-  void _showGuestAccessSheet() {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) {
-        return const _GuestAccessSheet();
-      },
     );
   }
 
@@ -122,14 +109,12 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                   child: Column(
                     children: [
                       _buildTopBrand(),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 26),
                       const _HeroSection(),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 22),
+                      const _FeatureHighlights(),
+                      const SizedBox(height: 22),
                       _buildPrimaryActions(),
-                      const SizedBox(height: 14),
-                      _buildSocialActions(),
-                      const SizedBox(height: 16),
-                      _buildGuestAction(),
                       const SizedBox(height: 18),
                       const _TrustFooter(),
                     ],
@@ -208,10 +193,14 @@ class _RegistrationScreenState extends State<RegistrationScreen>
           ),
           child: const Row(
             children: [
-              Icon(Icons.language_rounded, color: Color(0xFF67E8F9), size: 14),
+              Icon(
+                Icons.auto_awesome_rounded,
+                color: Color(0xFF67E8F9),
+                size: 14,
+              ),
               SizedBox(width: 6),
               Text(
-                'English',
+                'AI Powered',
                 style: TextStyle(
                   color: Color(0xFFBAE6FD),
                   fontSize: 10.5,
@@ -232,131 +221,16 @@ class _RegistrationScreenState extends State<RegistrationScreen>
           title: 'Create Account',
           subtitle: 'Start your personalized IELTS journey',
           icon: Icons.person_add_alt_1_rounded,
-          onTap: () =>
-              _openPreview('Create Account', Icons.person_add_alt_1_rounded),
+          onTap: () => _openAuthentication(AuthMode.createAccount),
         ),
         const SizedBox(height: 12),
         _OutlineActionButton(
           title: 'Sign In',
           subtitle: 'Continue from your saved progress',
           icon: Icons.login_rounded,
-          onTap: () => _openPreview('Sign In', Icons.login_rounded),
+          onTap: () => _openAuthentication(AuthMode.signIn),
         ),
       ],
-    );
-  }
-
-  Widget _buildSocialActions() {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Divider(
-                color: Colors.white.withOpacity(0.08),
-                thickness: 1,
-              ),
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12),
-              child: Text(
-                'or continue with',
-                style: TextStyle(
-                  color: Color(0xFF64748B),
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            Expanded(
-              child: Divider(
-                color: Colors.white.withOpacity(0.08),
-                thickness: 1,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        Row(
-          children: [
-            Expanded(
-              child: _SocialButton(
-                title: 'Google',
-                icon: Icons.g_mobiledata_rounded,
-                onTap: () => _openPreview(
-                  'Continue with Google',
-                  Icons.g_mobiledata_rounded,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _SocialButton(
-                title: 'Apple',
-                icon: Icons.apple_rounded,
-                onTap: () =>
-                    _openPreview('Continue with Apple', Icons.apple_rounded),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildGuestAction() {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: _showGuestAccessSheet,
-        borderRadius: BorderRadius.circular(19),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFF0F1D2D).withOpacity(0.9),
-            borderRadius: BorderRadius.circular(19),
-            border: Border.all(
-              color: const Color(0xFF8B5CF6).withOpacity(0.18),
-            ),
-          ),
-          child: const Row(
-            children: [
-              _GuestIcon(),
-              SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Explore as Guest',
-                      style: TextStyle(
-                        color: Color(0xFFF8FAFC),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'Preview the app with limited access',
-                      style: TextStyle(
-                        color: Color(0xFF94A3B8),
-                        fontSize: 11,
-                        height: 1.35,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.arrow_forward_rounded,
-                color: Color(0xFFA78BFA),
-                size: 20,
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
@@ -392,7 +266,7 @@ class _HeroSection extends StatelessWidget {
         ),
         const SizedBox(height: 24),
         const Text(
-          'Reach your target band\nwith intelligent preparation',
+          'Your smarter path to\nIELTS success',
           textAlign: TextAlign.center,
           style: TextStyle(
             color: Color(0xFFF8FAFC),
@@ -404,7 +278,7 @@ class _HeroSection extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         const Text(
-          'Personalized lessons, realistic mock tests and AI feedback for every IELTS skill.',
+          'Practice all four IELTS skills with personalized guidance, realistic mock tests and instant AI feedback.',
           textAlign: TextAlign.center,
           style: TextStyle(
             color: Color(0xFF94A3B8),
@@ -681,6 +555,123 @@ class _SkillPreviewCard extends StatelessWidget {
   }
 }
 
+class _FeatureHighlights extends StatelessWidget {
+  const _FeatureHighlights();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0D1B2B).withOpacity(0.82),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withOpacity(0.07)),
+      ),
+      child: const Row(
+        children: [
+          Expanded(
+            child: _FeatureItem(
+              icon: Icons.auto_awesome_rounded,
+              title: 'AI Feedback',
+              subtitle: 'Instant analysis',
+              accent: Color(0xFF22D3EE),
+            ),
+          ),
+          _FeatureDivider(),
+          Expanded(
+            child: _FeatureItem(
+              icon: Icons.analytics_outlined,
+              title: 'Progress',
+              subtitle: 'Track every skill',
+              accent: Color(0xFF60A5FA),
+            ),
+          ),
+          _FeatureDivider(),
+          Expanded(
+            child: _FeatureItem(
+              icon: Icons.workspace_premium_outlined,
+              title: 'Band Goal',
+              subtitle: 'Smart study plan',
+              accent: Color(0xFFA78BFA),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FeatureItem extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color accent;
+
+  const _FeatureItem({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: accent.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(color: accent.withOpacity(0.14)),
+          ),
+          child: Icon(icon, color: accent, size: 19),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: Color(0xFFF8FAFC),
+            fontSize: 10.5,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          subtitle,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: Color(0xFF64748B),
+            fontSize: 8.5,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FeatureDivider extends StatelessWidget {
+  const _FeatureDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 48,
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      color: Colors.white.withOpacity(0.06),
+    );
+  }
+}
+
 class _GradientActionButton extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -842,73 +833,6 @@ class _OutlineActionButton extends StatelessWidget {
   }
 }
 
-class _SocialButton extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _SocialButton({
-    required this.title,
-    required this.icon,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(17),
-        child: Container(
-          height: 52,
-          decoration: BoxDecoration(
-            color: const Color(0xFF101C2E).withOpacity(0.9),
-            borderRadius: BorderRadius.circular(17),
-            border: Border.all(color: Colors.white.withOpacity(0.075)),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: const Color(0xFFF8FAFC), size: 24),
-              const SizedBox(width: 9),
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Color(0xFFF8FAFC),
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _GuestIcon extends StatelessWidget {
-  const _GuestIcon();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 42,
-      height: 42,
-      decoration: BoxDecoration(
-        color: const Color(0xFF8B5CF6).withOpacity(0.12),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: const Icon(
-        Icons.visibility_outlined,
-        color: Color(0xFFA78BFA),
-        size: 21,
-      ),
-    );
-  }
-}
-
 class _TrustFooter extends StatelessWidget {
   const _TrustFooter();
 
@@ -965,209 +889,6 @@ class _TrustFooter extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _GuestAccessSheet extends StatelessWidget {
-  const _GuestAccessSheet();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.fromLTRB(
-        22,
-        12,
-        22,
-        22 + MediaQuery.of(context).padding.bottom,
-      ),
-      decoration: const BoxDecoration(
-        color: Color(0xFF0B1726),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 42,
-            height: 4,
-            decoration: BoxDecoration(
-              color: const Color(0xFF334155),
-              borderRadius: BorderRadius.circular(20),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Container(
-            width: 58,
-            height: 58,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(19),
-              gradient: const LinearGradient(
-                colors: [
-                  Color(0xFF6D28D9),
-                  Color(0xFF8B5CF6),
-                  Color(0xFF06B6D4),
-                ],
-              ),
-            ),
-            child: const Icon(
-              Icons.visibility_outlined,
-              color: Colors.white,
-              size: 27,
-            ),
-          ),
-          const SizedBox(height: 17),
-          const Text(
-            'Guest Access',
-            style: TextStyle(
-              color: Color(0xFFF8FAFC),
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Explore selected features before creating an account.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Color(0xFF94A3B8),
-              fontSize: 13,
-              height: 1.5,
-            ),
-          ),
-          const SizedBox(height: 20),
-          const _GuestFeatureRow(
-            icon: Icons.play_lesson_outlined,
-            title: 'One sample lesson',
-            enabled: true,
-          ),
-          const _GuestFeatureRow(
-            icon: Icons.quiz_outlined,
-            title: 'One mini test',
-            enabled: true,
-          ),
-          const _GuestFeatureRow(
-            icon: Icons.auto_awesome_rounded,
-            title: 'Limited AI feedback',
-            enabled: true,
-          ),
-          const _GuestFeatureRow(
-            icon: Icons.cloud_off_outlined,
-            title: 'Progress is not saved to the cloud',
-            enabled: false,
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(17),
-                gradient: const LinearGradient(
-                  colors: [
-                    Color(0xFF2563EB),
-                    Color(0xFF06B6D4),
-                    Color(0xFF7C3AED),
-                  ],
-                ),
-              ),
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const AuthenticationGatewayScreen(
-                        initialMode: AuthMode.createAccount,
-                      ),
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(17),
-                  ),
-                ),
-                child: const Text(
-                  'Continue as Guest',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFF94A3B8),
-            ),
-            child: const Text(
-              'Not now',
-              style: TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _GuestFeatureRow extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final bool enabled;
-
-  const _GuestFeatureRow({
-    required this.icon,
-    required this.title,
-    required this.enabled,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = enabled ? const Color(0xFF34D399) : const Color(0xFFF59E0B);
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Container(
-        padding: const EdgeInsets.all(13),
-        decoration: BoxDecoration(
-          color: const Color(0xFF101F31),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.06)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: accent.withOpacity(0.11),
-                borderRadius: BorderRadius.circular(11),
-              ),
-              child: Icon(icon, color: accent, size: 18),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(
-                  color: Color(0xFFCBD5E1),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            Icon(
-              enabled ? Icons.check_circle_rounded : Icons.info_outline_rounded,
-              color: accent,
-              size: 18,
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

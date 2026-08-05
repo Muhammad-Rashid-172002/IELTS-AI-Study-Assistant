@@ -45,7 +45,11 @@ class ProgressRepository {
           skill: 'Writing',
           period: period,
         ),
-        _loadSkill(collection: 'speaking', skill: 'speaking_results', period: period),
+        _loadSkill(
+          collection: 'speaking_results',
+          skill: 'Speaking',
+          period: period,
+        ),
         _loadCompletedLessons(period),
         _loadCompletedMocks(period),
         _loadWeeklyStudyMinutes(),
@@ -75,7 +79,15 @@ class ProgressRepository {
           ? 0.0
           : _roundBand(validBands.reduce((a, b) => a + b) / validBands.length);
 
-      final targetBand = _double(userData['targetBand'], 7);
+      // Registration/onboarding may store the selected overall target inside
+      // targetBands.overall, while newer profile screens use targetBand.
+      // Prefer the onboarding value first so Home, Progress and Profile show
+      // the same real target selected by the user.
+      final targetBands = _map(userData['targetBands']);
+      final targetBand = _double(
+        targetBands['overall'] ?? userData['targetBand'],
+        7,
+      ).clamp(0.5, 9.0).toDouble();
       final readiness = _calculateReadiness(
         overallBand: overallBand,
         targetBand: targetBand,
@@ -590,6 +602,18 @@ class ProgressRepository {
   static int _int(dynamic value, [int fallback = 0]) {
     if (value is num) return value.round();
     return int.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+
+  static Map<String, dynamic> _map(dynamic value) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+
+    if (value is Map) {
+      return value.map((key, item) => MapEntry(key.toString(), item));
+    }
+
+    return const <String, dynamic>{};
   }
 
   static double _double(dynamic value, [double fallback = 0]) {

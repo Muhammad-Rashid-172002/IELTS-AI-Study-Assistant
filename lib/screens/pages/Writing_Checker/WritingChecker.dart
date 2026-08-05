@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:fyproject/screens/content_queue_service.dart';
 
 class WritingChecker extends StatelessWidget {
   const WritingChecker({super.key});
@@ -195,46 +196,36 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
     });
 
     try {
-      Query<Map<String, dynamic>> query = FirebaseFirestore.instance
+      final queue = ContentQueueService();
+      final completedIds = await queue.completedIds('writing');
+
+      final published = await FirebaseFirestore.instance
           .collection('writing_tasks')
           .where('status', isEqualTo: 'published')
-          .where('taskCategory', isEqualTo: widget.category);
+          .limit(200)
+          .get();
 
-      if (widget.taskType != null) {
-        query = query.where('taskType', isEqualTo: widget.taskType);
-      }
-
-      QuerySnapshot<Map<String, dynamic>> snapshot;
-
-      try {
-        snapshot = await query.limit(40).get();
-      } on FirebaseException catch (error) {
-        if (error.code != 'failed-precondition') rethrow;
-
-        final fallback = await FirebaseFirestore.instance
-            .collection('writing_tasks')
-            .where('status', isEqualTo: 'published')
-            .limit(150)
-            .get();
-
-        final docs = fallback.docs.where((doc) {
+      final matching = queue.sortPublished(
+        published.docs.where((doc) {
           final data = doc.data();
           return data['taskCategory'] == widget.category &&
               (widget.taskType == null || data['taskType'] == widget.taskType);
-        }).toList();
+        }),
+      );
 
-        if (!mounted) return;
-        setState(() {
-          _tasks = docs.map(WritingTask.fromDocument).toList();
-          _loading = false;
-        });
-        return;
-      }
+      final nextDocs = matching
+          .where((doc) => !completedIds.contains(doc.id))
+          .take(1)
+          .toList();
 
       if (!mounted) return;
       setState(() {
-        _tasks = snapshot.docs.map(WritingTask.fromDocument).toList();
+        _tasks = nextDocs.map(WritingTask.fromDocument).toList();
         _loading = false;
+        if (_tasks.isEmpty && matching.isNotEmpty) {
+          _error =
+              'You have completed every available Writing task in this category. New tasks will appear after the administrator publishes them.';
+        }
       });
     } catch (error) {
       if (!mounted) return;
@@ -251,7 +242,7 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
 
     return Scaffold(
       backgroundColor: WColors.background,
-      appBar: AppBar(backgroundColor: WColors.background, title: Text(title)),
+      appBar: _writingAppBar(context, title),
       body: Stack(
         children: [
           const Positioned.fill(child: _WritingBackground()),
@@ -267,8 +258,9 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
           else if (_tasks.isEmpty)
             _MessageState(
               icon: Icons.edit_note_rounded,
-              title: 'No published tasks found',
-              subtitle: 'Publish a matching Writing task from the admin panel.',
+              title: 'No new Writing task available',
+              subtitle:
+                  'Complete tasks are hidden. A new task will appear when the administrator publishes it.',
               action: _load,
             )
           else
@@ -336,10 +328,7 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
                   '${task.taskType} • ${task.minimumWords}+ words • '
                   '${_formatClock(task.durationSeconds)}',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: WColors.muted,
-                    fontSize: 11,
-                  ),
+                  style: const TextStyle(color: WColors.muted, fontSize: 11),
                 ),
                 const SizedBox(height: 20),
                 _ModeTile(
@@ -348,11 +337,7 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
                   subtitle:
                       'Grammar, vocabulary, checklist and sentence suggestions',
                   badge: 'RECOMMENDED',
-                  onTap: () => _start(
-                    sheetContext,
-                    task,
-                    WritingMode.practice,
-                  ),
+                  onTap: () => _start(sheetContext, task, WritingMode.practice),
                 ),
                 const SizedBox(height: 10),
                 _ModeTile(
@@ -360,11 +345,7 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
                   title: 'Draft Mode',
                   subtitle:
                       'No fixed timer, automatic saving and continue later',
-                  onTap: () => _start(
-                    sheetContext,
-                    task,
-                    WritingMode.draft,
-                  ),
+                  onTap: () => _start(sheetContext, task, WritingMode.draft),
                 ),
                 const SizedBox(height: 10),
                 _ModeTile(
@@ -373,11 +354,7 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
                   subtitle:
                       'Fixed IELTS timer with hints and corrections disabled',
                   badge: 'STRICT',
-                  onTap: () => _start(
-                    sheetContext,
-                    task,
-                    WritingMode.exam,
-                  ),
+                  onTap: () => _start(sheetContext, task, WritingMode.exam),
                 ),
               ],
             ),
@@ -387,11 +364,7 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
     );
   }
 
-  void _start(
-    BuildContext sheetContext,
-    WritingTask task,
-    WritingMode mode,
-  ) {
+  void _start(BuildContext sheetContext, WritingTask task, WritingMode mode) {
     Navigator.of(sheetContext).pop();
 
     Future<void>.delayed(const Duration(milliseconds: 120), () {
@@ -399,10 +372,7 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
 
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => WritingEditorScreen(
-            task: task,
-            mode: mode,
-          ),
+          builder: (_) => WritingEditorScreen(task: task, mode: mode),
         ),
       );
     });
@@ -888,10 +858,7 @@ class WritingReportScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: WColors.background,
-      appBar: AppBar(
-        backgroundColor: WColors.background,
-        title: const Text('AI Writing Report'),
-      ),
+      appBar: _writingAppBar(context, 'AI Writing Report'),
       body: Stack(
         children: [
           const Positioned.fill(child: _WritingBackground()),
@@ -1077,10 +1044,7 @@ class _AiWritingCheckerScreenState extends State<AiWritingCheckerScreen> {
 
     return Scaffold(
       backgroundColor: WColors.background,
-      appBar: AppBar(
-        backgroundColor: WColors.background,
-        title: const Text('AI Writing Checker'),
-      ),
+      appBar: _writingAppBar(context, 'AI Writing Checker'),
       body: Stack(
         children: [
           const Positioned.fill(child: _WritingBackground()),
@@ -1095,7 +1059,16 @@ class _AiWritingCheckerScreenState extends State<AiWritingCheckerScreen> {
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
                 value: _category,
-                decoration: const InputDecoration(labelText: 'Task Category'),
+                dropdownColor: WColors.surface,
+                iconEnabledColor: WColors.cyan,
+                style: const TextStyle(
+                  color: WColors.text,
+                  fontWeight: FontWeight.w700,
+                ),
+                decoration: _writingInputDecoration(
+                  label: 'Task Category',
+                  icon: Icons.category_outlined,
+                ),
                 items: const [
                   DropdownMenuItem(
                     value: 'academic_task_1',
@@ -1125,7 +1098,16 @@ class _AiWritingCheckerScreenState extends State<AiWritingCheckerScreen> {
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 value: _taskType,
-                decoration: const InputDecoration(labelText: 'Task Type'),
+                dropdownColor: WColors.surface,
+                iconEnabledColor: WColors.cyan,
+                style: const TextStyle(
+                  color: WColors.text,
+                  fontWeight: FontWeight.w700,
+                ),
+                decoration: _writingInputDecoration(
+                  label: 'Task Type',
+                  icon: Icons.tune_rounded,
+                ),
                 items: types
                     .map(
                       (type) =>
@@ -1143,9 +1125,13 @@ class _AiWritingCheckerScreenState extends State<AiWritingCheckerScreen> {
                 controller: _questionController,
                 minLines: 3,
                 maxLines: 7,
-                decoration: const InputDecoration(
-                  labelText: 'Task Question',
+                style: const TextStyle(color: WColors.text, height: 1.5),
+                cursorColor: WColors.cyan,
+                decoration: _writingInputDecoration(
+                  label: 'Task Question',
+                  icon: Icons.help_outline_rounded,
                   alignLabelWithHint: true,
+                  hint: 'Paste the complete IELTS question here...',
                 ),
               ),
               const SizedBox(height: 12),
@@ -1153,9 +1139,14 @@ class _AiWritingCheckerScreenState extends State<AiWritingCheckerScreen> {
                 controller: _answerController,
                 minLines: 12,
                 maxLines: 25,
-                decoration: const InputDecoration(
-                  labelText: 'Your Answer',
+                style: const TextStyle(color: WColors.text, height: 1.65),
+                cursorColor: WColors.cyan,
+                onChanged: (_) => setState(() {}),
+                decoration: _writingInputDecoration(
+                  label: 'Your Answer',
+                  icon: Icons.edit_note_rounded,
                   alignLabelWithHint: true,
+                  hint: 'Write or paste your complete response...',
                 ),
               ),
               const SizedBox(height: 8),
@@ -1164,16 +1155,22 @@ class _AiWritingCheckerScreenState extends State<AiWritingCheckerScreen> {
                 style: const TextStyle(color: WColors.muted),
               ),
               const SizedBox(height: 18),
-              FilledButton.icon(
-                onPressed: _loading ? null : _submit,
-                icon: _loading
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.auto_awesome_rounded),
-                label: const Text('Generate AI Writing Report'),
+              SizedBox(
+                height: 56,
+                child: FilledButton.icon(
+                  onPressed: _loading ? null : _submit,
+                  icon: _loading
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.auto_awesome_rounded),
+                  label: const Text(
+                    'Generate AI Writing Report',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
               ),
             ],
           ),
@@ -1192,10 +1189,7 @@ class SavedDraftsScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: WColors.background,
-      appBar: AppBar(
-        backgroundColor: WColors.background,
-        title: const Text('Saved Drafts'),
-      ),
+      appBar: _writingAppBar(context, 'Saved Drafts'),
       body: user == null
           ? const _MessageState(
               icon: Icons.lock_outline_rounded,
@@ -1259,10 +1253,7 @@ class WritingHistoryScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: WColors.background,
-      appBar: AppBar(
-        backgroundColor: WColors.background,
-        title: const Text('Writing History'),
-      ),
+      appBar: _writingAppBar(context, 'Writing History'),
       body: user == null
           ? const _MessageState(
               icon: Icons.lock_outline_rounded,
@@ -1327,10 +1318,7 @@ class ModelAnswersScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: WColors.background,
-      appBar: AppBar(
-        backgroundColor: WColors.background,
-        title: const Text('Band 8 Model Answers'),
-      ),
+      appBar: _writingAppBar(context, 'Band 8 Model Answers'),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('writing_tasks')
@@ -1442,10 +1430,7 @@ class WritingLessonsScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: WColors.background,
-      appBar: AppBar(
-        backgroundColor: WColors.background,
-        title: const Text('Writing Lessons'),
-      ),
+      appBar: _writingAppBar(context, 'Writing Lessons'),
       body: GridView.builder(
         padding: const EdgeInsets.all(18),
         itemCount: lessons.length,
@@ -1886,26 +1871,55 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
+    return Row(
       children: [
-        _GradientIcon(icon: Icons.edit_note_rounded),
-        SizedBox(width: 12),
-        Expanded(
+        const _GradientIcon(icon: Icons.draw_rounded),
+        const SizedBox(width: 13),
+        const Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Writing',
+                'Writing Studio',
                 style: TextStyle(
                   color: WColors.text,
-                  fontSize: 24,
+                  fontSize: 25,
+                  letterSpacing: -.45,
                   fontWeight: FontWeight.w900,
                 ),
               ),
               SizedBox(height: 4),
               Text(
-                'IELTS tasks, smart editor and AI band feedback',
-                style: TextStyle(color: WColors.muted, fontSize: 10.5),
+                'Practice smarter, write confidently and improve your band',
+                style: TextStyle(
+                  color: WColors.muted,
+                  fontSize: 10.5,
+                  height: 1.35,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
+            color: WColors.green.withOpacity(.10),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: WColors.green.withOpacity(.25)),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.auto_awesome_rounded, color: WColors.green, size: 14),
+              SizedBox(width: 5),
+              Text(
+                'AI READY',
+                style: TextStyle(
+                  color: WColors.green,
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: .6,
+                ),
               ),
             ],
           ),
@@ -1947,48 +1961,101 @@ class _StaticBandCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final progress = (band / 9).clamp(0.0, 1.0);
+
     return Container(
-      padding: const EdgeInsets.all(19),
+      padding: const EdgeInsets.all(20),
       decoration: _heroDecoration(),
       child: Row(
         children: [
-          Container(
-            width: 86,
-            height: 86,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: WColors.cyan, width: 8),
-            ),
-            child: Text(
-              band > 0 ? band.toStringAsFixed(1) : '—',
-              style: const TextStyle(
-                color: WColors.text,
-                fontSize: 25,
-                fontWeight: FontWeight.w900,
-              ),
+          SizedBox(
+            width: 92,
+            height: 92,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 86,
+                  height: 86,
+                  child: CircularProgressIndicator(
+                    value: progress,
+                    strokeWidth: 8,
+                    strokeCap: StrokeCap.round,
+                    backgroundColor: Colors.white.withOpacity(.07),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      WColors.cyan,
+                    ),
+                  ),
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      band > 0 ? band.toStringAsFixed(1) : '—',
+                      style: const TextStyle(
+                        color: WColors.text,
+                        fontSize: 26,
+                        height: 1,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'BAND',
+                      style: TextStyle(
+                        color: WColors.muted,
+                        fontSize: 8,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          const SizedBox(width: 15),
-          const Expanded(
+          const SizedBox(width: 16),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Current Estimated Writing Band',
-                  style: TextStyle(
-                    color: WColors.text,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: WColors.cyan.withOpacity(.10),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: WColors.cyan.withOpacity(.22)),
+                  ),
+                  child: const Text(
+                    'WRITING PERFORMANCE',
+                    style: TextStyle(
+                      color: WColors.cyan,
+                      fontSize: 8,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: .7,
+                    ),
                   ),
                 ),
-                SizedBox(height: 7),
-                Text(
-                  'Updated after every completed AI Writing report.',
+                const SizedBox(height: 10),
+                const Text(
+                  'Your estimated writing band',
+                  style: TextStyle(
+                    color: WColors.text,
+                    fontSize: 16.5,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -.2,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Complete AI-evaluated tasks to track progress across all IELTS writing criteria.',
                   style: TextStyle(
                     color: WColors.secondary,
                     fontSize: 10.5,
-                    height: 1.45,
+                    height: 1.5,
                   ),
                 ),
               ],
@@ -2008,26 +2075,87 @@ class _HomeOptionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final featured = option == WritingHomeOption.aiChecker;
+
     return _TapCard(
       onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Icon(option.icon, color: WColors.cyan, size: 26),
-          const Spacer(),
-          Text(
-            option.title,
-            style: const TextStyle(
-              color: WColors.text,
-              fontSize: 12.4,
-              fontWeight: FontWeight.w900,
+          Positioned(
+            right: -18,
+            top: -22,
+            child: Container(
+              width: 78,
+              height: 78,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: (featured ? WColors.violet : WColors.cyan).withOpacity(
+                  .07,
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 5),
-          Text(
-            option.subtitle,
-            maxLines: 2,
-            style: const TextStyle(color: WColors.muted, fontSize: 9.3),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: featured
+                            ? [WColors.violet, WColors.cyan]
+                            : [
+                                WColors.cyan.withOpacity(.22),
+                                WColors.violet.withOpacity(.14),
+                              ],
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: (featured ? WColors.violet : WColors.cyan)
+                            .withOpacity(.28),
+                      ),
+                    ),
+                    child: Icon(
+                      option.icon,
+                      color: featured ? Colors.white : WColors.cyan,
+                      size: 22,
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(
+                    Icons.arrow_outward_rounded,
+                    color: WColors.muted.withOpacity(.75),
+                    size: 18,
+                  ),
+                ],
+              ),
+              const Spacer(),
+              Text(
+                option.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: WColors.text,
+                  fontSize: 12.8,
+                  height: 1.2,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                option.subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: WColors.muted,
+                  fontSize: 9.5,
+                  height: 1.4,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -2313,10 +2441,7 @@ class _EditorHeader extends StatelessWidget {
                 const Spacer(),
                 Text(
                   autosaveLabel,
-                  style: const TextStyle(
-                    color: WColors.muted,
-                    fontSize: 9,
-                  ),
+                  style: const TextStyle(color: WColors.muted, fontSize: 9),
                 ),
               ],
             ),
@@ -2567,11 +2692,7 @@ class _MobileSuggestionStrip extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.auto_awesome_rounded,
-            color: WColors.cyan,
-            size: 19,
-          ),
+          const Icon(Icons.auto_awesome_rounded, color: WColors.cyan, size: 19),
           const SizedBox(width: 9),
           Expanded(
             child: Text(
@@ -3289,16 +3410,147 @@ class _WritingBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [WColors.background, Color(0xFF0D172B), WColors.background],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    return Stack(
+      children: [
+        const Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Color(0xFF06101D),
+                  Color(0xFF0A1628),
+                  Color(0xFF08111F),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+          ),
         ),
-      ),
+        Positioned(
+          top: -110,
+          right: -85,
+          child: Container(
+            width: 280,
+            height: 280,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: WColors.cyan.withOpacity(.075),
+              boxShadow: [
+                BoxShadow(
+                  color: WColors.cyan.withOpacity(.08),
+                  blurRadius: 90,
+                  spreadRadius: 24,
+                ),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          bottom: 80,
+          left: -120,
+          child: Container(
+            width: 270,
+            height: 270,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: WColors.violet.withOpacity(.055),
+              boxShadow: [
+                BoxShadow(
+                  color: WColors.violet.withOpacity(.07),
+                  blurRadius: 100,
+                  spreadRadius: 24,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
+}
+
+PreferredSizeWidget _writingAppBar(BuildContext context, String title) {
+  return AppBar(
+    elevation: 0,
+    scrolledUnderElevation: 0,
+    backgroundColor: WColors.background.withOpacity(.96),
+    surfaceTintColor: Colors.transparent,
+    foregroundColor: WColors.text,
+    iconTheme: const IconThemeData(color: WColors.text, size: 22),
+    centerTitle: false,
+    titleSpacing: 4,
+    toolbarHeight: 68,
+    title: Text(
+      title,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(
+        color: WColors.text,
+        fontSize: 19,
+        fontWeight: FontWeight.w900,
+        letterSpacing: -.25,
+      ),
+    ),
+    bottom: PreferredSize(
+      preferredSize: const Size.fromHeight(1),
+      child: Container(
+        height: 1,
+        margin: const EdgeInsets.symmetric(horizontal: 18),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.transparent,
+              WColors.cyan.withOpacity(.32),
+              WColors.violet.withOpacity(.22),
+              Colors.transparent,
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+InputDecoration _writingInputDecoration({
+  required String label,
+  required IconData icon,
+  String? hint,
+  bool alignLabelWithHint = false,
+}) {
+  final border = OutlineInputBorder(
+    borderRadius: BorderRadius.circular(18),
+    borderSide: const BorderSide(color: WColors.border),
+  );
+
+  return InputDecoration(
+    labelText: label,
+    hintText: hint,
+    alignLabelWithHint: alignLabelWithHint,
+    prefixIcon: Icon(icon, color: WColors.cyan, size: 21),
+    labelStyle: const TextStyle(
+      color: WColors.secondary,
+      fontWeight: FontWeight.w700,
+    ),
+    floatingLabelStyle: const TextStyle(
+      color: WColors.cyan,
+      fontWeight: FontWeight.w800,
+    ),
+    hintStyle: TextStyle(color: WColors.muted.withOpacity(.72), fontSize: 13),
+    filled: true,
+    fillColor: WColors.surface.withOpacity(.88),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+    enabledBorder: border,
+    border: border,
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(18),
+      borderSide: const BorderSide(color: WColors.cyan, width: 1.5),
+    ),
+    errorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(18),
+      borderSide: const BorderSide(color: Colors.redAccent),
+    ),
+  );
 }
 
 abstract final class WColors {
@@ -3315,14 +3567,26 @@ abstract final class WColors {
 }
 
 BoxDecoration _panelDecoration() => BoxDecoration(
-  color: WColors.surface.withOpacity(.94),
-  borderRadius: BorderRadius.circular(18),
-  border: Border.all(color: WColors.border),
+  gradient: LinearGradient(
+    colors: [
+      WColors.surface.withOpacity(.98),
+      const Color(0xFF0F1A2C).withOpacity(.98),
+    ],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  ),
+  borderRadius: BorderRadius.circular(22),
+  border: Border.all(color: Colors.white.withOpacity(.065)),
   boxShadow: [
     BoxShadow(
-      color: Colors.black.withOpacity(.12),
-      blurRadius: 18,
-      offset: const Offset(0, 8),
+      color: Colors.black.withOpacity(.20),
+      blurRadius: 24,
+      offset: const Offset(0, 12),
+    ),
+    BoxShadow(
+      color: WColors.cyan.withOpacity(.025),
+      blurRadius: 28,
+      spreadRadius: 1,
     ),
   ],
 );
@@ -3330,13 +3594,27 @@ BoxDecoration _panelDecoration() => BoxDecoration(
 BoxDecoration _heroDecoration() => BoxDecoration(
   gradient: LinearGradient(
     colors: [
-      WColors.surface,
-      WColors.cyan.withOpacity(.09),
-      WColors.violet.withOpacity(.08),
+      const Color(0xFF122238),
+      WColors.cyan.withOpacity(.12),
+      WColors.violet.withOpacity(.10),
     ],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
   ),
-  borderRadius: BorderRadius.circular(22),
-  border: Border.all(color: WColors.cyan.withOpacity(.22)),
+  borderRadius: BorderRadius.circular(26),
+  border: Border.all(color: WColors.cyan.withOpacity(.25)),
+  boxShadow: [
+    BoxShadow(
+      color: Colors.black.withOpacity(.22),
+      blurRadius: 28,
+      offset: const Offset(0, 14),
+    ),
+    BoxShadow(
+      color: WColors.cyan.withOpacity(.06),
+      blurRadius: 30,
+      spreadRadius: 1,
+    ),
+  ],
 );
 
 String _categoryLabel(String value) => switch (value) {
