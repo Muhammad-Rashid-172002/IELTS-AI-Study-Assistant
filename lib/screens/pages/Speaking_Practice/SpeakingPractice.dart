@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:fyproject/screens/content_queue_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
@@ -122,40 +123,29 @@ class _SpeakingTestBrowserScreenState extends State<SpeakingTestBrowserScreen> {
     });
 
     try {
-      Query<Map<String, dynamic>> query = FirebaseFirestore.instance
+      final queue = ContentQueueService();
+      final completedIds = await queue.completedIds('speaking');
+      final published = await FirebaseFirestore.instance
           .collection('speaking_tests')
           .where('status', isEqualTo: 'published')
-          .where('mode', isEqualTo: widget.mode);
+          .limit(200)
+          .get();
 
-      QuerySnapshot<Map<String, dynamic>> snapshot;
-
-      try {
-        snapshot = await query.limit(40).get();
-      } on FirebaseException catch (error) {
-        if (error.code != 'failed-precondition') rethrow;
-
-        final fallback = await FirebaseFirestore.instance
-            .collection('speaking_tests')
-            .where('status', isEqualTo: 'published')
-            .limit(150)
-            .get();
-
-        final docs = fallback.docs
-            .where((doc) => doc.data()['mode'] == widget.mode)
-            .toList();
-
-        if (!mounted) return;
-        setState(() {
-          _tests = docs.map(SpeakingTest.fromDocument).toList();
-          _loading = false;
-        });
-        return;
-      }
+      final matching = queue.sortPublished(
+        published.docs.where((doc) => doc.data()['mode'] == widget.mode),
+      );
+      final nextDocs = matching
+          .where((doc) => !completedIds.contains(doc.id))
+          .take(1)
+          .toList();
 
       if (!mounted) return;
       setState(() {
-        _tests = snapshot.docs.map(SpeakingTest.fromDocument).toList();
+        _tests = nextDocs.map(SpeakingTest.fromDocument).toList();
         _loading = false;
+        if (_tests.isEmpty && matching.isNotEmpty) {
+          _error = 'You have completed every available Speaking activity in this mode. New activities will appear after they are published.';
+        }
       });
     } catch (error) {
       if (!mounted) return;
@@ -188,9 +178,9 @@ class _SpeakingTestBrowserScreenState extends State<SpeakingTestBrowserScreen> {
           else if (_tests.isEmpty)
             _MessageState(
               icon: Icons.mic_none_rounded,
-              title: 'No published speaking activity',
+              title: 'No new Speaking activity',
               subtitle:
-                  'Generate and publish a matching Speaking activity from the admin panel.',
+                  'Completed activities are hidden. Publish a new activity from the admin panel.',
               action: _load,
             )
           else

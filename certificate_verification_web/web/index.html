@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+  <title>IELTS AI Master | Certificate Verification</title>
+
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+
+  <meta name="description"
+    content="Official IELTS AI Master Certificate Verification Portal. Verify certificates instantly using a secure verification code or QR Code.">
+
+  <meta name="keywords"
+    content="IELTS AI Master, IELTS Certificate, Certificate Verification, Verify IELTS AI Master, QR Verification, Online Certificate">
+
+  <meta name="author" content="IELTS AI Master">
+
+  <meta name="robots" content="index,follow">
+
+  <meta name="theme-color" content="#08111F">
+
+  <!-- Open Graph -->
+
+  <meta property="og:type" content="website">
+
+  <meta property="og:title"
+    content="IELTS AI Master | Certificate Verification">
+
+  <meta property="og:description"
+    content="Official certificate verification portal for IELTS AI Master.">
+
+  <meta property="og:url"
+    content="https://ielts-ai-study-assistant.web.app">
+
+  <meta property="og:image"
+    content="https://ielts-ai-study-assistant.web.app/icons/Icon-512.png">
+
+  <meta property="og:site_name"
+    content="IELTS AI Master">
+
+  <!-- Twitter -->
+
+  <meta name="twitter:card"
+    content="summary_large_image">
+
+  <meta name="twitter:title"
+    content="IELTS AI Master Certificate Verification">
+
+  <meta name="twitter:description"
+    content="Verify IELTS AI Master certificates online.">
+
+  <meta name="twitter:image"
+    content="https://ielts-ai-study-assistant.web.app/icons/Icon-512.png">
+
+  <!-- Apple -->
+
+  <meta name="mobile-web-app-capable"
+    content="yes">
+
+  <meta name="apple-mobile-web-app-capable"
+    content="yes">
+
+  <meta name="apple-mobile-web-app-status-bar-style"
+    content="black-translucent">
+
+  <meta name="apple-mobile-web-app-title"
+    content="IELTS AI Master">
+
+  <link rel="apple-touch-icon"
+    href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+
+  <link rel="icon"
+    type="image/png"
+    sizes="32x32"
+    href="favicon.png">
+
+  <link rel="manifest"
+    href="manifest.json">
+
+  <!-- Canonical -->
+
+  <link rel="canonical"
+    href="https://ielts-ai-study-assistant.web.app">
+
+  <!-- Preconnect -->
+
+  <link rel="preconnect"
+    href="https://fonts.googleapis.com">
+
+  <link rel="preconnect"
+    href="https://fonts.gstatic.com"
+    crossorigin>
+
+  <!-- Structured Data -->
+
+  <script type="application/ld+json">
+{
+  "@context":"https://schema.org",
+  "@type":"WebSite",
+  "name":"IELTS AI Master Certificate Verification",
+  "url":"https://ielts-ai-study-assistant.web.app",
+  "description":"Official certificate verification portal for IELTS AI Master.",
+  "publisher":{
+      "@type":"Organization",
+      "name":"IELTS AI Master"
+  }
+}
+</script>
+
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      background: #08111F;
+      overflow: hidden;
+      font-family: Inter, Arial, sans-serif;
+    }
+
+    #loading {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #08111F, #0F1E35);
+      color: white;
+    }
+
+    .logo {
+      width: 95px;
+      height: 95px;
+      border-radius: 24px;
+      background: linear-gradient(135deg,
+          #00D4FF,
+          #1D4ED8,
+          #7C3AED);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 42px;
+      margin-bottom: 25px;
+      box-shadow: 0 20px 45px rgba(0, 212, 255, .30);
+      animation: pulse 1.8s infinite;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: .4px;
+    }
+
+    p {
+      margin-top: 12px;
+      color: #B7C4D8;
+      font-size: 15px;
+    }
+
+    .loader {
+      margin-top: 30px;
+      width: 44px;
+      height: 44px;
+      border: 4px solid rgba(255,255,255,.15);
+      border-top-color: #00D4FF;
+      border-radius: 50%;
+      animation: spin .9s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        transform: scale(1);
+      }
+
+      50% {
+        transform: scale(1.08);
+      }
+    }
+  </style>
+
+</head>
+
+<body>
+
+  <div id="loading">
+
+    <div class="logo">
+      🎓
+    </div>
+
+    <h2>
+      IELTS AI Master
+    </h2>
+
+    <p>
+      Loading Certificate Verification...
+    </p>
+
+    <div class="loader"></div>
+
+  </div>
+
+  <script>
+    window.addEventListener("flutter-first-frame", function () {
+      const loading = document.getElementById("loading");
+      if (loading) {
+        loading.remove();
+      }
+    });
+  </script>
+
+  <script src="flutter_bootstrap.js" async></script>
+
+</body>
+
+</html>

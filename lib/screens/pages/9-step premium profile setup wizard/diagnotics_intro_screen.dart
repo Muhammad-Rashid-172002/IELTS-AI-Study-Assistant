@@ -7,32 +7,12 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:fyproject/screens/pages/certificate/certificate_screen.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
 import 'package:fyproject/screens/pages/personalized_study_plan/personalized_study_plan-screen.dart';
-
-/// Production diagnostic flow:
-/// 1. Loads a published diagnostic test from Firestore.
-/// 2. Plays the real Listening audio URL.
-/// 3. Scores Listening and Reading against Firestore answer keys.
-/// 4. Records Speaking audio and uploads it to Firebase Storage.
-/// 5. Evaluates Writing and Speaking through callable Cloud Functions.
-/// 6. Saves one normalized diagnostic result and updates the user document.
-///
-/// Firestore:
-/// diagnostic_tests/{testId}
-///   status: published
-///   ieltsType: Academic | General Training
-///   listening: {audioUrl, durationSeconds, questions: [...]}
-///   reading: {passageTitle, passage, questions: [...]}
-///   writing: {taskType, prompt, minimumWords, recommendedMinutes}
-///   speaking: {prompts: [...]}
-///
-/// Callable functions:
-/// evaluateDiagnosticWriting
-/// evaluateDiagnosticSpeaking
 
 class DiagnosticIntroScreen extends StatelessWidget {
   final String ieltsType;
@@ -439,14 +419,20 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
         durationUsedSeconds: test.totalDurationMinutes * 60 - _remainingSeconds,
       );
 
-      await _repository.saveResult(result);
+      final resultId = await _repository.saveResult(result);
+      final certificateId = await _repository.issueCompletionCertificate(
+        resultId: resultId,
+      );
 
       if (!mounted) return;
 
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => DiagnosticResultScreen(result: result),
+          builder: (_) => DiagnosticResultScreen(
+            result: result,
+            certificateId: certificateId,
+          ),
         ),
       );
     } catch (error) {
@@ -845,8 +831,13 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
 
 class DiagnosticResultScreen extends StatelessWidget {
   final DiagnosticResultData result;
+  final String? certificateId;
 
-  const DiagnosticResultScreen({super.key, required this.result});
+  const DiagnosticResultScreen({
+    super.key,
+    required this.result,
+    this.certificateId,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -983,6 +974,18 @@ class DiagnosticResultScreen extends StatelessWidget {
                     ),
                   ),
                 ),
+                const SizedBox(height: 15),
+                _DiagnosticCertificateCard(
+                  certificateIssued: certificateId != null,
+                  onView: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const CertificatesScreen(),
+                      ),
+                    );
+                  },
+                ),
                 const SizedBox(height: 22),
                 _GradientButton(
                   title: 'Create My Study Plan',
@@ -1045,6 +1048,70 @@ class DiagnosticResultScreen extends StatelessWidget {
     if (gap <= 1.5) return 60;
     if (gap <= 2) return 75;
     return 90;
+  }
+}
+
+class _DiagnosticCertificateCard extends StatelessWidget {
+  final bool certificateIssued;
+  final VoidCallback onView;
+
+  const _DiagnosticCertificateCard({
+    required this.certificateIssued,
+    required this.onView,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(17),
+      decoration: _cardDecoration(),
+      child: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              gradient: DiagnosticColors.gradient,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(
+              Icons.workspace_premium_rounded,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  certificateIssued
+                      ? 'Certificate Earned'
+                      : 'Certificate Processing',
+                  style: const TextStyle(
+                    color: DiagnosticColors.mainText,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  certificateIssued
+                      ? 'Your verified Diagnostic Completion certificate is ready.'
+                      : 'Your result is saved. Certificate synchronization will retry automatically.',
+                  style: const TextStyle(
+                    color: DiagnosticColors.mutedText,
+                    fontSize: 10,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (certificateIssued)
+            TextButton(onPressed: onView, child: const Text('View')),
+        ],
+      ),
+    );
   }
 }
 
@@ -1146,7 +1213,7 @@ class DiagnosticRepository {
     );
   }
 
-  Future<void> saveResult(DiagnosticResultData result) async {
+  Future<String> saveResult(DiagnosticResultData result) async {
     final userRef = _firestore.collection('users').doc(_user.uid);
     final resultRef = userRef.collection('diagnostic_results').doc();
 
@@ -1196,6 +1263,24 @@ class DiagnosticRepository {
     }, SetOptions(merge: true));
 
     await batch.commit();
+    return resultRef.id;
+  }
+
+  Future<String?> issueCompletionCertificate({required String resultId}) async {
+    try {
+      final callable = _functions.httpsCallable('issueAchievementCertificate');
+
+      final response = await callable.call({
+        'achievementType': 'diagnostic_completion',
+        'sourceId': resultId,
+      });
+
+      final data = Map<String, dynamic>.from(response.data as Map);
+      final certificateId = data['certificateId']?.toString().trim() ?? '';
+      return certificateId.isEmpty ? null : certificateId;
+    } catch (_) {
+      return null;
+    }
   }
 }
 
@@ -1412,25 +1497,193 @@ class DiagnosticQuestion {
   }
 }
 
+class WritingVisualSeries {
+  final String name;
+  final List<double> values;
+
+  const WritingVisualSeries({required this.name, required this.values});
+
+  factory WritingVisualSeries.fromMap(Map<String, dynamic> data) {
+    return WritingVisualSeries(
+      name: (data['name'] ?? '').toString(),
+      values: data['values'] is List
+          ? (data['values'] as List)
+                .map((value) => _visualDouble(value))
+                .toList()
+          : const [],
+    );
+  }
+}
+
+class WritingVisualPoint {
+  final String label;
+  final double x;
+  final double y;
+
+  const WritingVisualPoint({
+    required this.label,
+    required this.x,
+    required this.y,
+  });
+
+  factory WritingVisualPoint.fromMap(Map<String, dynamic> data) {
+    return WritingVisualPoint(
+      label: (data['label'] ?? '').toString(),
+      x: _visualDouble(data['x']),
+      y: _visualDouble(data['y']),
+    );
+  }
+}
+
+class WritingVisualData {
+  final String type;
+  final String title;
+  final String subtitle;
+  final String xAxisLabel;
+  final String yAxisLabel;
+  final String unit;
+  final List<String> categories;
+  final List<WritingVisualSeries> series;
+  final List<String> tableColumns;
+  final List<List<String>> tableRows;
+  final List<String> processSteps;
+  final List<WritingVisualPoint> mapPoints;
+  final String note;
+
+  const WritingVisualData({
+    required this.type,
+    required this.title,
+    required this.subtitle,
+    required this.xAxisLabel,
+    required this.yAxisLabel,
+    required this.unit,
+    required this.categories,
+    required this.series,
+    required this.tableColumns,
+    required this.tableRows,
+    required this.processSteps,
+    required this.mapPoints,
+    required this.note,
+  });
+
+  factory WritingVisualData.empty() {
+    return const WritingVisualData(
+      type: 'none',
+      title: '',
+      subtitle: '',
+      xAxisLabel: '',
+      yAxisLabel: '',
+      unit: '',
+      categories: [],
+      series: [],
+      tableColumns: [],
+      tableRows: [],
+      processSteps: [],
+      mapPoints: [],
+      note: '',
+    );
+  }
+
+  factory WritingVisualData.fromMap(Map<String, dynamic> data) {
+    final rawSeries = data['series'];
+    final rawRows = data['tableRows'];
+    final rawPoints = data['mapPoints'];
+
+    return WritingVisualData(
+      type: (data['type'] ?? 'none').toString().trim().toLowerCase(),
+      title: (data['title'] ?? '').toString(),
+      subtitle: (data['subtitle'] ?? '').toString(),
+      xAxisLabel: (data['xAxisLabel'] ?? '').toString(),
+      yAxisLabel: (data['yAxisLabel'] ?? '').toString(),
+      unit: (data['unit'] ?? '').toString(),
+      categories: data['categories'] is List
+          ? (data['categories'] as List).map((item) => item.toString()).toList()
+          : const [],
+      series: rawSeries is List
+          ? rawSeries
+                .whereType<Map>()
+                .map(
+                  (item) => WritingVisualSeries.fromMap(
+                    Map<String, dynamic>.from(item),
+                  ),
+                )
+                .toList()
+          : const [],
+      tableColumns: data['tableColumns'] is List
+          ? (data['tableColumns'] as List)
+                .map((item) => item.toString())
+                .toList()
+          : const [],
+      tableRows: rawRows is List
+          ? rawRows
+                .whereType<List>()
+                .map((row) => row.map((item) => item.toString()).toList())
+                .toList()
+          : const [],
+      processSteps: data['processSteps'] is List
+          ? (data['processSteps'] as List)
+                .map((item) => item.toString())
+                .toList()
+          : const [],
+      mapPoints: rawPoints is List
+          ? rawPoints
+                .whereType<Map>()
+                .map(
+                  (item) => WritingVisualPoint.fromMap(
+                    Map<String, dynamic>.from(item),
+                  ),
+                )
+                .toList()
+          : const [],
+      note: (data['note'] ?? '').toString(),
+    );
+  }
+
+  bool get hasContent {
+    if (type == 'table') {
+      return tableColumns.isNotEmpty && tableRows.isNotEmpty;
+    }
+
+    if (type == 'process') {
+      return processSteps.length >= 3;
+    }
+
+    if (type == 'map') {
+      return mapPoints.isNotEmpty;
+    }
+
+    return categories.isNotEmpty &&
+        series.isNotEmpty &&
+        series.any((item) => item.values.isNotEmpty);
+  }
+}
+
 class WritingDiagnosticTask {
   final String taskType;
   final String prompt;
   final int minimumWords;
   final int recommendedMinutes;
+  final WritingVisualData visual;
 
   const WritingDiagnosticTask({
     required this.taskType,
     required this.prompt,
     required this.minimumWords,
     required this.recommendedMinutes,
+    required this.visual,
   });
 
   factory WritingDiagnosticTask.fromMap(Map<String, dynamic> data) {
+    final visualMap = data['visual'] is Map
+        ? Map<String, dynamic>.from(data['visual'])
+        : <String, dynamic>{};
+
     return WritingDiagnosticTask(
       taskType: (data['taskType'] ?? 'Task 2').toString(),
       prompt: (data['prompt'] ?? '').toString(),
       minimumWords: _int(data['minimumWords'], 150),
       recommendedMinutes: _int(data['recommendedMinutes'], 20),
+      visual: WritingVisualData.fromMap(visualMap),
     );
   }
 
@@ -1438,6 +1691,11 @@ class WritingDiagnosticTask {
     if (value is num) return value.round();
     return int.tryParse(value?.toString() ?? '') ?? fallback;
   }
+}
+
+double _visualDouble(dynamic value) {
+  if (value is num) return value.toDouble();
+  return double.tryParse(value?.toString() ?? '') ?? 0;
 }
 
 class SpeakingDiagnosticSection {
@@ -1898,6 +2156,32 @@ class _WritingTaskCard extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
+          if (task.visual.hasContent) ...[
+            const SizedBox(height: 18),
+            _WritingVisualCard(data: task.visual),
+          ] else if (task.taskType.toLowerCase().contains('task 1')) ...[
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: DiagnosticColors.error.withOpacity(.08),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: DiagnosticColors.error.withOpacity(.28),
+                ),
+              ),
+              child: const Text(
+                'This Task 1 question has no chart data. Please ask the '
+                'administrator to regenerate or update this diagnostic test.',
+                style: TextStyle(
+                  color: DiagnosticColors.secondaryText,
+                  fontSize: 11,
+                  height: 1.45,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           Text(
             '${task.minimumWords}+ words • '
@@ -1908,6 +2192,661 @@ class _WritingTaskCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _WritingVisualCard extends StatelessWidget {
+  final WritingVisualData data;
+
+  const _WritingVisualCard({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
+      decoration: BoxDecoration(
+        color: DiagnosticColors.background.withOpacity(.52),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: DiagnosticColors.cyan.withOpacity(.24)),
+      ),
+      child: Column(
+        children: [
+          if (data.title.isNotEmpty)
+            Text(
+              data.title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: DiagnosticColors.mainText,
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          if (data.subtitle.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              data.subtitle,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: DiagnosticColors.mutedText,
+                fontSize: 9.5,
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          _WritingVisualRenderer(data: data),
+          if (data.note.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              data.note,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: DiagnosticColors.mutedText,
+                fontSize: 9,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _WritingVisualRenderer extends StatelessWidget {
+  final WritingVisualData data;
+
+  const _WritingVisualRenderer({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    switch (data.type) {
+      case 'table':
+        return _WritingTableVisual(data: data);
+      case 'process':
+        return _WritingProcessVisual(data: data);
+      case 'map':
+        return _WritingMapVisual(data: data);
+      case 'pie':
+        return SizedBox(
+          height: 250,
+          child: CustomPaint(
+            painter: _WritingPiePainter(data),
+            child: const SizedBox.expand(),
+          ),
+        );
+      case 'line':
+        return SizedBox(
+          height: 270,
+          child: CustomPaint(
+            painter: _WritingCartesianPainter(data, chartType: 'line'),
+            child: const SizedBox.expand(),
+          ),
+        );
+      case 'mixed':
+        return SizedBox(
+          height: 270,
+          child: CustomPaint(
+            painter: _WritingCartesianPainter(data, chartType: 'mixed'),
+            child: const SizedBox.expand(),
+          ),
+        );
+      case 'bar':
+      default:
+        return SizedBox(
+          height: 270,
+          child: CustomPaint(
+            painter: _WritingCartesianPainter(data, chartType: 'bar'),
+            child: const SizedBox.expand(),
+          ),
+        );
+    }
+  }
+}
+
+class _WritingCartesianPainter extends CustomPainter {
+  final WritingVisualData data;
+  final String chartType;
+
+  const _WritingCartesianPainter(this.data, {required this.chartType});
+
+  static const _palette = [
+    Color(0xFF22D3EE),
+    Color(0xFF8B5CF6),
+    Color(0xFF22C55E),
+    Color(0xFFF59E0B),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const left = 43.0;
+    const right = 10.0;
+    const top = 18.0;
+    const bottom = 58.0;
+
+    final plot = Rect.fromLTRB(
+      left,
+      top,
+      size.width - right,
+      size.height - bottom,
+    );
+
+    final values = data.series.expand((item) => item.values).toList();
+    if (values.isEmpty || data.categories.isEmpty) return;
+
+    final maxValue = values.reduce(math.max);
+    final safeMax = maxValue <= 0 ? 1.0 : maxValue * 1.12;
+
+    final gridPaint = Paint()
+      ..color = DiagnosticColors.border.withOpacity(.65)
+      ..strokeWidth = 1;
+
+    final axisPaint = Paint()
+      ..color = DiagnosticColors.mutedText.withOpacity(.8)
+      ..strokeWidth = 1.2;
+
+    for (var index = 0; index <= 4; index++) {
+      final y = plot.bottom - (plot.height * index / 4);
+      canvas.drawLine(Offset(plot.left, y), Offset(plot.right, y), gridPaint);
+      _drawText(
+        canvas,
+        _formatChartNumber(safeMax * index / 4),
+        Offset(0, y - 7),
+        width: left - 5,
+        align: TextAlign.right,
+        fontSize: 8.5,
+        color: DiagnosticColors.mutedText,
+      );
+    }
+
+    canvas.drawLine(
+      Offset(plot.left, plot.top),
+      Offset(plot.left, plot.bottom),
+      axisPaint,
+    );
+    canvas.drawLine(
+      Offset(plot.left, plot.bottom),
+      Offset(plot.right, plot.bottom),
+      axisPaint,
+    );
+
+    final categoryWidth = plot.width / data.categories.length;
+    final seriesCount = math.max(1, data.series.length);
+
+    for (
+      var categoryIndex = 0;
+      categoryIndex < data.categories.length;
+      categoryIndex++
+    ) {
+      final centerX = plot.left + categoryWidth * (categoryIndex + .5);
+
+      _drawText(
+        canvas,
+        data.categories[categoryIndex],
+        Offset(centerX - categoryWidth * .46, plot.bottom + 8),
+        width: categoryWidth * .92,
+        align: TextAlign.center,
+        fontSize: 7.6,
+        color: DiagnosticColors.mutedText,
+        maxLines: 2,
+      );
+
+      if (chartType == 'line') continue;
+
+      final availableWidth = categoryWidth * .70;
+      final barWidth = math.min(22.0, availableWidth / seriesCount);
+
+      for (
+        var seriesIndex = 0;
+        seriesIndex < data.series.length;
+        seriesIndex++
+      ) {
+        final series = data.series[seriesIndex];
+        if (categoryIndex >= series.values.length) continue;
+
+        if (chartType == 'mixed' && seriesIndex == 1) {
+          continue;
+        }
+
+        final value = series.values[categoryIndex];
+        final height = plot.height * value / safeMax;
+        final x = centerX - availableWidth / 2 + seriesIndex * barWidth;
+
+        final rect = RRect.fromRectAndRadius(
+          Rect.fromLTWH(
+            x,
+            plot.bottom - height,
+            math.max(3, barWidth - 2),
+            height,
+          ),
+          const Radius.circular(4),
+        );
+
+        canvas.drawRRect(
+          rect,
+          Paint()..color = _palette[seriesIndex % _palette.length],
+        );
+      }
+    }
+
+    if (chartType == 'line' || chartType == 'mixed') {
+      final startSeries = chartType == 'mixed' ? 1 : 0;
+
+      for (
+        var seriesIndex = startSeries;
+        seriesIndex < data.series.length;
+        seriesIndex++
+      ) {
+        final series = data.series[seriesIndex];
+        final path = Path();
+        final pointPaint = Paint()
+          ..color = _palette[seriesIndex % _palette.length]
+          ..style = PaintingStyle.fill;
+        final linePaint = Paint()
+          ..color = _palette[seriesIndex % _palette.length]
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.5;
+
+        for (
+          var index = 0;
+          index < math.min(data.categories.length, series.values.length);
+          index++
+        ) {
+          final x = plot.left + categoryWidth * (index + .5);
+          final y = plot.bottom - plot.height * series.values[index] / safeMax;
+
+          if (index == 0) {
+            path.moveTo(x, y);
+          } else {
+            path.lineTo(x, y);
+          }
+
+          canvas.drawCircle(Offset(x, y), 3.4, pointPaint);
+        }
+
+        canvas.drawPath(path, linePaint);
+      }
+    }
+
+    _drawLegend(canvas, size);
+  }
+
+  void _drawLegend(Canvas canvas, Size size) {
+    var x = 46.0;
+    const y = 0.0;
+
+    for (var index = 0; index < data.series.length; index++) {
+      final name = data.series[index].name;
+      if (name.isEmpty) continue;
+
+      canvas.drawCircle(
+        Offset(x + 4, y + 5),
+        3.5,
+        Paint()..color = _palette[index % _palette.length],
+      );
+
+      final painter = TextPainter(
+        text: TextSpan(
+          text: name,
+          style: const TextStyle(
+            color: DiagnosticColors.secondaryText,
+            fontSize: 8,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: 90);
+
+      painter.paint(canvas, Offset(x + 11, y));
+      x += painter.width + 25;
+
+      if (x > size.width - 90) break;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _WritingCartesianPainter oldDelegate) {
+    return oldDelegate.data != data || oldDelegate.chartType != chartType;
+  }
+}
+
+class _WritingPiePainter extends CustomPainter {
+  final WritingVisualData data;
+
+  const _WritingPiePainter(this.data);
+
+  static const _palette = [
+    Color(0xFF22D3EE),
+    Color(0xFF8B5CF6),
+    Color(0xFF22C55E),
+    Color(0xFFF59E0B),
+    Color(0xFFEF4444),
+    Color(0xFF3B82F6),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (data.series.isEmpty || data.series.first.values.isEmpty) return;
+
+    final values = data.series.first.values;
+    final total = values.fold<double>(0, (sum, value) => sum + value);
+    if (total <= 0) return;
+
+    final center = Offset(size.width * .34, size.height * .48);
+    final radius = math.min(size.width * .24, size.height * .34);
+    final rect = Rect.fromCircle(center: center, radius: radius);
+
+    var startAngle = -math.pi / 2;
+
+    for (var index = 0; index < values.length; index++) {
+      final sweep = math.pi * 2 * values[index] / total;
+      final paint = Paint()
+        ..color = _palette[index % _palette.length]
+        ..style = PaintingStyle.fill;
+
+      canvas.drawArc(rect, startAngle, sweep, true, paint);
+      startAngle += sweep;
+    }
+
+    canvas.drawCircle(
+      center,
+      radius * .53,
+      Paint()..color = DiagnosticColors.background,
+    );
+
+    _drawText(
+      canvas,
+      data.unit.isEmpty ? 'Total' : data.unit,
+      Offset(center.dx - radius * .45, center.dy - 8),
+      width: radius * .9,
+      align: TextAlign.center,
+      fontSize: 10,
+      color: DiagnosticColors.mainText,
+    );
+
+    final legendX = size.width * .62;
+    var legendY = 28.0;
+
+    for (
+      var index = 0;
+      index < math.min(data.categories.length, values.length);
+      index++
+    ) {
+      canvas.drawCircle(
+        Offset(legendX, legendY + 5),
+        4,
+        Paint()..color = _palette[index % _palette.length],
+      );
+
+      _drawText(
+        canvas,
+        '${data.categories[index]} '
+        '(${_formatChartNumber(values[index])}${data.unit})',
+        Offset(legendX + 10, legendY),
+        width: size.width - legendX - 12,
+        fontSize: 8.5,
+        color: DiagnosticColors.secondaryText,
+      );
+
+      legendY += 28;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _WritingPiePainter oldDelegate) {
+    return oldDelegate.data != data;
+  }
+}
+
+class _WritingTableVisual extends StatelessWidget {
+  final WritingVisualData data;
+
+  const _WritingTableVisual({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        headingRowColor: WidgetStatePropertyAll(
+          DiagnosticColors.cyan.withOpacity(.10),
+        ),
+        dataRowMinHeight: 38,
+        dataRowMaxHeight: 48,
+        horizontalMargin: 12,
+        columnSpacing: 22,
+        columns: data.tableColumns
+            .map(
+              (column) => DataColumn(
+                label: Text(
+                  column,
+                  style: const TextStyle(
+                    color: DiagnosticColors.mainText,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            )
+            .toList(),
+        rows: data.tableRows
+            .map(
+              (row) => DataRow(
+                cells: List.generate(
+                  data.tableColumns.length,
+                  (index) => DataCell(
+                    Text(
+                      index < row.length ? row[index] : '',
+                      style: const TextStyle(
+                        color: DiagnosticColors.secondaryText,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+}
+
+class _WritingProcessVisual extends StatelessWidget {
+  final WritingVisualData data;
+
+  const _WritingProcessVisual({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: List.generate(data.processSteps.length, (index) {
+        final isLast = index == data.processSteps.length - 1;
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Column(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: DiagnosticColors.gradient,
+                  ),
+                  child: Text(
+                    '${index + 1}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                if (!isLast)
+                  Container(
+                    width: 2,
+                    height: 34,
+                    color: DiagnosticColors.cyan.withOpacity(.35),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Container(
+                margin: EdgeInsets.only(bottom: isLast ? 0 : 10),
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(
+                  color: DiagnosticColors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: DiagnosticColors.border),
+                ),
+                child: Text(
+                  data.processSteps[index],
+                  style: const TextStyle(
+                    color: DiagnosticColors.secondaryText,
+                    fontSize: 10.5,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      }),
+    );
+  }
+}
+
+class _WritingMapVisual extends StatelessWidget {
+  final WritingVisualData data;
+
+  const _WritingMapVisual({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    return AspectRatio(
+      aspectRatio: 1.45,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Container(
+            decoration: BoxDecoration(
+              color: DiagnosticColors.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: DiagnosticColors.border),
+            ),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: CustomPaint(painter: const _MapGridPainter()),
+                ),
+                ...data.mapPoints.map((point) {
+                  final x = point.x.clamp(0, 100) / 100;
+                  final y = point.y.clamp(0, 100) / 100;
+
+                  return Positioned(
+                    left: x * math.max(0, constraints.maxWidth - 88),
+                    top: y * math.max(0, constraints.maxHeight - 38),
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 88),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: DiagnosticColors.cyan.withOpacity(.16),
+                        borderRadius: BorderRadius.circular(9),
+                        border: Border.all(
+                          color: DiagnosticColors.cyan.withOpacity(.5),
+                        ),
+                      ),
+                      child: Text(
+                        point.label,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: DiagnosticColors.mainText,
+                          fontSize: 8,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _MapGridPainter extends CustomPainter {
+  const _MapGridPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = DiagnosticColors.border.withOpacity(.55)
+      ..strokeWidth = 1;
+
+    for (var index = 1; index < 6; index++) {
+      final x = size.width * index / 6;
+      final y = size.height * index / 6;
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+
+    final roadPaint = Paint()
+      ..color = DiagnosticColors.cyan.withOpacity(.25)
+      ..strokeWidth = 8
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawLine(
+      Offset(size.width * .08, size.height * .72),
+      Offset(size.width * .91, size.height * .28),
+      roadPaint,
+    );
+
+    canvas.drawLine(
+      Offset(size.width * .18, size.height * .12),
+      Offset(size.width * .76, size.height * .90),
+      roadPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _MapGridPainter oldDelegate) => false;
+}
+
+void _drawText(
+  Canvas canvas,
+  String text,
+  Offset offset, {
+  required double width,
+  TextAlign align = TextAlign.left,
+  double fontSize = 9,
+  Color color = DiagnosticColors.mutedText,
+  int maxLines = 1,
+}) {
+  final painter = TextPainter(
+    text: TextSpan(
+      text: text,
+      style: TextStyle(color: color, fontSize: fontSize),
+    ),
+    textDirection: TextDirection.ltr,
+    textAlign: align,
+    maxLines: maxLines,
+    ellipsis: '…',
+  )..layout(maxWidth: math.max(1, width));
+
+  painter.paint(canvas, offset);
+}
+
+String _formatChartNumber(double value) {
+  if ((value - value.round()).abs() < .01) {
+    return value.round().toString();
+  }
+  return value.toStringAsFixed(1);
 }
 
 class _SpeakingPromptCard extends StatelessWidget {

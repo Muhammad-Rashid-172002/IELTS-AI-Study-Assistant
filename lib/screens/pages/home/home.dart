@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:fyproject/screens/Full_Mock_Test/mock_test_setup_screen.dart';
 import 'package:fyproject/screens/Vocabulary_Builder/VocabularyBuilder.dart';
@@ -9,6 +10,7 @@ import 'package:fyproject/screens/pages/Listening_Practice/ListeningPractice.dar
 import 'package:fyproject/screens/pages/Reading_Practice/ReadingPractice.dart';
 import 'package:fyproject/screens/pages/Speaking_Practice/SpeakingPractice.dart';
 import 'package:fyproject/screens/pages/Writing_Checker/WritingChecker.dart';
+import 'package:fyproject/screens/pages/certificate/certificate_screen.dart';
 
 class HomeDashboard extends StatefulWidget {
   const HomeDashboard({super.key});
@@ -19,6 +21,7 @@ class HomeDashboard extends StatefulWidget {
 
 class _HomeDashboardState extends State<HomeDashboard> {
   bool _activityRecorded = false;
+  bool _certificateSyncStarted = false;
 
   @override
   Widget build(BuildContext context) {
@@ -54,6 +57,13 @@ class _HomeDashboardState extends State<HomeDashboard> {
         }
 
         final userData = userSnapshot.data!.data() ?? <String, dynamic>{};
+
+        if (!_certificateSyncStarted) {
+          _certificateSyncStarted = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _syncAchievementCertificates();
+          });
+        }
 
         return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
           stream: userRef.collection('diagnosticResults').snapshots(),
@@ -91,6 +101,18 @@ class _HomeDashboardState extends State<HomeDashboard> {
         );
       },
     );
+  }
+
+  Future<void> _syncAchievementCertificates() async {
+    try {
+      final callable = FirebaseFunctions.instanceFor(
+        region: 'us-central1',
+      ).httpsCallable('syncAchievementCertificates');
+
+      await callable.call();
+    } catch (_) {
+      // Certificate synchronization must never block the Home dashboard.
+    }
   }
 
   Future<void> _recordDailyActivity(
@@ -231,6 +253,9 @@ class _HomeDashboardView extends StatelessWidget {
         return;
       case 'Weakness Practice':
         _openSkillPractice(context, model.weakestSkill);
+        return;
+      case 'Certificates':
+        _push(context, const CertificatesScreen());
         return;
       default:
         _showMessage(context, '$action is not available.');
@@ -1432,6 +1457,12 @@ class _QuickActions extends StatelessWidget {
         'Practise your lowest skill',
         Icons.center_focus_strong_rounded,
         Color(0xFFF97316),
+      ),
+      (
+        'Certificates',
+        'View verified achievements',
+        Icons.workspace_premium_outlined,
+        Color(0xFF22C55E),
       ),
       (
         'Daily Quiz',

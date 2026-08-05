@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:ielts_ai_master_admin/core/theme/admin_theme.dart';
+import 'package:ielts_ai_master_admin/features/Subscription/subcription_screen.dart';
 import 'package:ielts_ai_master_admin/features/auth/data/admin_auth_service.dart';
 import 'package:ielts_ai_master_admin/features/diagnostic/presentation/diagnostic_management_screen.dart';
 import 'package:ielts_ai_master_admin/features/generation/presentation/generation_jobs_screen.dart';
@@ -98,6 +99,13 @@ class _AdminShellState extends State<AdminShell> {
       group: _NavigationGroup.platform,
     ),
     _NavigationItem(
+      label: 'Subscriptions',
+      description: 'Payments and premium activation',
+      icon: Icons.workspace_premium_outlined,
+      selectedIcon: Icons.workspace_premium_rounded,
+      group: _NavigationGroup.platform,
+    ),
+    _NavigationItem(
       label: 'Settings',
       description: 'Admin configuration',
       icon: Icons.settings_outlined,
@@ -120,6 +128,8 @@ class _AdminShellState extends State<AdminShell> {
         onOpenMockTests: () => _selectPage(6),
         onOpenDiagnostics: () => _selectPage(7),
         onOpenJobs: () => _selectPage(8),
+        onOpenUsers: () => _selectPage(9),
+        onOpenSubscriptions: () => _selectPage(10),
       ),
       const ListeningManagementScreen(),
       const ReadingManagementScreen(),
@@ -130,6 +140,7 @@ class _AdminShellState extends State<AdminShell> {
       const DiagnosticManagementScreen(),
       const GenerationJobsScreen(),
       const UsersManagementScreen(),
+      const AdminSubscriptionManagementScreen(),
       const AdminSettingsScreen(),
     ];
 
@@ -323,7 +334,7 @@ class _DesktopSidebar extends StatelessWidget {
                   _SidebarGroup(
                     title: 'PLATFORM',
                     items: items,
-                    indexes: const [8, 9, 10],
+                    indexes: const [8, 9, 10, 11],
                     selectedIndex: selectedIndex,
                     onSelected: onSelected,
                   ),
@@ -507,7 +518,7 @@ class _MobileAdminLayout extends StatelessWidget {
     required this.onLogout,
   });
 
-  static const primaryIndexes = [0, 1, 6, 7];
+  static const primaryIndexes = [0, 1, 6, 10];
 
   @override
   Widget build(BuildContext context) {
@@ -609,7 +620,7 @@ class _MobileAdminLayout extends StatelessWidget {
   }
 
   void _showMoreSheet(BuildContext context) {
-    const secondaryIndexes = [2, 3, 4, 5, 8, 9, 10];
+    const secondaryIndexes = [2, 3, 4, 5, 8, 9, 10, 11];
 
     showModalBottomSheet<void>(
       context: context,

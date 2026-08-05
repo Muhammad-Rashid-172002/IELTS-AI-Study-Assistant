@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "ielts-ai-study-assistant"
+  },
+  "targets": {
+    "ielts-ai-study-assistant": {
+      "hosting": {
+        "verification": [
+          "ielts-certificate-verification"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

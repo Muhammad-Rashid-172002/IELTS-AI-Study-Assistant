@@ -14,6 +14,8 @@ class DashboardHomeScreen extends StatefulWidget {
   final VoidCallback? onOpenMockTests;
   final VoidCallback? onOpenJobs;
   final VoidCallback? onOpenUsers;
+  final VoidCallback? onOpenDiagnostics;
+  final VoidCallback? onOpenSubscriptions;
 
   const DashboardHomeScreen({
     super.key,
@@ -24,7 +26,9 @@ class DashboardHomeScreen extends StatefulWidget {
     this.onOpenVocabulary,
     this.onOpenMockTests,
     this.onOpenJobs,
-    this.onOpenUsers, required void Function() onOpenDiagnostics,
+    this.onOpenUsers,
+    this.onOpenDiagnostics,
+    this.onOpenSubscriptions,
   });
 
   @override
@@ -54,6 +58,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
     ..._contentCollections,
     'generation_jobs',
     'users',
+    'subscription_requests',
   ];
 
   @override
@@ -148,6 +153,23 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
 
   int get _completedJobs => _statusCount('generation_jobs', 'completed');
 
+  int get _pendingSubscriptions =>
+      _statusCount('subscription_requests', 'pending');
+
+  int get _approvedSubscriptions =>
+      _statusCount('subscription_requests', 'approved');
+
+  int get _rejectedSubscriptions =>
+      _statusCount('subscription_requests', 'rejected');
+
+  int get _activePremiumUsers => _docs('users').where((doc) {
+    final data = doc.data();
+    final premium = data['isPremium'] == true || data['premium'] == true;
+    final status = (data['subscriptionStatus'] ?? '').toString().toLowerCase();
+
+    return premium || status == 'active';
+  }).length;
+
   double get _jobSuccessRate {
     final completed = _completedJobs;
     final failed = _failedJobs;
@@ -179,7 +201,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
 
     return AdminScaffold(
       title: 'Dashboard',
-      subtitle: 'AI content, users and platform overview',
+      subtitle: 'Content, users, subscriptions and platform health',
       body: _loading
           ? const _DashboardLoading()
           : RefreshIndicator(
@@ -206,6 +228,8 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
                   _buildModuleCards(),
                   const SizedBox(height: 22),
                   _buildAnalyticsRow(),
+                  const SizedBox(height: 22),
+                  _buildSubscriptionOverview(),
                   const SizedBox(height: 22),
                   _buildBottomContent(),
                   const SizedBox(height: 30),
@@ -286,6 +310,10 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
                   _HeroChip(icon: Icons.edit_note_rounded, label: 'Writing'),
                   _HeroChip(icon: Icons.mic_rounded, label: 'Speaking'),
                   _HeroChip(icon: Icons.translate_rounded, label: 'Vocabulary'),
+                  _HeroChip(
+                    icon: Icons.workspace_premium_rounded,
+                    label: 'Premium',
+                  ),
                 ],
               ),
             ],
@@ -332,6 +360,12 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
                 color: AdminColors.primary,
                 onPressed: widget.onOpenJobs,
               ),
+              _QuickAction(
+                label: 'Subscriptions',
+                icon: Icons.workspace_premium_rounded,
+                color: const Color(0xFFF59E0B),
+                onPressed: widget.onOpenSubscriptions,
+              ),
             ],
           );
 
@@ -360,44 +394,44 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       _MetricData(
         title: 'Total Content',
         value: '$_totalContent',
-        subtitle: 'Across all modules',
+        subtitle: 'Across all IELTS modules',
         icon: Icons.inventory_2_outlined,
         color: AdminColors.warning,
       ),
       _MetricData(
         title: 'Published',
         value: '$_publishedContent',
-        subtitle: 'Available to students',
+        subtitle: 'Available to learners',
         icon: Icons.public_rounded,
         color: AdminColors.success,
       ),
       _MetricData(
-        title: 'Drafts',
-        value: '$_draftContent',
-        subtitle: 'Awaiting review',
-        icon: Icons.edit_document,
-        color: AdminColors.cyan,
-      ),
-      _MetricData(
-        title: 'Users',
+        title: 'Registered Users',
         value: '${_docs('users').length}',
-        subtitle: 'Registered accounts',
+        subtitle: 'Learner accounts',
         icon: Icons.people_rounded,
         color: AdminColors.violet,
       ),
       _MetricData(
-        title: 'Active Jobs',
+        title: 'Premium Users',
+        value: '$_activePremiumUsers',
+        subtitle: 'Active paid access',
+        icon: Icons.workspace_premium_rounded,
+        color: const Color(0xFFF59E0B),
+      ),
+      _MetricData(
+        title: 'Pending Payments',
+        value: '$_pendingSubscriptions',
+        subtitle: 'Require admin review',
+        icon: Icons.pending_actions_rounded,
+        color: const Color(0xFFF97316),
+      ),
+      _MetricData(
+        title: 'Active AI Jobs',
         value: '$_activeJobs',
         subtitle: 'Queued or generating',
         icon: Icons.sync_rounded,
         color: AdminColors.cyan,
-      ),
-      _MetricData(
-        title: 'Failed Jobs',
-        value: '$_failedJobs',
-        subtitle: 'Need attention',
-        icon: Icons.error_outline_rounded,
-        color: const Color(0xFFEF4444),
       ),
     ];
 
@@ -411,7 +445,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
             : width >= 520
             ? 2
             : 1;
-        final spacing = 12.0;
+        const spacing = 12.0;
         final cardWidth = (width - spacing * (columns - 1)) / columns;
 
         return Wrap(
@@ -546,6 +580,165 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
     );
   }
 
+  Widget _buildSubscriptionOverview() {
+    final total = _docs('subscription_requests').length;
+    final reviewed = _approvedSubscriptions + _rejectedSubscriptions;
+    final approvalRate = reviewed == 0
+        ? 0.0
+        : _approvedSubscriptions / reviewed;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFFF59E0B).withOpacity(.12),
+            AdminColors.primary.withOpacity(.12),
+            AdminColors.surface,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFF59E0B).withOpacity(.24)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.10),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 760;
+
+          final heading = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: Color(0x22F59E0B),
+                    child: Icon(
+                      Icons.workspace_premium_rounded,
+                      color: Color(0xFFF59E0B),
+                    ),
+                  ),
+                  SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Subscription Operations',
+                          style: TextStyle(
+                            color: AdminColors.text,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        SizedBox(height: 3),
+                        Text(
+                          'Monitor payment requests and premium activation',
+                          style: TextStyle(
+                            color: AdminColors.textMuted,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _SubscriptionMiniMetric(
+                    label: 'Total Requests',
+                    value: '$total',
+                    color: AdminColors.cyan,
+                  ),
+                  _SubscriptionMiniMetric(
+                    label: 'Pending',
+                    value: '$_pendingSubscriptions',
+                    color: const Color(0xFFF97316),
+                  ),
+                  _SubscriptionMiniMetric(
+                    label: 'Approved',
+                    value: '$_approvedSubscriptions',
+                    color: AdminColors.success,
+                  ),
+                  _SubscriptionMiniMetric(
+                    label: 'Rejected',
+                    value: '$_rejectedSubscriptions',
+                    color: const Color(0xFFEF4444),
+                  ),
+                ],
+              ),
+            ],
+          );
+
+          final action = Column(
+            children: [
+              SizedBox(
+                width: 108,
+                height: 108,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    CircularProgressIndicator(
+                      value: approvalRate,
+                      strokeWidth: 10,
+                      color: AdminColors.success,
+                      backgroundColor: AdminColors.border,
+                    ),
+                    Text(
+                      '${(approvalRate * 100).round()}%',
+                      style: const TextStyle(
+                        color: AdminColors.text,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Approval rate',
+                style: TextStyle(color: AdminColors.textMuted, fontSize: 9.5),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: widget.onOpenSubscriptions,
+                icon: const Icon(Icons.arrow_forward_rounded),
+                label: const Text('Review Payments'),
+              ),
+            ],
+          );
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [heading, const SizedBox(height: 18), action],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: heading),
+              const SizedBox(width: 24),
+              action,
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildBottomContent() {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -560,6 +753,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
           onVocabulary: widget.onOpenVocabulary,
           onJobs: widget.onOpenJobs,
           onUsers: widget.onOpenUsers,
+          onSubscriptions: widget.onOpenSubscriptions,
         );
 
         if (compact) {
@@ -575,6 +769,49 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
           ],
         );
       },
+    );
+  }
+}
+
+class _SubscriptionMiniMetric extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+
+  const _SubscriptionMiniMetric({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 118),
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.08),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: color.withOpacity(.20)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            label,
+            style: const TextStyle(color: AdminColors.textMuted, fontSize: 8.8),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1320,6 +1557,7 @@ class _QuickActionsPanel extends StatelessWidget {
   final VoidCallback? onVocabulary;
   final VoidCallback? onJobs;
   final VoidCallback? onUsers;
+  final VoidCallback? onSubscriptions;
 
   const _QuickActionsPanel({
     required this.onListening,
@@ -1329,6 +1567,7 @@ class _QuickActionsPanel extends StatelessWidget {
     required this.onVocabulary,
     required this.onJobs,
     required this.onUsers,
+    required this.onSubscriptions,
   });
 
   @override
@@ -1392,6 +1631,13 @@ class _QuickActionsPanel extends StatelessWidget {
             subtitle: 'Learners, access and activity',
             color: AdminColors.violet,
             onTap: onUsers,
+          ),
+          _ActionTile(
+            icon: Icons.workspace_premium_rounded,
+            title: 'Review Subscriptions',
+            subtitle: 'Payments, approvals and premium access',
+            color: const Color(0xFFF59E0B),
+            onTap: onSubscriptions,
           ),
         ],
       ),

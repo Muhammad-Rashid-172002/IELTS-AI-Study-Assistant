@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:fyproject/screens/content_queue_service.dart';
 
 class VocabularyScreen extends StatefulWidget {
   const VocabularyScreen({super.key});
@@ -162,8 +163,8 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
                       if (words.isEmpty) {
                         return const _StateView(
                           icon: Icons.search_off_rounded,
-                          title: 'No vocabulary found',
-                          subtitle: 'Dusri category ya search try karein.',
+                          title: 'No new vocabulary available',
+                          subtitle: 'Completed words are hidden. New words will appear when the administrator publishes them.',
                         );
                       }
 
@@ -1320,12 +1321,14 @@ class VocabularyRepository {
       query = query.where('category', isEqualTo: category);
     }
 
-    return query.snapshots().map((snapshot) {
-      final words = snapshot.docs.map(VWord.fromDocument).toList();
-      words.sort(
-        (a, b) => a.word.toLowerCase().compareTo(b.word.toLowerCase()),
-      );
-      return words;
+    return query.snapshots().asyncMap((snapshot) async {
+      final completedIds = await ContentQueueService().completedVocabularyIds();
+      final orderedDocs = ContentQueueService().sortPublished(snapshot.docs);
+      final nextDocs = orderedDocs
+          .where((doc) => !completedIds.contains(doc.id))
+          .take(1)
+          .toList();
+      return nextDocs.map(VWord.fromDocument).toList();
     });
   }
 

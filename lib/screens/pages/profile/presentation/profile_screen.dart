@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:fyproject/Language_selection_screen/language_selection_screen.dart';
+import 'package:fyproject/screens/help_and%20_Support/help_and_support.dart';
+import 'package:fyproject/screens/pages/Subscription/Subscription_screen.dart';
+import 'package:fyproject/screens/pages/about_app/about_app.dart';
+import 'package:fyproject/screens/pages/certificate/certificate_screen.dart';
 import 'package:fyproject/screens/pages/registration/registration.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../data/profile_repository.dart';
 import '../models/profile_model.dart';
 import '../widgets/profile_widgets.dart';
@@ -41,7 +47,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
     if (!confirmed) return;
     try {
-       await _repository.signOut();
+      await _repository.signOut();
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const RegistrationScreen()),
@@ -214,33 +220,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ? '${profile.subscription} • ${_date(profile.subscriptionExpiry)}'
                           : 'Free plan',
                       color: ProfileColors.orange,
-                      onTap: () => _message(
-                        'Connect this tile with your subscription screen.',
-                      ),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const SubscriptionScreen(),
+                          ),
+                        );
+                      },
                     ),
-                    ProfileTile(
-                      icon: Icons.bookmark_outline_rounded,
-                      title: 'Saved Tests',
-                      subtitle: '${profile.savedTests} saved tests',
-                      color: ProfileColors.cyan,
-                      onTap: () =>
-                          _message('Connect this tile with Saved Tests.'),
-                    ),
-                    ProfileTile(
-                      icon: Icons.translate_rounded,
-                      title: 'Saved Words',
-                      subtitle: '${profile.savedWords} saved words',
-                      color: ProfileColors.blue,
-                      onTap: () =>
-                          _message('Connect this tile with Saved Words.'),
-                    ),
+
                     ProfileTile(
                       icon: Icons.verified_outlined,
                       title: 'Certificates',
                       subtitle: '${profile.certificates} certificates',
                       color: ProfileColors.green,
-                      onTap: () =>
-                          _message('Connect this tile with Certificates.'),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const CertificatesScreen(),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -250,11 +252,109 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     ProfileTile(
                       icon: Icons.language_rounded,
-                      title: 'Language',
-                      subtitle: profile.language,
-                      color: ProfileColors.cyan,
-                      onTap: () =>
-                          _message('Connect this with your language selector.'),
+                      title: 'App Language',
+                      subtitle: 'Change your preferred language',
+                      color: Colors.blue,
+                      onTap: () async {
+                        final selectedLanguage =
+                            await Navigator.push<AppLanguage>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const LanguageSelectionScreen(
+                                  fromSettings: true,
+                                ),
+                              ),
+                            );
+
+                        if (selectedLanguage == null || !mounted) return;
+
+                        setState(() {
+                          // selectedLanguage.code
+                          // selectedLanguage.name
+                          // selectedLanguage.nativeName
+                        });
+
+                        ScaffoldMessenger.of(context)
+                          ..hideCurrentSnackBar()
+                          ..showSnackBar(
+                            SnackBar(
+                              behavior: SnackBarBehavior.floating,
+                              elevation: 0,
+                              backgroundColor: Colors.transparent,
+                              margin: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                              duration: const Duration(seconds: 2),
+                              content: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 14,
+                                ),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(18),
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Color(0xFF2563EB),
+                                      Color(0xFF06B6D4),
+                                    ],
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(
+                                        0xFF2563EB,
+                                      ).withOpacity(0.30),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 8),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 42,
+                                      height: 42,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(.18),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.check_circle_rounded,
+                                        color: Colors.white,
+                                        size: 24,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Text(
+                                            'Language Updated',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 3),
+                                          Text(
+                                            '${selectedLanguage.nativeName} is now your app language.',
+                                            style: TextStyle(
+                                              color: Colors.white.withOpacity(
+                                                .9,
+                                              ),
+                                              fontSize: 12.5,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                      },
                     ),
                     ProfileTile(
                       icon: Icons.notifications_outlined,
@@ -263,16 +363,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ? 'Enabled'
                           : 'Disabled',
                       color: ProfileColors.orange,
-                      onTap: () =>
-                          _message('Connect this with notification settings.'),
-                    ),
-                    ProfileTile(
-                      icon: Icons.palette_outlined,
-                      title: 'Appearance',
-                      subtitle: profile.appearance,
-                      color: ProfileColors.violet,
-                      onTap: () =>
-                          _message('Connect this with your theme controller.'),
+                      onTap: () => _showNotificationSettings(),
                     ),
                   ],
                 ),
@@ -282,11 +373,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     ProfileTile(
                       icon: Icons.privacy_tip_outlined,
-                      title: 'Privacy',
-                      subtitle: 'Manage privacy and permissions',
+                      title: 'Privacy Policy',
+                      subtitle: 'Review how your data is handled',
                       color: ProfileColors.cyan,
-                      onTap: () =>
-                          _message('Connect this with your privacy screen.'),
+                      onTap: _openPrivacyPolicy,
                     ),
                     ProfileTile(
                       icon: Icons.download_for_offline_outlined,
@@ -331,20 +421,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       title: 'Help & Support',
                       subtitle: 'FAQs, contact support and report a bug',
                       color: ProfileColors.cyan,
-                      onTap: () =>
-                          _message('Connect this with Help & Support.'),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const HelpAndSupportScreen(),
+                        ),
+                      ),
                     ),
                     ProfileTile(
                       icon: Icons.info_outline_rounded,
                       title: 'About App',
-                      subtitle: 'IELTS AI Master • Version 1.0.0',
+                      subtitle: 'IELTS AI Master • Version 1.1.2+7',
                       color: ProfileColors.violet,
-                      onTap: () => showAboutDialog(
-                        context: context,
-                        applicationName: 'IELTS AI Master',
-                        applicationVersion: '1.0.0',
-                        applicationLegalese:
-                            'AI-powered IELTS learning and practice.',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AboutAppScreen(),
+                        ),
                       ),
                     ),
                   ],
@@ -365,6 +458,239 @@ class _ProfileScreenState extends State<ProfileScreen> {
           },
         ),
       ),
+    );
+  }
+
+  Future<void> _openPrivacyPolicy() async {
+    final Uri url = Uri.parse('https://ielts-ai-privacy.vercel.app/');
+
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to open Privacy Policy.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _showNotificationSettings() {
+    bool enabled = true;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Container(
+              padding: const EdgeInsets.all(24),
+              decoration: const BoxDecoration(
+                color: Color(0xFF101C2E),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+              ),
+              child: SafeArea(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 50,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: [Color(0xFFF59E0B), Color(0xFFFFC107)],
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.notifications_active_rounded,
+                        color: Colors.white,
+                        size: 36,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Notifications',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Receive reminders, AI updates and important announcements.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white70, height: 1.5),
+                    ),
+                    const SizedBox(height: 26),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 16,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF18253A),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.06),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 46,
+                            height: 46,
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withOpacity(.15),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(
+                              Icons.notifications_rounded,
+                              color: Colors.orange,
+                            ),
+                          ),
+                          const SizedBox(width: 15),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Push Notifications',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  enabled
+                                      ? 'Notifications are currently enabled.'
+                                      : 'Notifications are currently disabled.',
+                                  style: const TextStyle(
+                                    color: Colors.white60,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Switch(
+                            value: enabled,
+                            activeThumbColor: Colors.white,
+                            activeTrackColor: const Color(0xFF22C55E),
+                            inactiveThumbColor: const Color(0xFF94A3B8),
+                            inactiveTrackColor: const Color(0xFF334155),
+                            onChanged: (value) {
+                              setSheetState(() {
+                                enabled = value;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(sheetContext);
+
+                          ScaffoldMessenger.of(this.context)
+                            ..hideCurrentSnackBar()
+                            ..showSnackBar(
+                              SnackBar(
+                                behavior: SnackBarBehavior.floating,
+                                elevation: 0,
+                                backgroundColor: Colors.transparent,
+                                margin: const EdgeInsets.fromLTRB(
+                                  20,
+                                  0,
+                                  20,
+                                  24,
+                                ),
+                                content: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 14,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(18),
+                                    gradient: LinearGradient(
+                                      colors: enabled
+                                          ? const [
+                                              Color(0xFF16A34A),
+                                              Color(0xFF22C55E),
+                                            ]
+                                          : const [
+                                              Color(0xFFDC2626),
+                                              Color(0xFFEF4444),
+                                            ],
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        enabled
+                                            ? Icons.notifications_active_rounded
+                                            : Icons.notifications_off_rounded,
+                                        color: Colors.white,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        enabled
+                                            ? 'Notifications Enabled'
+                                            : 'Notifications Disabled',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFF59E0B),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(17),
+                          ),
+                        ),
+                        child: const Text(
+                          'Save Preference',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 

@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const textToSpeech = require("@google-cloud/text-to-speech");
 const {getStorage, getDownloadURL} =
   require("firebase-admin/storage");
@@ -8543,6 +8544,17 @@ STRICT QUALITY RULES
 10. Avoid sensitive, political, violent, sexual, discriminatory or medical
     content.
 11. Return valid JSON only. Do not use markdown code fences.
+12. For Academic Task 1, writing.visual is mandatory and must contain the
+    complete data needed to display the visual in the mobile app.
+13. writing.visual.type must be bar, line, pie, table, process, map or mixed.
+14. For bar, line, pie and mixed, provide categories and numerical series.
+    Every series must contain exactly one value for every category.
+15. For table, provide tableColumns and tableRows.
+16. For process, provide at least five processSteps.
+17. For map, provide at least three mapPoints with x and y from 0 to 100.
+18. For Task 2 and General Training letters, set visual.type to "none" and
+    leave all visual arrays empty.
+19. The writing prompt and visual data must describe exactly the same facts.
 
 RETURN THIS EXACT STRUCTURE
 {
@@ -8589,7 +8601,31 @@ RETURN THIS EXACT STRUCTURE
     "taskType": "${job.writingTaskType}",
     "prompt": "Complete writing task prompt",
     "minimumWords": 150,
-    "recommendedMinutes": 20
+    "recommendedMinutes": 20,
+    "visual": {
+      "type": "bar",
+      "title": "Clear chart title",
+      "subtitle": "Optional date or context",
+      "xAxisLabel": "Category",
+      "yAxisLabel": "Percentage",
+      "unit": "%",
+      "categories": ["Country A", "Country B", "Country C"],
+      "series": [
+        {
+          "name": "Series 1",
+          "values": [45, 62, 78]
+        },
+        {
+          "name": "Series 2",
+          "values": [38, 55, 69]
+        }
+      ],
+      "tableColumns": [],
+      "tableRows": [],
+      "processSteps": [],
+      "mapPoints": [],
+      "note": "Source: AI-generated IELTS practice data"
+    }
   },
   "speaking": {
     "prompts": [
@@ -8792,6 +8828,10 @@ function buildDiagnosticDraft(job, generated, audioData) {
             40 :
             20,
       ),
+      visual: normalizeDiagnosticWritingVisual(
+          generated.writing.visual,
+          job.writingTaskType,
+      ),
     },
     speaking: {
       prompts: normalizeDiagnosticSpeakingPrompts(
@@ -8804,6 +8844,195 @@ function buildDiagnosticDraft(job, generated, audioData) {
     generatedAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   };
+}
+
+
+function normalizeDiagnosticWritingVisual(value, writingTaskType) {
+  const isAcademicTask1 =
+    String(writingTaskType || "").toLowerCase()
+        .includes("academic task 1");
+
+  if (!isAcademicTask1) {
+    return {
+      type: "none",
+      title: "",
+      subtitle: "",
+      xAxisLabel: "",
+      yAxisLabel: "",
+      unit: "",
+      categories: [],
+      series: [],
+      tableColumns: [],
+      tableRows: [],
+      processSteps: [],
+      mapPoints: [],
+      note: "",
+    };
+  }
+
+  const visual =
+    value && typeof value === "object" ? value : {};
+
+  const supportedTypes = new Set([
+    "bar",
+    "line",
+    "pie",
+    "table",
+    "process",
+    "map",
+    "mixed",
+  ]);
+
+  const type = supportedTypes.has(
+      String(visual.type || "").toLowerCase(),
+  ) ?
+    String(visual.type).toLowerCase() :
+    "bar";
+
+  const categories = Array.isArray(visual.categories) ?
+    visual.categories
+        .map((item) => diagnosticLimit(item, 80))
+        .filter(Boolean)
+        .slice(0, 12) :
+    [];
+
+  const series = Array.isArray(visual.series) ?
+    visual.series
+        .map((item, index) => {
+          if (!item || typeof item !== "object") return null;
+
+          const values = Array.isArray(item.values) ?
+            item.values
+                .map((entry) => Number(entry))
+                .filter(Number.isFinite)
+                .slice(0, 12) :
+            [];
+
+          return {
+            name: diagnosticLimit(
+                item.name || `Series ${index + 1}`,
+                80,
+            ),
+            values,
+          };
+        })
+        .filter(Boolean)
+        .slice(0, 4) :
+    [];
+
+  const tableColumns = Array.isArray(visual.tableColumns) ?
+    visual.tableColumns
+        .map((item) => diagnosticLimit(item, 80))
+        .filter(Boolean)
+        .slice(0, 8) :
+    [];
+
+  const tableRows = Array.isArray(visual.tableRows) ?
+    visual.tableRows
+        .filter(Array.isArray)
+        .map((row) => row
+            .map((item) => diagnosticLimit(item, 80))
+            .slice(0, tableColumns.length || 8))
+        .slice(0, 12) :
+    [];
+
+  const processSteps = Array.isArray(visual.processSteps) ?
+    visual.processSteps
+        .map((item) => diagnosticLimit(item, 240))
+        .filter(Boolean)
+        .slice(0, 12) :
+    [];
+
+  const mapPoints = Array.isArray(visual.mapPoints) ?
+    visual.mapPoints
+        .map((item) => {
+          if (!item || typeof item !== "object") return null;
+
+          return {
+            label: diagnosticLimit(item.label, 80),
+            x: diagnosticClamp(item.x, 0, 100, 50),
+            y: diagnosticClamp(item.y, 0, 100, 50),
+          };
+        })
+        .filter((item) => item && item.label)
+        .slice(0, 12) :
+    [];
+
+  return {
+    type,
+    title: diagnosticLimit(visual.title, 180),
+    subtitle: diagnosticLimit(visual.subtitle, 180),
+    xAxisLabel: diagnosticLimit(visual.xAxisLabel, 80),
+    yAxisLabel: diagnosticLimit(visual.yAxisLabel, 80),
+    unit: diagnosticLimit(visual.unit, 20),
+    categories,
+    series,
+    tableColumns,
+    tableRows,
+    processSteps,
+    mapPoints,
+    note: diagnosticLimit(
+        visual.note || "Source: AI-generated IELTS practice data",
+        180,
+    ),
+  };
+}
+
+function validateDiagnosticWritingVisual(generated, job) {
+  const isAcademicTask1 =
+    String(job.writingTaskType || "").toLowerCase()
+        .includes("academic task 1");
+
+  if (!isAcademicTask1) return;
+
+  const visual = normalizeDiagnosticWritingVisual(
+      generated.writing?.visual,
+      job.writingTaskType,
+  );
+
+  if (visual.type === "table") {
+    if (visual.tableColumns.length < 2 ||
+        visual.tableRows.length < 2) {
+      throw new Error(
+          "Academic Task 1 table data is incomplete.",
+      );
+    }
+    return;
+  }
+
+  if (visual.type === "process") {
+    if (visual.processSteps.length < 5) {
+      throw new Error(
+          "Academic Task 1 process requires at least 5 steps.",
+      );
+    }
+    return;
+  }
+
+  if (visual.type === "map") {
+    if (visual.mapPoints.length < 3) {
+      throw new Error(
+          "Academic Task 1 map requires at least 3 labelled points.",
+      );
+    }
+    return;
+  }
+
+  if (visual.categories.length < 3 ||
+      visual.series.length < 1) {
+    throw new Error(
+        "Academic Task 1 chart data is incomplete.",
+    );
+  }
+
+  for (const series of visual.series) {
+    if (series.values.length !== visual.categories.length) {
+      throw new Error(
+          "Every Academic Task 1 series must contain one value " +
+          "for each category.",
+      );
+    }
+  }
 }
 
 function validateGeneratedDiagnostic(generated, job) {
@@ -8844,6 +9073,8 @@ function validateGeneratedDiagnostic(generated, job) {
   if (!generated.writing?.prompt) {
     throw new Error("Generated Writing task is missing.");
   }
+
+  validateDiagnosticWritingVisual(generated, job);
 
   if (!Array.isArray(speakingPrompts) ||
       speakingPrompts.length !==
@@ -9050,5 +9281,440 @@ function diagnosticSafeError(error) {
   return String(
       error?.message || error || "Unknown diagnostic error.",
   ).slice(0, 3000);
+}
+
+// ============================================================================
+// CERTIFICATE MODULE
+// ============================================================================
+
+const CERTIFICATE_VERIFY_BASE_URL =
+  "https://ieltsaimaster.com/verify";
+
+exports.issueAchievementCertificate = onCall(
+    {
+      region: "us-central1",
+      timeoutSeconds: 60,
+      memory: "256MiB",
+    },
+    async (request) => {
+      if (!request.auth) {
+        throw new HttpsError(
+            "unauthenticated",
+            "Sign-in is required.",
+        );
+      }
+
+      const uid = request.auth.uid;
+      const achievementType = String(
+          request.data?.achievementType || "",
+      ).trim();
+      const sourceId = String(
+          request.data?.sourceId || request.data?.attemptId || "",
+      ).trim();
+
+      if (!achievementType || !sourceId) {
+        throw new HttpsError(
+            "invalid-argument",
+            "achievementType and sourceId are required.",
+        );
+      }
+
+      const payload = await buildVerifiedCertificatePayload({
+        uid,
+        achievementType,
+        sourceId,
+      });
+
+      return createAchievementCertificateIfMissing({
+        uid,
+        achievementType,
+        sourceId,
+        payload,
+      });
+    },
+);
+
+exports.syncAchievementCertificates = onCall(
+    {
+      region: "us-central1",
+      timeoutSeconds: 120,
+      memory: "256MiB",
+    },
+    async (request) => {
+      if (!request.auth) {
+        throw new HttpsError(
+            "unauthenticated",
+            "Sign-in is required.",
+        );
+      }
+
+      const uid = request.auth.uid;
+      const userRef = db.collection("users").doc(uid);
+      const userDoc = await userRef.get();
+      const user = userDoc.data() || {};
+      const issued = [];
+
+      const currentBand = certificateNumber(
+          user.currentBand ??
+          user.estimatedBand ??
+          user.overallBand,
+      );
+      const targetBand = resolveCertificateTargetBand(user);
+
+      if (currentBand > 0 &&
+          targetBand > 0 &&
+          currentBand >= targetBand) {
+        const sourceId =
+          `band_${targetBand.toFixed(1).replace(".", "_")}`;
+
+        issued.push(
+            await createAchievementCertificateIfMissing({
+              uid,
+              achievementType: "target_band",
+              sourceId,
+              payload: {
+                title:
+                  `Target Band ${targetBand.toFixed(1)} Achievement`,
+                certificateType: "Target Band Achievement",
+                band: currentBand,
+                sourceCollection: "users",
+              },
+            }),
+        );
+      }
+
+      const streak = Math.max(
+          certificateNumber(user.currentStreak),
+          certificateNumber(user.streak),
+      );
+
+      for (const milestone of [7, 30, 100]) {
+        if (streak < milestone) continue;
+
+        issued.push(
+            await createAchievementCertificateIfMissing({
+              uid,
+              achievementType: "study_streak",
+              sourceId: `streak_${milestone}`,
+              payload: {
+                title: `${milestone}-Day Study Streak`,
+                certificateType: "Study Streak Achievement",
+                band: 0,
+                sourceCollection: "users",
+              },
+            }),
+        );
+      }
+
+      return {
+        success: true,
+        issued: issued.filter(
+            (item) => Boolean(item?.certificateId),
+        ),
+      };
+    },
+);
+
+async function buildVerifiedCertificatePayload({
+  uid,
+  achievementType,
+  sourceId,
+}) {
+  const userRef = db.collection("users").doc(uid);
+
+  if (achievementType === "diagnostic_completion") {
+    const result = await findCertificateSourceDocument({
+      parentRef: userRef,
+      collections: [
+        "diagnostic_results",
+        "diagnosticResults",
+      ],
+      sourceId,
+    });
+
+    if (!result) {
+      throw new HttpsError(
+          "not-found",
+          "Diagnostic result was not found.",
+      );
+    }
+
+    const data = result.snapshot.data() || {};
+
+    return {
+      title: "IELTS Diagnostic Assessment Completion",
+      certificateType: "Diagnostic Completion",
+      band: certificateNumber(
+          data.overallBand ??
+          data.estimatedBand ??
+          data.currentBand,
+      ),
+      sourceCollection: result.collection,
+    };
+  }
+
+  if (achievementType === "full_mock_test") {
+    const result = await findCertificateSourceDocument({
+      parentRef: userRef,
+      collections: [
+        "mock_attempts",
+        "mockAttempts",
+      ],
+      sourceId,
+    });
+
+    if (!result) {
+      throw new HttpsError(
+          "not-found",
+          "Mock attempt was not found.",
+      );
+    }
+
+    const data = result.snapshot.data() || {};
+    const nestedResult =
+      data.result && typeof data.result === "object" ?
+        data.result :
+        {};
+    const status = String(data.status || "").toLowerCase();
+
+    const completionStatuses = new Set([
+      "completed",
+      "evaluated",
+      "ready",
+      "submitted",
+    ]);
+
+    if (!completionStatuses.has(status) &&
+        Object.keys(nestedResult).length === 0) {
+      throw new HttpsError(
+          "failed-precondition",
+          "Full mock evaluation is not complete.",
+      );
+    }
+
+    return {
+      title: "Full IELTS Mock Test Completion",
+      certificateType: "Mock Test Completion",
+      band: certificateNumber(
+          nestedResult.overallBand ??
+          nestedResult.estimatedBand ??
+          data.overallBand ??
+          data.estimatedBand,
+      ),
+      sourceCollection: result.collection,
+    };
+  }
+
+  throw new HttpsError(
+      "invalid-argument",
+      `Unsupported achievement type: ${achievementType}`,
+  );
+}
+
+async function findCertificateSourceDocument({
+  parentRef,
+  collections,
+  sourceId,
+}) {
+  for (const collection of collections) {
+    const snapshot = await parentRef
+        .collection(collection)
+        .doc(sourceId)
+        .get();
+
+    if (snapshot.exists) {
+      return {
+        collection,
+        snapshot,
+      };
+    }
+  }
+
+  return null;
+}
+
+async function createAchievementCertificateIfMissing({
+  uid,
+  achievementType,
+  sourceId,
+  payload,
+}) {
+  const userRef = db.collection("users").doc(uid);
+  const certificateId =
+    `${achievementType}_${sourceId}`
+        .replace(/[^a-zA-Z0-9_-]/g, "_")
+        .slice(0, 150);
+  const certificateRef = userRef
+      .collection("certificates")
+      .doc(certificateId);
+
+  const existing = await certificateRef.get();
+
+  if (existing.exists) {
+    const data = existing.data() || {};
+
+    return {
+      success: true,
+      alreadyIssued: true,
+      certificateId,
+      verificationCode: String(
+          data.verificationCode || "",
+      ),
+      verificationUrl: String(
+          data.verificationUrl || "",
+      ),
+    };
+  }
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const verificationCode =
+      generateCertificateVerificationCode();
+    const verificationRef = db
+        .collection("certificate_verifications")
+        .doc(verificationCode);
+
+    try {
+      return await db.runTransaction(async (transaction) => {
+        const [
+          currentCertificate,
+          userDoc,
+          verificationDoc,
+        ] = await Promise.all([
+          transaction.get(certificateRef),
+          transaction.get(userRef),
+          transaction.get(verificationRef),
+        ]);
+
+        if (currentCertificate.exists) {
+          const data = currentCertificate.data() || {};
+
+          return {
+            success: true,
+            alreadyIssued: true,
+            certificateId,
+            verificationCode: String(
+                data.verificationCode || "",
+            ),
+            verificationUrl: String(
+                data.verificationUrl || "",
+            ),
+          };
+        }
+
+        if (verificationDoc.exists) {
+          throw new Error(
+              "certificate-verification-code-collision",
+          );
+        }
+
+        const user = userDoc.data() || {};
+        const verificationUrl =
+          `${CERTIFICATE_VERIFY_BASE_URL}/${verificationCode}`;
+        const issuedAt = FieldValue.serverTimestamp();
+
+        const certificate = {
+          certificateId,
+          achievementType,
+          sourceId,
+          sourceCollection: String(
+              payload.sourceCollection || "",
+          ),
+          title: String(payload.title || "").trim(),
+          certificateType: String(
+              payload.certificateType || "Course Completion",
+          ).trim(),
+          userId: uid,
+          userName: String(
+              user.fullName ??
+              user.name ??
+              user.displayName ??
+              "IELTS Learner",
+          ).trim(),
+          userEmail: String(
+              user.email || "",
+          ).trim(),
+          band: certificateNumber(payload.band),
+          verificationCode,
+          verificationUrl,
+          issuer: "IELTS AI Master",
+          status: "valid",
+          disclaimer:
+            "Certificate of Course Completion\n\n" +
+            "This certificate confirms completion of training and " +
+            "assessments within IELTS AI Master.\n\n" +
+            "This is NOT an official IELTS score or an official " +
+            "IELTS certificate.",
+          issuedAt,
+          updatedAt: issuedAt,
+        };
+
+        transaction.set(certificateRef, certificate);
+        transaction.set(verificationRef, {
+          ...certificate,
+          certificatePath: certificateRef.path,
+        });
+        transaction.set(
+            userRef,
+            {
+              certificateCount: FieldValue.increment(1),
+              lastCertificateIssuedAt:
+                FieldValue.serverTimestamp(),
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            {merge: true},
+        );
+
+        return {
+          success: true,
+          alreadyIssued: false,
+          certificateId,
+          verificationCode,
+          verificationUrl,
+        };
+      });
+    } catch (error) {
+      if (safeErrorMessage(error).includes(
+          "certificate-verification-code-collision",
+      )) {
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw new HttpsError(
+      "internal",
+      "A unique certificate verification code could not be generated.",
+  );
+}
+
+function generateCertificateVerificationCode() {
+  const year = new Date().getUTCFullYear();
+  const random = crypto
+      .randomBytes(5)
+      .toString("hex")
+      .toUpperCase();
+
+  return `IAM-${year}-${random}`;
+}
+
+function resolveCertificateTargetBand(user) {
+  const targetBands =
+    user.targetBands &&
+    typeof user.targetBands === "object" ?
+      user.targetBands :
+      {};
+
+  return certificateNumber(
+      targetBands.overall ??
+      user.targetBand ??
+      0,
+  );
+}
+
+function certificateNumber(value) {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 

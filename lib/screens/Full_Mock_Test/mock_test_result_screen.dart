@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:fyproject/data/mock_test_repository.dart';
 import 'package:fyproject/models/mock_test_models.dart';
+import 'package:fyproject/screens/pages/certificate/certificate_screen.dart';
 
 
 import 'mock_shared_ui.dart';
@@ -21,6 +23,32 @@ class MockTestResultScreen extends StatefulWidget {
 class _MockTestResultScreenState
     extends State<MockTestResultScreen> {
   final _repository = MockTestRepository();
+  bool _certificateRequestStarted = false;
+  bool _certificateIssued = false;
+
+  Future<void> _ensureCertificate(MockFinalResult result) async {
+    if (_certificateRequestStarted) return;
+    _certificateRequestStarted = true;
+
+    try {
+      final callable = FirebaseFunctions.instanceFor(
+        region: 'us-central1',
+      ).httpsCallable('issueAchievementCertificate');
+
+      final response = await callable.call({
+        'achievementType': 'full_mock_test',
+        'sourceId': widget.attemptId,
+      });
+
+      final data = Map<String, dynamic>.from(response.data as Map);
+      final id = data['certificateId']?.toString().trim() ?? '';
+
+      if (!mounted) return;
+      setState(() => _certificateIssued = id.isNotEmpty);
+    } catch (_) {
+      // Home dashboard will retry certificate synchronization later.
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +95,14 @@ class _MockTestResultScreenState
                 );
               }
 
-              return _ResultContent(result: result);
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _ensureCertificate(result);
+              });
+
+              return _ResultContent(
+                result: result,
+                certificateIssued: _certificateIssued,
+              );
             },
           );
         },
@@ -127,9 +162,11 @@ class _EvaluationWaiting extends StatelessWidget {
 
 class _ResultContent extends StatelessWidget {
   final MockFinalResult result;
+  final bool certificateIssued;
 
   const _ResultContent({
     required this.result,
+    required this.certificateIssued,
   });
 
   @override
@@ -147,6 +184,8 @@ class _ResultContent extends StatelessWidget {
             _strengthWeakness(),
             const SizedBox(height: 14),
             _targetGap(),
+            const SizedBox(height: 14),
+            _certificateCard(context),
             const SizedBox(height: 14),
             _sevenDayPlan(),
             const SizedBox(height: 18),
@@ -319,6 +358,47 @@ class _ResultContent extends StatelessWidget {
               fontWeight: FontWeight.w800,
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _certificateCard(BuildContext context) {
+    return _ResultSection(
+      title: certificateIssued
+          ? 'Certificate Earned'
+          : 'Certificate Processing',
+      icon: Icons.workspace_premium_rounded,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            certificateIssued
+                ? 'You completed a Full IELTS Mock Test. Your verified certificate is available in Profile → Certificates.'
+                : 'Your result is complete. Certificate synchronization will retry automatically from Home.',
+            style: const TextStyle(
+              color: MockColors.secondary,
+              height: 1.45,
+            ),
+          ),
+          if (certificateIssued) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const CertificatesScreen(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.verified_rounded),
+                label: const Text('View Certificate'),
+              ),
+            ),
+          ],
         ],
       ),
     );

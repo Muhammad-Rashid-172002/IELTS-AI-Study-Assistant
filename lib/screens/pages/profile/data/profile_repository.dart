@@ -44,23 +44,50 @@ class ProfileRepository {
 
       final normalizedBand = double.parse(calculatedBand.toStringAsFixed(1));
 
-      final userData = <String, dynamic>{
-        ...?doc.data(),
+      final rawUserData = doc.data() ?? <String, dynamic>{};
 
-        // Repository-calculated value always wins.
-        'estimatedBand': normalizedBand,
-        'currentBand': normalizedBand,
-        'overallBand': normalizedBand,
-      };
+final targetBands = rawUserData['targetBands'] is Map
+    ? Map<String, dynamic>.from(rawUserData['targetBands'] as Map)
+    : <String, dynamic>{};
 
-      if (normalizedBand > 0) {
-        await doc.reference.set({
-          'estimatedBand': normalizedBand,
-          'currentBand': normalizedBand,
-          'overallBand': normalizedBand,
-          'bandUpdatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      }
+final resolvedTargetBand = _asDouble(
+  targetBands['overall'] ?? rawUserData['targetBand'],
+  fallback: 7.0,
+);
+
+     final userData = <String, dynamic>{
+  ...rawUserData,
+
+  // Registration mein selected real target.
+  'targetBand': resolvedTargetBand,
+
+  // Repository-calculated current performance.
+  'estimatedBand': normalizedBand,
+  'currentBand': normalizedBand,
+  'overallBand': normalizedBand,
+};
+
+final syncData = <String, dynamic>{
+  'targetBand': resolvedTargetBand,
+  'targetBands': {
+    'overall': resolvedTargetBand,
+  },
+  'updatedAt': FieldValue.serverTimestamp(),
+};
+
+if (normalizedBand > 0) {
+  syncData.addAll({
+    'estimatedBand': normalizedBand,
+    'currentBand': normalizedBand,
+    'overallBand': normalizedBand,
+    'bandUpdatedAt': FieldValue.serverTimestamp(),
+  });
+}
+
+await doc.reference.set(
+  syncData,
+  SetOptions(merge: true),
+);
 
       return ProfileModel.fromMap(
         uid: current.uid,
@@ -78,6 +105,18 @@ class ProfileRepository {
     });
   }
 
+double _asDouble(
+  dynamic value, {
+  double fallback = 0,
+}) {
+  if (value is num) return value.toDouble();
+
+  return double.tryParse(
+        value?.toString().trim() ?? '',
+      ) ??
+      fallback;
+}
+
   Future<void> updateProfile({
     required String name,
     required String ieltsType,
@@ -88,7 +127,13 @@ class ProfileRepository {
     return _db.collection('users').doc(user.uid).set({
       'name': name.trim(),
       'ieltsType': ieltsType,
+
+      // Single current field.
       'targetBand': targetBand,
+
+      // Legacy/Home compatibility.
+      'targetBands': {'overall': targetBand},
+
       'examDate': examDate == null ? null : Timestamp.fromDate(examDate),
       'educationLevel': educationLevel,
       'updatedAt': FieldValue.serverTimestamp(),
