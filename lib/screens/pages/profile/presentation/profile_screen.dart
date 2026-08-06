@@ -1,4 +1,6 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:fyproject/screens/pages/registration/Auth_gateway_screen.dart';
 import 'package:flutter/services.dart';
 import 'package:fyproject/Language_selection_screen/language_selection_screen.dart';
 import 'package:fyproject/screens/help_and%20_Support/help_and_support.dart';
@@ -114,6 +116,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (FirebaseAuth.instance.currentUser == null) {
+      return const _ProfileSignedOutState();
+    }
+
     return Scaffold(
       backgroundColor: ProfileColors.background,
       body: SafeArea(
@@ -134,6 +140,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
             }
 
             final profile = snapshot.data!;
+
+            final completedSkillEntries = profile.skillBands.entries
+                .where((entry) => entry.value > 0 && entry.value <= 9)
+                .toList();
+
+            final missingSkills = profile.skillBands.entries
+                .where((entry) => entry.value <= 0 || entry.value > 9)
+                .map((entry) => entry.key)
+                .toList();
+
+            final hasAnyBand = completedSkillEntries.isNotEmpty;
+            final hasCompleteOverallBand = completedSkillEntries.length == 4;
 
             return ListView(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 110),
@@ -160,6 +178,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       builder: (_) => EditProfileScreen(profile: profile),
                     ),
                   ),
+                ),
+                const SizedBox(height: 16),
+                _ProfileBandStatusCard(
+                  estimatedBand: profile.estimatedBand,
+                  targetBand: profile.targetBand,
+                  completedSkillCount: completedSkillEntries.length,
+                  missingSkills: missingSkills,
                 ),
                 const SizedBox(height: 20),
                 ProfileSection(
@@ -203,9 +228,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     ProfileTile(
                       icon: Icons.insights_rounded,
-                      title: 'Current Estimated Band',
-                      subtitle: profile.estimatedBand.toStringAsFixed(1),
-                      color: ProfileColors.green,
+                      title: hasCompleteOverallBand
+                          ? 'Estimated Overall Band'
+                          : 'Provisional Band',
+                      subtitle: hasAnyBand
+                          ? profile.estimatedBand.toStringAsFixed(1)
+                          : 'Not available',
+                      color: hasCompleteOverallBand
+                          ? ProfileColors.green
+                          : ProfileColors.cyan,
                     ),
                   ],
                 ),
@@ -697,5 +728,444 @@ class _ProfileScreenState extends State<ProfileScreen> {
   static String _date(DateTime? date) {
     if (date == null) return 'Not set';
     return '${date.day}/${date.month}/${date.year}';
+  }
+}
+
+class _ProfileBandStatusCard extends StatelessWidget {
+  final double estimatedBand;
+  final double targetBand;
+  final int completedSkillCount;
+  final List<String> missingSkills;
+
+  const _ProfileBandStatusCard({
+    required this.estimatedBand,
+    required this.targetBand,
+    required this.completedSkillCount,
+    required this.missingSkills,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasAnyResult = completedSkillCount > 0;
+    final isComplete = completedSkillCount == 4;
+    final bandGap = hasAnyResult
+        ? (targetBand - estimatedBand).clamp(0.0, 9.0)
+        : targetBand;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            ProfileColors.blue.withOpacity(.22),
+            ProfileColors.cyan.withOpacity(.10),
+            ProfileColors.violet.withOpacity(.14),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: ProfileColors.cyan.withOpacity(.20)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.16),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  isComplete ? 'ESTIMATED OVERALL BAND' : 'PROVISIONAL BAND',
+                  style: const TextStyle(
+                    color: ProfileColors.cyan,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .7,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                decoration: BoxDecoration(
+                  color:
+                      (isComplete ? ProfileColors.green : ProfileColors.violet)
+                          .withOpacity(.12),
+                  borderRadius: BorderRadius.circular(99),
+                  border: Border.all(
+                    color:
+                        (isComplete
+                                ? ProfileColors.green
+                                : ProfileColors.violet)
+                            .withOpacity(.28),
+                  ),
+                ),
+                child: Text(
+                  isComplete
+                      ? '4 OF 4 COMPLETE'
+                      : '$completedSkillCount OF 4 COMPLETE',
+                  style: TextStyle(
+                    color: isComplete
+                        ? ProfileColors.green
+                        : ProfileColors.violet,
+                    fontSize: 7.5,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                hasAnyResult ? estimatedBand.toStringAsFixed(1) : '—',
+                style: const TextStyle(
+                  color: ProfileColors.text,
+                  fontSize: 42,
+                  height: 1,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                margin: const EdgeInsets.only(bottom: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                decoration: BoxDecoration(
+                  color: ProfileColors.orange.withOpacity(.11),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Text(
+                  'Target ${targetBand.toStringAsFixed(1)}',
+                  style: const TextStyle(
+                    color: ProfileColors.orange,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          Text(
+            !hasAnyResult
+                ? 'Complete your first IELTS assessment to generate a '
+                      'provisional band.'
+                : isComplete
+                ? bandGap <= 0
+                      ? 'You have reached your selected target band.'
+                      : '${bandGap.toStringAsFixed(1)} band gap remaining.'
+                : 'This estimate uses your completed skills only. '
+                      'Complete ${missingSkills.join(' and ')} to unlock '
+                      'your full estimated overall band.',
+            style: const TextStyle(
+              color: ProfileColors.secondary,
+              fontSize: 10.5,
+              height: 1.5,
+            ),
+          ),
+          if (!isComplete) ...[
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(13),
+              decoration: BoxDecoration(
+                color: ProfileColors.background.withOpacity(.50),
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(
+                  color: ProfileColors.orange.withOpacity(.24),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.assignment_late_outlined,
+                    color: ProfileColors.orange,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          missingSkills.isEmpty
+                              ? 'Complete all skill assessments'
+                              : 'Missing: ${missingSkills.join(', ')}',
+                          style: const TextStyle(
+                            color: ProfileColors.text,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Listening, Reading, Writing and Speaking are all '
+                          'required for a complete IELTS overall estimate.',
+                          style: TextStyle(
+                            color: ProfileColors.muted,
+                            fontSize: 9,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileSignedOutState extends StatelessWidget {
+  const _ProfileSignedOutState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: ProfileColors.background,
+      body: Stack(
+        children: [
+          Positioned(
+            top: -130,
+            right: -120,
+            child: Container(
+              width: 310,
+              height: 310,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    ProfileColors.blue.withOpacity(.24),
+                    ProfileColors.blue.withOpacity(0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -150,
+            left: -140,
+            child: Container(
+              width: 340,
+              height: 340,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    ProfileColors.violet.withOpacity(.18),
+                    ProfileColors.violet.withOpacity(0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(22),
+                child: Container(
+                  width: double.infinity,
+                  constraints: const BoxConstraints(maxWidth: 430),
+                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        ProfileColors.surface.withOpacity(.98),
+                        ProfileColors.blue.withOpacity(.10),
+                        ProfileColors.violet.withOpacity(.08),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(
+                      color: ProfileColors.cyan.withOpacity(.20),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(.28),
+                        blurRadius: 34,
+                        offset: const Offset(0, 18),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 88,
+                        height: 88,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [
+                              ProfileColors.cyan,
+                              ProfileColors.blue,
+                              ProfileColors.violet,
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(28),
+                          boxShadow: [
+                            BoxShadow(
+                              color: ProfileColors.cyan.withOpacity(.25),
+                              blurRadius: 28,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.person_rounded,
+                          color: Colors.white,
+                          size: 45,
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      const Text(
+                        'Please Login',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: ProfileColors.text,
+                          fontSize: 27,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -.6,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Sign in to access your IELTS profile, skill bands, '
+                        'certificates, preferences and account settings.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: ProfileColors.secondary,
+                          fontSize: 12,
+                          height: 1.55,
+                        ),
+                      ),
+                      const SizedBox(height: 21),
+                      const _ProfileLoginBenefit(
+                        icon: Icons.insights_rounded,
+                        text: 'Track provisional and overall bands',
+                      ),
+                      const SizedBox(height: 9),
+                      const _ProfileLoginBenefit(
+                        icon: Icons.workspace_premium_outlined,
+                        text: 'Access certificates and achievements',
+                      ),
+                      const SizedBox(height: 9),
+                      const _ProfileLoginBenefit(
+                        icon: Icons.cloud_done_outlined,
+                        text: 'Keep your progress securely synced',
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [
+                                ProfileColors.blue,
+                                ProfileColors.cyan,
+                                ProfileColors.violet,
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: [
+                              BoxShadow(
+                                color: ProfileColors.blue.withOpacity(.30),
+                                blurRadius: 22,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
+                          ),
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const AuthenticationGatewayScreen(
+                                        initialMode: AuthMode.signIn,
+                                      ),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.login_rounded),
+                            label: const Text(
+                              'Login to Continue',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              shadowColor: Colors.transparent,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileLoginBenefit extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _ProfileLoginBenefit({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+      decoration: BoxDecoration(
+        color: ProfileColors.background.withOpacity(.55),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: ProfileColors.border),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: ProfileColors.cyan, size: 19),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: ProfileColors.secondary,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const Icon(
+            Icons.check_circle_rounded,
+            color: ProfileColors.green,
+            size: 17,
+          ),
+        ],
+      ),
+    );
   }
 }

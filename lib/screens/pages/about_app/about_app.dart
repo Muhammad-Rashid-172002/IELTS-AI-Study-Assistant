@@ -1,9 +1,7 @@
-
 import 'package:flutter/material.dart';
 
 class AboutAppScreen extends StatelessWidget {
   const AboutAppScreen({super.key});
-
 
   @override
   Widget build(BuildContext context) {
@@ -20,22 +18,18 @@ class AboutAppScreen extends StatelessWidget {
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 10, 20, 28),
                   sliver: SliverList(
-                    delegate: SliverChildListDelegate(
-                      [
-                        _buildHeroCard(),
-                        const SizedBox(height: 24),
-                        _buildAboutSection(),
-                        const SizedBox(height: 24),
-                        _buildFeaturesSection(),
-                        const SizedBox(height: 24),
-                        _buildDeveloperSection(),
-                        const SizedBox(height: 24),
-                        _buildAppInformation(),
-                        const SizedBox(height: 24),
-                       
-                      
-                      ],
-                    ),
+                    delegate: SliverChildListDelegate([
+                      _buildHeroCard(),
+                      const SizedBox(height: 24),
+                      _buildAboutSection(),
+                      const SizedBox(height: 24),
+                      _buildFeaturesSection(),
+                      const SizedBox(height: 24),
+                      _buildDeveloperSection(),
+                      const SizedBox(height: 24),
+                      _buildAppInformation(),
+                      const SizedBox(height: 24),
+                    ]),
                   ),
                 ),
               ],
@@ -77,10 +71,7 @@ class AboutAppScreen extends StatelessWidget {
                 SizedBox(height: 2),
                 Text(
                   'Learn more about the app',
-                  style: TextStyle(
-                    color: AboutColors.muted,
-                    fontSize: 11,
-                  ),
+                  style: TextStyle(color: AboutColors.muted, fontSize: 11),
                 ),
               ],
             ),
@@ -112,11 +103,7 @@ class AboutAppScreen extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF18365B),
-            Color(0xFF10263D),
-            Color(0xFF241D46),
-          ],
+          colors: [Color(0xFF18365B), Color(0xFF10263D), Color(0xFF241D46)],
         ),
         border: Border.all(color: Colors.white.withOpacity(.08)),
         boxShadow: [
@@ -125,10 +112,7 @@ class AboutAppScreen extends StatelessWidget {
             blurRadius: 30,
             offset: const Offset(0, 16),
           ),
-          BoxShadow(
-            color: AboutColors.cyan.withOpacity(.07),
-            blurRadius: 30,
-          ),
+          BoxShadow(color: AboutColors.cyan.withOpacity(.07), blurRadius: 30),
         ],
       ),
       child: Column(
@@ -184,10 +168,7 @@ class AboutAppScreen extends StatelessWidget {
                 icon: Icons.verified_rounded,
                 label: 'Version 1.1.2+7',
               ),
-              _HeroBadge(
-                icon: Icons.flutter_dash_rounded,
-                label: 'Flutter',
-              ),
+              _HeroBadge(icon: Icons.flutter_dash_rounded, label: 'Flutter'),
               _HeroBadge(
                 icon: Icons.auto_awesome_rounded,
                 label: 'Powered by AI',
@@ -362,20 +343,11 @@ class AboutAppScreen extends StatelessWidget {
             subtitle: 'Technical and release details',
           ),
           SizedBox(height: 16),
-          _InformationRow(
-            label: 'Version',
-            value: '1.1.2+7',
-          ),
+          _InformationRow(label: 'Version', value: '1.1.2+7'),
           _Divider(),
-          _InformationRow(
-            label: 'Build',
-            value: '1.0.0+7',
-          ),
+          _InformationRow(label: 'Build', value: '1.0.0+7'),
           _Divider(),
-          _InformationRow(
-            label: 'Platform',
-            value: 'Flutter + Firebase',
-          ),
+          _InformationRow(label: 'Platform', value: 'Flutter + Firebase'),
           _Divider(),
           _InformationRow(
             label: 'Artificial Intelligence',
@@ -385,15 +357,10 @@ class AboutAppScreen extends StatelessWidget {
       ),
     );
   }
-
-  
 }
 
 class _HeroBadge extends StatelessWidget {
-  const _HeroBadge({
-    required this.icon,
-    required this.label,
-  });
+  const _HeroBadge({required this.icon, required this.label});
 
   final IconData icon;
   final String label;
@@ -548,20 +515,13 @@ class _DeveloperLogo extends StatelessWidget {
           ),
         ],
       ),
-      child: const Icon(
-        Icons.code_rounded,
-        color: Colors.white,
-        size: 28,
-      ),
+      child: const Icon(Icons.code_rounded, color: Colors.white, size: 28),
     );
   }
 }
 
 class _InformationRow extends StatelessWidget {
-  const _InformationRow({
-    required this.label,
-    required this.value,
-  });
+  const _InformationRow({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -575,10 +535,7 @@ class _InformationRow extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(
-                color: AboutColors.muted,
-                fontSize: 11.5,
-              ),
+              style: const TextStyle(color: AboutColors.muted, fontSize: 11.5),
             ),
           ),
           const SizedBox(width: 12),
@@ -600,10 +557,7 @@ class _InformationRow extends StatelessWidget {
 }
 
 class _Panel extends StatelessWidget {
-  const _Panel({
-    required this.child,
-    this.padding = const EdgeInsets.all(18),
-  });
+  const _Panel({required this.child, this.padding = const EdgeInsets.all(18)});
 
   final Widget child;
   final EdgeInsetsGeometry padding;
@@ -646,7 +600,6 @@ class _Divider extends StatelessWidget {
   }
 }
 
-
 class _FeatureData {
   const _FeatureData({
     required this.icon,
@@ -683,26 +636,17 @@ class _AboutBackground extends StatelessWidget {
         const Positioned(
           top: -170,
           right: -135,
-          child: _GlowOrb(
-            size: 370,
-            color: Color(0x282563EB),
-          ),
+          child: _GlowOrb(size: 370, color: Color(0x282563EB)),
         ),
         const Positioned(
           top: 430,
           left: -180,
-          child: _GlowOrb(
-            size: 350,
-            color: Color(0x1506B6D4),
-          ),
+          child: _GlowOrb(size: 350, color: Color(0x1506B6D4)),
         ),
         const Positioned(
           bottom: -190,
           right: -150,
-          child: _GlowOrb(
-            size: 410,
-            color: Color(0x158B5CF6),
-          ),
+          child: _GlowOrb(size: 410, color: Color(0x158B5CF6)),
         ),
       ],
     );
@@ -710,10 +654,7 @@ class _AboutBackground extends StatelessWidget {
 }
 
 class _GlowOrb extends StatelessWidget {
-  const _GlowOrb({
-    required this.size,
-    required this.color,
-  });
+  const _GlowOrb({required this.size, required this.color});
 
   final double size;
   final Color color;
@@ -726,9 +667,7 @@ class _GlowOrb extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: RadialGradient(
-            colors: [color, color.withOpacity(0)],
-          ),
+          gradient: RadialGradient(colors: [color, color.withOpacity(0)]),
         ),
       ),
     );
@@ -751,10 +690,6 @@ class AboutColors {
   static const pink = Color(0xFFF472B6);
 
   static const gradient = LinearGradient(
-    colors: [
-      Color(0xFF2563EB),
-      Color(0xFF06B6D4),
-      Color(0xFF7C3AED),
-    ],
+    colors: [Color(0xFF2563EB), Color(0xFF06B6D4), Color(0xFF7C3AED)],
   );
 }

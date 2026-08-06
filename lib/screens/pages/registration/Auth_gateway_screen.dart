@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:fyproject/resources/bottom_navigation_bar/botton_navigation.dart';
 import 'package:fyproject/screens/pages/9-step%20premium%20profile%20setup%20wizard/initial_profile_setup.dart';
 
@@ -67,18 +68,18 @@ class _AuthenticationGatewayScreenState
                       ),
                     ),
                     child: _mode == AuthMode.createAccount
-                      ? CreateAccountForm(
-                          key: const ValueKey('create'),
-                          onOpenSignIn: () {
-                            setState(() => _mode = AuthMode.signIn);
-                          },
-                        )
-                      : SignInForm(
-                          key: const ValueKey('signin'),
-                          onOpenCreateAccount: () {
-                            setState(() => _mode = AuthMode.createAccount);
-                          },
-                        ),
+                        ? CreateAccountForm(
+                            key: const ValueKey('create'),
+                            onOpenSignIn: () {
+                              setState(() => _mode = AuthMode.signIn);
+                            },
+                          )
+                        : SignInForm(
+                            key: const ValueKey('signin'),
+                            onOpenCreateAccount: () {
+                              setState(() => _mode = AuthMode.createAccount);
+                            },
+                          ),
                   ),
                 ),
               ],
@@ -114,6 +115,7 @@ class _CreateAccountFormState extends State<CreateAccountForm> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
 
   final List<String> _countries = const [
     'Pakistan',
@@ -214,6 +216,43 @@ class _CreateAccountFormState extends State<CreateAccountForm> {
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _continueWithGoogle() async {
+    if (_isLoading || _isGoogleLoading) return;
+
+    FocusScope.of(context).unfocus();
+    setState(() => _isGoogleLoading = true);
+
+    try {
+      final credential = await _signInWithGoogle();
+      final user = credential.user;
+      if (user == null) {
+        throw FirebaseAuthException(
+          code: 'google-user-missing',
+          message: 'Google account could not be loaded.',
+        );
+      }
+
+      await _upsertGoogleUser(
+        user,
+        isNewUser: credential.additionalUserInfo?.isNewUser == true,
+      );
+      await _recordLoginEvent(user: user, method: 'google');
+
+      if (!mounted) return;
+      await _routeAuthenticatedUser(context, user);
+    } on GoogleSignInException catch (error) {
+      if (error.code != GoogleSignInExceptionCode.canceled) {
+        _showMessage('Google sign-in could not be completed.', isError: true);
+      }
+    } on FirebaseAuthException catch (error) {
+      _showMessage(_authErrorMessage(error), isError: true);
+    } catch (_) {
+      _showMessage('Google sign-in could not be completed.', isError: true);
+    } finally {
+      if (mounted) setState(() => _isGoogleLoading = false);
     }
   }
 
@@ -341,11 +380,16 @@ class _CreateAccountFormState extends State<CreateAccountForm> {
               title: 'Create Account',
               icon: Icons.arrow_forward_rounded,
               isLoading: _isLoading,
-              onPressed: _createAccount,
+              onPressed: _isGoogleLoading ? null : _createAccount,
             ),
             const SizedBox(height: 18),
-         
-
+            const _OrDivider(),
+            const SizedBox(height: 18),
+            _GoogleAuthButton(
+              title: 'Continue with Google',
+              isLoading: _isGoogleLoading,
+              onPressed: _isLoading ? null : _continueWithGoogle,
+            ),
             const SizedBox(height: 20),
             _ModeSwitchText(
               normalText: 'Already have an account? ',
@@ -392,6 +436,7 @@ class _SignInFormState extends State<SignInForm> {
 
   bool _obscurePassword = true;
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
   DateTime? _lastAttemptAt;
   int _localFailedAttempts = 0;
 
@@ -466,6 +511,44 @@ class _SignInFormState extends State<SignInForm> {
       _showMessage('Sign-in could not be completed.', isError: true);
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _continueWithGoogle() async {
+    if (_isLoading || _isGoogleLoading) return;
+
+    FocusScope.of(context).unfocus();
+    setState(() => _isGoogleLoading = true);
+
+    try {
+      final credential = await _signInWithGoogle();
+      final user = credential.user;
+      if (user == null) {
+        throw FirebaseAuthException(
+          code: 'google-user-missing',
+          message: 'Google account could not be loaded.',
+        );
+      }
+
+      _localFailedAttempts = 0;
+      await _upsertGoogleUser(
+        user,
+        isNewUser: credential.additionalUserInfo?.isNewUser == true,
+      );
+      await _recordSession(user, 'google');
+
+      if (!mounted) return;
+      await _routeAuthenticatedUser(context, user);
+    } on GoogleSignInException catch (error) {
+      if (error.code != GoogleSignInExceptionCode.canceled) {
+        _showMessage('Google sign-in could not be completed.', isError: true);
+      }
+    } on FirebaseAuthException catch (error) {
+      _showMessage(_authErrorMessage(error), isError: true);
+    } catch (_) {
+      _showMessage('Google sign-in could not be completed.', isError: true);
+    } finally {
+      if (mounted) setState(() => _isGoogleLoading = false);
     }
   }
 
@@ -598,10 +681,16 @@ class _SignInFormState extends State<SignInForm> {
               title: 'Sign In',
               icon: Icons.login_rounded,
               isLoading: _isLoading,
-              onPressed: _signIn,
+              onPressed: _isGoogleLoading ? null : _signIn,
             ),
             const SizedBox(height: 18),
-
+            const _OrDivider(),
+            const SizedBox(height: 18),
+            _GoogleAuthButton(
+              title: 'Continue with Google',
+              isLoading: _isGoogleLoading,
+              onPressed: _isLoading ? null : _continueWithGoogle,
+            ),
             const SizedBox(height: 20),
             _ModeSwitchText(
               normalText: 'New to IELTS AI Master? ',
@@ -887,10 +976,55 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
   }
 }
 
-Future<void> _routeAuthenticatedUser(
-  BuildContext context,
-  User user,
-) async {
+Future<UserCredential> _signInWithGoogle() async {
+  if (kIsWeb) {
+    final provider = GoogleAuthProvider()
+      ..setCustomParameters({'prompt': 'select_account'});
+    return FirebaseAuth.instance.signInWithPopup(provider);
+  }
+
+  final googleSignIn = GoogleSignIn.instance;
+  await googleSignIn.initialize();
+  final googleUser = await googleSignIn.authenticate();
+  final googleAuth = googleUser.authentication;
+  final credential = GoogleAuthProvider.credential(idToken: googleAuth.idToken);
+  return FirebaseAuth.instance.signInWithCredential(credential);
+}
+
+Future<void> _upsertGoogleUser(User user, {required bool isNewUser}) async {
+  final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+  final existing = await userRef.get();
+
+  final data = <String, dynamic>{
+    'uid': user.uid,
+    'fullName': user.displayName ?? '',
+    'email': user.email?.trim().toLowerCase(),
+    'photoUrl': user.photoURL,
+    'role': 'student',
+    'authProvider': 'google',
+    'emailVerified': user.emailVerified,
+    'phoneVerified': user.phoneNumber != null,
+    'accountStatus': 'active',
+    'updatedAt': FieldValue.serverTimestamp(),
+    'lastLoginAt': FieldValue.serverTimestamp(),
+  };
+
+  if (!existing.exists || isNewUser) {
+    data.addAll({
+      'profileCompleted': false,
+      'diagnosticCompleted': false,
+      'ieltsType': null,
+      'educationLevel': null,
+      'currentBand': null,
+      'targetBand': null,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  await userRef.set(data, SetOptions(merge: true));
+}
+
+Future<void> _routeAuthenticatedUser(BuildContext context, User user) async {
   final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
   var snapshot = await userRef.get();
 
@@ -902,7 +1036,12 @@ Future<void> _routeAuthenticatedUser(
       'fullName': user.displayName ?? '',
       'email': user.email?.trim().toLowerCase(),
       'role': 'student',
-      'authProvider': 'password',
+      'authProvider':
+          user.providerData.any(
+            (provider) => provider.providerId == 'google.com',
+          )
+          ? 'google'
+          : 'password',
       'emailVerified': user.emailVerified,
       'phoneVerified': user.phoneNumber != null,
       'profileCompleted': false,
@@ -917,8 +1056,9 @@ Future<void> _routeAuthenticatedUser(
   }
 
   final data = snapshot.data() ?? <String, dynamic>{};
-  final accountStatus =
-      (data['accountStatus'] ?? 'active').toString().toLowerCase();
+  final accountStatus = (data['accountStatus'] ?? 'active')
+      .toString()
+      .toLowerCase();
   final profileCompleted = data['profileCompleted'] == true;
 
   if (accountStatus == 'disabled' ||
@@ -1648,6 +1788,102 @@ class _PrimaryAuthButton extends StatelessWidget {
   }
 }
 
+class _OrDivider extends StatelessWidget {
+  const _OrDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: Divider(color: Colors.white.withOpacity(0.09))),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 13),
+          child: Text(
+            'OR',
+            style: TextStyle(
+              color: AuthColors.subtleText,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.5,
+            ),
+          ),
+        ),
+        Expanded(child: Divider(color: Colors.white.withOpacity(0.09))),
+      ],
+    );
+  }
+}
+
+class _GoogleAuthButton extends StatelessWidget {
+  final String title;
+  final bool isLoading;
+  final VoidCallback? onPressed;
+
+  const _GoogleAuthButton({
+    required this.title,
+    required this.isLoading,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+      child: OutlinedButton(
+        onPressed: isLoading ? null : onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AuthColors.mainText,
+          backgroundColor: Colors.white.withOpacity(0.035),
+          disabledForegroundColor: AuthColors.mutedText,
+          side: BorderSide(color: Colors.white.withOpacity(0.11)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+        ),
+        child: isLoading
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.3,
+                  color: AuthColors.cyan,
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 29,
+                    height: 29,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: const Text(
+                      'G',
+                      style: TextStyle(
+                        color: Color(0xFF4285F4),
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+}
 
 class _ModeSwitchText extends StatelessWidget {
   final String normalText;

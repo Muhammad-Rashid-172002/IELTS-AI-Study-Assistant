@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../../resources/routes/routes_names.dart';
@@ -83,30 +82,27 @@ class FirebaseServices extends GetxController {
     }
   }
 
-Future<void> updateProfileImage(File imageFile) async {
-  if (user == null) return;
+  Future<void> updateProfileImage(File imageFile) async {
+    if (user == null) return;
 
-  final ref = FirebaseStorage.instance
-      .ref()
-      .child("profile_images")
-      .child("${user!.uid}.jpg");
+    final ref = FirebaseStorage.instance
+        .ref()
+        .child("profile_images")
+        .child("${user!.uid}.jpg");
 
-  await ref.putFile(imageFile);
+    await ref.putFile(imageFile);
 
-  final imageUrl = await ref.getDownloadURL();
+    final imageUrl = await ref.getDownloadURL();
 
-  await FirebaseFirestore.instance
-      .collection("users")
-      .doc(user!.uid)
-      .update({
-    "profileImage": imageUrl,
-  });
+    await FirebaseFirestore.instance.collection("users").doc(user!.uid).update({
+      "profileImage": imageUrl,
+    });
 
-  await user!.updatePhotoURL(imageUrl);
+    await user!.updatePhotoURL(imageUrl);
 
-  userData["profileImage"] = imageUrl;
-  userData.refresh();
-}
+    userData["profileImage"] = imageUrl;
+    userData.refresh();
+  }
 
   // LOGIN (EMAIL/PASSWORD)
 
@@ -140,37 +136,37 @@ Future<void> updateProfileImage(File imageFile) async {
 
   // GOOGLE LOGIN
 
-  Future<User?> loginWithGoogle() async {
-  try {
-    final GoogleSignIn googleSignIn = GoogleSignIn();
+  //   Future<User?> loginWithGoogle() async {
+  //   try {
+  //     final GoogleSignIn googleSignIn = GoogleSignIn();
 
-    final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+  //     final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
 
-    if (googleUser == null) return null;
+  //     if (googleUser == null) return null;
 
-    final GoogleSignInAuthentication googleAuth =
-        await googleUser.authentication;
+  //     final GoogleSignInAuthentication googleAuth =
+  //         await googleUser.authentication;
 
-    final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
+  //     final credential = GoogleAuthProvider.credential(
+  //       accessToken: googleAuth.accessToken,
+  //       idToken: googleAuth.idToken,
+  //     );
 
-    final userCredential = await auth.signInWithCredential(credential);
-    final user = userCredential.user;
+  //     final userCredential = await auth.signInWithCredential(credential);
+  //     final user = userCredential.user;
 
-    if (user != null) {
-      await saveUserToFirestore(user, fullName: user.displayName);
-      await loadUserProfile();
-    }
+  //     if (user != null) {
+  //       await saveUserToFirestore(user, fullName: user.displayName);
+  //       await loadUserProfile();
+  //     }
 
-    Get.offAllNamed(RoutesName.home);
-    return user;
-  } catch (e) {
-    Get.snackbar("Error", e.toString());
-    return null;
-  }
-}
+  //     Get.offAllNamed(RoutesName.home);
+  //     return user;
+  //   } catch (e) {
+  //     Get.snackbar("Error", e.toString());
+  //     return null;
+  //   }
+  // }
 
   // SAVE USER TO FIRESTORE (WITH INITIAL PROGRESS)
 

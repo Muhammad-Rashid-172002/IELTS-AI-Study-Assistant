@@ -11,6 +11,7 @@ import 'package:fyproject/screens/pages/Reading_Practice/ReadingPractice.dart';
 import 'package:fyproject/screens/pages/Speaking_Practice/SpeakingPractice.dart';
 import 'package:fyproject/screens/pages/Writing_Checker/WritingChecker.dart';
 import 'package:fyproject/screens/pages/certificate/certificate_screen.dart';
+import 'package:fyproject/screens/pages/registration/Auth_gateway_screen.dart';
 
 class HomeDashboard extends StatefulWidget {
   const HomeDashboard({super.key});
@@ -412,6 +413,8 @@ class HomeDashboardModel {
   final double targetBand;
   final int readinessPercent;
   final int weeklyProgressPercent;
+  final int completedSkillCount;
+  final List<String> missingSkills;
   final int currentStreak;
   final int longestStreak;
   final int xpPoints;
@@ -431,6 +434,8 @@ class HomeDashboardModel {
     required this.targetBand,
     required this.readinessPercent,
     required this.weeklyProgressPercent,
+    required this.completedSkillCount,
+    required this.missingSkills,
     required this.currentStreak,
     required this.longestStreak,
     required this.xpPoints,
@@ -478,10 +483,25 @@ class HomeDashboardModel {
       ),
     };
 
-    final availableBands = skillValues.values.where((value) => value > 0);
-    final liveOverallBand = availableBands.isEmpty
+    final completedSkillEntries = skillValues.entries
+        .where((entry) => entry.value > 0 && entry.value <= 9)
+        .toList();
+
+    final completedSkillCount = completedSkillEntries.length;
+
+    final missingSkills = skillValues.entries
+        .where((entry) => entry.value <= 0 || entry.value > 9)
+        .map((entry) => entry.key)
+        .toList();
+
+    final liveOverallBand = completedSkillEntries.isEmpty
         ? 0.0
-        : availableBands.reduce((a, b) => a + b) / availableBands.length;
+        : _roundToNearestHalf(
+            completedSkillEntries
+                    .map((entry) => entry.value)
+                    .reduce((a, b) => a + b) /
+                completedSkillEntries.length,
+          );
 
     final currentBand = liveOverallBand > 0
         ? liveOverallBand
@@ -542,13 +562,11 @@ class HomeDashboardModel {
       fallback: calculatedWeekly,
     ).clamp(0, 100);
 
-    final readiness = _asInt(
-      userData['readinessPercent'],
-      fallback: _calculateReadiness(
-        currentBand: currentBand,
-        targetBand: targetBand,
-        weeklyProgress: weeklyProgress,
-      ),
+    final readiness = _calculateReadiness(
+      currentBand: currentBand,
+      targetBand: targetBand,
+      weeklyProgress: weeklyProgress,
+      completedSkillCount: completedSkillCount,
     ).clamp(0, 100);
 
     final weakest = _weakestSkill(skillValues);
@@ -594,6 +612,8 @@ class HomeDashboardModel {
       targetBand: targetBand,
       readinessPercent: readiness,
       weeklyProgressPercent: weeklyProgress,
+      completedSkillCount: completedSkillCount,
+      missingSkills: List<String>.unmodifiable(missingSkills),
       currentStreak: _asInt(userData['currentStreak'] ?? userData['streak']),
       longestStreak: _asInt(userData['longestStreak']),
       xpPoints: _asInt(userData['xpPoints'] ?? userData['xp']),
@@ -605,10 +625,15 @@ class HomeDashboardModel {
       todayTotalMinutes: todayTotalMinutes,
       skills: skillList,
       weakestSkill: weakest,
-      aiInsight:
-          'Your $weakest performance needs the most attention. '
-          '$weakestTopic is currently the main focus area. '
-          'Complete today’s targeted task to improve your score.',
+      aiInsight: missingSkills.isNotEmpty
+          ? 'Your current provisional band is based on '
+                '$completedSkillCount completed '
+                '${completedSkillCount == 1 ? 'skill' : 'skills'}. '
+                'Complete ${missingSkills.join(' and ')} to unlock a full '
+                'estimated IELTS overall band.'
+          : 'Your $weakest performance needs the most attention. '
+                '$weakestTopic is currently the main focus area. '
+                'Complete today’s targeted task to improve your score.',
     );
   }
 }
@@ -843,6 +868,10 @@ class _ReadinessCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasAnyResult = model.completedSkillCount > 0;
+    final hasCompleteOverallBand = model.completedSkillCount == 4;
+    final missingText = model.missingSkills.join(' and ');
+
     return Container(
       padding: const EdgeInsets.all(19),
       decoration: BoxDecoration(
@@ -853,8 +882,17 @@ class _ReadinessCard extends StatelessWidget {
             _C.cyan.withOpacity(.12),
             _C.violet.withOpacity(.18),
           ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
         border: Border.all(color: _C.cyan.withOpacity(.2)),
+        boxShadow: [
+          BoxShadow(
+            color: _C.blue.withOpacity(.10),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -873,8 +911,8 @@ class _ReadinessCard extends StatelessWidget {
                         value: model.readinessPercent / 100,
                         strokeWidth: 9,
                         backgroundColor: _C.border,
-                        valueColor: const AlwaysStoppedAnimation<Color>(
-                          _C.cyan,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          hasCompleteOverallBand ? _C.green : _C.cyan,
                         ),
                       ),
                     ),
@@ -889,12 +927,13 @@ class _ReadinessCard extends StatelessWidget {
                             fontWeight: FontWeight.w900,
                           ),
                         ),
-                        const Text(
-                          'READY',
+                        Text(
+                          hasCompleteOverallBand ? 'READY' : 'PROVISIONAL',
                           style: TextStyle(
-                            color: _C.cyan,
-                            fontSize: 8,
-                            fontWeight: FontWeight.w800,
+                            color: hasCompleteOverallBand ? _C.green : _C.cyan,
+                            fontSize: 7.2,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: .35,
                           ),
                         ),
                       ],
@@ -903,22 +942,32 @@ class _ReadinessCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 16),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Exam Readiness',
-                      style: TextStyle(
+                      hasCompleteOverallBand
+                          ? 'Exam Readiness'
+                          : 'Provisional Readiness',
+                      style: const TextStyle(
                         color: _C.text,
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Text(
-                      'Based on your diagnostic result, weekly activity and target-band progress.',
-                      style: TextStyle(
+                      !hasAnyResult
+                          ? 'Complete your first IELTS skill assessment to '
+                                'generate an estimated band and readiness score.'
+                          : hasCompleteOverallBand
+                          ? 'Based on all four IELTS skills, weekly '
+                                'activity and target-band progress.'
+                          : 'Estimated from ${model.completedSkillCount} '
+                                'completed ${model.completedSkillCount == 1 ? 'skill' : 'skills'}. '
+                                'Complete $missingText for a full overall band.',
+                      style: const TextStyle(
                         color: _C.secondary,
                         fontSize: 10.5,
                         height: 1.45,
@@ -934,8 +983,12 @@ class _ReadinessCard extends StatelessWidget {
             children: [
               Expanded(
                 child: _Metric(
-                  label: 'Current Band',
-                  value: model.currentBand.toStringAsFixed(1),
+                  label: hasCompleteOverallBand
+                      ? 'Overall Band'
+                      : 'Provisional Band',
+                  value: hasAnyResult
+                      ? model.currentBand.toStringAsFixed(1)
+                      : '—',
                   color: _C.cyan,
                 ),
               ),
@@ -950,13 +1003,20 @@ class _ReadinessCard extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: _Metric(
-                  label: 'Weekly',
-                  value: '${model.weeklyProgressPercent}%',
+                  label: 'Skills Done',
+                  value: '${model.completedSkillCount}/4',
                   color: _C.green,
                 ),
               ),
             ],
           ),
+          if (!hasCompleteOverallBand) ...[
+            const SizedBox(height: 15),
+            _HomeMissingSkillsNotice(
+              missingSkills: model.missingSkills,
+              completedSkillCount: model.completedSkillCount,
+            ),
+          ],
           const SizedBox(height: 15),
           Row(
             children: [
@@ -988,6 +1048,130 @@ class _ReadinessCard extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _HomeMissingSkillsNotice extends StatelessWidget {
+  final List<String> missingSkills;
+  final int completedSkillCount;
+
+  const _HomeMissingSkillsNotice({
+    required this.missingSkills,
+    required this.completedSkillCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasStarted = completedSkillCount > 0;
+    final title = hasStarted
+        ? 'Complete ${missingSkills.join(' and ')}'
+        : 'Complete your IELTS assessments';
+
+    final description = hasStarted
+        ? 'Your current band is calculated from completed skills only. '
+              'Finish the missing ${missingSkills.length == 1 ? 'module' : 'modules'} '
+              'to unlock a complete estimated overall band.'
+        : 'Start with any IELTS skill. Your provisional band will update '
+              'as each module is completed.';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [_C.orange.withOpacity(.12), _C.violet.withOpacity(.08)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _C.orange.withOpacity(.24)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: _C.orange.withOpacity(.13),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.assignment_late_outlined,
+              color: _C.orange,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: _C.text,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  description,
+                  style: const TextStyle(
+                    color: _C.secondary,
+                    fontSize: 9.5,
+                    height: 1.45,
+                  ),
+                ),
+                if (missingSkills.isNotEmpty) ...[
+                  const SizedBox(height: 9),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: missingSkills.map((skill) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _C.bg.withOpacity(.42),
+                          borderRadius: BorderRadius.circular(9),
+                          border: Border.all(color: _C.border),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(_skillIcon(skill), color: _C.orange, size: 13),
+                            const SizedBox(width: 5),
+                            Text(
+                              skill,
+                              style: const TextStyle(
+                                color: _C.secondary,
+                                fontSize: 8.5,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static IconData _skillIcon(String skill) {
+    return switch (skill.toLowerCase()) {
+      'listening' => Icons.headphones_rounded,
+      'reading' => Icons.menu_book_rounded,
+      'writing' => Icons.edit_note_rounded,
+      _ => Icons.mic_rounded,
+    };
   }
 }
 
@@ -1766,25 +1950,100 @@ class _SquareIcon extends StatelessWidget {
 }
 
 class _SignedOutState extends StatelessWidget {
-  const _SignedOutState();
+  const _SignedOutState({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    return Scaffold(
       backgroundColor: _C.bg,
-      body: Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'Please sign in to open your personalized dashboard.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: _C.text,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: _Background()),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 28),
+              child: Container(
+                padding: const EdgeInsets.all(28),
+                decoration: BoxDecoration(
+                  color: _C.surface,
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(color: Colors.white.withOpacity(.08)),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 90,
+                      height: 90,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: _C.gradient,
+                      ),
+                      child: const Icon(
+                        Icons.lock_outline_rounded,
+                        color: Colors.white,
+                        size: 42,
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    const Text(
+                      "Please Login",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    const Text(
+                      "Sign in to access your personalized IELTS dashboard, study plan, progress and AI features.",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: _C.muted, height: 1.6),
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.login_rounded),
+                        label: const Text(
+                          "Login",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _C.blue,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const AuthenticationGatewayScreen(
+                                initialMode: AuthMode.signIn,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -1922,6 +2181,7 @@ class _C {
   static const cyan = Color(0xFF22D3EE);
   static const violet = Color(0xFF8B5CF6);
   static const green = Color(0xFF34D399);
+  static const orange = Color(0xFFFFA500);
 
   static const gradient = LinearGradient(
     colors: [Color(0xFF2563EB), Color(0xFF06B6D4), Color(0xFF7C3AED)],
@@ -2022,13 +2282,24 @@ int _calculateReadiness({
   required double currentBand,
   required double targetBand,
   required int weeklyProgress,
+  required int completedSkillCount,
 }) {
-  if (targetBand <= 0) return weeklyProgress;
+  if (currentBand <= 0 || completedSkillCount <= 0) return 0;
 
-  final bandProgress = (currentBand / targetBand * 100).clamp(0, 100);
-  final readiness = (bandProgress * .75) + (weeklyProgress * .25);
+  final safeTargetBand = targetBand <= 0 ? 7.0 : targetBand;
+  final completionRatio = (completedSkillCount / 4).clamp(0.0, 1.0);
+  final bandProgress = (currentBand / safeTargetBand * 100).clamp(0.0, 100.0);
 
-  return readiness.round().clamp(0, 100);
+  // Partial skill data produces provisional readiness only. Completing all
+  // four IELTS skills unlocks the full readiness calculation.
+  final performanceComponent = bandProgress * .75 * completionRatio;
+  final activityComponent = weeklyProgress * .25;
+
+  return (performanceComponent + activityComponent).round().clamp(0, 100);
+}
+
+double _roundToNearestHalf(double value) {
+  return (value * 2).round() / 2;
 }
 
 int _calculateWeeklyProgress(

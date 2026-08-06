@@ -16,15 +16,11 @@ class ProgressColors {
   static const red = Color(0xFFEF4444);
 }
 
-BoxDecoration progressPanelDecoration({
-  Color? borderColor,
-}) {
+BoxDecoration progressPanelDecoration({Color? borderColor}) {
   return BoxDecoration(
     color: ProgressColors.surface,
     borderRadius: BorderRadius.circular(20),
-    border: Border.all(
-      color: borderColor ?? ProgressColors.border,
-    ),
+    border: Border.all(color: borderColor ?? ProgressColors.border),
     boxShadow: [
       BoxShadow(
         color: Colors.black.withOpacity(.12),
@@ -46,8 +42,6 @@ BoxDecoration progressHeroDecoration() {
       ],
     ),
     borderRadius: BorderRadius.circular(23),
-    border: Border.all(
-      color: ProgressColors.cyan.withOpacity(.25),
-    ),
+    border: Border.all(color: ProgressColors.cyan.withOpacity(.25)),
   );
 }

@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 class RoundButton2 extends StatelessWidget {
@@ -50,14 +49,14 @@ class RoundButton2 extends StatelessWidget {
           child: loading
               ? const CircularProgressIndicator()
               : child ??
-              Text(
-                title ?? '',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: textColor ?? Colors.black87,
-                ),
-              ),
+                    Text(
+                      title ?? '',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: textColor ?? Colors.black87,
+                      ),
+                    ),
         ),
       ),
     );

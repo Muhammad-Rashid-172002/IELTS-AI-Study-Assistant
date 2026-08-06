@@ -6,10 +6,7 @@ import 'profile_theme.dart';
 class EditProfileScreen extends StatefulWidget {
   final ProfileModel profile;
 
-  const EditProfileScreen({
-    super.key,
-    required this.profile,
-  });
+  const EditProfileScreen({super.key, required this.profile});
 
   @override
   State<EditProfileScreen> createState() => _EditProfileScreenState();
@@ -200,9 +197,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   child: Text('Professional'),
                 ),
               ],
-              onChanged: (value) => setState(
-                () => _educationLevel = value ?? _educationLevel,
-              ),
+              onChanged: (value) =>
+                  setState(() => _educationLevel = value ?? _educationLevel),
             ),
           ],
         ),

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:fyproject/offline/offline_content_service.dart';
 
 /// Shared production queue logic for admin-published learning content.
 ///
@@ -7,11 +8,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 /// published item is completed, the caller receives an empty result and can
 /// show an "all completed" state until an administrator publishes new content.
 class ContentQueueService {
-  ContentQueueService({
-    FirebaseFirestore? firestore,
-    FirebaseAuth? auth,
-  })  : _db = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
+  ContentQueueService({FirebaseFirestore? firestore, FirebaseAuth? auth})
+    : _db = firestore ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
 
   final FirebaseFirestore _db;
   final FirebaseAuth _auth;
@@ -22,7 +21,9 @@ class ContentQueueService {
     final userId = uid;
     if (userId == null) return <String>{};
 
-    final ids = <String>{};
+    final ids = <String>{
+      ...OfflineContentService.instance.completedIds(module),
+    };
     final userRef = _db.collection('users').doc(userId);
 
     Future<void> readUserCollection(
@@ -57,7 +58,12 @@ class ContentQueueService {
           final data = doc.data();
           final status = (data['status'] ?? '').toString().toLowerCase();
           if (status.isNotEmpty &&
-              !{'completed', 'evaluated', 'ready', 'submitted'}.contains(status)) {
+              !{
+                'completed',
+                'evaluated',
+                'ready',
+                'submitted',
+              }.contains(status)) {
             continue;
           }
           for (final field in fields) {
@@ -73,7 +79,10 @@ class ContentQueueService {
     switch (module) {
       case 'writing':
         await readUserCollection('writing_results', ['taskId', 'testId']);
-        await readTopLevelCollection('writing_submissions', ['taskId', 'testId']);
+        await readTopLevelCollection('writing_submissions', [
+          'taskId',
+          'testId',
+        ]);
         break;
       case 'reading':
         await readUserCollection('reading_results', ['testId']);
@@ -82,12 +91,15 @@ class ContentQueueService {
         await readUserCollection('listening_results', ['testId']);
         break;
       case 'speaking':
-        await readUserCollection('speaking_results', ['testId', 'speakingTestId']);
+        await readUserCollection('speaking_results', [
+          'testId',
+          'speakingTestId',
+        ]);
         await readUserCollection('speaking', ['testId', 'speakingTestId']);
-        await readTopLevelCollection(
-          'speaking_submissions',
-          ['testId', 'speakingTestId'],
-        );
+        await readTopLevelCollection('speaking_submissions', [
+          'testId',
+          'speakingTestId',
+        ]);
         break;
       case 'mock_test':
         await readUserCollection('mock_attempts', ['mockTestId', 'testId']);
@@ -102,6 +114,7 @@ class ContentQueueService {
     final userId = uid;
     if (userId == null) return <String>{};
 
+    final localIds = OfflineContentService.instance.completedIds('vocabulary');
     try {
       final snapshot = await _db
           .collection('users')
@@ -110,12 +123,19 @@ class ContentQueueService {
           .limit(1000)
           .get();
 
-      return snapshot.docs.where((doc) {
-        final status = (doc.data()['status'] ?? '').toString().toLowerCase();
-        return status == 'learned' || status == 'mastered';
-      }).map((doc) => doc.id).toSet();
+      return <String>{
+        ...localIds,
+        ...snapshot.docs
+            .where((doc) {
+              final status = (doc.data()['status'] ?? '')
+                  .toString()
+                  .toLowerCase();
+              return status == 'learned' || status == 'mastered';
+            })
+            .map((doc) => doc.id),
+      };
     } catch (_) {
-      return <String>{};
+      return localIds;
     }
   }
 

@@ -5,8 +5,7 @@ class StreakService {
   static Future<void> updateUserStreak() async {
     final uid = FirebaseAuth.instance.currentUser!.uid;
 
-    final userRef =
-        FirebaseFirestore.instance.collection('users').doc(uid);
+    final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
 
     final doc = await userRef.get();
 
@@ -21,8 +20,7 @@ class StreakService {
     DateTime today = DateTime.now();
 
     /// Remove time
-    DateTime currentDate =
-        DateTime(today.year, today.month, today.day);
+    DateTime currentDate = DateTime(today.year, today.month, today.day);
 
     if (lastActiveTimestamp == null) {
       /// First time login
@@ -36,8 +34,11 @@ class StreakService {
 
     DateTime lastActive = lastActiveTimestamp.toDate();
 
-    DateTime lastDate =
-        DateTime(lastActive.year, lastActive.month, lastActive.day);
+    DateTime lastDate = DateTime(
+      lastActive.year,
+      lastActive.month,
+      lastActive.day,
+    );
 
     int difference = currentDate.difference(lastDate).inDays;
 

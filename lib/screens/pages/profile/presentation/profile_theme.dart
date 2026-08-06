@@ -38,7 +38,5 @@ BoxDecoration profileHero() => BoxDecoration(
     ],
   ),
   borderRadius: BorderRadius.circular(24),
-  border: Border.all(
-    color: ProfileColors.cyan.withOpacity(.25),
-  ),
+  border: Border.all(color: ProfileColors.cyan.withOpacity(.25)),
 );

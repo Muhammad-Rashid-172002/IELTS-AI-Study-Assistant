@@ -12,8 +12,6 @@
 //   }
 // }
 
-
-
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -24,7 +22,6 @@ import '../routes/routes_names.dart';
 class SplashService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   void isLogin(BuildContext context) {
-
     try {
       final User? user = _auth.currentUser;
 
@@ -36,8 +33,11 @@ class SplashService {
         }
       });
     } catch (e) {
-      Get.snackbar("Error", "Authentication check failed: $e",
-          snackPosition: SnackPosition.BOTTOM);
+      Get.snackbar(
+        "Error",
+        "Authentication check failed: $e",
+        snackPosition: SnackPosition.BOTTOM,
+      );
       Timer(const Duration(seconds: 4), () {
         Get.offNamed(RoutesName.onboarding);
       });

@@ -2,7 +2,6 @@
 // import 'package:fyproject/config/keys.dart';
 // import 'package:http/http.dart' as http;
 
-
 // class GeminiService {
 //   final String apiKey = AppKeys.geminiApiKey; // Your API key
 

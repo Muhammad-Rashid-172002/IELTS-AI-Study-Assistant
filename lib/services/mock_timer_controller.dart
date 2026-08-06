@@ -25,11 +25,10 @@ class MockTimerController with WidgetsBindingObserver {
     if (_running) return;
 
     WidgetsBinding.instance.addObserver(this);
-    _remainingSeconds =
-        _remainingSeconds > 0 ? _remainingSeconds : initialSeconds;
-    _deadline = DateTime.now().add(
-      Duration(seconds: _remainingSeconds),
-    );
+    _remainingSeconds = _remainingSeconds > 0
+        ? _remainingSeconds
+        : initialSeconds;
+    _deadline = DateTime.now().add(Duration(seconds: _remainingSeconds));
     _running = true;
     _schedule();
   }
@@ -46,9 +45,7 @@ class MockTimerController with WidgetsBindingObserver {
 
   void resume() {
     if (_remainingSeconds <= 0) return;
-    _deadline = DateTime.now().add(
-      Duration(seconds: _remainingSeconds),
-    );
+    _deadline = DateTime.now().add(Duration(seconds: _remainingSeconds));
     _running = true;
     _schedule();
   }
@@ -61,18 +58,15 @@ class MockTimerController with WidgetsBindingObserver {
   void _schedule() {
     _timer?.cancel();
 
-    _timer = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) {
-        _syncFromDeadline();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _syncFromDeadline();
 
-        if (_remainingSeconds <= 0) {
-          _timer?.cancel();
-          _running = false;
-          onTimeExpired();
-        }
-      },
-    );
+      if (_remainingSeconds <= 0) {
+        _timer?.cancel();
+        _running = false;
+        onTimeExpired();
+      }
+    });
   }
 
   void _syncFromDeadline() {
@@ -88,9 +82,7 @@ class MockTimerController with WidgetsBindingObserver {
   }
 
   @override
-  void didChangeAppLifecycleState(
-    AppLifecycleState state,
-  ) {
+  void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.detached) {
@@ -106,9 +98,7 @@ class MockTimerController with WidgetsBindingObserver {
         _running = false;
         onTimeExpired();
       } else {
-        _deadline = DateTime.now().add(
-          Duration(seconds: _remainingSeconds),
-        );
+        _deadline = DateTime.now().add(Duration(seconds: _remainingSeconds));
         _schedule();
       }
     }

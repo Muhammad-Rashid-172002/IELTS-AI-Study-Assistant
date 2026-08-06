@@ -70,14 +70,23 @@ class ProgressRepository {
         'Speaking': speaking,
       };
 
-      final validBands = skills.values
-          .map((skill) => skill.band)
-          .where((band) => band > 0)
+      // Show a provisional estimated band from the skills the learner has
+      // actually completed. The dashboard clearly labels this as incomplete
+      // until all four IELTS skills have been attempted.
+      final attemptedSkills = skills.values
+          .where(
+            (skill) => skill.attempts > 0 && skill.band > 0 && skill.band <= 9,
+          )
           .toList();
 
-      final overallBand = validBands.isEmpty
+      final overallBand = attemptedSkills.isEmpty
           ? 0.0
-          : _roundBand(validBands.reduce((a, b) => a + b) / validBands.length);
+          : _roundBand(
+              attemptedSkills
+                      .map((skill) => skill.band)
+                      .reduce((a, b) => a + b) /
+                  attemptedSkills.length,
+            );
 
       // Registration/onboarding may store the selected overall target inside
       // targetBands.overall, while newer profile screens use targetBand.
@@ -365,11 +374,24 @@ class ProgressRepository {
     final recommendations = <String>[];
 
     for (final skill in ordered) {
+      final attempted = skill.attempts > 0 && skill.band > 0;
+
+      if (!attempted) {
+        weaknesses.add('${skill.skill} has not been attempted yet.');
+        recommendations.add(
+          'Complete the ${skill.skill} assessment to calculate your '
+          'overall IELTS band.',
+        );
+        continue;
+      }
+
       if (skill.band >= overview.targetBand) {
         strengths.add('${skill.skill} is at or above the target band.');
       } else {
         weaknesses.add(
-          '${skill.skill} is ${(overview.targetBand - skill.band).toStringAsFixed(1)} band below target.',
+          '${skill.skill} is '
+          '${(overview.targetBand - skill.band).toStringAsFixed(1)} '
+          'band below target.',
         );
       }
 
@@ -435,16 +457,26 @@ class ProgressRepository {
     required int completedMocks,
     required int weeklyStudyMinutes,
   }) {
-    if (overallBand <= 0) return 0;
+    final completedSkillCount = skills.values
+        .where(
+          (skill) => skill.attempts > 0 && skill.band > 0 && skill.band <= 9,
+        )
+        .length;
 
-    final bandComponent = (overallBand / math.max(targetBand, 1) * 60)
-        .clamp(0, 60)
-        .toDouble();
+    if (completedSkillCount == 0 || overallBand <= 0) return 0;
 
-    final consistencyComponent =
-        (skills.values.where((skill) => skill.attempts > 0).length / 4 * 15)
-            .clamp(0, 15)
+    // A provisional readiness score is allowed, but it is weighted by how
+    // many IELTS skills are complete so partial data cannot look final.
+    final completionRatio = completedSkillCount / 4;
+
+    final bandComponent =
+        (overallBand / math.max(targetBand, 1) * 60 * completionRatio)
+            .clamp(0, 60)
             .toDouble();
+
+    final consistencyComponent = (completedSkillCount / 4 * 15)
+        .clamp(0, 15)
+        .toDouble();
 
     final mockComponent = (completedMocks * 5).clamp(0, 15).toDouble();
 

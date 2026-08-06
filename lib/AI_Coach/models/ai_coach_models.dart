@@ -34,8 +34,8 @@ class AiCoachMessage {
       intent: (data['intent'] ?? '').toString(),
       suggestions: data['suggestions'] is List
           ? (data['suggestions'] as List)
-              .map((item) => item.toString())
-              .toList()
+                .map((item) => item.toString())
+                .toList()
           : const [],
     );
   }
@@ -71,14 +71,12 @@ class AiCoachProfile {
       overallBand: _double(data['overallBand']),
       targetBand: _double(data['targetBand'], 7),
       streak: _int(data['streak']),
-      weakestSkill:
-          (data['weakestSkill'] ?? 'Reading').toString(),
-      strongestSkill:
-          (data['strongestSkill'] ?? 'Listening').toString(),
+      weakestSkill: (data['weakestSkill'] ?? 'Reading').toString(),
+      strongestSkill: (data['strongestSkill'] ?? 'Listening').toString(),
       skillBands: data['skillBands'] is Map
-          ? Map<String, dynamic>.from(data['skillBands']).map(
-              (key, value) => MapEntry(key, _double(value)),
-            )
+          ? Map<String, dynamic>.from(
+              data['skillBands'],
+            ).map((key, value) => MapEntry(key, _double(value)))
           : const {},
       weakQuestionTypes: data['weakQuestionTypes'] is Map
           ? Map<String, dynamic>.from(data['weakQuestionTypes'])

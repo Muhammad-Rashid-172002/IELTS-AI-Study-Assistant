@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 class CustomTextFieldName extends StatelessWidget {
@@ -27,12 +26,12 @@ class CustomTextFieldName extends StatelessWidget {
         keyboardType: TextInputType.name,
         decoration: InputDecoration(
           hintText: hintText,
-          hintStyle: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6)),
+          hintStyle: TextStyle(
+            color: theme.colorScheme.onSurface.withOpacity(0.6),
+          ),
           filled: true,
           fillColor: theme.colorScheme.surface,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(5),
-          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(5)),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(5),
             // borderSide: BorderSide(color: theme.dividerColor),

@@ -242,7 +242,6 @@ class _SplashScreenState extends State<SplashScreen>
                       //     letterSpacing: 2.4,
                       //   ),
                       // ),
-
                       SizedBox(
                         height: compactHeight ? 12 : screenHeight * 0.045,
                       ),

@@ -1,5 +1,3 @@
-
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -32,10 +30,7 @@ class AppTheme {
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: Colors.white,
-      hintStyle: TextStyle(
-        color: Colors.grey.shade500,
-        fontSize: 14,
-      ),
+      hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
 
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
 
@@ -76,10 +71,7 @@ class AppTheme {
       style: FilledButton.styleFrom(
         backgroundColor: const Color(0xFF4A79F6),
         foregroundColor: Colors.white,
-        textStyle: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w700,
-        ),
+        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
         padding: const EdgeInsets.symmetric(vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
@@ -88,18 +80,36 @@ class AppTheme {
     // TEXT THEME
     textTheme: TextTheme(
       headlineLarge: GoogleFonts.inter(
-          fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black87),
+        fontSize: 28,
+        fontWeight: FontWeight.bold,
+        color: Colors.black87,
+      ),
       headlineMedium: GoogleFonts.inter(
-          fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87),
+        fontSize: 22,
+        fontWeight: FontWeight.bold,
+        color: Colors.black87,
+      ),
       headlineSmall: GoogleFonts.inter(
-          fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black87),
+        fontSize: 18,
+        fontWeight: FontWeight.w700,
+        color: Colors.black87,
+      ),
 
       bodyLarge: GoogleFonts.inter(
-          fontSize: 16, color: Colors.black87, height: 1.4),
+        fontSize: 16,
+        color: Colors.black87,
+        height: 1.4,
+      ),
       bodyMedium: GoogleFonts.inter(
-          fontSize: 14, color: Colors.black87, height: 1.4),
+        fontSize: 14,
+        color: Colors.black87,
+        height: 1.4,
+      ),
       bodySmall: GoogleFonts.inter(
-          fontSize: 12, color: Colors.black54, height: 1.3),
+        fontSize: 12,
+        color: Colors.black54,
+        height: 1.3,
+      ),
     ),
 
     // ICONS

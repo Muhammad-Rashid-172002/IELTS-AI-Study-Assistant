@@ -9,10 +9,12 @@ import 'package:get/get_navigation/src/root/get_material_app.dart';
 import 'config/keys.dart';
 import 'controller/feedback_controller/feedback_controller.dart';
 import 'firebase_options.dart';
+import 'offline/offline_content_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await OfflineContentService.instance.initialize();
 
   Gemini.init(apiKey: AppKeys.geminiApiKey);
   Get.put(IELTSController(), permanent: true);

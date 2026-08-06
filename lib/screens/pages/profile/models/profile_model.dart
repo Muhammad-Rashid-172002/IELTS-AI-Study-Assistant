@@ -68,8 +68,8 @@ class ProfileModel {
       photoUrl: (data['photoUrl'] ?? '').toString(),
       ieltsType: (data['ieltsType'] ?? 'Academic').toString(),
       educationLevel: (data['educationLevel'] ?? 'University').toString(),
-      subscription:
-          (data['subscriptionPlan'] ?? data['plan'] ?? 'Free').toString(),
+      subscription: (data['subscriptionPlan'] ?? data['plan'] ?? 'Free')
+          .toString(),
       language: (data['language'] ?? 'English').toString(),
       appearance: (data['appearance'] ?? 'System').toString(),
       reminderTime: (data['reminderTime'] ?? '19:00').toString(),
@@ -79,8 +79,9 @@ class ProfileModel {
         _averageBand(skillBands),
       ),
       examDate: date(data['examDate']),
-      subscriptionExpiry:
-          date(data['subscriptionExpiry'] ?? data['premiumExpiry']),
+      subscriptionExpiry: date(
+        data['subscriptionExpiry'] ?? data['premiumExpiry'],
+      ),
       isPremium: data['isPremium'] == true || data['premium'] == true,
       notificationsEnabled: data['notificationsEnabled'] != false,
       dailyReminderEnabled: data['dailyReminderEnabled'] != false,
@@ -101,4 +102,3 @@ class ProfileModel {
     return valid.reduce((a, b) => a + b) / valid.length;
   }
 }
-

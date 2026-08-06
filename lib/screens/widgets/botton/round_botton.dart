@@ -29,10 +29,7 @@ class RoundButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           gradient: LinearGradient(
             colors: isLoading
-                ? [
-                    const Color(0xFF64748B),
-                    const Color(0xFF475569),
-                  ]
+                ? [const Color(0xFF64748B), const Color(0xFF475569)]
                 : [
                     const Color(0xFF2DD4BF),
                     const Color(0xFF14B8A6),

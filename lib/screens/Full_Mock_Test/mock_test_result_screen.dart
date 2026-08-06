@@ -4,24 +4,18 @@ import 'package:fyproject/data/mock_test_repository.dart';
 import 'package:fyproject/models/mock_test_models.dart';
 import 'package:fyproject/screens/pages/certificate/certificate_screen.dart';
 
-
 import 'mock_shared_ui.dart';
 
 class MockTestResultScreen extends StatefulWidget {
   final String attemptId;
 
-  const MockTestResultScreen({
-    super.key,
-    required this.attemptId,
-  });
+  const MockTestResultScreen({super.key, required this.attemptId});
 
   @override
-  State<MockTestResultScreen> createState() =>
-      _MockTestResultScreenState();
+  State<MockTestResultScreen> createState() => _MockTestResultScreenState();
 }
 
-class _MockTestResultScreenState
-    extends State<MockTestResultScreen> {
+class _MockTestResultScreenState extends State<MockTestResultScreen> {
   final _repository = MockTestRepository();
   bool _certificateRequestStarted = false;
   bool _certificateIssued = false;
@@ -67,20 +61,14 @@ class _MockTestResultScreenState
           if (data == null ||
               data['result'] == null ||
               data['status'] == 'submitted') {
-            return _EvaluationWaiting(
-              attemptId: widget.attemptId,
-            );
+            return _EvaluationWaiting(attemptId: widget.attemptId);
           }
 
           return FutureBuilder<MockFinalResult?>(
-            future: _repository.loadFinalResult(
-              widget.attemptId,
-            ),
+            future: _repository.loadFinalResult(widget.attemptId),
             builder: (context, resultSnapshot) {
               if (!resultSnapshot.hasData) {
-                return const Center(
-                  child: CircularProgressIndicator(),
-                );
+                return const Center(child: CircularProgressIndicator());
               }
 
               final result = resultSnapshot.data;
@@ -114,9 +102,7 @@ class _MockTestResultScreenState
 class _EvaluationWaiting extends StatelessWidget {
   final String attemptId;
 
-  const _EvaluationWaiting({
-    required this.attemptId,
-  });
+  const _EvaluationWaiting({required this.attemptId});
 
   @override
   Widget build(BuildContext context) {
@@ -146,10 +132,7 @@ class _EvaluationWaiting extends StatelessWidget {
                 Text(
                   'Raw scores, writing criteria, speaking criteria, strengths, weaknesses and your 7-day plan are being prepared.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: MockColors.secondary,
-                    height: 1.5,
-                  ),
+                  style: TextStyle(color: MockColors.secondary, height: 1.5),
                 ),
               ],
             ),
@@ -164,10 +147,7 @@ class _ResultContent extends StatelessWidget {
   final MockFinalResult result;
   final bool certificateIssued;
 
-  const _ResultContent({
-    required this.result,
-    required this.certificateIssued,
-  });
+  const _ResultContent({required this.result, required this.certificateIssued});
 
   @override
   Widget build(BuildContext context) {
@@ -191,10 +171,7 @@ class _ResultContent extends StatelessWidget {
             const SizedBox(height: 18),
             FilledButton.icon(
               onPressed: () {
-                Navigator.popUntil(
-                  context,
-                  (route) => route.isFirst,
-                );
+                Navigator.popUntil(context, (route) => route.isFirst);
               },
               icon: const Icon(Icons.home_rounded),
               label: const Text('Back to Home'),
@@ -213,10 +190,7 @@ class _ResultContent extends StatelessWidget {
         children: [
           const Text(
             'Overall Estimated Band',
-            style: TextStyle(
-              color: MockColors.muted,
-              fontSize: 10,
-            ),
+            style: TextStyle(color: MockColors.muted, fontSize: 10),
           ),
           const SizedBox(height: 7),
           Text(
@@ -257,10 +231,7 @@ class _ResultContent extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(
-                  skillIcon(skill.skill),
-                  color: MockColors.cyan,
-                ),
+                Icon(skillIcon(skill.skill), color: MockColors.cyan),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -342,10 +313,7 @@ class _ResultContent extends StatelessWidget {
             result.targetGap <= 0
                 ? 'Target achieved.'
                 : 'You need approximately ${result.targetGap.toStringAsFixed(1)} more band points.',
-            style: const TextStyle(
-              color: MockColors.secondary,
-              height: 1.45,
-            ),
+            style: const TextStyle(color: MockColors.secondary, height: 1.45),
           ),
           const SizedBox(height: 10),
           Text(
@@ -376,10 +344,7 @@ class _ResultContent extends StatelessWidget {
             certificateIssued
                 ? 'You completed a Full IELTS Mock Test. Your verified certificate is available in Profile → Certificates.'
                 : 'Your result is complete. Certificate synchronization will retry automatically from Home.',
-            style: const TextStyle(
-              color: MockColors.secondary,
-              height: 1.45,
-            ),
+            style: const TextStyle(color: MockColors.secondary, height: 1.45),
           ),
           if (certificateIssued) ...[
             const SizedBox(height: 12),
@@ -498,10 +463,7 @@ class _BulletList extends StatelessWidget {
   final List<String> items;
   final Color color;
 
-  const _BulletList({
-    required this.items,
-    required this.color,
-  });
+  const _BulletList({required this.items, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -519,11 +481,7 @@ class _BulletList extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                Icons.circle,
-                color: color,
-                size: 8,
-              ),
+              Icon(Icons.circle, color: color, size: 8),
               const SizedBox(width: 7),
               Expanded(
                 child: Text(

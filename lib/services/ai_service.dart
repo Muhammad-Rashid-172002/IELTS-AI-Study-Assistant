@@ -565,29 +565,29 @@ $text
   }
 
   Future<Map<String, dynamic>> analyzeWritingTask1Image(File imageFile) async {
-  final bytes = await imageFile.readAsBytes();
-  final base64Image = base64Encode(bytes);
+    final bytes = await imageFile.readAsBytes();
+    final base64Image = base64Encode(bytes);
 
-  // Retrieve API key from environment to avoid referencing a non-existent getter on Gemini.
-  final apiKey = Platform.environment[AppKeys.geminiApiKey] ?? '';
+    // Retrieve API key from environment to avoid referencing a non-existent getter on Gemini.
+    final apiKey = Platform.environment[AppKeys.geminiApiKey] ?? '';
 
-  if (apiKey.isEmpty) {
-    throw Exception('Missing GEMINI_API_KEY environment variable for Gemini API.');
-  }
+    if (apiKey.isEmpty) {
+      throw Exception(
+        'Missing GEMINI_API_KEY environment variable for Gemini API.',
+      );
+    }
 
-  final response = await http.post(
-    Uri.parse(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey",
-    ),
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: jsonEncode({
-      "contents": [
-        {
-          "parts": [
-            {
-              "text": """
+    final response = await http.post(
+      Uri.parse(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey",
+      ),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({
+        "contents": [
+          {
+            "parts": [
+              {
+                "text": """
 You are an IELTS Writing Task 1 examiner.
 
 Analyze the uploaded chart/graph/table/map/process image.
@@ -601,27 +601,23 @@ Return ONLY valid JSON:
   "overview":"",
   "band9_sample":""
 }
-"""
-            },
-            {
-              "inline_data": {
-                "mime_type": "image/jpeg",
-                "data": base64Image
-              }
-            }
-          ]
-        }
-      ]
-    }),
-  );
+""",
+              },
+              {
+                "inline_data": {"mime_type": "image/jpeg", "data": base64Image},
+              },
+            ],
+          },
+        ],
+      }),
+    );
 
-  final data = jsonDecode(response.body);
+    final data = jsonDecode(response.body);
 
-  final text =
-      data["candidates"][0]["content"]["parts"][0]["text"];
+    final text = data["candidates"][0]["content"]["parts"][0]["text"];
 
-  return jsonDecode(text);
-}
+    return jsonDecode(text);
+  }
 
   // =========================================================
   // IELTS SPEAKING

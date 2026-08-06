@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:fyproject/models/mock_test_models.dart';
 
-
 IconData skillIcon(MockSkill skill) => switch (skill) {
-      MockSkill.listening => Icons.headphones_rounded,
-      MockSkill.reading => Icons.menu_book_rounded,
-      MockSkill.writing => Icons.edit_note_rounded,
-      MockSkill.speaking => Icons.mic_rounded,
-    };
+  MockSkill.listening => Icons.headphones_rounded,
+  MockSkill.reading => Icons.menu_book_rounded,
+  MockSkill.writing => Icons.edit_note_rounded,
+  MockSkill.speaking => Icons.mic_rounded,
+};
 
 class MockColors {
   static const background = Color(0xFF08111F);
@@ -48,9 +47,7 @@ BoxDecoration heroDecoration() {
       ],
     ),
     borderRadius: BorderRadius.circular(22),
-    border: Border.all(
-      color: MockColors.cyan.withOpacity(.22),
-    ),
+    border: Border.all(color: MockColors.cyan.withOpacity(.22)),
   );
 }
 
@@ -78,10 +75,7 @@ class MockBackground extends StatelessWidget {
 class GradientIcon extends StatelessWidget {
   final IconData icon;
 
-  const GradientIcon({
-    super.key,
-    required this.icon,
-  });
+  const GradientIcon({super.key, required this.icon});
 
   @override
   Widget build(BuildContext context) {
@@ -90,11 +84,7 @@ class GradientIcon extends StatelessWidget {
       height: 48,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [
-            MockColors.cyan,
-            MockColors.primary,
-            MockColors.violet,
-          ],
+          colors: [MockColors.cyan, MockColors.primary, MockColors.violet],
         ),
         borderRadius: BorderRadius.circular(15),
       ),
@@ -106,24 +96,16 @@ class GradientIcon extends StatelessWidget {
 class Tag extends StatelessWidget {
   final String label;
 
-  const Tag(
-    this.label, {
-    super.key,
-  });
+  const Tag(this.label, {super.key});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 8,
-        vertical: 5,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: MockColors.cyan.withOpacity(.10),
         borderRadius: BorderRadius.circular(9),
-        border: Border.all(
-          color: MockColors.cyan.withOpacity(.24),
-        ),
+        border: Border.all(color: MockColors.cyan.withOpacity(.24)),
       ),
       child: Text(
         label,
@@ -174,10 +156,7 @@ class StatePanel extends StatelessWidget {
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: MockColors.muted,
-              height: 1.45,
-            ),
+            style: const TextStyle(color: MockColors.muted, height: 1.45),
           ),
         ],
       ),

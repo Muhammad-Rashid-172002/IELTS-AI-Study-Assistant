@@ -4,11 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/mock_test_models.dart';
 
 class MockTestRepository {
-  MockTestRepository({
-    FirebaseFirestore? firestore,
-    FirebaseAuth? auth,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
+  MockTestRepository({FirebaseFirestore? firestore, FirebaseAuth? auth})
+    : _firestore = firestore ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
@@ -19,15 +17,14 @@ class MockTestRepository {
         .where('status', isEqualTo: 'published')
         .snapshots()
         .map((snapshot) {
-      final tests = snapshot.docs
-          .map(PublishedMockTest.fromDocument)
-          .toList();
+          final tests = snapshot.docs
+              .map(PublishedMockTest.fromDocument)
+              .toList();
 
-      tests.sort((a, b) => a.title.compareTo(b.title));
-      return tests;
-    });
+          tests.sort((a, b) => a.title.compareTo(b.title));
+          return tests;
+        });
   }
-
 
   Future<String> createAttempt(MockTestConfig config) async {
     final user = _auth.currentUser;
@@ -79,23 +76,18 @@ class MockTestRepository {
           }).toList();
 
     final allPublished = matchingDocs.map((doc) {
-      return MockQuestion.fromMap(
-        doc.data(),
-        id: doc.id,
-        skill: skill,
-      );
+      return MockQuestion.fromMap(doc.data(), id: doc.id, skill: skill);
     }).toList();
 
-    final exactDifficulty = matchingDocs.where((doc) {
-      return (doc.data()['difficulty'] ?? '').toString() ==
-          config.difficulty;
-    }).map((doc) {
-      return MockQuestion.fromMap(
-        doc.data(),
-        id: doc.id,
-        skill: skill,
-      );
-    }).toList();
+    final exactDifficulty = matchingDocs
+        .where((doc) {
+          return (doc.data()['difficulty'] ?? '').toString() ==
+              config.difficulty;
+        })
+        .map((doc) {
+          return MockQuestion.fromMap(doc.data(), id: doc.id, skill: skill);
+        })
+        .toList();
 
     final source = exactDifficulty.length >= requiredCount
         ? exactDifficulty
@@ -133,10 +125,10 @@ class MockTestRepository {
         .collection('answers')
         .doc('${skill.value}_${answer.questionId}')
         .set({
-      ...answer.toMap(),
-      'skill': skill.value,
-      'attemptId': attemptId,
-    }, SetOptions(merge: true));
+          ...answer.toMap(),
+          'skill': skill.value,
+          'attemptId': attemptId,
+        }, SetOptions(merge: true));
 
     await attemptRef.set({
       'updatedAt': FieldValue.serverTimestamp(),
@@ -160,18 +152,16 @@ class MockTestRepository {
         .collection('mock_attempts')
         .doc(attemptId)
         .set({
-      'currentSkill': skill.value,
-      'currentQuestionIndex': questionIndex,
-      'remainingSeconds': remainingSeconds,
-      'skillTimeSpent': skillTimeSpent,
-      'lastCheckpointAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+          'currentSkill': skill.value,
+          'currentQuestionIndex': questionIndex,
+          'remainingSeconds': remainingSeconds,
+          'skillTimeSpent': skillTimeSpent,
+          'lastCheckpointAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
   }
 
-  Future<Map<String, dynamic>?> loadAttempt(
-    String attemptId,
-  ) async {
+  Future<Map<String, dynamic>?> loadAttempt(String attemptId) async {
     final user = _auth.currentUser;
     if (user == null) return null;
 
@@ -185,9 +175,7 @@ class MockTestRepository {
     return doc.data();
   }
 
-  Future<List<MockAnswer>> loadAnswers(
-    String attemptId,
-  ) async {
+  Future<List<MockAnswer>> loadAnswers(String attemptId) async {
     final user = _auth.currentUser;
     if (user == null) return const [];
 
@@ -259,9 +247,7 @@ class MockTestRepository {
         .snapshots();
   }
 
-  Future<MockFinalResult?> loadFinalResult(
-    String attemptId,
-  ) async {
+  Future<MockFinalResult?> loadFinalResult(String attemptId) async {
     final user = _auth.currentUser;
     if (user == null) return null;
 
@@ -286,10 +272,7 @@ class MockTestRepository {
       final raw = skillsMap[skill.value];
       if (raw is Map) {
         skillResults.add(
-          MockSkillResult.fromMap(
-            Map<String, dynamic>.from(raw),
-            skill,
-          ),
+          MockSkillResult.fromMap(Map<String, dynamic>.from(raw), skill),
         );
       }
     }
@@ -302,18 +285,14 @@ class MockTestRepository {
       skillResults: skillResults,
       strengths: _strings(result['strengths']),
       weaknesses: _strings(result['weaknesses']),
-      suggestedNextMockDate:
-          result['suggestedNextMockDate'] is Timestamp
-              ? (result['suggestedNextMockDate'] as Timestamp)
-                  .toDate()
-              : DateTime.now().add(const Duration(days: 7)),
+      suggestedNextMockDate: result['suggestedNextMockDate'] is Timestamp
+          ? (result['suggestedNextMockDate'] as Timestamp).toDate()
+          : DateTime.now().add(const Duration(days: 7)),
       sevenDayPlan: result['sevenDayPlan'] is List
           ? (result['sevenDayPlan'] as List)
-              .whereType<Map>()
-              .map(
-                (item) => Map<String, dynamic>.from(item),
-              )
-              .toList()
+                .whereType<Map>()
+                .map((item) => Map<String, dynamic>.from(item))
+                .toList()
           : const [],
     );
   }

@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:fyproject/offline/offline_content_service.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:fyproject/screens/content_queue_service.dart';
@@ -124,28 +125,48 @@ class _SpeakingTestBrowserScreenState extends State<SpeakingTestBrowserScreen> {
 
     try {
       final queue = ContentQueueService();
+      final offline = OfflineContentService.instance;
       final completedIds = await queue.completedIds('speaking');
-      final published = await FirebaseFirestore.instance
-          .collection('speaking_tests')
-          .where('status', isEqualTo: 'published')
-          .limit(200)
-          .get();
+      List<SpeakingTest> available;
 
-      final matching = queue.sortPublished(
-        published.docs.where((doc) => doc.data()['mode'] == widget.mode),
-      );
-      final nextDocs = matching
-          .where((doc) => !completedIds.contains(doc.id))
+      try {
+        final published = await FirebaseFirestore.instance
+            .collection('speaking_tests')
+            .where('status', isEqualTo: 'published')
+            .limit(200)
+            .get();
+        await offline.cacheMany(
+          module: 'speaking',
+          items: published.docs.map((doc) => MapEntry(doc.id, doc.data())),
+        );
+        available = published.docs
+            .where((doc) => doc.data()['mode'] == widget.mode)
+            .map(SpeakingTest.fromDocument)
+            .toList();
+      } catch (_) {
+        available = offline
+            .cachedContent(
+              'speaking',
+              where: (data) => data['mode'] == widget.mode,
+            )
+            .map(
+              (data) => SpeakingTest.fromMap(
+                data,
+                id: data['_offlineId']?.toString() ?? '',
+              ),
+            )
+            .toList();
+      }
+
+      available = available
+          .where((test) => !completedIds.contains(test.id))
           .take(1)
           .toList();
 
       if (!mounted) return;
       setState(() {
-        _tests = nextDocs.map(SpeakingTest.fromDocument).toList();
+        _tests = available;
         _loading = false;
-        if (_tests.isEmpty && matching.isNotEmpty) {
-          _error = 'You have completed every available Speaking activity in this mode. New activities will appear after they are published.';
-        }
       });
     } catch (error) {
       if (!mounted) return;
@@ -453,13 +474,38 @@ class _SpeakingSessionScreenState extends State<SpeakingSessionScreen>
           ),
         ),
       );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Speaking submission failed: $error')),
+    } catch (_) {
+      final queuedId = await OfflineContentService.instance
+          .queueSpeakingEvaluation(
+            uid: user.uid,
+            testId: widget.test.id,
+            recordingPath: path,
+            data: {
+              'title': widget.test.title,
+              'mode': widget.test.mode,
+              'part': _part.part,
+              'questionNumber': _question.number,
+              'questionText': _question.question,
+              'notes': _notesController.text.trim(),
+              'durationSeconds': _recordedSeconds,
+              'status': 'pending_ai_evaluation',
+            },
+          );
+      await OfflineContentService.instance.markCompleted(
+        module: 'speaking',
+        contentId: widget.test.id,
+        result: {'status': 'pending_ai_evaluation', 'queueId': queuedId},
       );
-    } finally {
-      if (mounted) setState(() => _uploading = false);
+      if (!mounted) return;
+      setState(() => _uploading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Recording saved offline. AI evaluation will start after reconnecting.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 

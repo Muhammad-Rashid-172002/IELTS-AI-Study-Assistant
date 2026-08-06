@@ -1,6 +1,8 @@
 import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
 import '../models/profile_model.dart';
 
 class ProfileRepository {
@@ -12,110 +14,149 @@ class ProfileRepository {
   final FirebaseAuth _auth;
 
   User get user {
-    final value = _auth.currentUser;
-    if (value == null) throw StateError('User is not signed in.');
-    return value;
+    final currentUser = _auth.currentUser;
+
+    if (currentUser == null) {
+      throw StateError('User is not signed in.');
+    }
+
+    return currentUser;
   }
 
   Stream<ProfileModel> watchProfile() {
-    final current = user;
+    final currentUser = user;
+    final userRef = _db.collection('users').doc(currentUser.uid);
 
-    return _db.collection('users').doc(current.uid).snapshots().asyncMap((
-      doc,
-    ) async {
-      final counts = await Future.wait([
-        _count('saved_tests'),
-        _count('saved_words'),
-        _count('certificates'),
-        _countWhere('lesson_progress', 'completed', true),
-        _countWhere('mock_attempts', 'status', 'completed'),
+    return userRef.snapshots().asyncMap((document) async {
+      final results = await Future.wait<Object>([
+        _safeCount('saved_tests'),
+        _safeCount('saved_words'),
+        _safeCount('certificates'),
+        _safeCountWhere('lesson_progress', 'completed', true),
+        _safeCountWhere('mock_attempts', 'status', 'completed'),
+        _safeSkillBands(),
       ]);
 
-      final skillBands = await _skillBands();
-
-      final availableBands = skillBands.values
-          .where((band) => band > 0 && band <= 9)
+      final skillBands = results[5] as Map<String, double>;
+      final completedBands = skillBands.entries
+          .where((entry) => entry.value > 0 && entry.value <= 9)
           .toList();
 
-      final calculatedBand = availableBands.isEmpty
+      final completedSkillCount = completedBands.length;
+      final missingSkills = skillBands.entries
+          .where((entry) => entry.value <= 0 || entry.value > 9)
+          .map((entry) => entry.key)
+          .toList();
+
+      final provisionalBand = completedBands.isEmpty
           ? 0.0
-          : availableBands.reduce((first, second) => first + second) /
-                availableBands.length;
+          : _roundToNearestHalf(
+              completedBands
+                      .map((entry) => entry.value)
+                      .reduce((first, second) => first + second) /
+                  completedBands.length,
+            );
 
-      final normalizedBand = double.parse(calculatedBand.toStringAsFixed(1));
+      final hasCompleteOverallBand = completedSkillCount == 4;
+      final rawUserData = document.data() ?? <String, dynamic>{};
 
-      final rawUserData = doc.data() ?? <String, dynamic>{};
+      final targetBands = rawUserData['targetBands'] is Map
+          ? Map<String, dynamic>.from(rawUserData['targetBands'] as Map)
+          : <String, dynamic>{};
 
-final targetBands = rawUserData['targetBands'] is Map
-    ? Map<String, dynamic>.from(rawUserData['targetBands'] as Map)
-    : <String, dynamic>{};
+      final resolvedTargetBand = _asDouble(
+        targetBands['overall'] ?? rawUserData['targetBand'],
+        fallback: 7.0,
+      ).clamp(0.5, 9.0).toDouble();
 
-final resolvedTargetBand = _asDouble(
-  targetBands['overall'] ?? rawUserData['targetBand'],
-  fallback: 7.0,
-);
+      final userData = <String, dynamic>{
+        ...rawUserData,
+        'targetBand': resolvedTargetBand,
+        'targetBands': {...targetBands, 'overall': resolvedTargetBand},
+        'estimatedBand': provisionalBand,
+        'currentBand': provisionalBand,
+        'overallBand': provisionalBand,
+        'completedSkillCount': completedSkillCount,
+        'missingSkills': missingSkills,
+        'bandStatus': hasCompleteOverallBand
+            ? 'complete'
+            : completedSkillCount > 0
+            ? 'provisional'
+            : 'not_started',
+      };
 
-     final userData = <String, dynamic>{
-  ...rawUserData,
-
-  // Registration mein selected real target.
-  'targetBand': resolvedTargetBand,
-
-  // Repository-calculated current performance.
-  'estimatedBand': normalizedBand,
-  'currentBand': normalizedBand,
-  'overallBand': normalizedBand,
-};
-
-final syncData = <String, dynamic>{
-  'targetBand': resolvedTargetBand,
-  'targetBands': {
-    'overall': resolvedTargetBand,
-  },
-  'updatedAt': FieldValue.serverTimestamp(),
-};
-
-if (normalizedBand > 0) {
-  syncData.addAll({
-    'estimatedBand': normalizedBand,
-    'currentBand': normalizedBand,
-    'overallBand': normalizedBand,
-    'bandUpdatedAt': FieldValue.serverTimestamp(),
-  });
-}
-
-await doc.reference.set(
-  syncData,
-  SetOptions(merge: true),
-);
+      await _syncCalculatedProfileFields(
+        userRef: userRef,
+        existingData: rawUserData,
+        targetBand: resolvedTargetBand,
+        provisionalBand: provisionalBand,
+        completedSkillCount: completedSkillCount,
+        missingSkills: missingSkills,
+        hasCompleteOverallBand: hasCompleteOverallBand,
+      );
 
       return ProfileModel.fromMap(
-        uid: current.uid,
-        email: current.email ?? '',
+        uid: currentUser.uid,
+        email: currentUser.email ?? '',
         data: userData,
         counts: {
-          'savedTests': counts[0],
-          'savedWords': counts[1],
-          'certificates': counts[2],
-          'completedLessons': counts[3],
-          'completedMocks': counts[4],
+          'savedTests': results[0] as int,
+          'savedWords': results[1] as int,
+          'certificates': results[2] as int,
+          'completedLessons': results[3] as int,
+          'completedMocks': results[4] as int,
         },
         skillBands: skillBands,
       );
     });
   }
 
-double _asDouble(
-  dynamic value, {
-  double fallback = 0,
-}) {
-  if (value is num) return value.toDouble();
+  Future<void> _syncCalculatedProfileFields({
+    required DocumentReference<Map<String, dynamic>> userRef,
+    required Map<String, dynamic> existingData,
+    required double targetBand,
+    required double provisionalBand,
+    required int completedSkillCount,
+    required List<String> missingSkills,
+    required bool hasCompleteOverallBand,
+  }) async {
+    final existingTargetBands = existingData['targetBands'] is Map
+        ? Map<String, dynamic>.from(existingData['targetBands'] as Map)
+        : <String, dynamic>{};
 
-  return double.tryParse(
-        value?.toString().trim() ?? '',
-      ) ??
-      fallback;
-}
+    final existingMissingSkills = _asStringList(existingData['missingSkills']);
+
+    final bandStatus = hasCompleteOverallBand
+        ? 'complete'
+        : completedSkillCount > 0
+        ? 'provisional'
+        : 'not_started';
+
+    final needsSync =
+        _asDouble(existingData['targetBand']) != targetBand ||
+        _asDouble(existingTargetBands['overall']) != targetBand ||
+        _asDouble(existingData['estimatedBand']) != provisionalBand ||
+        _asDouble(existingData['currentBand']) != provisionalBand ||
+        _asDouble(existingData['overallBand']) != provisionalBand ||
+        _asInt(existingData['completedSkillCount']) != completedSkillCount ||
+        !_sameStringList(existingMissingSkills, missingSkills) ||
+        existingData['bandStatus'] != bandStatus;
+
+    if (!needsSync) return;
+
+    await userRef.set({
+      'targetBand': targetBand,
+      'targetBands': {...existingTargetBands, 'overall': targetBand},
+      'estimatedBand': provisionalBand,
+      'currentBand': provisionalBand,
+      'overallBand': provisionalBand,
+      'completedSkillCount': completedSkillCount,
+      'missingSkills': missingSkills,
+      'bandStatus': bandStatus,
+      'bandUpdatedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
 
   Future<void> updateProfile({
     required String name,
@@ -127,13 +168,8 @@ double _asDouble(
     return _db.collection('users').doc(user.uid).set({
       'name': name.trim(),
       'ieltsType': ieltsType,
-
-      // Single current field.
       'targetBand': targetBand,
-
-      // Legacy/Home compatibility.
       'targetBands': {'overall': targetBand},
-
       'examDate': examDate == null ? null : Timestamp.fromDate(examDate),
       'educationLevel': educationLevel,
       'updatedAt': FieldValue.serverTimestamp(),
@@ -160,24 +196,28 @@ double _asDouble(
   Future<String> exportJson() async {
     final userRef = _db.collection('users').doc(user.uid);
     final profile = await userRef.get();
-    final names = [
+
+    const collectionNames = [
       'listening_results',
       'reading_results',
       'writing_results',
-      'speaking',
+      'speaking_results',
       'mock_attempts',
       'lesson_progress',
       'saved_tests',
       'saved_words',
       'certificates',
       'ai_coach_messages',
+      'ai_coach',
     ];
 
     final data = <String, dynamic>{};
-    for (final name in names) {
-      final snapshot = await userRef.collection(name).get();
-      data[name] = snapshot.docs
-          .map((doc) => {'id': doc.id, ..._safeMap(doc.data())})
+
+    for (final collectionName in collectionNames) {
+      final snapshot = await userRef.collection(collectionName).get();
+
+      data[collectionName] = snapshot.docs
+          .map((document) => {'id': document.id, ..._safeMap(document.data())})
           .toList();
     }
 
@@ -192,21 +232,25 @@ double _asDouble(
 
   Future<void> sendPasswordReset() async {
     final email = user.email;
+
     if (email == null || email.isEmpty) {
       throw StateError('No email is linked with this account.');
     }
+
     await _auth.sendPasswordResetEmail(email: email);
   }
 
   Future<void> signOut() => _auth.signOut();
 
   Future<void> deleteAccount() async {
-    final ref = _db.collection('users').doc(user.uid);
-    final names = [
+    final currentUser = user;
+    final userRef = _db.collection('users').doc(currentUser.uid);
+
+    const collectionNames = [
       'listening_results',
       'reading_results',
       'writing_results',
-      'speaking',
+      'speaking_results',
       'mock_attempts',
       'lesson_progress',
       'saved_tests',
@@ -214,25 +258,39 @@ double _asDouble(
       'certificates',
       'ai_coach_messages',
       'ai_coach',
+      'study_sessions',
+      'studyPlans',
+      'diagnosticResults',
     ];
 
-    for (final name in names) {
-      while (true) {
-        final snapshot = await ref.collection(name).limit(400).get();
-        if (snapshot.docs.isEmpty) break;
-
-        final batch = _db.batch();
-        for (final doc in snapshot.docs) {
-          batch.delete(doc.reference);
-        }
-        await batch.commit();
-
-        if (snapshot.docs.length < 400) break;
-      }
+    for (final collectionName in collectionNames) {
+      await _deleteCollectionInBatches(userRef.collection(collectionName));
     }
 
-    await ref.delete();
-    await user.delete();
+    await userRef.delete();
+    await currentUser.delete();
+  }
+
+  Future<void> _deleteCollectionInBatches(
+    CollectionReference<Map<String, dynamic>> collection,
+  ) async {
+    const batchSize = 400;
+
+    while (true) {
+      final snapshot = await collection.limit(batchSize).get();
+
+      if (snapshot.docs.isEmpty) return;
+
+      final batch = _db.batch();
+
+      for (final document in snapshot.docs) {
+        batch.delete(document.reference);
+      }
+
+      await batch.commit();
+
+      if (snapshot.docs.length < batchSize) return;
+    }
   }
 
   Future<int> _safeCount(String name) async {
@@ -266,6 +324,7 @@ double _asDouble(
         .collection(name)
         .count()
         .get();
+
     return result.count ?? 0;
   }
 
@@ -277,42 +336,45 @@ double _asDouble(
         .where(field, isEqualTo: value)
         .count()
         .get();
+
     return result.count ?? 0;
   }
 
   Future<Map<String, double>> _skillBands() async {
-    final collections = {
+    const collections = {
       'Listening': 'listening_results',
       'Reading': 'reading_results',
       'Writing': 'writing_results',
       'Speaking': 'speaking_results',
     };
 
-    final result = <String, double>{};
+    final entries = await Future.wait(
+      collections.entries.map((entry) async {
+        final snapshot = await _db
+            .collection('users')
+            .doc(user.uid)
+            .collection(entry.value)
+            .limit(100)
+            .get();
 
-    for (final entry in collections.entries) {
-      final snapshot = await _db
-          .collection('users')
-          .doc(user.uid)
-          .collection(entry.value)
-          .limit(100)
-          .get();
+        if (snapshot.docs.isEmpty) {
+          return MapEntry(entry.key, 0.0);
+        }
 
-      if (snapshot.docs.isEmpty) {
-        result[entry.key] = 0.0;
-        continue;
-      }
+        final documents = [...snapshot.docs]
+          ..sort(
+            (first, second) =>
+                _resultDate(second.data()).compareTo(_resultDate(first.data())),
+          );
 
-      final documents = [...snapshot.docs]
-        ..sort(
-          (first, second) =>
-              _resultDate(second.data()).compareTo(_resultDate(first.data())),
+        return MapEntry(
+          entry.key,
+          _roundToNearestHalf(_band(documents.first.data()).clamp(0.0, 9.0)),
         );
+      }),
+    );
 
-      result[entry.key] = _band(documents.first.data());
-    }
-
-    return result;
+    return Map<String, double>.fromEntries(entries);
   }
 
   double _band(Map<String, dynamic> data) {
@@ -322,25 +384,42 @@ double _asDouble(
         data['estimatedBand'] ??
         data['scoreBand'];
 
-    if (value is num) return value.toDouble();
-
-    final result = data['result'];
-    if (result is Map) {
-      value = result['overallBand'] ?? result['band'];
-      if (value is num) return value.toDouble();
+    if (value is num) {
+      return value.toDouble();
     }
 
-    return double.tryParse(value?.toString() ?? '') ?? 0;
+    final result = data['result'];
+
+    if (result is Map) {
+      value =
+          result['overallBand'] ?? result['band'] ?? result['estimatedBand'];
+
+      if (value is num) {
+        return value.toDouble();
+      }
+    }
+
+    return double.tryParse(value?.toString().trim() ?? '') ?? 0;
   }
 
   static Map<String, dynamic> _safeMap(Map<String, dynamic> source) {
     dynamic safe(dynamic value) {
-      if (value is Timestamp) return value.toDate().toIso8601String();
-      if (value is DateTime) return value.toIso8601String();
-      if (value is Map) {
-        return value.map((k, v) => MapEntry(k.toString(), safe(v)));
+      if (value is Timestamp) {
+        return value.toDate().toIso8601String();
       }
-      if (value is Iterable) return value.map(safe).toList();
+
+      if (value is DateTime) {
+        return value.toIso8601String();
+      }
+
+      if (value is Map) {
+        return value.map((key, item) => MapEntry(key.toString(), safe(item)));
+      }
+
+      if (value is Iterable) {
+        return value.map(safe).toList();
+      }
+
       return value;
     }
 
@@ -375,5 +454,53 @@ double _asDouble(
     }
 
     return DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  static double _asDouble(dynamic value, {double fallback = 0}) {
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(value?.toString().trim() ?? '') ?? fallback;
+  }
+
+  static int _asInt(dynamic value, {int fallback = 0}) {
+    if (value is num) {
+      return value.round();
+    }
+
+    return int.tryParse(value?.toString().trim() ?? '') ?? fallback;
+  }
+
+  static List<String> _asStringList(dynamic value) {
+    if (value is! Iterable) {
+      return const [];
+    }
+
+    return value
+        .map((item) => item.toString().trim())
+        .where((item) => item.isNotEmpty)
+        .toList();
+  }
+
+  static bool _sameStringList(List<String> first, List<String> second) {
+    if (first.length != second.length) return false;
+
+    final firstSorted = [...first]..sort();
+    final secondSorted = [...second]..sort();
+
+    for (var index = 0; index < firstSorted.length; index++) {
+      if (firstSorted[index] != secondSorted[index]) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  static double _roundToNearestHalf(double value) {
+    if (value <= 0) return 0;
+
+    return (value * 2).round() / 2;
   }
 }

@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:fyproject/offline/offline_content_service.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
@@ -116,10 +118,13 @@ class _ListeningHome extends StatelessWidget {
             child: _WeakTypesCard(types: effectiveWeakTypes),
           ),
         ),
-        const SliverToBoxAdapter(
+        SliverToBoxAdapter(
           child: Padding(
-            padding: EdgeInsets.fromLTRB(18, 18, 18, 0),
-            child: _RecommendedLessonCard(),
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
+            child: _RecommendedLessonCard(
+              weakTypes: effectiveWeakTypes,
+              recentResults: recentResults,
+            ),
           ),
         ),
         const SliverToBoxAdapter(
@@ -392,6 +397,7 @@ class _ListeningTestBrowserScreenState extends State<ListeningTestBrowserScreen>
   }
 
   Future<List<ListeningTest>> _fetchMatchingTests() async {
+    final offline = OfflineContentService.instance;
     try {
       Query<Map<String, dynamic>> query = FirebaseFirestore.instance
           .collection('listening_tests')
@@ -414,24 +420,23 @@ class _ListeningTestBrowserScreenState extends State<ListeningTestBrowserScreen>
       final snapshot = await query
           .limit(widget.mode == ListeningMode.full ? 120 : 40)
           .get();
-
+      await offline.cacheMany(
+        module: 'listening',
+        items: snapshot.docs.map((doc) => MapEntry(doc.id, doc.data())),
+      );
       return snapshot.docs
           .map(ListeningTest.fromDocument)
           .where(_isUsableTest)
           .toList();
-    } on FirebaseException catch (error) {
-      if (error.code != 'failed-precondition') rethrow;
-
-      // Safe fallback while a composite Firestore index is being created.
-      final snapshot = await FirebaseFirestore.instance
-          .collection('listening_tests')
-          .where('status', isEqualTo: 'published')
-          .limit(200)
-          .get();
-
-      return snapshot.docs
-          .where((doc) => _matchesSelection(doc.data()))
-          .map(ListeningTest.fromDocument)
+    } catch (_) {
+      return offline
+          .cachedContent('listening', where: _matchesSelection)
+          .map(
+            (data) => ListeningTest.fromMap(
+              data,
+              id: data['_offlineId']?.toString() ?? '',
+            ),
+          )
           .where(_isUsableTest)
           .toList();
     }
@@ -814,6 +819,11 @@ class _FullListeningPracticeScreenState
   bool _loadingAudio = true;
   bool _autoScroll = false;
   bool _submitting = false;
+  bool _timerStarted = false;
+  bool _audioCached = false;
+  bool _audioCaching = false;
+  bool _audioCacheFailed = false;
+  String? _resolvedAudioUrl;
   String? _audioError;
 
   ListeningTest get _currentTest => _tests[_sectionIndex];
@@ -863,7 +873,6 @@ class _FullListeningPracticeScreenState
     }
 
     _loadCurrentAudio();
-    _startTimer();
   }
 
   @override
@@ -880,6 +889,11 @@ class _FullListeningPracticeScreenState
   }
 
   void _startTimer() {
+    if (_timerStarted || _submitting) return;
+
+    _timerStarted = true;
+    _timer?.cancel();
+
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
 
@@ -898,34 +912,104 @@ class _FullListeningPracticeScreenState
       setState(() {
         _loadingAudio = true;
         _audioError = null;
+        _audioCached = false;
+        _audioCaching = false;
+        _audioCacheFailed = false;
+        _resolvedAudioUrl = null;
       });
     }
 
     try {
       await _player.stop();
+      final offline = OfflineContentService.instance;
+      final localPath = offline.localAudioPath(_currentTest.id);
 
-      String? url = _currentTest.audioUrl;
+      if (localPath != null && localPath.trim().isNotEmpty) {
+        final localFile = File(localPath);
+        if (await localFile.exists() && await localFile.length() > 0) {
+          await _player.setFilePath(localPath);
+          await _player.setVolume(_volume);
+          if (mounted) setState(() => _audioCached = true);
+          return;
+        }
+      }
 
+      if (!offline.isOnline) {
+        throw Exception(
+          'Section ${_currentTest.section} audio is not available offline yet.',
+        );
+      }
+
+      String? url = _currentTest.audioUrl?.trim();
       if ((url == null || url.isEmpty) &&
-          _currentTest.audioStoragePath != null) {
+          _currentTest.audioStoragePath?.trim().isNotEmpty == true) {
         url = await FirebaseStorage.instance
-            .ref(_currentTest.audioStoragePath!)
-            .getDownloadURL();
+            .ref(_currentTest.audioStoragePath!.trim())
+            .getDownloadURL()
+            .timeout(const Duration(seconds: 15));
       }
 
       if (url == null || url.isEmpty) {
         throw Exception(
-          'Section ${_currentTest.section} audio is unavailable.',
+          'Section ${_currentTest.section} audio URL is unavailable.',
         );
       }
 
-      await _player.setUrl(url);
+      _resolvedAudioUrl = url;
+      await _player.setUrl(url).timeout(const Duration(seconds: 25));
       await _player.setVolume(_volume);
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('Full listening audio loading failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
       _audioError = error.toString();
     } finally {
+      if (mounted) setState(() => _loadingAudio = false);
+    }
+  }
+
+  Future<void> _cacheCurrentAudioAfterPlay() async {
+    if (_audioCached || _audioCaching || _resolvedAudioUrl == null) return;
+
+    final offline = OfflineContentService.instance;
+    if (!offline.isOnline) return;
+
+    if (mounted) {
+      setState(() {
+        _audioCaching = true;
+        _audioCacheFailed = false;
+      });
+    }
+
+    try {
+      final path = await offline.cacheRemoteAudio(
+        testId: _currentTest.id,
+        url: _resolvedAudioUrl!,
+      );
+
+      if (path == null || path.trim().isEmpty) {
+        throw Exception('Audio cache did not return a local path.');
+      }
+
+      final file = File(path);
+      if (!await file.exists() || await file.length() <= 0) {
+        throw Exception('Downloaded audio file is missing or empty.');
+      }
+
       if (mounted) {
-        setState(() => _loadingAudio = false);
+        setState(() {
+          _audioCached = true;
+          _audioCaching = false;
+          _audioCacheFailed = false;
+        });
+      }
+    } catch (error, stackTrace) {
+      debugPrint('Full listening audio cache failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (mounted) {
+        setState(() {
+          _audioCaching = false;
+          _audioCacheFailed = true;
+        });
       }
     }
   }
@@ -955,7 +1039,12 @@ class _FullListeningPracticeScreenState
       _playCounts[section] = playCount + 1;
     }
 
+    if (!_timerStarted) {
+      _startTimer();
+    }
+
     await _player.play();
+    unawaited(_cacheCurrentAudioAfterPlay());
 
     if (mounted) setState(() {});
   }
@@ -1089,6 +1178,29 @@ class _FullListeningPracticeScreenState
     );
 
     final user = FirebaseAuth.instance.currentUser;
+    final offlineResult = <String, dynamic>{
+      'testId': combinedTest.id,
+      'testIds': _tests.map((test) => test.id).toList(),
+      'title': combinedTest.title,
+      'mode': 'full',
+      'estimatedBand': result.estimatedBand,
+      'rawScore': result.rawScore,
+      'totalQuestions': result.totalQuestions,
+      'accuracyPercent': result.accuracyPercent,
+      'sectionAccuracy': result.sectionAccuracy,
+      'questionTypeAccuracy': result.questionTypeAccuracy,
+      'spellingMistakes': result.spellingMistakes,
+      'missedKeywords': result.missedKeywords,
+      'durationUsedSeconds': result.durationUsedSeconds,
+      'completedAt': DateTime.now().toIso8601String(),
+    };
+
+    await OfflineContentService.instance.markCompleted(
+      module: 'listening',
+      contentId: combinedTest.id,
+      result: offlineResult,
+      synced: false,
+    );
 
     if (user != null) {
       try {
@@ -1122,8 +1234,19 @@ class _FullListeningPracticeScreenState
           'lastListeningTestAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
+        await OfflineContentService.instance.markCompleted(
+          module: 'listening',
+          contentId: combinedTest.id,
+          result: offlineResult,
+          synced: true,
+        );
       } catch (_) {
-        // Result screen still opens if result persistence temporarily fails.
+        await OfflineContentService.instance.queueFirestoreWrite(
+          operation: 'set',
+          path:
+              'users/${user.uid}/listening_results/offline_${DateTime.now().microsecondsSinceEpoch}',
+          data: offlineResult,
+        );
       }
     }
 
@@ -1197,6 +1320,10 @@ class _FullListeningPracticeScreenState
                   learningMode: false,
                   volume: _volume,
                   speed: 1,
+                  offlineAvailable: _audioCached,
+                  caching: _audioCaching,
+                  cacheFailed: _audioCacheFailed,
+                  online: OfflineContentService.instance.isOnline,
                   onPlay: _togglePlay,
                   onVolumeChanged: (value) async {
                     setState(() => _volume = value);
@@ -1377,6 +1504,11 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen> {
   bool _loadingAudio = true;
   bool _autoScroll = true;
   bool _submitting = false;
+  bool _timerStarted = false;
+  bool _audioCached = false;
+  bool _audioCaching = false;
+  bool _audioCacheFailed = false;
+  String? _resolvedAudioUrl;
   String? _audioError;
 
   bool get _examMode =>
@@ -1396,7 +1528,6 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen> {
     }
 
     _loadAudio();
-    _startTimer();
   }
 
   @override
@@ -1411,30 +1542,115 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen> {
   }
 
   Future<void> _loadAudio() async {
-    try {
-      String? url = widget.test.audioUrl;
+    if (mounted) {
+      setState(() {
+        _loadingAudio = true;
+        _audioError = null;
+        _audioCached = false;
+        _audioCaching = false;
+        _audioCacheFailed = false;
+        _resolvedAudioUrl = null;
+      });
+    }
 
+    try {
+      final offline = OfflineContentService.instance;
+      final localPath = offline.localAudioPath(widget.test.id);
+
+      if (localPath != null && localPath.trim().isNotEmpty) {
+        final localFile = File(localPath);
+        if (await localFile.exists() && await localFile.length() > 0) {
+          await _player.setFilePath(localPath);
+          await _player.setVolume(_volume);
+          if (mounted) setState(() => _audioCached = true);
+          return;
+        }
+      }
+
+      if (!offline.isOnline) {
+        throw Exception(
+          'This listening audio is not available offline yet. Play it once while online so it can be saved.',
+        );
+      }
+
+      String? url = widget.test.audioUrl?.trim();
       if ((url == null || url.isEmpty) &&
-          widget.test.audioStoragePath != null) {
+          widget.test.audioStoragePath?.trim().isNotEmpty == true) {
         url = await FirebaseStorage.instance
-            .ref(widget.test.audioStoragePath!)
-            .getDownloadURL();
+            .ref(widget.test.audioStoragePath!.trim())
+            .getDownloadURL()
+            .timeout(const Duration(seconds: 15));
       }
 
       if (url == null || url.isEmpty) {
-        throw Exception('Audio URL or Storage path is missing.');
+        throw Exception('Audio URL or Firebase Storage path is missing.');
       }
 
-      await _player.setUrl(url);
+      _resolvedAudioUrl = url;
+      await _player.setUrl(url).timeout(const Duration(seconds: 25));
       await _player.setVolume(_volume);
-    } catch (e) {
-      _audioError = e.toString();
+    } catch (error, stackTrace) {
+      debugPrint('Listening audio loading failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      _audioError = error.toString();
     } finally {
       if (mounted) setState(() => _loadingAudio = false);
     }
   }
 
+  Future<void> _cacheAudioAfterPlay() async {
+    if (_audioCached || _audioCaching || _resolvedAudioUrl == null) return;
+
+    final offline = OfflineContentService.instance;
+    if (!offline.isOnline) return;
+
+    if (mounted) {
+      setState(() {
+        _audioCaching = true;
+        _audioCacheFailed = false;
+      });
+    }
+
+    try {
+      final path = await offline.cacheRemoteAudio(
+        testId: widget.test.id,
+        url: _resolvedAudioUrl!,
+      );
+
+      if (path == null || path.trim().isEmpty) {
+        throw Exception('Audio cache did not return a local path.');
+      }
+
+      final file = File(path);
+      if (!await file.exists() || await file.length() <= 0) {
+        throw Exception('Downloaded audio file is missing or empty.');
+      }
+
+      if (mounted) {
+        setState(() {
+          _audioCached = true;
+          _audioCaching = false;
+          _audioCacheFailed = false;
+        });
+      }
+    } catch (error, stackTrace) {
+      debugPrint('Listening audio cache failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (mounted) {
+        setState(() {
+          _audioCaching = false;
+          _audioCacheFailed = true;
+        });
+      }
+    }
+  }
+
   void _startTimer() {
+    if (_timerStarted || _submitting) return;
+
+    _timerStarted = true;
+    _timer?.cancel();
+
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
 
@@ -1472,7 +1688,12 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen> {
       _playCount++;
     }
 
+    if (!_timerStarted) {
+      _startTimer();
+    }
+
     await _player.play();
+    unawaited(_cacheAudioAfterPlay());
     if (mounted) setState(() {});
   }
 
@@ -1503,6 +1724,29 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen> {
     );
 
     final user = FirebaseAuth.instance.currentUser;
+    final offlineResult = <String, dynamic>{
+      'testId': widget.test.id,
+      'title': widget.test.title,
+      'mode': widget.test.mode,
+      'section': widget.test.section,
+      'estimatedBand': result.estimatedBand,
+      'rawScore': result.rawScore,
+      'totalQuestions': result.totalQuestions,
+      'accuracyPercent': result.accuracyPercent,
+      'sectionAccuracy': result.sectionAccuracy,
+      'questionTypeAccuracy': result.questionTypeAccuracy,
+      'spellingMistakes': result.spellingMistakes,
+      'missedKeywords': result.missedKeywords,
+      'durationUsedSeconds': result.durationUsedSeconds,
+      'completedAt': DateTime.now().toIso8601String(),
+    };
+
+    await OfflineContentService.instance.markCompleted(
+      module: 'listening',
+      contentId: widget.test.id,
+      result: offlineResult,
+      synced: false,
+    );
 
     if (user != null) {
       try {
@@ -1534,7 +1778,21 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen> {
           'lastListeningTestAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
-      } catch (_) {}
+
+        await OfflineContentService.instance.markCompleted(
+          module: 'listening',
+          contentId: widget.test.id,
+          result: offlineResult,
+          synced: true,
+        );
+      } catch (_) {
+        await OfflineContentService.instance.queueFirestoreWrite(
+          operation: 'set',
+          path:
+              'users/${user.uid}/listening_results/offline_${DateTime.now().microsecondsSinceEpoch}',
+          data: offlineResult,
+        );
+      }
     }
 
     if (!mounted) return;
@@ -1580,6 +1838,10 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen> {
                   learningMode: _learningMode,
                   volume: _volume,
                   speed: _speed,
+                  offlineAvailable: _audioCached,
+                  caching: _audioCaching,
+                  cacheFailed: _audioCacheFailed,
+                  online: OfflineContentService.instance.isOnline,
                   onPlay: _togglePlay,
                   onVolumeChanged: (value) async {
                     setState(() => _volume = value);
@@ -1799,11 +2061,11 @@ class ListeningTest {
 
   factory ListeningTest.fromDocument(
     QueryDocumentSnapshot<Map<String, dynamic>> doc,
-  ) {
-    final data = doc.data();
+  ) => ListeningTest.fromMap(doc.data(), id: doc.id);
 
+  factory ListeningTest.fromMap(Map<String, dynamic> data, {String id = ''}) {
     return ListeningTest(
-      id: doc.id,
+      id: id,
       title: (data['title'] ?? 'Listening Test').toString(),
       description: (data['description'] ?? '').toString(),
       mode: (data['mode'] ?? 'practice').toString(),
@@ -2371,90 +2633,255 @@ class _WeakTypesCard extends StatelessWidget {
 }
 
 class _RecommendedLessonCard extends StatelessWidget {
-  const _RecommendedLessonCard();
+  final List<String> weakTypes;
+  final List<ListeningRecentResult> recentResults;
+
+  const _RecommendedLessonCard({
+    required this.weakTypes,
+    required this.recentResults,
+  });
+
+  ListeningQuestionType get _recommendedType {
+    final normalizedWeak = weakTypes
+        .map((value) => value.trim().toLowerCase())
+        .where((value) => value.isNotEmpty)
+        .toList();
+
+    for (final type in ListeningQuestionType.values) {
+      final label = type.label.toLowerCase();
+
+      if (normalizedWeak.any(
+        (weak) =>
+            weak == label ||
+            weak.contains(label) ||
+            label.contains(weak),
+      )) {
+        return type;
+      }
+    }
+
+    return ListeningQuestionType.multipleChoice;
+  }
+
+  String _description(ListeningQuestionType type) {
+    switch (type) {
+      case ListeningQuestionType.form:
+        return 'Build accuracy with names, numbers, dates and short factual details.';
+      case ListeningQuestionType.note:
+        return 'Train keyword recognition and complete notes without losing context.';
+      case ListeningQuestionType.table:
+        return 'Improve detail matching across rows, columns and grouped information.';
+      case ListeningQuestionType.flowchart:
+        return 'Follow sequences, processes and transitions more confidently.';
+      case ListeningQuestionType.summary:
+        return 'Identify main ideas and complete summaries with precise wording.';
+      case ListeningQuestionType.multipleChoice:
+        return 'Practice distractor detection, paraphrasing and answer elimination.';
+      case ListeningQuestionType.matching:
+        return 'Connect speakers, opinions and details accurately while listening.';
+      case ListeningQuestionType.map:
+        return 'Master directions, landmarks and location prediction.';
+      case ListeningQuestionType.diagram:
+        return 'Recognize position, structure and labelled visual information.';
+      case ListeningQuestionType.sentence:
+        return 'Complete sentences using grammar, meaning and word-limit clues.';
+      case ListeningQuestionType.shortAnswer:
+        return 'Capture exact details and produce concise answers under time pressure.';
+    }
+  }
+
+  int _estimatedMinutes(ListeningQuestionType type) {
+    switch (type) {
+      case ListeningQuestionType.map:
+      case ListeningQuestionType.diagram:
+      case ListeningQuestionType.flowchart:
+        return 15;
+      case ListeningQuestionType.multipleChoice:
+      case ListeningQuestionType.matching:
+        return 18;
+      default:
+        return 12;
+    }
+  }
+
+  String get _accuracyLabel {
+    if (recentResults.isEmpty) return 'Start your first focused practice';
+
+    final accuracy = recentResults.first.accuracyPercent.clamp(0, 100);
+    return 'Recent accuracy $accuracy%';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final recommendation = _recommendedType;
+    final minutes = _estimatedMinutes(recommendation);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ListeningTestBrowserScreen(
+                questionType: recommendation.label,
+              ),
+            ),
+          );
+        },
+        child: Ink(
+          padding: const EdgeInsets.all(17),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            gradient: LinearGradient(
+              colors: [
+                LColors.green.withValues(alpha: .14),
+                LColors.cyan.withValues(alpha: .07),
+              ],
+            ),
+            border: Border.all(
+              color: LColors.green.withValues(alpha: .22),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: .16),
+                blurRadius: 18,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: LColors.green.withValues(alpha: .13),
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(
+                    color: LColors.green.withValues(alpha: .18),
+                  ),
+                ),
+                child: Icon(
+                  recommendation.icon,
+                  color: LColors.green,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'YOUR NEXT FOCUS',
+                      style: TextStyle(
+                        color: LColors.green,
+                        fontSize: 8.8,
+                        letterSpacing: .8,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      recommendation.label,
+                      style: const TextStyle(
+                        color: LColors.text,
+                        fontSize: 13.8,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _description(recommendation),
+                      style: const TextStyle(
+                        color: LColors.secondary,
+                        fontSize: 9.8,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 9),
+                    Wrap(
+                      spacing: 7,
+                      runSpacing: 6,
+                      children: [
+                        _RecommendationMeta(
+                          icon: Icons.analytics_outlined,
+                          label: _accuracyLabel,
+                        ),
+                        _RecommendationMeta(
+                          icon: Icons.schedule_rounded,
+                          label: '$minutes min',
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: .07),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: .06),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.arrow_forward_rounded,
+                  color: LColors.green,
+                  size: 18,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RecommendationMeta extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _RecommendationMeta({
+    required this.icon,
+    required this.label,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(17),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 8,
+        vertical: 5,
+      ),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        gradient: LinearGradient(
-          colors: [
-            LColors.green.withOpacity(.14),
-            LColors.cyan.withOpacity(.07),
-          ],
+        color: LColors.surface.withValues(alpha: .72),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: LColors.border.withValues(alpha: .9),
         ),
-        border: Border.all(color: LColors.green.withOpacity(.22)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(.16),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
-          ),
-        ],
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: LColors.green.withOpacity(.13),
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: const Icon(
-              Icons.lightbulb_rounded,
-              color: LColors.green,
-              size: 24,
-            ),
+          Icon(
+            icon,
+            color: LColors.green,
+            size: 12,
           ),
-          const SizedBox(width: 13),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'RECOMMENDED FOR YOU',
-                  style: TextStyle(
-                    color: LColors.green,
-                    fontSize: 8.8,
-                    letterSpacing: .8,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                SizedBox(height: 5),
-                Text(
-                  'Map Labelling Essentials',
-                  style: TextStyle(
-                    color: LColors.text,
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Master directions, landmarks and location prediction.',
-                  style: TextStyle(
-                    color: LColors.secondary,
-                    fontSize: 9.8,
-                    height: 1.35,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(.07),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.arrow_forward_rounded,
-              color: LColors.green,
-              size: 18,
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              color: LColors.secondary,
+              fontSize: 8.7,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ],
@@ -2717,56 +3144,56 @@ class _RecentResultCard extends StatelessWidget {
   }
 }
 
-class _TestCard extends StatelessWidget {
-  final ListeningTest test;
-  final VoidCallback onTap;
+// class _TestCard extends StatelessWidget {
+//   final ListeningTest test;
+//   final VoidCallback onTap;
 
-  const _TestCard({required this.test, required this.onTap});
+//   const _TestCard({required this.test, required this.onTap});
 
-  @override
-  Widget build(BuildContext context) {
-    return _TapCard(
-      onTap: onTap,
-      child: Row(
-        children: [
-          const _GradientIcon(icon: Icons.play_circle_outline_rounded),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  test.title,
-                  style: const TextStyle(
-                    color: LColors.text,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  test.description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: LColors.muted, fontSize: 9.8),
-                ),
-                const SizedBox(height: 7),
-                Text(
-                  '${test.questions.length} questions • ${_formatClock(test.durationSeconds)} • ${test.accent}',
-                  style: const TextStyle(
-                    color: LColors.cyan,
-                    fontSize: 8.8,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+//   @override
+//   Widget build(BuildContext context) {
+//     return _TapCard(
+//       onTap: onTap,
+//       child: Row(
+//         children: [
+//           const _GradientIcon(icon: Icons.play_circle_outline_rounded),
+//           const SizedBox(width: 12),
+//           Expanded(
+//             child: Column(
+//               crossAxisAlignment: CrossAxisAlignment.start,
+//               children: [
+//                 Text(
+//                   test.title,
+//                   style: const TextStyle(
+//                     color: LColors.text,
+//                     fontSize: 13,
+//                     fontWeight: FontWeight.w900,
+//                   ),
+//                 ),
+//                 const SizedBox(height: 5),
+//                 Text(
+//                   test.description,
+//                   maxLines: 2,
+//                   overflow: TextOverflow.ellipsis,
+//                   style: const TextStyle(color: LColors.muted, fontSize: 9.8),
+//                 ),
+//                 const SizedBox(height: 7),
+//                 Text(
+//                   '${test.questions.length} questions • ${_formatClock(test.durationSeconds)} • ${test.accent}',
+//                   style: const TextStyle(
+//                     color: LColors.cyan,
+//                     fontSize: 8.8,
+//                     fontWeight: FontWeight.w700,
+//                   ),
+//                 ),
+//               ],
+//             ),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+// }
 
 class _PracticeHeader extends StatelessWidget {
   final String title;
@@ -2862,6 +3289,83 @@ class _PracticeHeader extends StatelessWidget {
   }
 }
 
+class _AudioOfflineStatus extends StatelessWidget {
+  final bool offlineAvailable;
+  final bool caching;
+  final bool cacheFailed;
+  final bool online;
+
+  const _AudioOfflineStatus({
+    required this.offlineAvailable,
+    required this.caching,
+    required this.cacheFailed,
+    required this.online,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    late final IconData icon;
+    late final String label;
+    late final Color color;
+
+    if (offlineAvailable) {
+      icon = Icons.offline_pin_rounded;
+      label = online ? 'Available offline' : 'Playing from device';
+      color = LColors.green;
+    } else if (caching) {
+      icon = Icons.cloud_download_rounded;
+      label = 'Saving for offline use...';
+      color = LColors.cyan;
+    } else if (cacheFailed) {
+      icon = Icons.cloud_off_rounded;
+      label = 'Offline save failed — play again to retry';
+      color = const Color(0xFFF97316);
+    } else if (online) {
+      icon = Icons.cloud_queue_rounded;
+      label = 'Streaming • offline save starts when you press Play';
+      color = LColors.cyan;
+    } else {
+      icon = Icons.signal_wifi_connected_no_internet_4_rounded;
+      label = 'Audio not available offline';
+      color = const Color(0xFFF97316);
+    }
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.09),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(.24)),
+      ),
+      child: Row(
+        children: [
+          if (caching)
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: color),
+            )
+          else
+            Icon(icon, size: 17, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AudioPlayerCard extends StatelessWidget {
   final AudioPlayer player;
   final bool loading;
@@ -2870,6 +3374,10 @@ class _AudioPlayerCard extends StatelessWidget {
   final bool learningMode;
   final double volume;
   final double speed;
+  final bool offlineAvailable;
+  final bool caching;
+  final bool cacheFailed;
+  final bool online;
   final VoidCallback onPlay;
   final ValueChanged<double> onVolumeChanged;
   final ValueChanged<double> onSpeedChanged;
@@ -2882,6 +3390,10 @@ class _AudioPlayerCard extends StatelessWidget {
     required this.learningMode,
     required this.volume,
     required this.speed,
+    required this.offlineAvailable,
+    required this.caching,
+    required this.cacheFailed,
+    required this.online,
     required this.onPlay,
     required this.onVolumeChanged,
     required this.onSpeedChanged,
@@ -2895,6 +3407,13 @@ class _AudioPlayerCard extends StatelessWidget {
       decoration: _heroDecoration(),
       child: Column(
         children: [
+          _AudioOfflineStatus(
+            offlineAvailable: offlineAvailable,
+            caching: caching,
+            cacheFailed: cacheFailed,
+            online: online,
+          ),
+          const SizedBox(height: 10),
           Row(
             children: [
               StreamBuilder<PlayerState>(

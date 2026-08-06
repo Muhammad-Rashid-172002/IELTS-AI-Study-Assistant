@@ -6661,6 +6661,9 @@ exports.askAiCoach = onCall(
 
       const uid = request.auth.uid;
       const message = String(request.data?.message || "").trim();
+      const responseInstruction = String(
+          request.data?.responseInstruction || "",
+      ).trim();
 
       if (!message) {
         throw new HttpsError(
@@ -6684,9 +6687,18 @@ exports.askAiCoach = onCall(
           message,
           profile,
           history,
+          responseInstruction,
         });
 
         const response = await callGeminiCoach(prompt);
+
+        // Final safety cleaning in case Gemini still returns Markdown.
+        const cleanedText = cleanAiCoachResponse(response.text);
+
+        if (!cleanedText) {
+          throw new Error("Gemini returned an empty AI Coach response.");
+        }
+
         const assistantRef = db
             .collection("users")
             .doc(uid)
@@ -6696,12 +6708,19 @@ exports.askAiCoach = onCall(
         await assistantRef.set({
           messageId: assistantRef.id,
           role: "assistant",
-          text: response.text,
-          intent: response.intent,
-          suggestions: response.suggestions,
+          text: cleanedText,
+          intent: String(response.intent || "general"),
+          suggestions: Array.isArray(response.suggestions) ?
+            response.suggestions
+                .map((value) => cleanAiCoachResponse(value))
+                .filter(Boolean)
+                .slice(0, 4) :
+            [],
           profileSnapshot: profile,
-          model: response.model,
+          model: response.model || null,
+          responseFormat: "professional_plain_text",
           createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         });
 
         return {
@@ -6728,6 +6747,25 @@ exports.askAiCoach = onCall(
       }
     },
 );
+function cleanAiCoachResponse(value) {
+  return String(value || "")
+      .replace(/```(?:json|javascript|js|dart|text)?/gi, "")
+      .replace(/```/g, "")
+      .replace(/^#{1,6}\s*/gm, "")
+      .replace(/\*\*([^*]+?)\*\*/g, "$1")
+      .replace(/__([^_]+?)__/g, "$1")
+      .replace(/^\s*\*\s+/gm, "• ")
+      .replace(/^\s*-\s+/gm, "• ")
+      .replace(/^\s*>\s?/gm, "")
+      .replace(/\[([^\]]+)]\([^)]+\)/g, "$1")
+      .replace(/`([^`]+)`/g, "$1")
+      .replace(/(^|[\s([{])\*([^*\n]+?)\*(?=$|[\s.,!?;:)\]}])/gm, "$1$2")
+      .replace(/(^|[\s([{])_([^_\n]+?)_(?=$|[\s.,!?;:)\]}])/gm, "$1$2")
+      .replace(/[\u002A\u0060]/g, "")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+}
 
 exports.refreshAiCoachProfile = onCall(
     {
@@ -7114,10 +7152,68 @@ function buildAiCoachPrompt({
   message,
   profile,
   history,
+  responseInstruction = "",
 }) {
+  const defaultResponseInstruction = `
+You are IELTS AI Coach, a premium and professional IELTS tutor.
+
+STRICT RESPONSE FORMATTING RULES
+
+1. Return plain text inside the JSON "text" field.
+2. Never use Markdown heading symbols such as #, ## or ###.
+3. Never use Markdown emphasis symbols such as **, __ or single *.
+4. Never use Markdown code fences or backticks.
+5. Never use hyphens or stars as bullet markers.
+6. Use the bullet character • for unordered lists.
+7. Use short plain-text section titles written in uppercase.
+8. Keep paragraphs short, clear and easy to scan.
+9. Use British English.
+10. End with one practical next step.
+
+For a speaking cue card, use this plain-text structure:
+
+SPEAKING CUE CARD
+
+Topic:
+A clear speaking topic
+
+YOU SHOULD SAY
+
+• First point
+• Second point
+• Third point
+• Fourth point
+
+BAND IMPROVEMENT TIPS
+
+• First tip
+• Second tip
+• Third tip
+
+PRACTICE STEPS
+
+1. Prepare for one minute.
+2. Speak for one to two minutes.
+3. Review fluency, vocabulary and grammar.
+
+COACH TIP
+
+One personalised improvement tip.
+
+NEXT STEP
+
+One clear action for the learner.
+`;
+
+  const formattingInstruction = responseInstruction.trim() ||
+    defaultResponseInstruction.trim();
+
   return `
 You are an expert IELTS AI Coach inside an IELTS preparation application.
 You are not a generic chatbot.
+
+RESPONSE FORMAT INSTRUCTION
+${formattingInstruction}
 
 USER PROGRESS PROFILE
 ${JSON.stringify(profile, null, 2)}
@@ -7129,40 +7225,40 @@ CURRENT USER MESSAGE
 ${message}
 
 CAPABILITIES
-- Daily study recommendations
-- Explain wrong answers
-- Generate targeted practice
-- Create study plans
-- Explain Writing feedback
-- Explain Speaking feedback
-- Vocabulary practice
-- Motivation
-- Exam strategy
-- Weekly progress review
-- Weakness detection
+• Daily study recommendations
+• Explain wrong answers
+• Generate targeted practice
+• Create study plans
+• Explain Writing feedback
+• Explain Speaking feedback
+• Vocabulary practice
+• Motivation
+• Exam strategy
+• Weekly progress review
+• Weakness detection
 
-RULES
+COACHING RULES
 1. Use the real progress profile whenever it is relevant.
 2. Never invent results that are not present in the profile.
 3. If there is not enough progress data, clearly say so and give a starter plan.
 4. Mention the weakest skill or weak question type when useful.
 5. Give specific and actionable advice.
-6. Do not claim an official IELTS score.
-7. When asked for a study plan, include duration and daily tasks.
-8. When explaining an incorrect answer, explain:
-   - why the chosen answer is wrong
-   - why the correct answer is right
-   - the rule or evidence
-   - one prevention tip
-9. When generating practice, provide a complete task and keep the answer hidden
-   until the user asks for it.
-10. Keep the tone encouraging, professional and concise.
-11. Return JSON only.
+6. Never claim an official IELTS score.
+7. Use terms such as "estimated band" or "likely band".
+8. When asked for a study plan, include duration and daily tasks.
+9. When explaining an incorrect answer, explain why the selected answer is
+   wrong, why the correct answer is right, the supporting rule or evidence,
+   and one prevention tip.
+10. When generating practice, provide a complete task and keep the answer
+    hidden until the learner asks for it.
+11. Keep the tone encouraging, professional and concise.
+12. Follow the response format instruction above.
+13. Return valid JSON only.
 
-Return exactly:
+Return exactly this JSON structure:
 {
   "intent": "daily_recommendation",
-  "text": "Detailed answer",
+  "text": "Professional plain-text answer without Markdown symbols",
   "suggestions": [
     "Start Reading Practice",
     "Review True/False/Not Given"

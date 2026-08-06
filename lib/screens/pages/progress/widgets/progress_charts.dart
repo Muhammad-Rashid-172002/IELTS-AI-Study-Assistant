@@ -34,10 +34,7 @@ class _SkillComparisonPainter extends CustomPainter {
   final Map<String, SkillProgress> skills;
   final double targetBand;
 
-  _SkillComparisonPainter({
-    required this.skills,
-    required this.targetBand,
-  });
+  _SkillComparisonPainter({required this.skills, required this.targetBand});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -53,9 +50,7 @@ class _SkillComparisonPainter extends CustomPainter {
       ..color = ProgressColors.border
       ..strokeWidth = 1;
 
-    final textPainter = TextPainter(
-      textDirection: TextDirection.ltr,
-    );
+    final textPainter = TextPainter(textDirection: TextDirection.ltr);
 
     for (var band = 0; band <= 9; band += 3) {
       final y = top + chartHeight * (1 - band / 9);
@@ -68,20 +63,13 @@ class _SkillComparisonPainter extends CustomPainter {
 
       textPainter.text = TextSpan(
         text: '$band',
-        style: const TextStyle(
-          color: ProgressColors.muted,
-          fontSize: 9,
-        ),
+        style: const TextStyle(color: ProgressColors.muted, fontSize: 9),
       );
       textPainter.layout();
-      textPainter.paint(
-        canvas,
-        Offset(8, y - textPainter.height / 2),
-      );
+      textPainter.paint(canvas, Offset(8, y - textPainter.height / 2));
     }
 
-    final targetY =
-        top + chartHeight * (1 - targetBand.clamp(0, 9) / 9);
+    final targetY = top + chartHeight * (1 - targetBand.clamp(0, 9) / 9);
 
     final targetPaint = Paint()
       ..color = ProgressColors.orange
@@ -103,15 +91,9 @@ class _SkillComparisonPainter extends CustomPainter {
       final entry = items[index];
       final value = entry.value.band.clamp(0, 9);
       final barHeight = chartHeight * value / 9;
-      final x =
-          left + slotWidth * index + (slotWidth - barWidth) / 2;
+      final x = left + slotWidth * index + (slotWidth - barWidth) / 2;
       final rect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(
-          x,
-          top + chartHeight - barHeight,
-          barWidth,
-          barHeight,
-        ),
+        Rect.fromLTWH(x, top + chartHeight - barHeight, barWidth, barHeight),
         const Radius.circular(9),
       );
 
@@ -119,10 +101,7 @@ class _SkillComparisonPainter extends CustomPainter {
         ..shader = const LinearGradient(
           begin: Alignment.bottomCenter,
           end: Alignment.topCenter,
-          colors: [
-            ProgressColors.blue,
-            ProgressColors.cyan,
-          ],
+          colors: [ProgressColors.blue, ProgressColors.cyan],
         ).createShader(rect.outerRect);
 
       canvas.drawRRect(rect, paint);
@@ -165,18 +144,14 @@ class _SkillComparisonPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _SkillComparisonPainter oldDelegate) {
-    return oldDelegate.skills != skills ||
-        oldDelegate.targetBand != targetBand;
+    return oldDelegate.skills != skills || oldDelegate.targetBand != targetBand;
   }
 }
 
 class BandTrendChart extends StatelessWidget {
   final List<SkillBandPoint> points;
 
-  const BandTrendChart({
-    super.key,
-    required this.points,
-  });
+  const BandTrendChart({super.key, required this.points});
 
   @override
   Widget build(BuildContext context) {
@@ -227,8 +202,8 @@ class _BandTrendPainter extends CustomPainter {
       final x = visible.length == 1
           ? padding.left + width / 2
           : padding.left + width * index / (visible.length - 1);
-      final y = padding.top +
-          height * (1 - visible[index].band.clamp(0, 9) / 9);
+      final y =
+          padding.top + height * (1 - visible[index].band.clamp(0, 9) / 9);
 
       if (index == 0) {
         linePath.moveTo(x, y);
@@ -255,14 +230,7 @@ class _BandTrendPainter extends CustomPainter {
           ProgressColors.cyan.withOpacity(.30),
           ProgressColors.cyan.withOpacity(.01),
         ],
-      ).createShader(
-        Rect.fromLTWH(
-          padding.left,
-          padding.top,
-          width,
-          height,
-        ),
-      );
+      ).createShader(Rect.fromLTWH(padding.left, padding.top, width, height));
 
     canvas.drawPath(fillPath, fillPaint);
 
@@ -286,11 +254,7 @@ class ReadinessRing extends StatelessWidget {
   final double value;
   final double size;
 
-  const ReadinessRing({
-    super.key,
-    required this.value,
-    this.size = 112,
-  });
+  const ReadinessRing({super.key, required this.value, this.size = 112});
 
   @override
   Widget build(BuildContext context) {
@@ -313,10 +277,7 @@ class ReadinessRing extends StatelessWidget {
               ),
               const Text(
                 'Ready',
-                style: TextStyle(
-                  color: ProgressColors.muted,
-                  fontSize: 9,
-                ),
+                style: TextStyle(color: ProgressColors.muted, fontSize: 9),
               ),
             ],
           ),

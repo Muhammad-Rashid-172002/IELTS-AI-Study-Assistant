@@ -26,22 +26,12 @@ class _FirePulseIconState extends State<FirePulseIcon>
     _scale = Tween<double>(
       begin: 1,
       end: 1.12,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeInOut,
-      ),
-    );
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
 
     _glow = Tween<double>(
       begin: 10,
       end: 26,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeOut,
-      ),
-    );
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
   }
 
   @override
@@ -80,9 +70,7 @@ class _FirePulseIconState extends State<FirePulseIcon>
 
               boxShadow: [
                 BoxShadow(
-                  color: const Color(
-                    0xFFFF7A00,
-                  ).withOpacity(0.55),
+                  color: const Color(0xFFFF7A00).withOpacity(0.55),
                   blurRadius: _glow.value,
                   spreadRadius: 2,
                 ),

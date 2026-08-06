@@ -78,11 +78,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
         width: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              Color(0xFF08111F),
-              Color(0xFF102A43),
-              Color(0xFF0F766E),
-            ],
+            colors: [Color(0xFF08111F), Color(0xFF102A43), Color(0xFF0F766E)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -127,9 +123,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: Colors.white.withOpacity(0.10),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.15),
-                    ),
+                    border: Border.all(color: Colors.white.withOpacity(0.15)),
                     boxShadow: [
                       BoxShadow(
                         color: const Color(0xFF14B8A6).withOpacity(0.45),
@@ -176,9 +170,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.08),
                     borderRadius: BorderRadius.circular(30),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.12),
-                    ),
+                    border: Border.all(color: Colors.white.withOpacity(0.12)),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.18),
@@ -251,9 +243,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
                     ),
                   ),
                 ),
-                SizedBox(
-                  height: 200,
-                )
+                SizedBox(height: 200),
               ],
             ),
           ),

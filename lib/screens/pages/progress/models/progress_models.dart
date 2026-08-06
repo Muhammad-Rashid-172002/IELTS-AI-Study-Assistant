@@ -4,10 +4,10 @@ enum ProgressPeriod { week, month, all }
 
 extension ProgressPeriodX on ProgressPeriod {
   String get label => switch (this) {
-        ProgressPeriod.week => '7 Days',
-        ProgressPeriod.month => '30 Days',
-        ProgressPeriod.all => 'All Time',
-      };
+    ProgressPeriod.week => '7 Days',
+    ProgressPeriod.month => '30 Days',
+    ProgressPeriod.all => 'All Time',
+  };
 
   DateTime? get startDate {
     final now = DateTime.now();
@@ -24,10 +24,7 @@ class SkillBandPoint {
   final DateTime date;
   final double band;
 
-  const SkillBandPoint({
-    required this.date,
-    required this.band,
-  });
+  const SkillBandPoint({required this.date, required this.band});
 }
 
 class SkillProgress {
@@ -145,11 +142,7 @@ class ProgressDocument {
   ) {
     final data = doc.data() ?? const <String, dynamic>{};
 
-    return ProgressDocument(
-      id: doc.id,
-      data: data,
-      date: _readDate(data),
-    );
+    return ProgressDocument(id: doc.id, data: data, date: _readDate(data));
   }
 
   static DateTime _readDate(Map<String, dynamic> data) {
