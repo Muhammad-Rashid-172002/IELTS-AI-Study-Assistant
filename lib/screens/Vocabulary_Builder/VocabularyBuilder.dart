@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:fyproject/offline/offline_content_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:fyproject/screens/content_queue_service.dart';
@@ -68,23 +69,20 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
                 SliverPadding(
                   padding: const EdgeInsets.symmetric(horizontal: 18),
                   sliver: SliverGrid(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final tool = VTool.values[index];
-                        return _ToolCard(
-                          tool: tool,
-                          onTap: () => _openTool(tool),
-                        );
-                      },
-                      childCount: VTool.values.length,
-                    ),
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final tool = VTool.values[index];
+                      return _ToolCard(
+                        tool: tool,
+                        onTap: () => _openTool(tool),
+                      );
+                    }, childCount: VTool.values.length),
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 11,
-                      crossAxisSpacing: 11,
-                      childAspectRatio: 1.2,
-                    ),
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 11,
+                          crossAxisSpacing: 11,
+                          childAspectRatio: 1.2,
+                        ),
                   ),
                 ),
                 const SliverToBoxAdapter(
@@ -145,7 +143,8 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
                         return const _StateView(
                           icon: Icons.error_outline_rounded,
                           title: 'Vocabulary load nahi hui',
-                          subtitle: 'Firestore rules aur collection check karein.',
+                          subtitle:
+                              'Firestore rules aur collection check karein.',
                         );
                       }
                       if (!snapshot.hasData) {
@@ -164,7 +163,8 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
                         return const _StateView(
                           icon: Icons.search_off_rounded,
                           title: 'No new vocabulary available',
-                          subtitle: 'Completed words are hidden. New words will appear when the administrator publishes them.',
+                          subtitle:
+                              'Completed words are hidden. New words will appear when the administrator publishes them.',
                         );
                       }
 
@@ -173,8 +173,7 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
                         physics: const NeverScrollableScrollPhysics(),
                         padding: const EdgeInsets.fromLTRB(18, 0, 18, 110),
                         itemCount: words.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: 10),
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
                         itemBuilder: (context, index) {
                           final word = words[index];
                           return _WordCard(
@@ -182,7 +181,8 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
                             onTap: () => Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => VocabularyWordScreen(word: word),
+                                builder: (_) =>
+                                    VocabularyWordScreen(word: word),
                               ),
                             ),
                           );
@@ -223,10 +223,7 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
                     SizedBox(height: 3),
                     Text(
                       'Build precise vocabulary for every IELTS module',
-                      style: TextStyle(
-                        color: VColors.muted,
-                        fontSize: 10.5,
-                      ),
+                      style: TextStyle(color: VColors.muted, fontSize: 10.5),
                     ),
                   ],
                 ),
@@ -258,17 +255,17 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
       VTool.match => const MatchWordsScreen(),
       VTool.sentence => const SentenceCompletionScreen(),
       VTool.learned => const WordCollectionScreen(
-          title: 'Learned Words',
-          filter: 'learned',
-        ),
+        title: 'Learned Words',
+        filter: 'learned',
+      ),
       VTool.mastered => const WordCollectionScreen(
-          title: 'Mastered Words',
-          filter: 'mastered',
-        ),
+        title: 'Mastered Words',
+        filter: 'mastered',
+      ),
       VTool.saved => const WordCollectionScreen(
-          title: 'Saved Words',
-          filter: 'saved',
-        ),
+        title: 'Saved Words',
+        filter: 'saved',
+      ),
     };
 
     Navigator.push(context, MaterialPageRoute(builder: (_) => page));
@@ -278,14 +275,10 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
 class VocabularyWordScreen extends StatefulWidget {
   final VWord word;
 
-  const VocabularyWordScreen({
-    super.key,
-    required this.word,
-  });
+  const VocabularyWordScreen({super.key, required this.word});
 
   @override
-  State<VocabularyWordScreen> createState() =>
-      _VocabularyWordScreenState();
+  State<VocabularyWordScreen> createState() => _VocabularyWordScreenState();
 }
 
 class _VocabularyWordScreenState extends State<VocabularyWordScreen> {
@@ -403,11 +396,7 @@ class _VocabularyWordScreenState extends State<VocabularyWordScreen> {
                 items: widget.word.collocations,
               ),
               const SizedBox(height: 12),
-              _Detail(
-                'IELTS Topic',
-                Icons.topic_outlined,
-                widget.word.topic,
-              ),
+              _Detail('IELTS Topic', Icons.topic_outlined, widget.word.topic),
               if (uid != null) ...[
                 const SizedBox(height: 16),
                 StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
@@ -427,11 +416,8 @@ class _VocabularyWordScreenState extends State<VocabularyWordScreen> {
                         SizedBox(
                           width: double.infinity,
                           child: FilledButton.icon(
-                            onPressed: () => _repo.toggleSaved(
-                              uid,
-                              widget.word,
-                              !saved,
-                            ),
+                            onPressed: () =>
+                                _repo.toggleSaved(uid, widget.word, !saved),
                             icon: Icon(
                               saved
                                   ? Icons.bookmark_rounded
@@ -537,132 +523,121 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
       child: loading
           ? const Center(child: CircularProgressIndicator())
           : words.isEmpty
-              ? const _StateView(
-                  icon: Icons.style_outlined,
-                  title: 'No review words',
-                  subtitle: 'Save or learn some words first.',
-                )
-              : Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
+          ? const _StateView(
+              icon: Icons.style_outlined,
+              title: 'No review words',
+              subtitle: 'Save or learn some words first.',
+            )
+          : Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                children: [
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          Text(
-                            '${index + 1}/${words.length}',
-                            style: const TextStyle(color: VColors.muted),
-                          ),
-                          const Spacer(),
-                          const _Badge('SPACED REPETITION'),
-                        ],
+                      Text(
+                        '${index + 1}/${words.length}',
+                        style: const TextStyle(color: VColors.muted),
                       ),
-                      const SizedBox(height: 15),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () =>
-                              setState(() => showAnswer = !showAnswer),
-                          child: Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(24),
-                            decoration: heroDecoration(),
-                            child: showAnswer
-                                ? ListView(
-                                    children: [
-                                      Text(
-                                        words[index].word,
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(
-                                          color: VColors.text,
-                                          fontSize: 28,
-                                          fontWeight: FontWeight.w900,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 18),
-                                      _MiniPanel(
-                                        'Meaning',
-                                        words[index].meaning,
-                                      ),
-                                      _MiniPanel(
-                                        'Example',
-                                        words[index].example,
-                                      ),
-                                      _MiniPanel(
-                                        'Synonyms',
-                                        words[index].synonyms.join(', '),
-                                      ),
-                                    ],
-                                  )
-                                : Column(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        words[index].word,
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(
-                                          color: VColors.text,
-                                          fontSize: 34,
-                                          fontWeight: FontWeight.w900,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 9),
-                                      Text(
-                                        words[index].pronunciation,
-                                        style: const TextStyle(
-                                          color: VColors.cyan,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 18),
-                                      const Text(
-                                        'Tap to show the answer',
-                                        style: TextStyle(
-                                          color: VColors.muted,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      if (showAnswer)
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () => _rate(1),
-                                child: const Text('Again'),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () => _rate(3),
-                                child: const Text('Good'),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: FilledButton(
-                                onPressed: () => _rate(5),
-                                child: const Text('Easy'),
-                              ),
-                            ),
-                          ],
-                        )
-                      else
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton(
-                            onPressed: () =>
-                                setState(() => showAnswer = true),
-                            child: const Text('Show Answer'),
-                          ),
-                        ),
+                      const Spacer(),
+                      const _Badge('SPACED REPETITION'),
                     ],
                   ),
-                ),
+                  const SizedBox(height: 15),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => showAnswer = !showAnswer),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(24),
+                        decoration: heroDecoration(),
+                        child: showAnswer
+                            ? ListView(
+                                children: [
+                                  Text(
+                                    words[index].word,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: VColors.text,
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 18),
+                                  _MiniPanel('Meaning', words[index].meaning),
+                                  _MiniPanel('Example', words[index].example),
+                                  _MiniPanel(
+                                    'Synonyms',
+                                    words[index].synonyms.join(', '),
+                                  ),
+                                ],
+                              )
+                            : Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    words[index].word,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: VColors.text,
+                                      fontSize: 34,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 9),
+                                  Text(
+                                    words[index].pronunciation,
+                                    style: const TextStyle(
+                                      color: VColors.cyan,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 18),
+                                  const Text(
+                                    'Tap to show the answer',
+                                    style: TextStyle(color: VColors.muted),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  if (showAnswer)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => _rate(1),
+                            child: const Text('Again'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => _rate(3),
+                            child: const Text('Good'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () => _rate(5),
+                            child: const Text('Easy'),
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () => setState(() => showAnswer = true),
+                        child: const Text('Show Answer'),
+                      ),
+                    ),
+                ],
+              ),
+            ),
     );
   }
 }
@@ -690,9 +665,9 @@ class DailyWordsScreen extends StatelessWidget {
             );
           }
 
-          final seed = DateTime.now().difference(
-                DateTime(DateTime.now().year, 1, 1),
-              ).inDays;
+          final seed = DateTime.now()
+              .difference(DateTime(DateTime.now().year, 1, 1))
+              .inDays;
           final count = math.min(5, all.length);
           final words = List.generate(
             count,
@@ -752,18 +727,14 @@ class _MultipleChoicePractice extends StatefulWidget {
   final String title;
   final PracticeMode mode;
 
-  const _MultipleChoicePractice({
-    required this.title,
-    required this.mode,
-  });
+  const _MultipleChoicePractice({required this.title, required this.mode});
 
   @override
   State<_MultipleChoicePractice> createState() =>
       _MultipleChoicePracticeState();
 }
 
-class _MultipleChoicePracticeState
-    extends State<_MultipleChoicePractice> {
+class _MultipleChoicePracticeState extends State<_MultipleChoicePractice> {
   List<VWord> words = [];
   int index = 0;
   int score = 0;
@@ -810,10 +781,7 @@ class _MultipleChoicePracticeState
       return current.word;
     }
 
-    final pattern = RegExp(
-      RegExp.escape(current.word),
-      caseSensitive: false,
-    );
+    final pattern = RegExp(RegExp.escape(current.word), caseSensitive: false);
     return current.example.replaceAll(pattern, '________');
   }
 
@@ -876,79 +844,79 @@ class _MultipleChoicePracticeState
       child: loading
           ? const Center(child: CircularProgressIndicator())
           : words.length < 4
-              ? const _StateView(
-                  icon: Icons.quiz_outlined,
-                  title: 'Not enough words',
-                  subtitle: 'At least four published words are required.',
-                )
-              : ListView(
-                  padding: const EdgeInsets.all(18),
+          ? const _StateView(
+              icon: Icons.quiz_outlined,
+              title: 'Not enough words',
+              subtitle: 'At least four published words are required.',
+            )
+          : ListView(
+              padding: const EdgeInsets.all(18),
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        Text(
-                          '${index + 1}/${words.length}',
-                          style: const TextStyle(color: VColors.muted),
-                        ),
-                        const Spacer(),
-                        _Badge('Score $score'),
-                      ],
+                    Text(
+                      '${index + 1}/${words.length}',
+                      style: const TextStyle(color: VColors.muted),
                     ),
-                    const SizedBox(height: 18),
-                    Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: heroDecoration(),
-                      child: Text(
-                        prompt,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: VColors.text,
-                          fontSize: 22,
-                          height: 1.55,
-                          fontWeight: FontWeight.w900,
+                    const Spacer(),
+                    _Badge('Score $score'),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: heroDecoration(),
+                  child: Text(
+                    prompt,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: VColors.text,
+                      fontSize: 22,
+                      height: 1.55,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                ...options.map((option) {
+                  final correct = option == correctAnswer;
+                  final active = option == selected;
+                  var border = VColors.border;
+                  var background = VColors.surface;
+
+                  if (selected != null && correct) {
+                    border = VColors.green;
+                    background = VColors.green.withOpacity(.1);
+                  } else if (active && !correct) {
+                    border = Colors.redAccent;
+                    background = Colors.redAccent.withOpacity(.1);
+                  }
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 9),
+                    child: InkWell(
+                      onTap: () => _answer(option),
+                      borderRadius: BorderRadius.circular(15),
+                      child: Container(
+                        padding: const EdgeInsets.all(15),
+                        decoration: BoxDecoration(
+                          color: background,
+                          borderRadius: BorderRadius.circular(15),
+                          border: Border.all(color: border),
+                        ),
+                        child: Text(
+                          option,
+                          style: const TextStyle(
+                            color: VColors.text,
+                            height: 1.45,
+                          ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 18),
-                    ...options.map((option) {
-                      final correct = option == correctAnswer;
-                      final active = option == selected;
-                      var border = VColors.border;
-                      var background = VColors.surface;
-
-                      if (selected != null && correct) {
-                        border = VColors.green;
-                        background = VColors.green.withOpacity(.1);
-                      } else if (active && !correct) {
-                        border = Colors.redAccent;
-                        background = Colors.redAccent.withOpacity(.1);
-                      }
-
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 9),
-                        child: InkWell(
-                          onTap: () => _answer(option),
-                          borderRadius: BorderRadius.circular(15),
-                          child: Container(
-                            padding: const EdgeInsets.all(15),
-                            decoration: BoxDecoration(
-                              color: background,
-                              borderRadius: BorderRadius.circular(15),
-                              border: Border.all(color: border),
-                            ),
-                            child: Text(
-                              option,
-                              style: const TextStyle(
-                                color: VColors.text,
-                                height: 1.45,
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
-                  ],
-                ),
+                  );
+                }),
+              ],
+            ),
     );
   }
 }
@@ -1029,81 +997,81 @@ class _SpellingQuizScreenState extends State<SpellingQuizScreen> {
       child: loading
           ? const Center(child: CircularProgressIndicator())
           : words.isEmpty
-              ? const _StateView(
-                  icon: Icons.hearing_outlined,
-                  title: 'No words available',
-                  subtitle: 'Publish vocabulary words first.',
-                )
-              : ListView(
-                  padding: const EdgeInsets.all(18),
+          ? const _StateView(
+              icon: Icons.hearing_outlined,
+              title: 'No words available',
+              subtitle: 'Publish vocabulary words first.',
+            )
+          : ListView(
+              padding: const EdgeInsets.all(18),
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        Text(
-                          '${index + 1}/${words.length}',
-                          style: const TextStyle(color: VColors.muted),
-                        ),
-                        const Spacer(),
-                        _Badge('Score $score'),
-                      ],
+                    Text(
+                      '${index + 1}/${words.length}',
+                      style: const TextStyle(color: VColors.muted),
                     ),
-                    const SizedBox(height: 20),
-                    Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: heroDecoration(),
-                      child: Column(
-                        children: [
-                          const Text(
-                            'Listen and type the word',
-                            style: TextStyle(color: VColors.secondary),
-                          ),
-                          const SizedBox(height: 18),
-                          IconButton.filled(
-                            onPressed: _play,
-                            iconSize: 34,
-                            icon: const Icon(Icons.volume_up_rounded),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            words[index].meaning,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: VColors.muted,
-                              fontSize: 10.5,
-                            ),
-                          ),
-                        ],
+                    const Spacer(),
+                    _Badge('Score $score'),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: heroDecoration(),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Listen and type the word',
+                        style: TextStyle(color: VColors.secondary),
                       ),
-                    ),
-                    const SizedBox(height: 18),
-                    TextField(
-                      controller: answer,
-                      onSubmitted: (_) => _check(),
-                      decoration: const InputDecoration(
-                        labelText: 'Type the spelling',
-                        prefixIcon: Icon(Icons.spellcheck_rounded),
+                      const SizedBox(height: 18),
+                      IconButton.filled(
+                        onPressed: _play,
+                        iconSize: 34,
+                        icon: const Icon(Icons.volume_up_rounded),
                       ),
-                    ),
-                    if (feedback != null) ...[
-                      const SizedBox(height: 11),
+                      const SizedBox(height: 12),
                       Text(
-                        feedback!,
+                        words[index].meaning,
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: feedback == 'Correct'
-                              ? VColors.green
-                              : VColors.warning,
-                          fontWeight: FontWeight.w900,
+                        style: const TextStyle(
+                          color: VColors.muted,
+                          fontSize: 10.5,
                         ),
                       ),
                     ],
-                    const SizedBox(height: 14),
-                    FilledButton(
-                      onPressed: feedback == null ? _check : null,
-                      child: const Text('Check Spelling'),
-                    ),
-                  ],
+                  ),
                 ),
+                const SizedBox(height: 18),
+                TextField(
+                  controller: answer,
+                  onSubmitted: (_) => _check(),
+                  decoration: const InputDecoration(
+                    labelText: 'Type the spelling',
+                    prefixIcon: Icon(Icons.spellcheck_rounded),
+                  ),
+                ),
+                if (feedback != null) ...[
+                  const SizedBox(height: 11),
+                  Text(
+                    feedback!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: feedback == 'Correct'
+                          ? VColors.green
+                          : VColors.warning,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                FilledButton(
+                  onPressed: feedback == null ? _check : null,
+                  child: const Text('Check Spelling'),
+                ),
+              ],
+            ),
     );
   }
 }
@@ -1165,70 +1133,70 @@ class _MatchWordsScreenState extends State<MatchWordsScreen> {
       child: loading
           ? const Center(child: CircularProgressIndicator())
           : words.isEmpty
-              ? const _StateView(
-                  icon: Icons.compare_arrows_rounded,
-                  title: 'No words available',
-                  subtitle: 'Publish vocabulary words first.',
-                )
-              : ListView(
-                  padding: const EdgeInsets.all(18),
+          ? const _StateView(
+              icon: Icons.compare_arrows_rounded,
+              title: 'No words available',
+              subtitle: 'Publish vocabulary words first.',
+            )
+          : ListView(
+              padding: const EdgeInsets.all(18),
+              children: [
+                const _SectionLabel(
+                  title: 'Match words with meanings',
+                  subtitle: 'Select one item from each side',
+                ),
+                const SizedBox(height: 15),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const _SectionLabel(
-                      title: 'Match words with meanings',
-                      subtitle: 'Select one item from each side',
+                    Expanded(
+                      child: Column(
+                        children: words.map((word) {
+                          return _MatchTile(
+                            text: word.word,
+                            selected: selectedWord == word.id,
+                            matched: matched.contains(word.id),
+                            onTap: matched.contains(word.id)
+                                ? null
+                                : () {
+                                    setState(() {
+                                      selectedWord = word.id;
+                                    });
+                                    _check();
+                                  },
+                          );
+                        }).toList(),
+                      ),
                     ),
-                    const SizedBox(height: 15),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            children: words.map((word) {
-                              return _MatchTile(
-                                text: word.word,
-                                selected: selectedWord == word.id,
-                                matched: matched.contains(word.id),
-                                onTap: matched.contains(word.id)
-                                    ? null
-                                    : () {
-                                        setState(() {
-                                          selectedWord = word.id;
-                                        });
-                                        _check();
-                                      },
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                        const SizedBox(width: 9),
-                        Expanded(
-                          child: Column(
-                            children: meanings.map((meaning) {
-                              final isMatched = words.any(
-                                (word) =>
-                                    word.meaning == meaning &&
-                                    matched.contains(word.id),
-                              );
-                              return _MatchTile(
-                                text: meaning,
-                                selected: selectedMeaning == meaning,
-                                matched: isMatched,
-                                onTap: isMatched
-                                    ? null
-                                    : () {
-                                        setState(() {
-                                          selectedMeaning = meaning;
-                                        });
-                                        _check();
-                                      },
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      ],
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Column(
+                        children: meanings.map((meaning) {
+                          final isMatched = words.any(
+                            (word) =>
+                                word.meaning == meaning &&
+                                matched.contains(word.id),
+                          );
+                          return _MatchTile(
+                            text: meaning,
+                            selected: selectedMeaning == meaning,
+                            matched: isMatched,
+                            onTap: isMatched
+                                ? null
+                                : () {
+                                    setState(() {
+                                      selectedMeaning = meaning;
+                                    });
+                                    _check();
+                                  },
+                          );
+                        }).toList(),
+                      ),
                     ),
                   ],
                 ),
+              ],
+            ),
     );
   }
 }
@@ -1333,13 +1301,28 @@ class VocabularyRepository {
   }
 
   Future<List<VWord>> loadWords() async {
-    final snapshot = await db
-        .collection('vocabulary_words')
-        .where('status', isEqualTo: 'published')
-        .limit(300)
-        .get();
-
-    return snapshot.docs.map(VWord.fromDocument).toList();
+    final offline = OfflineContentService.instance;
+    try {
+      final snapshot = await db
+          .collection('vocabulary_words')
+          .where('status', isEqualTo: 'published')
+          .limit(300)
+          .get();
+      await offline.cacheMany(
+        module: 'vocabulary',
+        items: snapshot.docs.map((doc) => MapEntry(doc.id, doc.data())),
+      );
+      return snapshot.docs.map(VWord.fromDocument).toList();
+    } catch (_) {
+      return offline
+          .cachedContent('vocabulary')
+          .map(
+            (data) =>
+                VWord.fromMap(data, id: data['_offlineId']?.toString() ?? ''),
+          )
+          .where((word) => word.word.isNotEmpty)
+          .toList();
+    }
   }
 
   Future<List<VWord>> loadReviewWords() async {
@@ -1357,16 +1340,20 @@ class VocabularyRepository {
         .get();
 
     final now = DateTime.now();
-    final due = progress.docs.where((doc) {
-      final value = doc.data()['nextReviewAt'];
-      return value is! Timestamp || value.toDate().isBefore(now);
-    }).map((doc) {
-      final data = doc.data()['wordData'];
-      return VWord.fromMap(
-        data is Map ? Map<String, dynamic>.from(data) : {},
-        id: doc.id,
-      );
-    }).where((word) => word.word.isNotEmpty).toList();
+    final due = progress.docs
+        .where((doc) {
+          final value = doc.data()['nextReviewAt'];
+          return value is! Timestamp || value.toDate().isBefore(now);
+        })
+        .map((doc) {
+          final data = doc.data()['wordData'];
+          return VWord.fromMap(
+            data is Map ? Map<String, dynamic>.from(data) : {},
+            id: doc.id,
+          );
+        })
+        .where((word) => word.word.isNotEmpty)
+        .toList();
 
     if (due.isNotEmpty) return due;
 
@@ -1375,11 +1362,7 @@ class VocabularyRepository {
     return words.take(20).toList();
   }
 
-  Future<void> toggleSaved(
-    String uid,
-    VWord word,
-    bool save,
-  ) {
+  Future<void> toggleSaved(String uid, VWord word, bool save) {
     return _progress(uid, word).set({
       'wordId': word.id,
       'wordData': word.toMap(),
@@ -1390,12 +1373,7 @@ class VocabularyRepository {
     }, SetOptions(merge: true));
   }
 
-  Future<void> markStatus(
-    String uid,
-    VWord word,
-    String status,
-    int days,
-  ) {
+  Future<void> markStatus(String uid, VWord word, String status, int days) {
     return _progress(uid, word).set({
       'wordId': word.id,
       'wordData': word.toMap(),
@@ -1419,8 +1397,8 @@ class VocabularyRepository {
     final next = rating <= 1
         ? 1
         : rating <= 3
-            ? math.max(2, previous * 2)
-            : math.max(7, previous * 3);
+        ? math.max(2, previous * 2)
+        : math.max(7, previous * 3);
 
     await ref.set({
       'wordId': word.id,
@@ -1438,10 +1416,7 @@ class VocabularyRepository {
     }, SetOptions(merge: true));
   }
 
-  DocumentReference<Map<String, dynamic>> _progress(
-    String uid,
-    VWord word,
-  ) {
+  DocumentReference<Map<String, dynamic>> _progress(String uid, VWord word) {
     return db
         .collection('users')
         .doc(uid)
@@ -1484,16 +1459,11 @@ class VWord {
     required this.band,
   });
 
-  factory VWord.fromDocument(
-    QueryDocumentSnapshot<Map<String, dynamic>> doc,
-  ) {
+  factory VWord.fromDocument(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     return VWord.fromMap(doc.data(), id: doc.id);
   }
 
-  factory VWord.fromMap(
-    Map<String, dynamic> data, {
-    String id = '',
-  }) {
+  factory VWord.fromMap(Map<String, dynamic> data, {String id = ''}) {
     return VWord(
       id: id,
       word: (data['word'] ?? '').toString(),
@@ -1511,32 +1481,32 @@ class VWord {
   }
 
   String get searchText => [
-        word,
-        meaning,
-        translation,
-        pronunciation,
-        partOfSpeech,
-        example,
-        topic,
-        category,
-        band,
-        ...synonyms,
-        ...collocations,
-      ].join(' ').toLowerCase();
+    word,
+    meaning,
+    translation,
+    pronunciation,
+    partOfSpeech,
+    example,
+    topic,
+    category,
+    band,
+    ...synonyms,
+    ...collocations,
+  ].join(' ').toLowerCase();
 
   Map<String, dynamic> toMap() => {
-        'word': word,
-        'meaning': meaning,
-        'translation': translation,
-        'pronunciation': pronunciation,
-        'partOfSpeech': partOfSpeech,
-        'exampleSentence': example,
-        'synonyms': synonyms,
-        'collocations': collocations,
-        'topic': topic,
-        'category': category,
-        'band': band,
-      };
+    'word': word,
+    'meaning': meaning,
+    'translation': translation,
+    'pronunciation': pronunciation,
+    'partOfSpeech': partOfSpeech,
+    'exampleSentence': example,
+    'synonyms': synonyms,
+    'collocations': collocations,
+    'topic': topic,
+    'category': category,
+    'band': band,
+  };
 
   static List<String> _strings(dynamic value) {
     if (value is! List) return const [];
@@ -1557,11 +1527,31 @@ enum VTool {
   daily('Daily Words', 'Learn five words every day', Icons.today_outlined),
   quiz('Vocabulary Quiz', 'Choose the correct meaning', Icons.quiz_outlined),
   spelling('Spelling Quiz', 'Listen and type words', Icons.hearing_outlined),
-  match('Match Words', 'Connect words and meanings', Icons.compare_arrows_rounded),
-  sentence('Sentence Completion', 'Choose the correct word', Icons.short_text_rounded),
-  learned('Learned Words', 'Words currently in progress', Icons.check_circle_outline_rounded),
-  mastered('Mastered Words', 'Vocabulary you know well', Icons.workspace_premium_outlined),
-  saved('Saved Words', 'Your personal word list', Icons.bookmark_border_rounded);
+  match(
+    'Match Words',
+    'Connect words and meanings',
+    Icons.compare_arrows_rounded,
+  ),
+  sentence(
+    'Sentence Completion',
+    'Choose the correct word',
+    Icons.short_text_rounded,
+  ),
+  learned(
+    'Learned Words',
+    'Words currently in progress',
+    Icons.check_circle_outline_rounded,
+  ),
+  mastered(
+    'Mastered Words',
+    'Vocabulary you know well',
+    Icons.workspace_premium_outlined,
+  ),
+  saved(
+    'Saved Words',
+    'Your personal word list',
+    Icons.bookmark_border_rounded,
+  );
 
   final String title;
   final String subtitle;
@@ -1590,10 +1580,12 @@ class _ProgressCard extends StatelessWidget {
       builder: (context, snapshot) {
         final docs = snapshot.data?.docs ?? [];
         final saved = docs.where((d) => d.data()['isSaved'] == true).length;
-        final learned =
-            docs.where((d) => d.data()['status'] == 'learned').length;
-        final mastered =
-            docs.where((d) => d.data()['status'] == 'mastered').length;
+        final learned = docs
+            .where((d) => d.data()['status'] == 'learned')
+            .length;
+        final mastered = docs
+            .where((d) => d.data()['status'] == 'mastered')
+            .length;
         final now = DateTime.now();
         final due = docs.where((d) {
           final value = d.data()['nextReviewAt'];
@@ -1612,12 +1604,7 @@ class _ProgressValues extends StatelessWidget {
   final int mastered;
   final int due;
 
-  const _ProgressValues(
-    this.saved,
-    this.learned,
-    this.mastered,
-    this.due,
-  );
+  const _ProgressValues(this.saved, this.learned, this.mastered, this.due);
 
   @override
   Widget build(BuildContext context) {
@@ -1638,10 +1625,7 @@ class _ProgressValues extends StatelessWidget {
           const SizedBox(height: 6),
           const Text(
             'Review words at the right time and move them toward mastery.',
-            style: TextStyle(
-              color: VColors.secondary,
-              fontSize: 10.5,
-            ),
+            style: TextStyle(color: VColors.secondary, fontSize: 10.5),
           ),
           const SizedBox(height: 16),
           Row(
@@ -1671,10 +1655,7 @@ class _ProgressValues extends StatelessWidget {
           ),
           Text(
             label,
-            style: const TextStyle(
-              color: VColors.muted,
-              fontSize: 8.8,
-            ),
+            style: const TextStyle(color: VColors.muted, fontSize: 8.8),
           ),
         ],
       ),
@@ -1686,10 +1667,7 @@ class _ToolCard extends StatelessWidget {
   final VTool tool;
   final VoidCallback onTap;
 
-  const _ToolCard({
-    required this.tool,
-    required this.onTap,
-  });
+  const _ToolCard({required this.tool, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1712,10 +1690,7 @@ class _ToolCard extends StatelessWidget {
           Text(
             tool.subtitle,
             maxLines: 2,
-            style: const TextStyle(
-              color: VColors.muted,
-              fontSize: 9,
-            ),
+            style: const TextStyle(color: VColors.muted, fontSize: 9),
           ),
         ],
       ),
@@ -1756,10 +1731,7 @@ class _CategoryCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                item.icon,
-                color: selected ? VColors.cyan : VColors.muted,
-              ),
+              Icon(item.icon, color: selected ? VColors.cyan : VColors.muted),
               const Spacer(),
               Text(
                 item.title,
@@ -1782,10 +1754,7 @@ class _WordCard extends StatelessWidget {
   final VWord word;
   final VoidCallback onTap;
 
-  const _WordCard({
-    required this.word,
-    required this.onTap,
-  });
+  const _WordCard({required this.word, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1827,10 +1796,7 @@ class _WordCard extends StatelessWidget {
                 ),
                 Text(
                   word.pronunciation,
-                  style: const TextStyle(
-                    color: VColors.cyan,
-                    fontSize: 9.5,
-                  ),
+                  style: const TextStyle(color: VColors.cyan, fontSize: 9.5),
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -1847,10 +1813,7 @@ class _WordCard extends StatelessWidget {
                 Wrap(
                   spacing: 6,
                   runSpacing: 6,
-                  children: [
-                    _Tag(word.partOfSpeech),
-                    _Tag(word.topic),
-                  ],
+                  children: [_Tag(word.partOfSpeech), _Tag(word.topic)],
                 ),
               ],
             ),
@@ -1897,10 +1860,7 @@ class _Detail extends StatelessWidget {
           const SizedBox(height: 11),
           Text(
             body.isEmpty ? 'No data available.' : body,
-            style: const TextStyle(
-              color: VColors.secondary,
-              height: 1.55,
-            ),
+            style: const TextStyle(color: VColors.secondary, height: 1.55),
           ),
         ],
       ),
@@ -1972,8 +1932,8 @@ class _MatchTile extends StatelessWidget {
     final color = matched
         ? VColors.green
         : selected
-            ? VColors.cyan
-            : VColors.border;
+        ? VColors.cyan
+        : VColors.border;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -1987,8 +1947,8 @@ class _MatchTile extends StatelessWidget {
             color: matched
                 ? VColors.green.withOpacity(.08)
                 : selected
-                    ? VColors.cyan.withOpacity(.08)
-                    : VColors.surface,
+                ? VColors.cyan.withOpacity(.08)
+                : VColors.surface,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: color),
           ),
@@ -2036,10 +1996,7 @@ class _MiniPanel extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             body,
-            style: const TextStyle(
-              color: VColors.secondary,
-              height: 1.45,
-            ),
+            style: const TextStyle(color: VColors.secondary, height: 1.45),
           ),
         ],
       ),
@@ -2051,19 +2008,13 @@ class _ToolScaffold extends StatelessWidget {
   final String title;
   final Widget child;
 
-  const _ToolScaffold({
-    required this.title,
-    required this.child,
-  });
+  const _ToolScaffold({required this.title, required this.child});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: VColors.bg,
-      appBar: AppBar(
-        backgroundColor: VColors.bg,
-        title: Text(title),
-      ),
+      appBar: AppBar(backgroundColor: VColors.bg, title: Text(title)),
       body: Stack(
         children: [
           const Positioned.fill(child: _Background()),
@@ -2078,10 +2029,7 @@ class _Title extends StatelessWidget {
   final String title;
   final String subtitle;
 
-  const _Title({
-    required this.title,
-    required this.subtitle,
-  });
+  const _Title({required this.title, required this.subtitle});
 
   @override
   Widget build(BuildContext context) {
@@ -2096,10 +2044,7 @@ class _SectionLabel extends StatelessWidget {
   final String title;
   final String subtitle;
 
-  const _SectionLabel({
-    required this.title,
-    required this.subtitle,
-  });
+  const _SectionLabel({required this.title, required this.subtitle});
 
   @override
   Widget build(BuildContext context) {
@@ -2117,10 +2062,7 @@ class _SectionLabel extends StatelessWidget {
         const SizedBox(height: 3),
         Text(
           subtitle,
-          style: const TextStyle(
-            color: VColors.muted,
-            fontSize: 10.5,
-          ),
+          style: const TextStyle(color: VColors.muted, fontSize: 10.5),
         ),
       ],
     );
@@ -2164,10 +2106,7 @@ class _StateView extends StatelessWidget {
             Text(
               subtitle,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: VColors.muted,
-                height: 1.45,
-              ),
+              style: const TextStyle(color: VColors.muted, height: 1.45),
             ),
           ],
         ),
@@ -2180,10 +2119,7 @@ class _CardButton extends StatelessWidget {
   final Widget child;
   final VoidCallback? onTap;
 
-  const _CardButton({
-    required this.child,
-    this.onTap,
-  });
+  const _CardButton({required this.child, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -2214,11 +2150,7 @@ class _GradientIcon extends StatelessWidget {
       height: 46,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [
-            VColors.cyan,
-            VColors.primary,
-            VColors.violet,
-          ],
+          colors: [VColors.cyan, VColors.primary, VColors.violet],
         ),
         borderRadius: BorderRadius.circular(15),
       ),
@@ -2271,10 +2203,7 @@ class _Tag extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: const TextStyle(
-          color: VColors.muted,
-          fontSize: 8.7,
-        ),
+        style: const TextStyle(color: VColors.muted, fontSize: 8.7),
       ),
     );
   }
@@ -2288,11 +2217,7 @@ class _Background extends StatelessWidget {
     return const DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            VColors.bg,
-            Color(0xFF0D172B),
-            VColors.bg,
-          ],
+          colors: [VColors.bg, Color(0xFF0D172B), VColors.bg],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -2316,26 +2241,26 @@ abstract final class VColors {
 }
 
 BoxDecoration panelDecoration() => BoxDecoration(
-      color: VColors.surface.withOpacity(.94),
-      borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: VColors.border),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(.12),
-          blurRadius: 18,
-          offset: const Offset(0, 8),
-        ),
-      ],
-    );
+  color: VColors.surface.withOpacity(.94),
+  borderRadius: BorderRadius.circular(18),
+  border: Border.all(color: VColors.border),
+  boxShadow: [
+    BoxShadow(
+      color: Colors.black.withOpacity(.12),
+      blurRadius: 18,
+      offset: const Offset(0, 8),
+    ),
+  ],
+);
 
 BoxDecoration heroDecoration() => BoxDecoration(
-      gradient: LinearGradient(
-        colors: [
-          VColors.surface,
-          VColors.cyan.withOpacity(.09),
-          VColors.violet.withOpacity(.08),
-        ],
-      ),
-      borderRadius: BorderRadius.circular(22),
-      border: Border.all(color: VColors.cyan.withOpacity(.22)),
-    );
+  gradient: LinearGradient(
+    colors: [
+      VColors.surface,
+      VColors.cyan.withOpacity(.09),
+      VColors.violet.withOpacity(.08),
+    ],
+  ),
+  borderRadius: BorderRadius.circular(22),
+  border: Border.all(color: VColors.cyan.withOpacity(.22)),
+);

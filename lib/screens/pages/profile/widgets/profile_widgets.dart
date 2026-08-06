@@ -6,11 +6,7 @@ class ProfileHeader extends StatelessWidget {
   final ProfileModel profile;
   final VoidCallback onEdit;
 
-  const ProfileHeader({
-    super.key,
-    required this.profile,
-    required this.onEdit,
-  });
+  const ProfileHeader({super.key, required this.profile, required this.onEdit});
 
   @override
   Widget build(BuildContext context) {
@@ -47,9 +43,8 @@ class ProfileHeader extends StatelessWidget {
                       ? Image.network(
                           profile.photoUrl,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _InitialsAvatar(
-                            initials: initials,
-                          ),
+                          errorBuilder: (_, __, ___) =>
+                              _InitialsAvatar(initials: initials),
                         )
                       : _InitialsAvatar(initials: initials),
                 ),
@@ -210,10 +205,7 @@ class _Metric extends StatelessWidget {
           ),
           Text(
             label,
-            style: const TextStyle(
-              color: ProfileColors.muted,
-              fontSize: 8,
-            ),
+            style: const TextStyle(color: ProfileColors.muted, fontSize: 8),
           ),
         ],
       ),
@@ -255,10 +247,7 @@ class ProfileSection extends StatelessWidget {
                 children: [
                   children[index],
                   if (index < children.length - 1)
-                    const Divider(
-                      height: 1,
-                      color: ProfileColors.border,
-                    ),
+                    const Divider(height: 1, color: ProfileColors.border),
                 ],
               );
             }),
@@ -290,8 +279,7 @@ class ProfileTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       onTap: onTap,
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 15, vertical: 3),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 3),
       leading: CircleAvatar(
         backgroundColor: color.withOpacity(.11),
         child: Icon(icon, color: color),
@@ -307,13 +295,10 @@ class ProfileTile extends StatelessWidget {
         subtitle,
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          color: ProfileColors.muted,
-          fontSize: 9.5,
-        ),
+        style: const TextStyle(color: ProfileColors.muted, fontSize: 9.5),
       ),
-      trailing: trailing ??
-          const Icon(Icons.arrow_forward_ios_rounded, size: 15),
+      trailing:
+          trailing ?? const Icon(Icons.arrow_forward_ios_rounded, size: 15),
     );
   }
 }

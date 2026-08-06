@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 ///  Email Text Field
@@ -33,7 +32,10 @@ class CustomTextFieldEmail extends StatelessWidget {
           ),
           filled: true,
           fillColor: theme.colorScheme.surface,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 19),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 19,
+          ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(5),
             borderSide: BorderSide(color: theme.dividerColor),

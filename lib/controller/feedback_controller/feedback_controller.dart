@@ -17,7 +17,6 @@ class IELTSController extends GetxController {
   var vocabWords = [].obs;
   var currentIndex = 0.obs;
 
-
   //  WRITING TASK FEEDBACK
 
   Future<void> getWritingFeedback(String text, String taskType) async {
@@ -47,7 +46,6 @@ $text
 
     isLoading.value = false;
   }
-
 
   //  SPEAKING FEEDBACK
 
@@ -79,7 +77,6 @@ $speechText
     isLoading.value = false;
   }
 
-
   //  READING HELP
 
   Future<void> getReadingHelp(String passage, String question) async {
@@ -110,7 +107,6 @@ Explain:
     isLoading.value = false;
   }
 
- 
   //  LISTENING HELP
 
   Future<void> getListeningHelp(String transcript, String question) async {
@@ -141,7 +137,6 @@ Provide:
     isLoading.value = false;
   }
 
-
   //  VOCABULARY BUILDER
 
   Future<void> getVocabulary(String text) async {
@@ -169,7 +164,6 @@ $text
     isLoading.value = false;
   }
 
- 
   //  BAND SCORE ESTIMATION
 
   Future<void> estimateBand(String text) async {

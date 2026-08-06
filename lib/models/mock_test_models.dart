@@ -8,79 +8,74 @@ enum MockMode { practice, exam, computerDelivered }
 
 enum MockSkill { listening, reading, writing, speaking }
 
-enum MockQuestionStatus {
-  unanswered,
-  answered,
-  flagged,
-}
+enum MockQuestionStatus { unanswered, answered, flagged }
 
 extension MockTrackX on MockTrack {
   String get value => switch (this) {
-        MockTrack.academic => 'academic',
-        MockTrack.generalTraining => 'general_training',
-      };
+    MockTrack.academic => 'academic',
+    MockTrack.generalTraining => 'general_training',
+  };
 
   String get label => switch (this) {
-        MockTrack.academic => 'Academic',
-        MockTrack.generalTraining => 'General Training',
-      };
+    MockTrack.academic => 'Academic',
+    MockTrack.generalTraining => 'General Training',
+  };
 }
 
 extension MockScopeX on MockScope {
   String get value => switch (this) {
-        MockScope.fullMock => 'full_mock',
-        MockScope.singleSkill => 'single_skill',
-      };
+    MockScope.fullMock => 'full_mock',
+    MockScope.singleSkill => 'single_skill',
+  };
 
   String get label => switch (this) {
-        MockScope.fullMock => 'Full Mock',
-        MockScope.singleSkill => 'Single Skill Mock',
-      };
+    MockScope.fullMock => 'Full Mock',
+    MockScope.singleSkill => 'Single Skill Mock',
+  };
 }
 
 extension MockModeX on MockMode {
   String get value => switch (this) {
-        MockMode.practice => 'practice',
-        MockMode.exam => 'exam',
-        MockMode.computerDelivered => 'computer_delivered',
-      };
+    MockMode.practice => 'practice',
+    MockMode.exam => 'exam',
+    MockMode.computerDelivered => 'computer_delivered',
+  };
 
   String get label => switch (this) {
-        MockMode.practice => 'Practice Mode',
-        MockMode.exam => 'Exam Mode',
-        MockMode.computerDelivered =>
-          'Computer-delivered Simulation',
-      };
+    MockMode.practice => 'Practice Mode',
+    MockMode.exam => 'Exam Mode',
+    MockMode.computerDelivered => 'Computer-delivered Simulation',
+  };
 }
 
 extension MockSkillX on MockSkill {
   String get value => switch (this) {
-        MockSkill.listening => 'listening',
-        MockSkill.reading => 'reading',
-        MockSkill.writing => 'writing',
-        MockSkill.speaking => 'speaking',
-      };
+    MockSkill.listening => 'listening',
+    MockSkill.reading => 'reading',
+    MockSkill.writing => 'writing',
+    MockSkill.speaking => 'speaking',
+  };
 
   String get label => switch (this) {
-        MockSkill.listening => 'Listening',
-        MockSkill.reading => 'Reading',
-        MockSkill.writing => 'Writing',
-        MockSkill.speaking => 'Speaking',
-      };
+    MockSkill.listening => 'Listening',
+    MockSkill.reading => 'Reading',
+    MockSkill.writing => 'Writing',
+    MockSkill.speaking => 'Speaking',
+  };
 
   int get durationMinutes => switch (this) {
-        MockSkill.listening => 30,
-        MockSkill.reading => 60,
-        MockSkill.writing => 60,
-        MockSkill.speaking => 14,
-      };
+    MockSkill.listening => 30,
+    MockSkill.reading => 60,
+    MockSkill.writing => 60,
+    MockSkill.speaking => 14,
+  };
 
   int get questionCount => switch (this) {
-        MockSkill.listening => 40,
-        MockSkill.reading => 40,
-        MockSkill.writing => 2,
-        MockSkill.speaking => 3,
-      };
+    MockSkill.listening => 40,
+    MockSkill.reading => 40,
+    MockSkill.writing => 2,
+    MockSkill.speaking => 3,
+  };
 }
 
 class MockTestConfig {
@@ -115,10 +110,7 @@ class MockTestConfig {
   }
 
   int get totalDurationMinutes {
-    return skills.fold(
-      0,
-      (total, skill) => total + skill.durationMinutes,
-    );
+    return skills.fold(0, (total, skill) => total + skill.durationMinutes);
   }
 
   Map<String, dynamic> toMap() {
@@ -137,7 +129,6 @@ class MockTestConfig {
     };
   }
 }
-
 
 class PublishedMockTest {
   final String id;
@@ -178,9 +169,9 @@ class PublishedMockTest {
 
     final skills = data['skills'] is List
         ? (data['skills'] as List)
-            .map((value) => parseSkill(value.toString()))
-            .toSet()
-            .toList()
+              .map((value) => parseSkill(value.toString()))
+              .toSet()
+              .toList()
         : MockSkill.values;
 
     return PublishedMockTest(
@@ -202,8 +193,7 @@ class PublishedMockTest {
       skills: skills,
       totalDurationMinutes:
           (data['totalDurationMinutes'] as num?)?.round() ?? 164,
-      totalQuestions:
-          (data['totalQuestions'] as num?)?.round() ?? 85,
+      totalQuestions: (data['totalQuestions'] as num?)?.round() ?? 85,
     );
   }
 }
@@ -291,11 +281,7 @@ class MockAnswer {
     return true;
   }
 
-  MockAnswer copyWith({
-    dynamic value,
-    bool? flagged,
-    DateTime? updatedAt,
-  }) {
+  MockAnswer copyWith({dynamic value, bool? flagged, DateTime? updatedAt}) {
     return MockAnswer(
       questionId: questionId,
       value: value ?? this.value,
@@ -335,10 +321,7 @@ class MockSkillResult {
     required this.questionTypeAccuracy,
   });
 
-  factory MockSkillResult.fromMap(
-    Map<String, dynamic> data,
-    MockSkill skill,
-  ) {
+  factory MockSkillResult.fromMap(Map<String, dynamic> data, MockSkill skill) {
     return MockSkillResult(
       skill: skill,
       band: _asDouble(data['band']),
@@ -349,17 +332,11 @@ class MockSkillResult {
       criteria: data['criteria'] is Map
           ? Map<String, dynamic>.from(data['criteria'])
           : const {},
-      questionTypeAccuracy:
-          data['questionTypeAccuracy'] is Map
-              ? Map<String, dynamic>.from(
-                  data['questionTypeAccuracy'],
-                ).map(
-                  (key, value) => MapEntry(
-                    key,
-                    _asDouble(value),
-                  ),
-                )
-              : const {},
+      questionTypeAccuracy: data['questionTypeAccuracy'] is Map
+          ? Map<String, dynamic>.from(
+              data['questionTypeAccuracy'],
+            ).map((key, value) => MapEntry(key, _asDouble(value)))
+          : const {},
     );
   }
 

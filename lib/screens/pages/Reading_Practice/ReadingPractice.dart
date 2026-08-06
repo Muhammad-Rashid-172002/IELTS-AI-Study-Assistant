@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:fyproject/offline/offline_content_service.dart';
 import 'package:flutter/material.dart';
 
 class ReadingScreen extends StatelessWidget {
@@ -136,11 +137,11 @@ class _ReadingHome extends StatelessWidget {
                 ),
               );
             }, childCount: ReadingMode.values.length),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 11,
-              crossAxisSpacing: 11,
-              childAspectRatio: 1.18,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: MediaQuery.sizeOf(context).width >= 720 ? 4 : 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: MediaQuery.sizeOf(context).width >= 720 ? 1.05 : 1.12,
             ),
           ),
         ),
@@ -174,11 +175,15 @@ class _ReadingHome extends StatelessWidget {
                 ),
               );
             }, childCount: ReadingQuestionType.values.length),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: MediaQuery.sizeOf(context).width >= 900
+                  ? 4
+                  : MediaQuery.sizeOf(context).width >= 600
+                      ? 3
+                      : 2,
               mainAxisSpacing: 10,
               crossAxisSpacing: 10,
-              childAspectRatio: 1.55,
+              childAspectRatio: MediaQuery.sizeOf(context).width >= 600 ? 1.75 : 1.48,
             ),
           ),
         ),
@@ -333,6 +338,31 @@ class _ReadingTestBrowserScreenState extends State<ReadingTestBrowserScreen>
   }
 
   Future<List<ReadingTest>> _fetchTests() async {
+    final offline = OfflineContentService.instance;
+
+    List<ReadingTest> cachedTests() {
+      return offline
+          .cachedContent('reading', where: _matches)
+          .map(
+            (data) => ReadingTest.fromMap(
+              data,
+              id: data['_offlineId']?.toString() ?? '',
+            ),
+          )
+          .where(
+            (test) =>
+                test.id.isNotEmpty &&
+                test.passages.isNotEmpty &&
+                test.questions.isNotEmpty,
+          )
+          .toList();
+    }
+
+    // Offline mode must never wait for a Firestore timeout.
+    if (!offline.isOnline) {
+      return cachedTests();
+    }
+
     try {
       Query<Map<String, dynamic>> query = FirebaseFirestore.instance
           .collection('reading_tests')
@@ -353,29 +383,30 @@ class _ReadingTestBrowserScreenState extends State<ReadingTestBrowserScreen>
         }
       }
 
-      final snapshot = await query.limit(60).get();
-      return snapshot.docs
+      final snapshot = await query
+          .limit(60)
+          .get()
+          .timeout(const Duration(seconds: 15));
+
+      await offline.cacheMany(
+        module: 'reading',
+        items: snapshot.docs.map((doc) => MapEntry(doc.id, doc.data())),
+      );
+
+      final remoteTests = snapshot.docs
           .map(ReadingTest.fromDocument)
           .where(
             (test) => test.passages.isNotEmpty && test.questions.isNotEmpty,
           )
           .toList();
-    } on FirebaseException catch (error) {
-      if (error.code != 'failed-precondition') rethrow;
 
-      final snapshot = await FirebaseFirestore.instance
-          .collection('reading_tests')
-          .where('status', isEqualTo: 'published')
-          .limit(200)
-          .get();
-
-      return snapshot.docs
-          .where((doc) => _matches(doc.data()))
-          .map(ReadingTest.fromDocument)
-          .where(
-            (test) => test.passages.isNotEmpty && test.questions.isNotEmpty,
-          )
-          .toList();
+      // A valid empty Firebase response is respected online. Cache is only a
+      // fallback for a failed request, not a way to mix stale selections.
+      return remoteTests;
+    } catch (error, stackTrace) {
+      debugPrint('Reading Firebase load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      return cachedTests();
     }
   }
 
@@ -405,8 +436,18 @@ class _ReadingTestBrowserScreenState extends State<ReadingTestBrowserScreen>
   Future<ReadingTest?> _selectUnseenTest(List<ReadingTest> tests) async {
     if (tests.isEmpty) return null;
 
+    final offline = OfflineContentService.instance;
+
+    // Cached content remains usable offline, including completed content in
+    // revision mode. This prevents a blank screen when no new item exists.
+    if (!offline.isOnline) {
+      return tests.first;
+    }
+
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return tests[math.Random.secure().nextInt(tests.length)];
+    if (user == null) {
+      return tests[math.Random.secure().nextInt(tests.length)];
+    }
 
     final seenIds = <String>{};
 
@@ -415,25 +456,28 @@ class _ReadingTestBrowserScreenState extends State<ReadingTestBrowserScreen>
           .collection('users')
           .doc(user.uid)
           .collection('reading_seen_tests')
-          .get();
+          .get()
+          .timeout(const Duration(seconds: 10));
 
       seenIds.addAll(seenSnapshot.docs.map((doc) => doc.id));
 
-      // Backward compatibility for tests completed before reading_seen_tests
-      // was introduced.
       final completedSnapshot = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .collection('reading_results')
-          .get();
+          .get()
+          .timeout(const Duration(seconds: 10));
 
       for (final doc in completedSnapshot.docs) {
         final testId = (doc.data()['testId'] ?? '').toString().trim();
         if (testId.isNotEmpty) seenIds.add(testId);
       }
-    } catch (_) {
-      // Never show a known repeated test merely because history lookup failed.
-      return null;
+    } catch (error, stackTrace) {
+      // A history failure must not keep the loading screen open or hide all
+      // available tests. Open a valid test and continue gracefully.
+      debugPrint('Reading history lookup failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      return tests.first;
     }
 
     final unseen = tests.where((test) => !seenIds.contains(test.id)).toList();
@@ -443,21 +487,30 @@ class _ReadingTestBrowserScreenState extends State<ReadingTestBrowserScreen>
   }
 
   Future<void> _markTestAsSeen(ReadingTest test) async {
+    final offline = OfflineContentService.instance;
+    if (!offline.isOnline) return;
+
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('reading_seen_tests')
-        .doc(test.id)
-        .set({
-          'testId': test.id,
-          'title': test.title,
-          'ieltsType': test.ieltsType,
-          'mode': test.mode,
-          'firstShownAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('reading_seen_tests')
+          .doc(test.id)
+          .set({
+            'testId': test.id,
+            'title': test.title,
+            'ieltsType': test.ieltsType,
+            'mode': test.mode,
+            'firstShownAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true))
+          .timeout(const Duration(seconds: 10));
+    } catch (error, stackTrace) {
+      debugPrint('Reading seen status save failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
   }
 
   @override
@@ -737,6 +790,12 @@ class _ReadingPracticeScreenState extends State<ReadingPracticeScreen> {
   }
 
   Future<void> _restoreDraft() async {
+    final offline = OfflineContentService.instance;
+    if (!offline.isOnline) {
+      if (mounted) setState(() => _restoringDraft = false);
+      return;
+    }
+
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       if (mounted) setState(() => _restoringDraft = false);
@@ -847,6 +906,9 @@ class _ReadingPracticeScreenState extends State<ReadingPracticeScreen> {
   }
 
   Future<void> _saveDraft() async {
+    final offline = OfflineContentService.instance;
+    if (!offline.isOnline) return;
+
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || _submitting) return;
 
@@ -1258,6 +1320,22 @@ class _ReadingPracticeScreenState extends State<ReadingPracticeScreen> {
     );
 
     final user = FirebaseAuth.instance.currentUser;
+    final offlineResult = {
+      'testId': widget.test.id,
+      'title': widget.test.title,
+      'estimatedBand': result.estimatedBand,
+      'rawScore': result.rawScore,
+      'totalQuestions': result.totalQuestions,
+      'accuracyPercent': result.accuracyPercent,
+      'answers': _answers.map((key, value) => MapEntry('$key', value)),
+      'completedAt': DateTime.now().toIso8601String(),
+    };
+    await OfflineContentService.instance.markCompleted(
+      module: 'reading',
+      contentId: widget.test.id,
+      result: offlineResult,
+      synced: false,
+    );
 
     if (user != null) {
       try {
@@ -1302,7 +1380,14 @@ class _ReadingPracticeScreenState extends State<ReadingPracticeScreen> {
             .collection('reading_drafts')
             .doc(widget.test.id)
             .delete();
-      } catch (_) {}
+      } catch (_) {
+        await OfflineContentService.instance.queueFirestoreWrite(
+          operation: 'set',
+          path:
+              'users/${user.uid}/reading_results/offline_${DateTime.now().microsecondsSinceEpoch}',
+          data: offlineResult,
+        );
+      }
     }
 
     if (!mounted) return;
@@ -1590,11 +1675,11 @@ class ReadingTest {
 
   factory ReadingTest.fromDocument(
     QueryDocumentSnapshot<Map<String, dynamic>> doc,
-  ) {
-    final data = doc.data();
+  ) => ReadingTest.fromMap(doc.data(), id: doc.id);
 
+  factory ReadingTest.fromMap(Map<String, dynamic> data, {String id = ''}) {
     return ReadingTest(
-      id: doc.id,
+      id: id,
       title: (data['title'] ?? 'Reading Test').toString(),
       description: (data['description'] ?? '').toString(),
       ieltsType: (data['ieltsType'] ?? 'Academic').toString(),
@@ -2916,26 +3001,56 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
+    return Row(
       children: [
-        _GradientIcon(icon: Icons.menu_book_rounded),
-        SizedBox(width: 12),
-        Expanded(
+        const _GradientIcon(icon: Icons.auto_stories_rounded),
+        const SizedBox(width: 14),
+        const Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Reading',
+                'IELTS Reading',
                 style: TextStyle(
                   color: RColors.text,
-                  fontSize: 24,
+                  fontSize: 25,
+                  height: 1.05,
                   fontWeight: FontWeight.w900,
+                  letterSpacing: -.5,
                 ),
               ),
-              SizedBox(height: 4),
+              SizedBox(height: 5),
               Text(
-                'IELTS passages, smart tools and detailed analytics',
-                style: TextStyle(color: RColors.muted, fontSize: 10.5),
+                'Practice smarter. Read faster. Score higher.',
+                style: TextStyle(
+                  color: RColors.muted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
+            color: RColors.green.withOpacity(.10),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: RColors.green.withOpacity(.24)),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.bolt_rounded, color: RColors.green, size: 15),
+              SizedBox(width: 5),
+              Text(
+                'AI READY',
+                style: TextStyle(
+                  color: RColors.green,
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: .7,
+                ),
               ),
             ],
           ),
@@ -2952,51 +3067,151 @@ class _BandHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final progress = band <= 0 ? 0.0 : (band / 9).clamp(0.0, 1.0);
+    final status = band <= 0
+        ? 'Take your first test'
+        : band >= 7
+            ? 'Advanced level'
+            : band >= 5.5
+                ? 'Good progress'
+                : 'Building foundation';
+
     return Container(
-      padding: const EdgeInsets.all(19),
+      padding: const EdgeInsets.all(20),
       decoration: _heroDecoration(),
-      child: Row(
-        children: [
-          Container(
-            width: 90,
-            height: 90,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: RColors.cyan, width: 8),
-              boxShadow: [
-                BoxShadow(color: RColors.cyan.withOpacity(.2), blurRadius: 20),
-              ],
-            ),
-            child: Text(
-              band > 0 ? band.toStringAsFixed(1) : '—',
-              style: const TextStyle(
-                color: RColors.text,
-                fontSize: 26,
-                fontWeight: FontWeight.w900,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 360;
+          final score = _BandScoreRing(band: band, progress: progress);
+          final details = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Your Reading Performance',
+                      style: TextStyle(
+                        color: RColors.text,
+                        fontSize: compact ? 16 : 18,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -.25,
+                      ),
+                    ),
+                  ),
+                  const _Badge(text: 'LIVE'),
+                ],
               ),
+              const SizedBox(height: 7),
+              Text(
+                status,
+                style: const TextStyle(
+                  color: RColors.cyan,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 7,
+                  backgroundColor: Colors.white.withOpacity(.08),
+                  valueColor: const AlwaysStoppedAnimation(RColors.cyan),
+                ),
+              ),
+              const SizedBox(height: 9),
+              Text(
+                band > 0
+                    ? 'Based on your latest completed reading activity.'
+                    : 'Complete a reading activity to unlock your band analytics.',
+                style: const TextStyle(
+                  color: RColors.secondary,
+                  fontSize: 10.5,
+                  height: 1.45,
+                ),
+              ),
+            ],
+          );
+
+          if (compact) {
+            return Column(
+              children: [score, const SizedBox(height: 18), details],
+            );
+          }
+          return Row(
+            children: [
+              score,
+              const SizedBox(width: 18),
+              Expanded(child: details),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _BandScoreRing extends StatelessWidget {
+  final double band;
+  final double progress;
+
+  const _BandScoreRing({required this.band, required this.progress});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 102,
+      height: 102,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox(
+            width: 102,
+            height: 102,
+            child: CircularProgressIndicator(
+              value: band <= 0 ? .08 : progress,
+              strokeWidth: 9,
+              strokeCap: StrokeCap.round,
+              backgroundColor: Colors.white.withOpacity(.08),
+              valueColor: const AlwaysStoppedAnimation(RColors.cyan),
             ),
           ),
-          const SizedBox(width: 15),
-          const Expanded(
+          Container(
+            width: 78,
+            height: 78,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: RColors.bg.withOpacity(.72),
+              border: Border.all(color: Colors.white.withOpacity(.07)),
+              boxShadow: [
+                BoxShadow(
+                  color: RColors.cyan.withOpacity(.14),
+                  blurRadius: 24,
+                ),
+              ],
+            ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  'Current Estimated Reading Band',
-                  style: TextStyle(
+                  band > 0 ? band.toStringAsFixed(1) : '—',
+                  style: const TextStyle(
                     color: RColors.text,
-                    fontSize: 16,
+                    fontSize: 27,
+                    height: 1,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-                SizedBox(height: 8),
-                Text(
-                  'Updated automatically from your latest reading result.',
+                const SizedBox(height: 4),
+                const Text(
+                  'BAND',
                   style: TextStyle(
-                    color: RColors.secondary,
-                    fontSize: 10.7,
-                    height: 1.5,
+                    color: RColors.muted,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1,
                   ),
                 ),
               ],
@@ -3021,34 +3236,52 @@ class _WeaknessCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Weak Reading Question Types',
-            style: TextStyle(
-              color: RColors.text,
-              fontSize: 14,
-              fontWeight: FontWeight.w900,
-            ),
+          const Row(
+            children: [
+              _MiniIcon(icon: Icons.track_changes_rounded, color: RColors.orange),
+              SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Recommended Focus',
+                      style: TextStyle(
+                        color: RColors.text,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      'Practice these question types to improve faster',
+                      style: TextStyle(color: RColors.muted, fontSize: 9.8),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 11),
+          const SizedBox(height: 14),
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: types
-                .map(
-                  (type) => Chip(
-                    label: Text(type),
-                    backgroundColor: const Color(0xFFF97316).withOpacity(.12),
-                    side: BorderSide(
-                      color: const Color(0xFFF97316).withOpacity(.25),
-                    ),
-                    labelStyle: const TextStyle(
-                      color: Color(0xFFFDBA74),
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                )
-                .toList(),
+            children: types.take(4).map((type) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+              decoration: BoxDecoration(
+                color: RColors.orange.withOpacity(.09),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: RColors.orange.withOpacity(.22)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.trending_up_rounded, color: RColors.orange, size: 14),
+                  const SizedBox(width: 6),
+                  Text(type, style: const TextStyle(color: RColors.orangeLight, fontSize: 9.5, fontWeight: FontWeight.w800)),
+                ],
+              ),
+            )).toList(),
           ),
         ],
       ),
@@ -3064,27 +3297,24 @@ class _ModeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = mode == ReadingMode.academic ? RColors.cyan : mode == ReadingMode.generalTraining ? RColors.violet : RColors.green;
     return _TapCard(
       onTap: onTap,
+      accent: accent,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(mode.icon, color: RColors.cyan, size: 25),
+          Row(
+            children: [
+              _MiniIcon(icon: mode.icon, color: accent),
+              const Spacer(),
+              Icon(Icons.arrow_outward_rounded, color: RColors.muted.withOpacity(.8), size: 17),
+            ],
+          ),
           const Spacer(),
-          Text(
-            mode.label,
-            style: const TextStyle(
-              color: RColors.text,
-              fontSize: 12.5,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            mode.subtitle,
-            maxLines: 2,
-            style: const TextStyle(color: RColors.muted, fontSize: 9.3),
-          ),
+          Text(mode.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: RColors.text, fontSize: 13, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 6),
+          Text(mode.subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: RColors.muted, fontSize: 9.5, height: 1.35)),
         ],
       ),
     );
@@ -3096,38 +3326,21 @@ class _QuestionTypeCard extends StatelessWidget {
   final bool weak;
   final VoidCallback onTap;
 
-  const _QuestionTypeCard({
-    required this.type,
-    required this.weak,
-    required this.onTap,
-  });
+  const _QuestionTypeCard({required this.type, required this.weak, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final color = weak ? const Color(0xFFF97316) : RColors.cyan;
-
+    final color = weak ? RColors.orange : RColors.cyan;
     return _TapCard(
       onTap: onTap,
+      accent: color,
       child: Row(
         children: [
-          Icon(type.icon, color: color, size: 20),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Text(
-              type.label,
-              style: const TextStyle(
-                color: RColors.text,
-                fontSize: 10.1,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-          if (weak)
-            const Icon(
-              Icons.warning_amber_rounded,
-              color: Color(0xFFF97316),
-              size: 16,
-            ),
+          _MiniIcon(icon: type.icon, color: color, compact: true),
+          const SizedBox(width: 10),
+          Expanded(child: Text(type.label, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: RColors.text, fontSize: 10.3, height: 1.25, fontWeight: FontWeight.w800))),
+          const SizedBox(width: 5),
+          Icon(weak ? Icons.priority_high_rounded : Icons.chevron_right_rounded, color: color, size: 17),
         ],
       ),
     );
@@ -3141,48 +3354,70 @@ class _RecentResultCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accuracy = result.totalQuestions <= 0 ? 0 : ((result.rawScore / result.totalQuestions) * 100).round();
     return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: _cardDecoration(),
+      padding: const EdgeInsets.all(14),
+      decoration: _cardDecoration(radius: 20),
       child: Row(
         children: [
-          CircleAvatar(
-            backgroundColor: RColors.cyan.withOpacity(.13),
-            child: Text(
-              result.estimatedBand.toStringAsFixed(1),
-              style: const TextStyle(
-                color: RColors.cyan,
-                fontWeight: FontWeight.w900,
-              ),
+          Container(
+            width: 50,
+            height: 50,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [RColors.cyan.withOpacity(.22), RColors.violet.withOpacity(.14)]),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: RColors.cyan.withOpacity(.25)),
             ),
+            child: Text(result.estimatedBand.toStringAsFixed(1), style: const TextStyle(color: RColors.text, fontSize: 16, fontWeight: FontWeight.w900)),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  result.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: RColors.text,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  '${result.rawScore}/${result.totalQuestions} • ${result.readingSpeedWpm} WPM',
-                  style: const TextStyle(color: RColors.muted, fontSize: 9.8),
-                ),
+                Text(result.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: RColors.text, fontSize: 12.5, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 7),
+                Row(children: [
+                  _ResultMeta(icon: Icons.check_circle_outline_rounded, text: '${result.rawScore}/${result.totalQuestions}'),
+                  const SizedBox(width: 10),
+                  _ResultMeta(icon: Icons.speed_rounded, text: '${result.readingSpeedWpm} WPM'),
+                ]),
               ],
             ),
           ),
+          const SizedBox(width: 8),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text('$accuracy%', style: const TextStyle(color: RColors.green, fontSize: 12, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 3),
+            const Text('accuracy', style: TextStyle(color: RColors.muted, fontSize: 8.5)),
+          ]),
         ],
       ),
     );
   }
+}
+
+class _MiniIcon extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final bool compact;
+  const _MiniIcon({required this.icon, required this.color, this.compact = false});
+  @override
+  Widget build(BuildContext context) => Container(
+    width: compact ? 34 : 40,
+    height: compact ? 34 : 40,
+    decoration: BoxDecoration(color: color.withOpacity(.11), borderRadius: BorderRadius.circular(compact ? 11 : 13), border: Border.all(color: color.withOpacity(.22))),
+    child: Icon(icon, color: color, size: compact ? 17 : 20),
+  );
+}
+
+class _ResultMeta extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  const _ResultMeta({required this.icon, required this.text});
+  @override
+  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, color: RColors.muted, size: 13), const SizedBox(width: 4), Text(text, style: const TextStyle(color: RColors.secondary, fontSize: 9.2, fontWeight: FontWeight.w700))]);
 }
 
 class _ResultHeader extends StatelessWidget {
@@ -3599,19 +3834,25 @@ class _EmptyCard extends StatelessWidget {
 class _TapCard extends StatelessWidget {
   final Widget child;
   final VoidCallback onTap;
+  final Color? accent;
 
-  const _TapCard({required this.child, required this.onTap});
+  const _TapCard({required this.child, required this.onTap, this.accent});
 
   @override
   Widget build(BuildContext context) {
+    final color = accent ?? RColors.cyan;
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Container(
+        borderRadius: BorderRadius.circular(22),
+        splashColor: color.withOpacity(.08),
+        highlightColor: color.withOpacity(.04),
+        child: Ink(
           padding: const EdgeInsets.all(15),
-          decoration: _cardDecoration(),
+          decoration: _cardDecoration(radius: 22).copyWith(
+            border: Border.all(color: color.withOpacity(.17)),
+          ),
           child: child,
         ),
       ),
@@ -3621,19 +3862,20 @@ class _TapCard extends StatelessWidget {
 
 class _GradientIcon extends StatelessWidget {
   final IconData icon;
-
   const _GradientIcon({required this.icon});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 46,
-      height: 46,
+      width: 50,
+      height: 50,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [RColors.cyan, RColors.violet]),
-        borderRadius: BorderRadius.circular(15),
+        gradient: const LinearGradient(colors: [RColors.cyan, RColors.violet], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: Colors.white.withOpacity(.12)),
+        boxShadow: [BoxShadow(color: RColors.cyan.withOpacity(.18), blurRadius: 22, offset: const Offset(0, 9))],
       ),
-      child: Icon(icon, color: Colors.white),
+      child: Icon(icon, color: Colors.white, size: 25),
     );
   }
 }
@@ -3695,22 +3937,30 @@ class _ReadingBackground extends StatelessWidget {
     return DecoratedBox(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [RColors.bg, Color(0xFF0D172B), RColors.bg],
+          colors: [Color(0xFF06101D), Color(0xFF0A1729), Color(0xFF07111F)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
       ),
       child: Stack(
         children: [
+          const Positioned(top: -120, right: -90, child: _Glow(size: 300, color: RColors.cyan)),
+          const Positioned(bottom: -150, left: -110, child: _Glow(size: 340, color: RColors.violet)),
           Positioned(
-            top: -100,
-            right: -80,
-            child: _Glow(size: 260, color: RColors.cyan),
+            top: 210,
+            left: -70,
+            child: Transform.rotate(
+              angle: -.25,
+              child: Container(width: 190, height: 1, color: Colors.white.withOpacity(.025)),
+            ),
           ),
           Positioned(
-            bottom: -120,
-            left: -100,
-            child: _Glow(size: 300, color: RColors.violet),
+            bottom: 220,
+            right: -40,
+            child: Transform.rotate(
+              angle: .35,
+              child: Container(width: 170, height: 1, color: Colors.white.withOpacity(.02)),
+            ),
           ),
         ],
       ),
@@ -3721,7 +3971,6 @@ class _ReadingBackground extends StatelessWidget {
 class _Glow extends StatelessWidget {
   final double size;
   final Color color;
-
   const _Glow({required this.size, required this.color});
 
   @override
@@ -3731,70 +3980,52 @@ class _Glow extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: color.withOpacity(.07),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(.08),
-            blurRadius: 90,
-            spreadRadius: 30,
-          ),
-        ],
+        gradient: RadialGradient(colors: [color.withOpacity(.12), color.withOpacity(0)]),
       ),
     );
   }
 }
 
 abstract final class RColors {
-  static const bg = Color(0xFF08111F);
-  static const surface = Color(0xFF101D31);
-  static const surfaceHigh = Color(0xFF162740);
-  static const border = Color(0xFF29405F);
-  static const cyan = Color(0xFF06B6D4);
+  static const bg = Color(0xFF07111F);
+  static const surface = Color(0xFF0E1B2D);
+  static const surfaceHigh = Color(0xFF14253A);
+  static const border = Color(0xFF263B55);
+  static const cyan = Color(0xFF22D3EE);
   static const violet = Color(0xFF8B5CF6);
-  static const green = Color(0xFF22C55E);
+  static const green = Color(0xFF34D399);
+  static const orange = Color(0xFFF59E0B);
+  static const orangeLight = Color(0xFFFCD34D);
   static const text = Color(0xFFF8FAFC);
-  static const secondary = Color(0xFFCBD5E1);
-  static const muted = Color(0xFF94A3B8);
+  static const secondary = Color(0xFFD5DFEB);
+  static const muted = Color(0xFF8EA2B8);
 }
 
-BoxDecoration _cardDecoration() => BoxDecoration(
+BoxDecoration _cardDecoration({double radius = 24}) => BoxDecoration(
   gradient: LinearGradient(
-    colors: [
-      RColors.surfaceHigh.withOpacity(.96),
-      RColors.surface.withOpacity(.94),
-    ],
+    colors: [RColors.surfaceHigh.withOpacity(.90), RColors.surface.withOpacity(.94)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   ),
-  borderRadius: BorderRadius.circular(26),
-  border: Border.all(color: RColors.border),
+  borderRadius: BorderRadius.circular(radius),
+  border: Border.all(color: Colors.white.withOpacity(.065)),
   boxShadow: [
-    BoxShadow(
-      color: Colors.black.withOpacity(.12),
-      blurRadius: 26,
-      offset: const Offset(0, 12),
-    ),
+    BoxShadow(color: Colors.black.withOpacity(.20), blurRadius: 28, offset: const Offset(0, 14)),
+    BoxShadow(color: RColors.cyan.withOpacity(.018), blurRadius: 20, offset: const Offset(0, -4)),
   ],
 );
 
 BoxDecoration _heroDecoration() => BoxDecoration(
   gradient: LinearGradient(
-    colors: [
-      RColors.surface,
-      RColors.cyan.withOpacity(.09),
-      RColors.violet.withOpacity(.07),
-    ],
+    colors: [RColors.cyan.withOpacity(.16), RColors.violet.withOpacity(.11), RColors.surface.withOpacity(.96)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   ),
-  borderRadius: BorderRadius.circular(22),
-  border: Border.all(color: RColors.cyan.withOpacity(.2)),
+  borderRadius: BorderRadius.circular(28),
+  border: Border.all(color: RColors.cyan.withOpacity(.20)),
   boxShadow: [
-    BoxShadow(
-      color: Colors.black.withOpacity(.16),
-      blurRadius: 22,
-      offset: const Offset(0, 10),
-    ),
+    BoxShadow(color: Colors.black.withOpacity(.24), blurRadius: 34, offset: const Offset(0, 16)),
+    BoxShadow(color: RColors.cyan.withOpacity(.06), blurRadius: 30),
   ],
 );
 
@@ -3885,11 +4116,6 @@ double _asDouble(dynamic value, {double fallback = 0}) {
   if (value is double) return value;
   if (value is num) return value.toDouble();
   return double.tryParse(value?.toString() ?? '') ?? fallback;
-}
-
-String? _nullableString(dynamic value) {
-  final text = value?.toString().trim();
-  return text == null || text.isEmpty ? null : text;
 }
 
 List<dynamic> _asList(dynamic value) =>

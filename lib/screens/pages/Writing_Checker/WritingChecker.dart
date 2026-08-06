@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:fyproject/offline/offline_content_service.dart';
 import 'package:flutter/material.dart';
 import 'package:fyproject/screens/content_queue_service.dart';
 
@@ -56,9 +57,9 @@ class WritingChecker extends StatelessWidget {
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
-                          mainAxisSpacing: 11,
-                          crossAxisSpacing: 11,
-                          childAspectRatio: 1.18,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          mainAxisExtent: 166,
                         ),
                   ),
                 ),
@@ -197,35 +198,56 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
 
     try {
       final queue = ContentQueueService();
+      final offline = OfflineContentService.instance;
       final completedIds = await queue.completedIds('writing');
+      List<WritingTask> available;
 
-      final published = await FirebaseFirestore.instance
-          .collection('writing_tasks')
-          .where('status', isEqualTo: 'published')
-          .limit(200)
-          .get();
+      try {
+        final published = await FirebaseFirestore.instance
+            .collection('writing_tasks')
+            .where('status', isEqualTo: 'published')
+            .limit(200)
+            .get();
+        await offline.cacheMany(
+          module: 'writing',
+          items: published.docs.map((doc) => MapEntry(doc.id, doc.data())),
+        );
+        available = published.docs
+            .where((doc) {
+              final data = doc.data();
+              return data['taskCategory'] == widget.category &&
+                  (widget.taskType == null ||
+                      data['taskType'] == widget.taskType);
+            })
+            .map(WritingTask.fromDocument)
+            .toList();
+      } catch (_) {
+        available = offline
+            .cachedContent(
+              'writing',
+              where: (data) =>
+                  data['taskCategory'] == widget.category &&
+                  (widget.taskType == null ||
+                      data['taskType'] == widget.taskType),
+            )
+            .map(
+              (data) => WritingTask.fromMap(
+                data,
+                id: data['_offlineId']?.toString() ?? '',
+              ),
+            )
+            .toList();
+      }
 
-      final matching = queue.sortPublished(
-        published.docs.where((doc) {
-          final data = doc.data();
-          return data['taskCategory'] == widget.category &&
-              (widget.taskType == null || data['taskType'] == widget.taskType);
-        }),
-      );
-
-      final nextDocs = matching
-          .where((doc) => !completedIds.contains(doc.id))
+      available = available
+          .where((task) => !completedIds.contains(task.id))
           .take(1)
           .toList();
 
       if (!mounted) return;
       setState(() {
-        _tasks = nextDocs.map(WritingTask.fromDocument).toList();
+        _tasks = available;
         _loading = false;
-        if (_tasks.isEmpty && matching.isNotEmpty) {
-          _error =
-              'You have completed every available Writing task in this category. New tasks will appear after the administrator publishes them.';
-        }
       });
     } catch (error) {
       if (!mounted) return;
@@ -644,12 +666,38 @@ class _WritingEditorScreenState extends State<WritingEditorScreen> {
           ),
         ),
       );
-    } catch (error) {
+    } catch (_) {
+      final localId = await OfflineContentService.instance
+          .queueWritingEvaluation(
+            uid: user.uid,
+            taskId: widget.task.id,
+            data: {
+              'title': widget.task.title,
+              'taskQuestion': widget.task.taskQuestion,
+              'taskCategory': widget.task.taskCategory,
+              'taskType': widget.task.taskType,
+              'mode': widget.mode.name,
+              'answer': answer,
+              'wordCount': _wordCount,
+              'durationUsedSeconds': _elapsedSeconds,
+              'status': 'pending_ai_evaluation',
+            },
+          );
+      await OfflineContentService.instance.markCompleted(
+        module: 'writing',
+        contentId: widget.task.id,
+        result: {'status': 'pending_ai_evaluation', 'queueId': localId},
+      );
       if (!mounted) return;
       setState(() => _submitting = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Submission failed: $error')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Essay saved offline. AI band and feedback will be generated after reconnecting.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -2076,88 +2124,143 @@ class _HomeOptionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final featured = option == WritingHomeOption.aiChecker;
+    final accent = featured ? WColors.violet : WColors.cyan;
 
-    return _TapCard(
-      onTap: onTap,
-      child: Stack(
-        children: [
-          Positioned(
-            right: -18,
-            top: -22,
-            child: Container(
-              width: 78,
-              height: 78,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: (featured ? WColors.violet : WColors.cyan).withOpacity(
-                  .07,
-                ),
-              ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: featured
+                  ? const [Color(0xFF1B1C3F), Color(0xFF10243A)]
+                  : const [Color(0xFF111E31), Color(0xFF0D1829)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: featured
-                            ? [WColors.violet, WColors.cyan]
-                            : [
-                                WColors.cyan.withOpacity(.22),
-                                WColors.violet.withOpacity(.14),
-                              ],
-                      ),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: (featured ? WColors.violet : WColors.cyan)
-                            .withOpacity(.28),
-                      ),
-                    ),
-                    child: Icon(
-                      option.icon,
-                      color: featured ? Colors.white : WColors.cyan,
-                      size: 22,
-                    ),
-                  ),
-                  const Spacer(),
-                  Icon(
-                    Icons.arrow_outward_rounded,
-                    color: WColors.muted.withOpacity(.75),
-                    size: 18,
-                  ),
-                ],
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: featured
+                  ? WColors.violet.withOpacity(.38)
+                  : Colors.white.withOpacity(.075),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(.24),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
               ),
-              const Spacer(),
-              Text(
-                option.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: WColors.text,
-                  fontSize: 12.8,
-                  height: 1.2,
-                  fontWeight: FontWeight.w900,
+              if (featured)
+                BoxShadow(
+                  color: WColors.violet.withOpacity(.09),
+                  blurRadius: 28,
+                  spreadRadius: 1,
+                ),
+            ],
+          ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                right: -30,
+                top: -34,
+                child: Container(
+                  width: 116,
+                  height: 116,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [accent.withOpacity(.18), Colors.transparent],
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(height: 6),
-              Text(
-                option.subtitle,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: WColors.muted,
-                  fontSize: 9.5,
-                  height: 1.4,
+              Padding(
+                padding: const EdgeInsets.all(17),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 46,
+                          height: 46,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: featured
+                                  ? [WColors.violet, WColors.cyan]
+                                  : [
+                                      WColors.cyan.withOpacity(.24),
+                                      WColors.violet.withOpacity(.16),
+                                    ],
+                            ),
+                            borderRadius: BorderRadius.circular(15),
+                            border: Border.all(color: accent.withOpacity(.34)),
+                            boxShadow: [
+                              BoxShadow(
+                                color: accent.withOpacity(.12),
+                                blurRadius: 16,
+                                offset: const Offset(0, 7),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            option.icon,
+                            color: featured ? Colors.white : WColors.cyan,
+                            size: 23,
+                          ),
+                        ),
+                        const Spacer(),
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(.045),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(.07),
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.north_east_rounded,
+                            color: WColors.secondary,
+                            size: 17,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    Text(
+                      option.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: WColors.text,
+                        fontSize: 14.2,
+                        height: 1.18,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -.15,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      option.subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: WColors.muted,
+                        fontSize: 10.4,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -2176,35 +2279,250 @@ class _TaskGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final meta = _taskGroupMeta(category);
+
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: _panelDecoration(),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 17),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF111E31), Color(0xFF0C1727)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(.075)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.22),
+            blurRadius: 22,
+            offset: const Offset(0, 11),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: WColors.text,
-              fontWeight: FontWeight.w900,
-            ),
+          Row(
+            children: [
+              Container(
+                width: 43,
+                height: 43,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      meta.color.withOpacity(.28),
+                      meta.color.withOpacity(.10),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: meta.color.withOpacity(.32)),
+                ),
+                child: Icon(meta.icon, color: meta.color, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: WColors.text,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -.15,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${types.length} focused practice formats',
+                      style: const TextStyle(
+                        color: WColors.muted,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                decoration: BoxDecoration(
+                  color: meta.color.withOpacity(.09),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: meta.color.withOpacity(.21)),
+                ),
+                child: Text(
+                  meta.badge,
+                  style: TextStyle(
+                    color: meta.color,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .55,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 11),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: types.map((type) {
-              return ActionChip(
-                label: Text(type),
-                avatar: const Icon(Icons.arrow_forward_rounded, size: 16),
-                onPressed: () =>
-                    WritingChecker._openBrowser(context, category, type: type),
+          const SizedBox(height: 15),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              const spacing = 9.0;
+              final tileWidth = (constraints.maxWidth - spacing) / 2;
+
+              return Wrap(
+                spacing: spacing,
+                runSpacing: 9,
+                children: types.map((type) {
+                  return SizedBox(
+                    width: tileWidth,
+                    child: _TaskTypeTile(
+                      title: type,
+                      icon: _taskTypeIcon(type),
+                      color: meta.color,
+                      onTap: () => WritingChecker._openBrowser(
+                        context,
+                        category,
+                        type: type,
+                      ),
+                    ),
+                  );
+                }).toList(),
               );
-            }).toList(),
+            },
           ),
         ],
       ),
     );
+  }
+}
+
+class _TaskTypeTile extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _TaskTypeTile({
+    required this.title,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0B1626).withOpacity(.92),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(.07)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(.10),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: color.withOpacity(.20)),
+                ),
+                child: Icon(icon, color: color, size: 17),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: WColors.secondary,
+                    fontSize: 10.7,
+                    height: 1.2,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 3),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: color.withOpacity(.85),
+                size: 18,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+({IconData icon, Color color, String badge}) _taskGroupMeta(String category) {
+  switch (category) {
+    case 'academic_task_1':
+      return (
+        icon: Icons.insights_rounded,
+        color: WColors.cyan,
+        badge: 'ACADEMIC',
+      );
+    case 'general_task_1':
+      return (
+        icon: Icons.mail_outline_rounded,
+        color: WColors.green,
+        badge: 'GENERAL',
+      );
+    default:
+      return (
+        icon: Icons.edit_note_rounded,
+        color: WColors.violet,
+        badge: 'ESSAYS',
+      );
+  }
+}
+
+IconData _taskTypeIcon(String type) {
+  switch (type.toLowerCase()) {
+    case 'line graph':
+      return Icons.show_chart_rounded;
+    case 'bar chart':
+      return Icons.bar_chart_rounded;
+    case 'pie chart':
+      return Icons.pie_chart_outline_rounded;
+    case 'table':
+      return Icons.table_chart_outlined;
+    case 'map':
+      return Icons.map_outlined;
+    case 'process diagram':
+      return Icons.account_tree_outlined;
+    case 'mixed charts':
+      return Icons.dashboard_customize_outlined;
+    case 'formal letter':
+      return Icons.business_center_outlined;
+    case 'semi-formal letter':
+      return Icons.handshake_outlined;
+    case 'informal letter':
+      return Icons.mark_email_read_outlined;
+    case 'opinion essay':
+      return Icons.record_voice_over_outlined;
+    case 'discussion essay':
+      return Icons.forum_outlined;
+    case 'advantages/disadvantages':
+      return Icons.balance_rounded;
+    case 'problem/solution':
+      return Icons.lightbulb_outline_rounded;
+    case 'two-part question':
+      return Icons.call_split_rounded;
+    case 'direct question essay':
+      return Icons.help_outline_rounded;
+    default:
+      return Icons.edit_document;
   }
 }
 
@@ -3240,7 +3558,11 @@ class _SimpleListCard extends StatelessWidget {
                 const SizedBox(height: 5),
                 Text(
                   subtitle,
-                  style: const TextStyle(color: WColors.muted, fontSize: 10.5),
+                  style: const TextStyle(
+                    color: WColors.muted,
+                    fontSize: 11,
+                    height: 1.4,
+                  ),
                 ),
               ],
             ),
@@ -3323,8 +3645,9 @@ class _SectionTitle extends StatelessWidget {
           title,
           style: const TextStyle(
             color: WColors.text,
-            fontSize: 16,
+            fontSize: 18,
             fontWeight: FontWeight.w900,
+            letterSpacing: -.25,
           ),
         ),
         const SizedBox(height: 3),

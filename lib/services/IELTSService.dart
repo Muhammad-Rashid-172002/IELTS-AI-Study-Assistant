@@ -11,20 +11,18 @@ class IELTSService {
       Uri.parse(
         "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey",
       ),
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: {"Content-Type": "application/json"},
       body: jsonEncode({
         "contents": [
           {
             "parts": [
               {
                 "text":
-                    "Return ONLY JSON. Create 2 IELTS $section MCQs in this format: [{\"question\":\"\",\"options\":[\"\",\"\",\"\"],\"answer\":0}]"
-              }
-            ]
-          }
-        ]
+                    "Return ONLY JSON. Create 2 IELTS $section MCQs in this format: [{\"question\":\"\",\"options\":[\"\",\"\",\"\"],\"answer\":0}]",
+              },
+            ],
+          },
+        ],
       }),
     );
 

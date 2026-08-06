@@ -7,10 +7,7 @@ import 'progress_theme.dart';
 class SkillAnalyticsScreen extends StatelessWidget {
   final SkillProgress progress;
 
-  const SkillAnalyticsScreen({
-    super.key,
-    required this.progress,
-  });
+  const SkillAnalyticsScreen({super.key, required this.progress});
 
   @override
   Widget build(BuildContext context) {
@@ -56,10 +53,7 @@ class SkillAnalyticsScreen extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: _Metric(
-              label: 'Attempts',
-              value: '${progress.attempts}',
-            ),
+            child: _Metric(label: 'Attempts', value: '${progress.attempts}'),
           ),
         ],
       ),
@@ -108,9 +102,7 @@ class SkillAnalyticsScreen extends StatelessWidget {
           if (entries.isEmpty)
             const Text(
               'Complete more practice to unlock question-type analytics.',
-              style: TextStyle(
-                color: ProgressColors.muted,
-              ),
+              style: TextStyle(color: ProgressColors.muted),
             )
           else
             ...entries.map(
@@ -129,93 +121,83 @@ class SkillAnalyticsScreen extends StatelessWidget {
   List<Widget> _skillSpecificSections() {
     return switch (progress.skill) {
       'Listening' => [
-          _MapSection(
-            title: 'Section Performance',
-            values: _map('sectionPerformance'),
-            suffix: '%',
-          ),
-          const SizedBox(height: 14),
-          _MapSection(
-            title: 'Accent Performance',
-            values: _map('accentPerformance'),
-            suffix: '%',
-          ),
-          const SizedBox(height: 14),
-          _SingleValueSection(
-            title: 'Spelling Issues',
-            value:
-                '${_number(progress.details['spellingIssues']).round()}',
-            subtitle:
-                'Total spelling-related mistakes found in current period.',
-          ),
-        ],
+        _MapSection(
+          title: 'Section Performance',
+          values: _map('sectionPerformance'),
+          suffix: '%',
+        ),
+        const SizedBox(height: 14),
+        _MapSection(
+          title: 'Accent Performance',
+          values: _map('accentPerformance'),
+          suffix: '%',
+        ),
+        const SizedBox(height: 14),
+        _SingleValueSection(
+          title: 'Spelling Issues',
+          value: '${_number(progress.details['spellingIssues']).round()}',
+          subtitle: 'Total spelling-related mistakes found in current period.',
+        ),
+      ],
       'Reading' => [
-          _MapSection(
-            title: 'Passage Performance',
-            values: _map('passagePerformance'),
-            suffix: '%',
-          ),
-          const SizedBox(height: 14),
-          _SingleValueSection(
-            title: 'Reading Speed',
-            value:
-                '${_number(progress.details['readingSpeed']).round()} WPM',
-            subtitle:
-                'Average reading speed based on recorded attempts.',
-          ),
-          const SizedBox(height: 14),
-          _SingleValueSection(
-            title: 'Time Management',
-            value:
-                '${_number(progress.details['timeManagement']).toStringAsFixed(0)}%',
-            subtitle:
-                'Estimated efficiency in completing passages on time.',
-          ),
-        ],
+        _MapSection(
+          title: 'Passage Performance',
+          values: _map('passagePerformance'),
+          suffix: '%',
+        ),
+        const SizedBox(height: 14),
+        _SingleValueSection(
+          title: 'Reading Speed',
+          value: '${_number(progress.details['readingSpeed']).round()} WPM',
+          subtitle: 'Average reading speed based on recorded attempts.',
+        ),
+        const SizedBox(height: 14),
+        _SingleValueSection(
+          title: 'Time Management',
+          value:
+              '${_number(progress.details['timeManagement']).toStringAsFixed(0)}%',
+          subtitle: 'Estimated efficiency in completing passages on time.',
+        ),
+      ],
       'Writing' => [
-          _MapSection(
-            title: 'Criterion Trends',
-            values: _map('criteria'),
-            suffix: '',
-            maximum: 9,
-          ),
-          const SizedBox(height: 14),
-          _MapSection(
-            title: 'Grammar Error Categories',
-            values: _map('grammarErrors'),
-            suffix: '',
-          ),
-          const SizedBox(height: 14),
-          _SingleValueSection(
-            title: 'Vocabulary Growth',
-            value:
-                _number(progress.details['vocabularyGrowth'])
-                    .toStringAsFixed(1),
-            subtitle:
-                'Average Lexical Resource or vocabulary score.',
-          ),
-        ],
+        _MapSection(
+          title: 'Criterion Trends',
+          values: _map('criteria'),
+          suffix: '',
+          maximum: 9,
+        ),
+        const SizedBox(height: 14),
+        _MapSection(
+          title: 'Grammar Error Categories',
+          values: _map('grammarErrors'),
+          suffix: '',
+        ),
+        const SizedBox(height: 14),
+        _SingleValueSection(
+          title: 'Vocabulary Growth',
+          value: _number(
+            progress.details['vocabularyGrowth'],
+          ).toStringAsFixed(1),
+          subtitle: 'Average Lexical Resource or vocabulary score.',
+        ),
+      ],
       _ => [
-          _MapSection(
-            title: 'Speaking Criteria',
-            values: _map('criteria'),
-            suffix: '',
-            maximum: 9,
-          ),
-          const SizedBox(height: 14),
-          _SpeakingCriteriaGrid(
-            values: {
-              'Fluency':
-                  _number(progress.details['fluency']),
-              'Pronunciation':
-                  _number(progress.details['pronunciation']),
-              'Grammar':
-                  _number(progress.details['grammar']),
-              'Vocabulary':
-                  _number(progress.details['vocabulary']),
-            },
-          ),
-        ],
+        _MapSection(
+          title: 'Speaking Criteria',
+          values: _map('criteria'),
+          suffix: '',
+          maximum: 9,
+        ),
+        const SizedBox(height: 14),
+        _SpeakingCriteriaGrid(
+          values: {
+            'Fluency': _number(progress.details['fluency']),
+            'Pronunciation': _number(progress.details['pronunciation']),
+            'Grammar': _number(progress.details['grammar']),
+            'Vocabulary': _number(progress.details['vocabulary']),
+          },
+        ),
+      ],
     };
   }
 
@@ -225,9 +207,9 @@ class SkillAnalyticsScreen extends StatelessWidget {
     if (value is Map<String, double>) return value;
 
     if (value is Map) {
-      return Map<String, dynamic>.from(value).map(
-        (key, value) => MapEntry(key, _number(value)),
-      );
+      return Map<String, dynamic>.from(
+        value,
+      ).map((key, value) => MapEntry(key, _number(value)));
     }
 
     return const {};
@@ -252,10 +234,7 @@ class _Metric extends StatelessWidget {
   final String label;
   final String value;
 
-  const _Metric({
-    required this.label,
-    required this.value,
-  });
+  const _Metric({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -279,10 +258,7 @@ class _Metric extends StatelessWidget {
           Text(
             label,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: ProgressColors.muted,
-              fontSize: 8.5,
-            ),
+            style: const TextStyle(color: ProgressColors.muted, fontSize: 8.5),
           ),
         ],
       ),
@@ -332,8 +308,7 @@ class _MapSection extends StatelessWidget {
                 label: entry.key,
                 value: entry.value,
                 suffix: suffix,
-                maximum: maximum ??
-                    (entry.value <= 9 ? 9 : 100),
+                maximum: maximum ?? (entry.value <= 9 ? 9 : 100),
               ),
             ),
         ],
@@ -357,8 +332,7 @@ class _ProgressRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final progress =
-        maximum <= 0 ? 0.0 : (value / maximum).clamp(0.0, 1.0);
+    final progress = maximum <= 0 ? 0.0 : (value / maximum).clamp(0.0, 1.0);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -418,8 +392,7 @@ class _SingleValueSection extends StatelessWidget {
         children: [
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
@@ -458,9 +431,7 @@ class _SingleValueSection extends StatelessWidget {
 class _SpeakingCriteriaGrid extends StatelessWidget {
   final Map<String, double> values;
 
-  const _SpeakingCriteriaGrid({
-    required this.values,
-  });
+  const _SpeakingCriteriaGrid({required this.values});
 
   @override
   Widget build(BuildContext context) {

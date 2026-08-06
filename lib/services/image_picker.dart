@@ -3,12 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 class ImagePickerHelper {
-
   static final ImagePicker _picker = ImagePicker();
 
   /// CAMERA
   static Future<File?> pickFromCamera() async {
-
     final XFile? image = await _picker.pickImage(
       source: ImageSource.camera,
       imageQuality: 70,
@@ -23,7 +21,6 @@ class ImagePickerHelper {
 
   /// GALLERY
   static Future<File?> pickFromGallery() async {
-
     final XFile? image = await _picker.pickImage(
       source: ImageSource.gallery,
       imageQuality: 70,
@@ -37,29 +34,22 @@ class ImagePickerHelper {
   }
 
   /// BOTTOM SHEET
-  static Future<File?> showImagePicker(
-    BuildContext context,
-  ) async {
-
+  static Future<File?> showImagePicker(BuildContext context) async {
     File? selectedImage;
 
     await showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1E293B),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(25),
-        ),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
       ),
       builder: (context) {
-
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-
                 const Text(
                   "Select Image",
                   style: TextStyle(
@@ -73,14 +63,11 @@ class ImagePickerHelper {
 
                 Row(
                   children: [
-
                     /// CAMERA
                     Expanded(
                       child: GestureDetector(
                         onTap: () async {
-
-                          selectedImage =
-                              await pickFromCamera();
+                          selectedImage = await pickFromCamera();
 
                           Navigator.pop(context);
                         },
@@ -89,12 +76,10 @@ class ImagePickerHelper {
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
                             color: Colors.black26,
-                            borderRadius:
-                                BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(20),
                           ),
                           child: const Column(
                             children: [
-
                               Icon(
                                 Icons.camera_alt_rounded,
                                 color: Colors.greenAccent,
@@ -105,9 +90,7 @@ class ImagePickerHelper {
 
                               Text(
                                 "Camera",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                ),
+                                style: TextStyle(color: Colors.white),
                               ),
                             ],
                           ),
@@ -121,9 +104,7 @@ class ImagePickerHelper {
                     Expanded(
                       child: GestureDetector(
                         onTap: () async {
-
-                          selectedImage =
-                              await pickFromGallery();
+                          selectedImage = await pickFromGallery();
 
                           Navigator.pop(context);
                         },
@@ -132,12 +113,10 @@ class ImagePickerHelper {
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
                             color: Colors.black26,
-                            borderRadius:
-                                BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(20),
                           ),
                           child: const Column(
                             children: [
-
                               Icon(
                                 Icons.photo_library_rounded,
                                 color: Colors.blueAccent,
@@ -148,9 +127,7 @@ class ImagePickerHelper {
 
                               Text(
                                 "Gallery",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                ),
+                                style: TextStyle(color: Colors.white),
                               ),
                             ],
                           ),
