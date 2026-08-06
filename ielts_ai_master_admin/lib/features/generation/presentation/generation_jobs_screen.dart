@@ -19,7 +19,7 @@ class GenerationJobsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return AdminScaffold(
       title: 'AI Generation Jobs',
-      subtitle: 'Listening and Reading Gemini generation queue',
+      subtitle: 'Listening, Reading, Writing and Speaking AI generation queue',
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: _watchJobs(),
         builder: (context, snapshot) {
@@ -227,7 +227,7 @@ class _JobsOverviewHero extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                '$active active job${active == 1 ? '' : 's'} across Listening and Reading',
+                '$active active job${active == 1 ? '' : 's'} across all IELTS modules',
                 style: TextStyle(
                   color: Colors.white.withOpacity(.70),
                   fontSize: 11.5,
@@ -538,34 +538,70 @@ class _GenerationJobCard extends StatelessWidget {
 
   const _GenerationJobCard({required this.jobId, required this.data});
 
-  bool get _isReading {
-    return (data['contentType'] ?? '').toString().toLowerCase() == 'reading';
+  String get _contentType {
+    final raw = (data['contentType'] ?? data['module'] ?? data['type'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+
+    if (raw.contains('read')) return 'reading';
+    if (raw.contains('writ')) return 'writing';
+    if (raw.contains('speak')) return 'speaking';
+    return 'listening';
   }
 
-  String get _status {
-    return (data['status'] ?? 'queued').toString();
+  bool get _isReading => _contentType == 'reading';
+  bool get _isWriting => _contentType == 'writing';
+  bool get _isSpeaking => _contentType == 'speaking';
+
+  String get _status => (data['status'] ?? 'queued').toString();
+
+  String get _moduleLabel {
+    switch (_contentType) {
+      case 'reading':
+        return 'Reading';
+      case 'writing':
+        return 'Writing';
+      case 'speaking':
+        return 'Speaking';
+      default:
+        return 'Listening';
+    }
   }
 
   String get _title {
     if (_isReading) {
       final mode = _readingModeTitle((data['mode'] ?? 'passage').toString());
-
       final questionType =
           (data['primaryQuestionType'] ?? data['questionType'] ?? '')
               .toString()
               .trim();
+      return questionType.isEmpty ? 'Reading • $mode' : '$questionType • $mode';
+    }
 
-      if (questionType.isNotEmpty) {
-        return '$questionType • $mode';
-      }
+    if (_isWriting) {
+      final task =
+          (data['taskType'] ?? data['task'] ?? data['questionType'] ?? '')
+              .toString()
+              .trim();
+      final mode = (data['mode'] ?? data['ieltsType'] ?? '').toString().trim();
+      if (task.isNotEmpty && mode.isNotEmpty) return '$task • $mode';
+      if (task.isNotEmpty) return 'Writing • $task';
+      return 'Writing Content Generation';
+    }
 
-      return 'Reading • $mode';
+    if (_isSpeaking) {
+      final part = (data['part'] ?? data['section'] ?? '').toString().trim();
+      final topic = (data['topic'] ?? data['questionType'] ?? '')
+          .toString()
+          .trim();
+      if (topic.isNotEmpty && part.isNotEmpty) return '$topic • Part $part';
+      if (part.isNotEmpty) return 'Speaking • Part $part';
+      return 'Speaking Test Generation';
     }
 
     final questionType = (data['questionType'] ?? 'Listening').toString();
-
     final section = (data['section'] ?? '-').toString();
-
     return '$questionType • Section $section';
   }
 
@@ -576,10 +612,20 @@ class _GenerationJobCard extends StatelessWidget {
 
     if (_isReading) {
       final passages = _asInt(data['passageCount'], fallback: 1);
-
       final questions = _asInt(data['questionCount'], fallback: 10);
-
       return '$passages passage(s) • $questions questions\n'
+          'Requested $requested • Generated $generated • Failed $failed';
+    }
+
+    if (_isWriting) {
+      final prompts = _asInt(data['promptCount'], fallback: requested);
+      return '$prompts writing prompt(s)\n'
+          'Requested $requested • Generated $generated • Failed $failed';
+    }
+
+    if (_isSpeaking) {
+      final questions = _asInt(data['questionCount'], fallback: requested);
+      return '$questions speaking question(s)\n'
           'Requested $requested • Generated $generated • Failed $failed';
     }
 
@@ -587,19 +633,29 @@ class _GenerationJobCard extends StatelessWidget {
   }
 
   IconData get _icon {
-    if (_isReading) {
-      return Icons.menu_book_rounded;
+    switch (_contentType) {
+      case 'reading':
+        return Icons.menu_book_rounded;
+      case 'writing':
+        return Icons.edit_note_rounded;
+      case 'speaking':
+        return Icons.record_voice_over_rounded;
+      default:
+        return Icons.headphones_rounded;
     }
-
-    return Icons.headphones_rounded;
   }
 
   Color get _moduleColor {
-    if (_isReading) {
-      return AdminColors.success;
+    switch (_contentType) {
+      case 'reading':
+        return AdminColors.success;
+      case 'writing':
+        return AdminColors.violet;
+      case 'speaking':
+        return const Color(0xFFFF9F43);
+      default:
+        return AdminColors.cyan;
     }
-
-    return AdminColors.cyan;
   }
 
   @override
@@ -610,169 +666,187 @@ class _GenerationJobCard extends StatelessWidget {
     final normalizedStatus = _status.trim().toLowerCase();
     final statusColor = _statusColor(normalizedStatus);
     final createdAt = _formatTimestamp(data['createdAt']);
+    final progress = _progressValue();
 
     return Container(
       decoration: BoxDecoration(
         color: AdminColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: statusColor.withOpacity(.18)),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: _moduleColor.withOpacity(.16)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(.08),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
+            color: _moduleColor.withOpacity(.05),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(22),
           onTap: () => _showDetails(context),
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        _moduleColor.withOpacity(.22),
-                        _moduleColor.withOpacity(.08),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 460;
+                final icon = _ModuleIcon(icon: _icon, color: _moduleColor);
+                final content = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AdminColors.text,
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w900,
+                              height: 1.3,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        StatusBadge(status: _status),
                       ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
                     ),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: _moduleColor.withOpacity(.20)),
-                  ),
-                  child: Icon(_icon, color: _moduleColor, size: 25),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                    const SizedBox(height: 8),
+                    Text(
+                      _subtitle,
+                      style: const TextStyle(
+                        color: AdminColors.textMuted,
+                        fontSize: 11,
+                        height: 1.5,
+                      ),
+                    ),
+                    if (progress != null) ...[
+                      const SizedBox(height: 12),
                       Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
-                            child: Text(
-                              _title,
-                              style: const TextStyle(
-                                color: AdminColors.text,
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w900,
-                                height: 1.25,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(99),
+                              child: LinearProgressIndicator(
+                                value: progress,
+                                minHeight: 6,
+                                backgroundColor: _moduleColor.withOpacity(.10),
+                                valueColor: AlwaysStoppedAnimation(
+                                  _moduleColor,
+                                ),
                               ),
                             ),
                           ),
                           const SizedBox(width: 10),
-                          StatusBadge(status: _status),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _subtitle,
-                        style: const TextStyle(
-                          color: AdminColors.textMuted,
-                          fontSize: 11,
-                          height: 1.5,
-                        ),
-                      ),
-                      if (lastError.isNotEmpty) ...[
-                        const SizedBox(height: 11),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(11),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEF4444).withOpacity(.08),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: const Color(0xFFEF4444).withOpacity(.20),
+                          Text(
+                            '${(progress * 100).round()}%',
+                            style: TextStyle(
+                              color: _moduleColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
                             ),
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Icon(
-                                Icons.warning_amber_rounded,
-                                color: Color(0xFFFF6B6B),
-                                size: 17,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  lastError,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Color(0xFFFF8A8A),
-                                    fontSize: 10.5,
-                                    height: 1.4,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 9,
-                              vertical: 5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _moduleColor.withOpacity(.08),
-                              borderRadius: BorderRadius.circular(99),
-                            ),
-                            child: Text(
-                              _isReading ? 'READING' : 'LISTENING',
-                              style: TextStyle(
-                                color: _moduleColor,
-                                fontSize: 8.5,
-                                letterSpacing: .7,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          if (createdAt.isNotEmpty)
-                            Expanded(
-                              child: Text(
-                                createdAt,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: AdminColors.textMuted,
-                                  fontSize: 9.5,
-                                ),
-                              ),
-                            )
-                          else
-                            const Spacer(),
-                          const Icon(
-                            Icons.arrow_forward_ios_rounded,
-                            size: 13,
-                            color: AdminColors.textMuted,
                           ),
                         ],
                       ),
                     ],
-                  ),
-                ),
-              ],
+                    if (lastError.isNotEmpty) ...[
+                      const SizedBox(height: 11),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(11),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEF4444).withOpacity(.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: const Color(0xFFEF4444).withOpacity(.20),
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(
+                              Icons.warning_amber_rounded,
+                              color: Color(0xFFFF6B6B),
+                              size: 17,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                lastError,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Color(0xFFFF8A8A),
+                                  fontSize: 10.5,
+                                  height: 1.4,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 13),
+                    Row(
+                      children: [
+                        _ModulePill(label: _moduleLabel, color: _moduleColor),
+                        const SizedBox(width: 8),
+                        if (createdAt.isNotEmpty)
+                          Expanded(
+                            child: Text(
+                              createdAt,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AdminColors.textMuted,
+                                fontSize: 9.5,
+                              ),
+                            ),
+                          )
+                        else
+                          const Spacer(),
+                        const Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 13,
+                          color: AdminColors.textMuted,
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+
+                if (compact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [icon, const SizedBox(height: 13), content],
+                  );
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    icon,
+                    const SizedBox(width: 14),
+                    Expanded(child: content),
+                  ],
+                );
+              },
             ),
           ),
         ),
       ),
     );
+  }
+
+  double? _progressValue() {
+    final requested = _asInt(data['requestedCount']);
+    final generated = _asInt(data['generatedCount']);
+    if (requested <= 0) return null;
+    return (generated / requested).clamp(0.0, 1.0);
   }
 
   Color _statusColor(String status) {
@@ -839,39 +913,41 @@ class _GenerationJobCard extends StatelessWidget {
                     const SizedBox(height: 18),
                     Row(
                       children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: _moduleColor.withOpacity(.12),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Icon(_icon, color: _moduleColor),
-                        ),
-                        const SizedBox(width: 10),
+                        _ModuleIcon(icon: _icon, color: _moduleColor, size: 44),
+                        const SizedBox(width: 11),
                         Expanded(
-                          child: Text(
-                            _title,
-                            style: const TextStyle(
-                              color: AdminColors.text,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w900,
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _title,
+                                style: const TextStyle(
+                                  color: AdminColors.text,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _moduleLabel,
+                                style: TextStyle(
+                                  color: _moduleColor,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: .6,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         IconButton(
-                          onPressed: () {
-                            Navigator.pop(sheetContext);
-                          },
+                          onPressed: () => Navigator.pop(sheetContext),
                           icon: const Icon(Icons.close_rounded),
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
-                    _DetailRow(
-                      label: 'Content type',
-                      value: _isReading ? 'Reading' : 'Listening',
-                    ),
+                    _DetailRow(label: 'Content type', value: _moduleLabel),
                     _DetailRow(label: 'Status', value: _status),
                     _DetailRow(
                       label: 'Requested',
@@ -885,35 +961,7 @@ class _GenerationJobCard extends StatelessWidget {
                       label: 'Failed',
                       value: '${_asInt(data['failedCount'])}',
                     ),
-                    if (_isReading) ...[
-                      _DetailRow(
-                        label: 'Mode',
-                        value: _readingModeTitle(
-                          (data['mode'] ?? 'passage').toString(),
-                        ),
-                      ),
-                      _DetailRow(
-                        label: 'IELTS type',
-                        value: (data['ieltsType'] ?? 'Academic').toString(),
-                      ),
-                      _DetailRow(
-                        label: 'Question type',
-                        value:
-                            (data['primaryQuestionType'] ??
-                                    data['questionType'] ??
-                                    'Mixed')
-                                .toString(),
-                      ),
-                    ] else ...[
-                      _DetailRow(
-                        label: 'Section',
-                        value: (data['section'] ?? '-').toString(),
-                      ),
-                      _DetailRow(
-                        label: 'Question type',
-                        value: (data['questionType'] ?? '-').toString(),
-                      ),
-                    ],
+                    ..._moduleDetailRows(),
                     _DetailRow(label: 'Job ID', value: jobId),
                   ],
                 ),
@@ -925,10 +973,65 @@ class _GenerationJobCard extends StatelessWidget {
     );
   }
 
+  List<Widget> _moduleDetailRows() {
+    if (_isReading) {
+      return [
+        _DetailRow(
+          label: 'Mode',
+          value: _readingModeTitle((data['mode'] ?? 'passage').toString()),
+        ),
+        _DetailRow(
+          label: 'IELTS type',
+          value: (data['ieltsType'] ?? 'Academic').toString(),
+        ),
+        _DetailRow(
+          label: 'Question type',
+          value:
+              (data['primaryQuestionType'] ?? data['questionType'] ?? 'Mixed')
+                  .toString(),
+        ),
+      ];
+    }
+
+    if (_isWriting) {
+      return [
+        _DetailRow(
+          label: 'Task type',
+          value: (data['taskType'] ?? data['task'] ?? 'Mixed').toString(),
+        ),
+        _DetailRow(
+          label: 'IELTS type',
+          value: (data['ieltsType'] ?? 'Academic').toString(),
+        ),
+      ];
+    }
+
+    if (_isSpeaking) {
+      return [
+        _DetailRow(
+          label: 'Speaking part',
+          value: (data['part'] ?? data['section'] ?? 'Mixed').toString(),
+        ),
+        _DetailRow(
+          label: 'Topic',
+          value: (data['topic'] ?? data['questionType'] ?? 'General')
+              .toString(),
+        ),
+      ];
+    }
+
+    return [
+      _DetailRow(label: 'Section', value: (data['section'] ?? '-').toString()),
+      _DetailRow(
+        label: 'Question type',
+        value: (data['questionType'] ?? '-').toString(),
+      ),
+    ];
+  }
+
   static int _asInt(dynamic value, {int fallback = 0}) {
     if (value is int) return value;
     if (value is num) return value.toInt();
-
     return int.tryParse(value?.toString() ?? '') ?? fallback;
   }
 
@@ -953,6 +1056,78 @@ class _GenerationJobCard extends StatelessWidget {
       default:
         return 'Passage Practice';
     }
+  }
+}
+
+class _ModuleIcon extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final double size;
+
+  const _ModuleIcon({required this.icon, required this.color, this.size = 52});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [color.withOpacity(.24), color.withOpacity(.08)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(size * .31),
+        border: Border.all(color: color.withOpacity(.22)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(.10),
+            blurRadius: 18,
+            offset: const Offset(0, 7),
+          ),
+        ],
+      ),
+      child: Icon(icon, color: color, size: size * .48),
+    );
+  }
+}
+
+class _ModulePill extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _ModulePill({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.09),
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: color.withOpacity(.16)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              color: color,
+              fontSize: 8.5,
+              letterSpacing: .7,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1096,7 +1271,7 @@ class _EmptyJobsView extends StatelessWidget {
             ),
             SizedBox(height: 6),
             Text(
-              'Listening ya Reading module se AI generation job create karein.',
+              'Listening, Reading, Writing ya Speaking module se AI generation job create karein.',
               textAlign: TextAlign.center,
               style: TextStyle(color: AdminColors.textMuted),
             ),

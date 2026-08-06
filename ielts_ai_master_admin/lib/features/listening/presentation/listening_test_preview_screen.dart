@@ -74,7 +74,8 @@ class ListeningTestPreviewScreen extends StatelessWidget {
                         spacing: 8,
                         runSpacing: 8,
                         children: [
-                          _InfoChip('Section ${test.section}'),
+                          _InfoChip(_previewModeLabel(test.mode, test.section)),
+                          _InfoChip(test.ieltsType),
                           _InfoChip(test.questionType),
                           _InfoChip(test.difficulty),
                           _InfoChip(test.accent),
@@ -755,5 +756,16 @@ class _InfoChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Chip(label: Text(text));
+  }
+}
+
+String _previewModeLabel(String mode, int section) {
+  switch (mode.toLowerCase()) {
+    case 'timed': return 'Timed Listening';
+    case 'exam': case 'full': return 'Full Test • Section $section';
+    case 'accent': return 'Accent Training';
+    case 'learning': return 'Learning Mode';
+    case 'question_type': return 'Question Type Practice';
+    default: return 'Section $section';
   }
 }
