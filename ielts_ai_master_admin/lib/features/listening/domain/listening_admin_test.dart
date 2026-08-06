@@ -5,6 +5,8 @@ class ListeningAdminTest {
   final String title;
   final String description;
   final String status;
+  final String ieltsType;
+  final String mode;
   final int section;
   final String questionType;
   final String difficulty;
@@ -23,6 +25,8 @@ class ListeningAdminTest {
     required this.title,
     required this.description,
     required this.status,
+    required this.ieltsType,
+    required this.mode,
     required this.section,
     required this.questionType,
     required this.difficulty,
@@ -50,6 +54,8 @@ class ListeningAdminTest {
       title: (data['title'] ?? 'Untitled Listening Test').toString(),
       description: (data['description'] ?? '').toString(),
       status: (data['status'] ?? 'draft').toString(),
+      ieltsType: (data['ieltsType'] ?? 'Academic').toString(),
+      mode: (data['mode'] ?? 'section').toString(),
       section: _toInt(data['section']),
       questionType: (data['questionType'] ?? 'Mixed').toString(),
       difficulty: (data['difficulty'] ?? 'Intermediate').toString(),

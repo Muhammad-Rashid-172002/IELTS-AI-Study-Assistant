@@ -141,6 +141,20 @@ class SpeakingAdminRepository {
         .snapshots();
   }
 
+  Future<void> retrySpeakingJob(String jobId) {
+    return _firestore.collection('generation_jobs').doc(jobId).set({
+      'status': 'queued',
+      'generatedCount': 0,
+      'failedCount': 0,
+      'errorMessage': FieldValue.delete(),
+      'lastError': FieldValue.delete(),
+      'errors': FieldValue.delete(),
+      'startedAt': FieldValue.delete(),
+      'completedAt': FieldValue.delete(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
   Stream<QuerySnapshot<Map<String, dynamic>>> watchSpeakingJobs() {
     return _firestore
         .collection('generation_jobs')

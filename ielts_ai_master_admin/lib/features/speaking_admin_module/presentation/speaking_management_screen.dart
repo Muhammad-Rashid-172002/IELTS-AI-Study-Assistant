@@ -51,6 +51,7 @@ class _SpeakingManagementScreenState
       ),
       body: Column(
         children: [
+          _generationHealthBanner(),
           _toolbar(),
           Expanded(
             child: StreamBuilder<List<SpeakingAdminTest>>(
@@ -126,6 +127,120 @@ class _SpeakingManagementScreenState
           ),
         ],
       ),
+    );
+  }
+
+  Widget _generationHealthBanner() {
+    return StreamBuilder(
+      stream: _repository.watchSpeakingJobs(),
+      builder: (context, snapshot) {
+        final docs = snapshot.data?.docs ?? const [];
+        var queued = 0;
+        var generating = 0;
+        var completed = 0;
+        var failed = 0;
+
+        for (final doc in docs) {
+          switch ((doc.data()['status'] ?? '').toString()) {
+            case 'queued':
+              queued++;
+              break;
+            case 'generating':
+              generating++;
+              break;
+            case 'completed':
+              completed++;
+              break;
+            case 'failed':
+              failed++;
+              break;
+          }
+        }
+
+        final active = queued + generating;
+        final tone = failed > 0 ? AdminColors.primary : AdminColors.success;
+
+        return Container(
+          margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                AdminColors.surface,
+                tone.withOpacity(.07),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: tone.withOpacity(.25)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: tone.withOpacity(.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  active > 0
+                      ? Icons.auto_awesome_rounded
+                      : Icons.verified_rounded,
+                  color: tone,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      active > 0
+                          ? '$active speaking generation job${active == 1 ? '' : 's'} active'
+                          : 'Speaking generation system ready',
+                      style: const TextStyle(
+                        color: AdminColors.text,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Queued $queued  •  Generating $generating  •  Completed $completed  •  Failed $failed',
+                      style: const TextStyle(
+                        color: AdminColors.textMuted,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (active == 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AdminColors.success.withOpacity(.10),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: const Text(
+                    'VALIDATION FIXED',
+                    style: TextStyle(
+                      color: AdminColors.success,
+                      fontSize: 8,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: .5,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 

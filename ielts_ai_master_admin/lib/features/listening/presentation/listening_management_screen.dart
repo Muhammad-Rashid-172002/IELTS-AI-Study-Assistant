@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:ielts_ai_master_admin/features/reading_admin_generator/create_generation_job_sheet.dart';
 
 import '../../../core/theme/admin_theme.dart';
 import '../../../core/widgets/admin_scaffold.dart';
@@ -8,6 +7,7 @@ import '../../../core/widgets/loading_view.dart';
 import '../../../core/widgets/status_badge.dart';
 import '../data/listening_admin_repository.dart';
 import '../domain/listening_admin_test.dart';
+import 'create_listening_generation_job_sheet.dart';
 import 'listening_test_preview_screen.dart';
 
 class ListeningManagementScreen extends StatefulWidget {
@@ -32,7 +32,7 @@ class _ListeningManagementScreenState
         onPressed: () => showModalBottomSheet<void>(
           context: context,
           isScrollControlled: true,
-          builder: (_) => const CreateReadingGenerationJobSheet(),
+          builder: (_) => const CreateListeningGenerationJobSheet(),
         ),
         icon: const Icon(Icons.auto_awesome_rounded),
         label: const Text('Generate with AI'),
@@ -110,7 +110,7 @@ class _ListeningManagementScreenState
                         subtitle: Padding(
                           padding: const EdgeInsets.only(top: 6),
                           child: Text(
-                            'Section ${test.section} • ${test.questionType} • ${test.questionCount} questions',
+                            '${_modeLabel(test.mode, test.section)} • ${test.questionType} • ${test.questionCount} questions',
                           ),
                         ),
                         trailing: StatusBadge(status: test.status),
@@ -132,5 +132,16 @@ class _ListeningManagementScreenState
         ],
       ),
     );
+  }
+}
+
+String _modeLabel(String mode, int section) {
+  switch (mode.toLowerCase()) {
+    case 'timed': return 'Timed Listening';
+    case 'exam': case 'full': return 'Full Test • Section $section';
+    case 'accent': return 'Accent Training • Section $section';
+    case 'learning': return 'Learning Mode • Section $section';
+    case 'question_type': return 'Question Type Practice';
+    default: return 'Section $section';
   }
 }

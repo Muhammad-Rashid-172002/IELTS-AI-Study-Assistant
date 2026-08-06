@@ -3404,7 +3404,7 @@ async function generateValidWritingTask({
       });
 
       if (isPermanentQuotaError(error)) break;
-      if (attempt < 4) await sleep(1200 * attempt);
+      if (attempt < 5) await sleep(1200 * attempt);
     }
   }
 
@@ -4276,7 +4276,7 @@ async function generateValidUniqueSpeakingTest({
 }) {
   const failures = [];
 
-  for (let attempt = 1; attempt <= 4; attempt++) {
+  for (let attempt = 1; attempt <= 5; attempt++) {
     try {
       const generated = await generateSpeakingTest({
         ai,
@@ -4314,12 +4314,14 @@ async function generateValidUniqueSpeakingTest({
       });
 
       if (isPermanentQuotaError(error)) break;
-      if (attempt < 4) await sleep(1200 * attempt);
+      if (attempt < 5) await sleep(1200 * attempt);
     }
   }
 
+  const finalFailure = failures[failures.length - 1] ||
+    "No valid response was returned.";
   throw new Error(
-      "Unable to create a valid speaking test. " + failures.join(" || "),
+      `Unable to create a valid speaking test after 5 attempts. ${finalFailure}`,
   );
 }
 
@@ -4352,12 +4354,16 @@ async function generateSpeakingTest({ai, job, sequenceNumber}) {
 
   let parsed;
   try {
-    parsed = JSON.parse(
-        result.response.text
-            .replace(/```json/gi, "")
-            .replace(/```/g, "")
-            .trim(),
-    );
+    const cleanedResponse = String(result.response.text || "")
+        .replace(/```json/gi, "")
+        .replace(/```/g, "")
+        .trim();
+    const start = cleanedResponse.indexOf("{");
+    const end = cleanedResponse.lastIndexOf("}");
+    if (start === -1 || end === -1 || end <= start) {
+      throw new Error("Gemini did not return a JSON object.");
+    }
+    parsed = JSON.parse(cleanedResponse.substring(start, end + 1));
   } catch (error) {
     throw new Error(
         `Gemini returned invalid speaking JSON: ${safeErrorMessage(error)}`,
@@ -4407,7 +4413,10 @@ ${speakingModeRules(mode, requestedPart)}
 QUALITY REQUIREMENTS
 1. Questions must be natural, clear, culturally neutral and internationally suitable.
 2. Part 1 questions must be familiar and personal but not intrusive.
-3. Part 2 must include one topic plus exactly four bullet prompts.
+3. Part 2 must include one topic plus EXACTLY FOUR bullet prompts. Store those
+   four prompts in the Part 2 question's answerGuide array. The answerGuide array
+   must have exactly 4 non-empty strings: never 3, never 5, and never include the
+   main cue-card topic as one of the four prompts.
 4. Part 3 must logically develop the Part 2 theme with deeper discussion.
 5. Include realistic AI follow-up questions.
 6. Include concise model answers for practice and shadowing.
@@ -4494,6 +4503,9 @@ function speakingModeRules(mode, requestedPart) {
     return `
 - Return only Part 2.
 - Create one cue card with exactly four bullet prompts.
+- The Part 2 question object MUST use answerGuide for the cue-card bullets.
+- answerGuide MUST be a JSON array containing exactly 4 concise strings.
+- Example shape: "answerGuide": ["who or what it was", "when and where it happened", "what happened", "why it was important to you"].
 - Include 60 seconds preparation and 120 seconds speaking time.
 `;
   }
@@ -4548,7 +4560,9 @@ function normalizeSpeakingTest(raw, settings) {
           question: String(question?.question || "").trim(),
           followUpQuestions: cleanStringArray(question?.followUpQuestions),
           modelAnswer: String(question?.modelAnswer || "").trim(),
-          answerGuide: cleanStringArray(question?.answerGuide),
+          answerGuide: part?.part === 2 || partIndex === 1 ?
+            normalizePart2CuePrompts(question) :
+            cleanStringArray(question?.answerGuide),
           usefulVocabulary: cleanStringArray(question?.usefulVocabulary),
           pronunciationTargets:
             normalizePronunciationTargets(question?.pronunciationTargets),
@@ -4594,6 +4608,41 @@ function normalizeSpeakingTest(raw, settings) {
     transcriptVisibleInExam: false,
     recordingReplayEnabled: true,
   };
+}
+
+function normalizePart2CuePrompts(question) {
+  const direct = cleanStringArray(question?.answerGuide);
+  const followUps = cleanStringArray(question?.followUpQuestions);
+  const combined = [];
+  const seen = new Set();
+
+  for (const value of [...direct, ...followUps]) {
+    const cleaned = String(value || "")
+        .replace(/^[•*\-–—\d.)\s]+/, "")
+        .trim();
+    const key = normalizeText(cleaned);
+    if (!cleaned || !key || seen.has(key)) continue;
+    seen.add(key);
+    combined.push(cleaned);
+  }
+
+  const fallback = [
+    "who or what it was",
+    "when and where it happened",
+    "what happened or what you did",
+    "why it was important or memorable to you",
+  ];
+
+  for (const value of fallback) {
+    if (combined.length >= 4) break;
+    const key = normalizeText(value);
+    if (!seen.has(key)) {
+      seen.add(key);
+      combined.push(value);
+    }
+  }
+
+  return combined.slice(0, 4);
 }
 
 function normalizePronunciationTargets(value) {
@@ -4646,7 +4695,9 @@ function validateSpeakingTest(test, job) {
 
     if (part.part === 2) {
       const cueQuestion = part.questions[0];
-      if (!cueQuestion || cueQuestion.answerGuide.length !== 4) {
+      if (!cueQuestion || !Array.isArray(cueQuestion.answerGuide) ||
+          cueQuestion.answerGuide.length !== 4 ||
+          cueQuestion.answerGuide.some((prompt) => !String(prompt).trim())) {
         errors.push("Part 2 cue card must contain exactly four bullet prompts.");
         score -= 15;
       }
@@ -9813,4 +9864,3 @@ function certificateNumber(value) {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
 }
-
