@@ -57,28 +57,71 @@ class _InitialProfileSetupScreenState extends State<InitialProfileSetupScreen> {
 
   final List<String> _genders = const ['Male', 'Female', 'Prefer not to say'];
 
-  final List<String> _countries = const [
-    'Pakistan',
-    'United Kingdom',
-    'Australia',
-    'Canada',
-    'New Zealand',
-    'United States',
-    'United Arab Emirates',
-    'Saudi Arabia',
-    'India',
-    'Bangladesh',
-    'China',
-    'Other',
-  ];
+  // Country -> native language suggestion used on Step 1.
+  // Users can still manually change the Native language dropdown afterwards.
+  final Map<String, String> _countryLanguageMap = const {
+    'Pakistan': 'Urdu',
+    'India': 'Hindi',
+    'Afghanistan': 'Pashto',
+    'Saudi Arabia': 'Arabic',
+    'United Arab Emirates': 'Arabic',
+    'Qatar': 'Arabic',
+    'Oman': 'Arabic',
+    'Kuwait': 'Arabic',
+    'Bahrain': 'Arabic',
+    'Turkey': 'Turkish',
+    'Iran': 'Persian',
+    'China': 'Chinese',
+    'Japan': 'Japanese',
+    'South Korea': 'Korean',
+    'Indonesia': 'Indonesian',
+    'Malaysia': 'Malay',
+    'Thailand': 'Thai',
+    'Vietnam': 'Vietnamese',
+    'Nepal': 'Nepali',
+    'Sri Lanka': 'Sinhala',
+    'Germany': 'German',
+    'France': 'French',
+    'Spain': 'Spanish',
+    'Italy': 'Italian',
+    'Portugal': 'Portuguese',
+    'Brazil': 'Portuguese',
+    'Mexico': 'Spanish',
+    'United Kingdom': 'English',
+    'United States': 'English',
+    'Canada': 'English',
+    'Australia': 'English',
+    'New Zealand': 'English',
+    'South Africa': 'English',
+    'Nigeria': 'English',
+    'Other': 'Other',
+  };
+
+  late final List<String> _countries =
+      _countryLanguageMap.keys.toList(growable: false);
 
   final List<String> _languages = const [
     'English',
     'Urdu',
-    'Arabic',
     'Hindi',
-    'Spanish',
+    'Arabic',
+    'Pashto',
+    'Persian',
+    'Turkish',
     'Chinese',
+    'Japanese',
+    'Korean',
+    'Indonesian',
+    'Malay',
+    'Thai',
+    'Vietnamese',
+    'Nepali',
+    'Sinhala',
+    'German',
+    'French',
+    'Spanish',
+    'Italian',
+    'Portuguese',
     'Other',
   ];
 
@@ -204,9 +247,9 @@ class _InitialProfileSetupScreenState extends State<InitialProfileSetupScreen> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => const DiagnosticIntroScreen(
-              ieltsType: 'Academic',
-              targetBand: 7.0,
+            builder: (_) => DiagnosticIntroScreen(
+              ieltsType: _ieltsType,
+              targetBand: _overallTarget,
             ),
           ),
         );
@@ -315,10 +358,6 @@ class _InitialProfileSetupScreenState extends State<InitialProfileSetupScreen> {
       }, SetOptions(merge: true));
 
       if (!mounted) return;
-
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const ProfileSetupCompleteScreen()),
-      );
     } catch (error) {
       _showMessage('Profile could not be saved. Please try again.');
     } finally {
@@ -500,13 +539,23 @@ class _InitialProfileSetupScreenState extends State<InitialProfileSetupScreen> {
           const SizedBox(height: 13),
           ClipRRect(
             borderRadius: BorderRadius.circular(30),
-            child: LinearProgressIndicator(
-              value: (_currentStep + 1) / 9,
-              minHeight: 7,
-              backgroundColor: ProfileColors.border,
-              valueColor: const AlwaysStoppedAnimation<Color>(
-                ProfileColors.cyan,
+            child: TweenAnimationBuilder<double>(
+              tween: Tween<double>(
+                begin: 0,
+                end: (_currentStep + 1) / 9,
               ),
+              duration: const Duration(milliseconds: 360),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, _) {
+                return LinearProgressIndicator(
+                  value: value,
+                  minHeight: 7,
+                  backgroundColor: ProfileColors.border,
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                    ProfileColors.cyan,
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -560,7 +609,10 @@ class _InitialProfileSetupScreenState extends State<InitialProfileSetupScreen> {
             items: _countries,
             onChanged: (value) {
               if (value != null) {
-                setState(() => _country = value);
+                setState(() {
+                  _country = value;
+                  _nativeLanguage = _countryLanguageMap[value] ?? 'Other';
+                });
               }
             },
           ),
@@ -575,6 +627,11 @@ class _InitialProfileSetupScreenState extends State<InitialProfileSetupScreen> {
                 setState(() => _nativeLanguage = value);
               }
             },
+          ),
+          const SizedBox(height: 10),
+          _AutoLanguageCard(
+            country: _country,
+            language: _nativeLanguage,
           ),
           const SizedBox(height: 14),
           _ProfileDropdown(
@@ -1014,34 +1071,77 @@ class _StepContainer extends StatelessWidget {
         children: [
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(19),
             decoration: BoxDecoration(
-              color: ProfileColors.surface.withOpacity(0.92),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.white.withOpacity(0.07)),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  ProfileColors.surface.withOpacity(0.98),
+                  ProfileColors.surfaceLight.withOpacity(0.78),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: ProfileColors.cyan.withOpacity(0.13)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.18),
+                  blurRadius: 26,
+                  offset: const Offset(0, 12),
+                ),
+              ],
             ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 50,
-                  height: 50,
+                  width: 54,
+                  height: 54,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(18),
                     gradient: ProfileColors.gradient,
+                    boxShadow: [
+                      BoxShadow(
+                        color: ProfileColors.cyan.withOpacity(0.18),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
                   ),
-                  child: Icon(icon, color: Colors.white, size: 24),
+                  child: Icon(icon, color: Colors.white, size: 25),
                 ),
-                const SizedBox(width: 13),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: ProfileColors.cyan.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                        child: const Text(
+                          'PERSONALIZED SETUP',
+                          style: TextStyle(
+                            color: ProfileColors.cyan,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 9),
                       Text(
                         title,
                         style: const TextStyle(
                           color: ProfileColors.mainText,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.35,
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -1641,19 +1741,108 @@ class _ProfileDropdown extends StatelessWidget {
         labelText: label,
         labelStyle: const TextStyle(
           color: ProfileColors.mutedText,
-          fontSize: 13,
+          fontSize: 12.5,
+          fontWeight: FontWeight.w600,
         ),
-        prefixIcon: Icon(icon, color: ProfileColors.mutedText, size: 21),
+        prefixIcon: Container(
+          margin: const EdgeInsets.all(9),
+          decoration: BoxDecoration(
+            color: ProfileColors.cyan.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child: Icon(icon, color: ProfileColors.cyan, size: 19),
+        ),
         filled: true,
-        fillColor: ProfileColors.surface.withOpacity(0.92),
+        fillColor: ProfileColors.surface.withOpacity(0.96),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 18,
+        ),
         border: _fieldBorder(ProfileColors.border),
         enabledBorder: _fieldBorder(ProfileColors.border),
-        focusedBorder: _fieldBorder(ProfileColors.cyan, width: 1.4),
+        focusedBorder: _fieldBorder(ProfileColors.cyan, width: 1.5),
       ),
       items: items.map((item) {
         return DropdownMenuItem(value: item, child: Text(item));
       }).toList(),
       onChanged: onChanged,
+    );
+  }
+}
+
+class _AutoLanguageCard extends StatelessWidget {
+  final String country;
+  final String language;
+
+  const _AutoLanguageCard({
+    required this.country,
+    required this.language,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+      width: double.infinity,
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            ProfileColors.cyan.withOpacity(0.075),
+            ProfileColors.violet.withOpacity(0.055),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: ProfileColors.cyan.withOpacity(0.16)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: ProfileColors.cyan.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.auto_awesome_rounded,
+              color: ProfileColors.cyan,
+              size: 19,
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Smart language suggestion',
+                  style: TextStyle(
+                    color: ProfileColors.mainText,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '$country → $language',
+                  style: const TextStyle(
+                    color: ProfileColors.secondaryText,
+                    fontSize: 10.5,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(
+            Icons.check_circle_rounded,
+            color: ProfileColors.success,
+            size: 19,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1982,7 +2171,13 @@ class ProfileColors {
   static const success = Color(0xFF16A34A);
 
   static const gradient = LinearGradient(
-    colors: [Color(0xFF2563EB), Color(0xFF06B6D4), Color(0xFF7C3AED)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      Color(0xFF2563EB),
+      Color(0xFF06B6D4),
+      Color(0xFF7C3AED),
+    ],
   );
 }
 

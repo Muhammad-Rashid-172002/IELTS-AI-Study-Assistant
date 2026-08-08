@@ -7,86 +7,628 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fyproject/offline/offline_content_service.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:fyproject/screens/pages/Subscription/Subscription_screen.dart';
 import 'package:fyproject/screens/content_queue_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+
+class SpeakingPremiumManager {
+  SpeakingPremiumManager._();
+
+  static const int freeUsesPerModePerDay = 1;
+  static const int freeHistoryItems = 5;
+
+  static const Set<String> premiumOnlyModes = {'ai_partner', 'full_test'};
+
+  static bool isPremiumFromData(Map<String, dynamic> data) {
+    if (data['isPremium'] == true ||
+        data['premium'] == true ||
+        data['subscriptionActive'] == true) {
+      return true;
+    }
+
+    final status =
+        (data['subscriptionStatus'] ??
+                data['premiumStatus'] ??
+                data['subscriptionRequestStatus'] ??
+                '')
+            .toString()
+            .trim()
+            .toLowerCase();
+
+    if (status == 'active' || status == 'approved' || status == 'premium') {
+      return true;
+    }
+
+    final plan = (data['premiumPlan'] ?? '').toString().trim().toLowerCase();
+    if (plan == 'monthly' ||
+        plan == 'quarterly' ||
+        plan == 'yearly' ||
+        plan == 'annual') {
+      return true;
+    }
+
+    final expiry = _readDate(
+      data['premiumUntil'] ??
+          data['premiumExpiry'] ??
+          data['subscriptionExpiresAt'] ??
+          data['subscriptionEnd'],
+    );
+
+    return expiry != null && expiry.isAfter(DateTime.now());
+  }
+
+  static DateTime? _readDate(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value);
+    return null;
+  }
+
+  static String _dayKey(DateTime now) =>
+      '${now.year.toString().padLeft(4, '0')}-'
+      '${now.month.toString().padLeft(2, '0')}-'
+      '${now.day.toString().padLeft(2, '0')}';
+
+  static Future<SpeakingHomeAccess> loadHomeAccess() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return const SpeakingHomeAccess(
+        isPremium: false,
+        counts: <String, int>{},
+      );
+    }
+
+    // Offline cached Speaking practice should remain accessible.
+    if (!OfflineContentService.instance.isOnline) {
+      return const SpeakingHomeAccess(
+        isPremium: false,
+        counts: <String, int>{},
+        offlineMode: true,
+      );
+    }
+
+    final userRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid);
+    final usageRef = userRef.collection('feature_usage').doc('speaking');
+
+    try {
+      final docs = await Future.wait([
+        userRef.get().timeout(const Duration(seconds: 10)),
+        usageRef.get().timeout(const Duration(seconds: 10)),
+      ]);
+
+      final userData =
+          (docs[0] as DocumentSnapshot<Map<String, dynamic>>).data() ??
+          const <String, dynamic>{};
+
+      final isPremium = isPremiumFromData(userData);
+      if (isPremium) {
+        return const SpeakingHomeAccess(
+          isPremium: true,
+          counts: <String, int>{},
+        );
+      }
+
+      final usage =
+          (docs[1] as DocumentSnapshot<Map<String, dynamic>>).data() ??
+          const <String, dynamic>{};
+
+      final today = _dayKey(DateTime.now());
+      final storedDay = (usage['dailyKey'] ?? '').toString();
+      final counts = storedDay == today
+          ? _intMap(usage['dailyCounts'])
+          : <String, int>{};
+
+      return SpeakingHomeAccess(isPremium: false, counts: counts);
+    } catch (error) {
+      debugPrint('Speaking premium status check failed: $error');
+      return const SpeakingHomeAccess(
+        isPremium: false,
+        counts: <String, int>{},
+      );
+    }
+  }
+
+  static Future<SpeakingAccessDecision> checkMode(String mode) async {
+    final home = await loadHomeAccess();
+
+    if (home.offlineMode) {
+      return const SpeakingAccessDecision(
+        allowed: true,
+        premium: false,
+        used: 0,
+        limit: freeUsesPerModePerDay,
+        offlineBypass: true,
+      );
+    }
+
+    if (home.isPremium) {
+      return const SpeakingAccessDecision(
+        allowed: true,
+        premium: true,
+        used: 0,
+        limit: freeUsesPerModePerDay,
+      );
+    }
+
+    if (premiumOnlyModes.contains(mode)) {
+      return const SpeakingAccessDecision(
+        allowed: false,
+        premium: false,
+        used: 0,
+        limit: 0,
+        premiumOnly: true,
+      );
+    }
+
+    final used = home.counts[mode] ?? 0;
+    return SpeakingAccessDecision(
+      allowed: used < freeUsesPerModePerDay,
+      premium: false,
+      used: used,
+      limit: freeUsesPerModePerDay,
+    );
+  }
+
+  static Future<SpeakingAccessDecision> consumeMode(String mode) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return const SpeakingAccessDecision(
+        allowed: false,
+        premium: false,
+        used: 0,
+        limit: freeUsesPerModePerDay,
+      );
+    }
+
+    if (!OfflineContentService.instance.isOnline) {
+      return const SpeakingAccessDecision(
+        allowed: true,
+        premium: false,
+        used: 0,
+        limit: freeUsesPerModePerDay,
+        offlineBypass: true,
+      );
+    }
+
+    final firestore = FirebaseFirestore.instance;
+    final userRef = firestore.collection('users').doc(user.uid);
+    final usageRef = userRef.collection('feature_usage').doc('speaking');
+
+    return firestore
+        .runTransaction<SpeakingAccessDecision>((tx) async {
+          final userDoc = await tx.get(userRef);
+          final userData = userDoc.data() ?? const <String, dynamic>{};
+
+          if (isPremiumFromData(userData)) {
+            return const SpeakingAccessDecision(
+              allowed: true,
+              premium: true,
+              used: 0,
+              limit: freeUsesPerModePerDay,
+            );
+          }
+
+          if (premiumOnlyModes.contains(mode)) {
+            return const SpeakingAccessDecision(
+              allowed: false,
+              premium: false,
+              used: 0,
+              limit: 0,
+              premiumOnly: true,
+            );
+          }
+
+          final usageDoc = await tx.get(usageRef);
+          final usage = usageDoc.data() ?? const <String, dynamic>{};
+
+          final today = _dayKey(DateTime.now());
+          final storedDay = (usage['dailyKey'] ?? '').toString();
+          final counts = storedDay == today
+              ? _intMap(usage['dailyCounts'])
+              : <String, int>{};
+
+          final used = counts[mode] ?? 0;
+          if (used >= freeUsesPerModePerDay) {
+            return SpeakingAccessDecision(
+              allowed: false,
+              premium: false,
+              used: used,
+              limit: freeUsesPerModePerDay,
+            );
+          }
+
+          counts[mode] = used + 1;
+
+          tx.set(usageRef, {
+            'dailyKey': today,
+            'dailyCounts': counts,
+            'lastMode': mode,
+            'lastUsedAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+
+          return SpeakingAccessDecision(
+            allowed: true,
+            premium: false,
+            used: used + 1,
+            limit: freeUsesPerModePerDay,
+          );
+        })
+        .timeout(const Duration(seconds: 15));
+  }
+
+  static Map<String, int> _intMap(dynamic value) {
+    if (value is! Map) return <String, int>{};
+
+    final result = <String, int>{};
+    value.forEach((key, raw) {
+      if (raw is int) {
+        result[key.toString()] = raw;
+      } else if (raw is num) {
+        result[key.toString()] = raw.toInt();
+      } else {
+        final parsed = int.tryParse(raw.toString());
+        if (parsed != null) result[key.toString()] = parsed;
+      }
+    });
+    return result;
+  }
+}
+
+class SpeakingHomeAccess {
+  const SpeakingHomeAccess({
+    required this.isPremium,
+    required this.counts,
+    this.offlineMode = false,
+  });
+
+  final bool isPremium;
+  final Map<String, int> counts;
+  final bool offlineMode;
+
+  int usedFor(String mode) => counts[mode] ?? 0;
+
+  bool availableFor(String mode) {
+    if (offlineMode || isPremium) return true;
+    if (SpeakingPremiumManager.premiumOnlyModes.contains(mode)) return false;
+    return usedFor(mode) < SpeakingPremiumManager.freeUsesPerModePerDay;
+  }
+}
+
+class SpeakingAccessDecision {
+  const SpeakingAccessDecision({
+    required this.allowed,
+    required this.premium,
+    required this.used,
+    required this.limit,
+    this.premiumOnly = false,
+    this.offlineBypass = false,
+  });
+
+  final bool allowed;
+  final bool premium;
+  final int used;
+  final int limit;
+  final bool premiumOnly;
+  final bool offlineBypass;
+}
+
+Future<void> _openSpeakingPremium(
+  BuildContext context, {
+  String source = 'speaking',
+}) async {
+  await Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => const SubscriptionScreen(),
+      settings: RouteSettings(name: '/premium', arguments: {'source': source}),
+    ),
+  );
+}
+
+Future<void> _showSpeakingPremiumSheet(
+  BuildContext context, {
+  required String title,
+  required String message,
+}) async {
+  if (!context.mounted) return;
+
+  final upgrade = await showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (sheetContext) {
+      return SafeArea(
+        top: false,
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+          decoration: BoxDecoration(
+            color: SColors.surface,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: SColors.violet.withOpacity(.34)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(.35),
+                blurRadius: 34,
+                offset: const Offset(0, 18),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: SColors.border,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Container(
+                width: 58,
+                height: 58,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [SColors.violet, SColors.cyan],
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Icon(
+                  Icons.workspace_premium_rounded,
+                  color: Colors.white,
+                  size: 30,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: SColors.text,
+                  fontSize: 21,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                message,
+                style: const TextStyle(
+                  color: SColors.secondary,
+                  fontSize: 11.5,
+                  height: 1.55,
+                ),
+              ),
+              const SizedBox(height: 18),
+              const _SpeakingPremiumBenefit(
+                icon: Icons.all_inclusive_rounded,
+                text: 'Unlimited Speaking practice',
+              ),
+              const _SpeakingPremiumBenefit(
+                icon: Icons.smart_toy_outlined,
+                text: 'AI Speaking Partner and Full Speaking Test',
+              ),
+              const _SpeakingPremiumBenefit(
+                icon: Icons.analytics_outlined,
+                text: 'Complete AI pronunciation and fluency report',
+              ),
+              const _SpeakingPremiumBenefit(
+                icon: Icons.history_rounded,
+                text: 'Extended Speaking result history',
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.pop(sheetContext, true),
+                  icon: const Icon(Icons.workspace_premium_rounded),
+                  label: const Text(
+                    'Unlock Premium',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: SColors.violet,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(17),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(sheetContext, false),
+                  child: const Text('Maybe later'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+
+  if (upgrade == true && context.mounted) {
+    await _openSpeakingPremium(context, source: title);
+  }
+}
+
+class _SpeakingPremiumBenefit extends StatelessWidget {
+  const _SpeakingPremiumBenefit({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: SColors.green.withOpacity(.10),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, color: SColors.green, size: 18),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: SColors.secondary,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const Icon(
+            Icons.check_circle_rounded,
+            color: SColors.green,
+            size: 18,
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class SpeakingPractice extends StatelessWidget {
   const SpeakingPractice({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: SColors.background,
-      body: Stack(
-        children: [
-          const Positioned.fill(child: _SpeakingBackground()),
-          SafeArea(
-            child: CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(18, 16, 18, 0),
-                    child: _SpeakingHeader(),
-                  ),
-                ),
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(18, 22, 18, 12),
-                    child: _SectionTitle(
-                      title: 'Speaking Modes',
-                      subtitle:
-                          'Practice a complete test or focus on one speaking skill',
+    return FutureBuilder<SpeakingHomeAccess>(
+      future: SpeakingPremiumManager.loadHomeAccess(),
+      builder: (context, snapshot) {
+        final access =
+            snapshot.data ??
+            const SpeakingHomeAccess(isPremium: false, counts: <String, int>{});
+
+        return Scaffold(
+          backgroundColor: SColors.background,
+          body: Stack(
+            children: [
+              const Positioned.fill(child: _SpeakingBackground()),
+              SafeArea(
+                child: CustomScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  slivers: [
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(18, 16, 18, 0),
+                        child: _SpeakingHeader(),
+                      ),
                     ),
-                  ),
-                ),
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                  sliver: SliverGrid(
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      final mode = SpeakingModeOption.values[index];
-                      return _ModeCard(
-                        mode: mode,
-                        onTap: () => _openMode(context, mode),
-                      );
-                    }, childCount: SpeakingModeOption.values.length),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 11,
-                          crossAxisSpacing: 11,
-                          childAspectRatio: 1.16,
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
+                        child: _SpeakingPlanCard(access: access),
+                      ),
+                    ),
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(18, 22, 18, 12),
+                        child: _SectionTitle(
+                          title: 'Speaking Modes',
+                          subtitle:
+                              'Practice a complete test or focus on one speaking skill',
                         ),
-                  ),
-                ),
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(18, 24, 18, 12),
-                    child: _SectionTitle(
-                      title: 'Recent Speaking Results',
-                      subtitle: 'Your latest estimated bands and feedback',
+                      ),
                     ),
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(18, 0, 18, 100),
-                    child: _RecentSpeakingResults(
-                      userId: FirebaseAuth.instance.currentUser?.uid,
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      sliver: SliverGrid(
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final mode = SpeakingModeOption.values[index];
+                          return _ModeCard(
+                            mode: mode,
+                            access: access,
+                            onTap: () =>
+                                _openMode(context, mode, access: access),
+                          );
+                        }, childCount: SpeakingModeOption.values.length),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              mainAxisSpacing: 11,
+                              crossAxisSpacing: 11,
+                              childAspectRatio: 1.10,
+                            ),
+                      ),
                     ),
-                  ),
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(18, 24, 18, 12),
+                        child: _SectionTitle(
+                          title: 'Recent Speaking Results',
+                          subtitle: 'Your latest estimated bands and feedback',
+                        ),
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(18, 0, 18, 100),
+                        child: _RecentSpeakingResults(
+                          userId: FirebaseAuth.instance.currentUser?.uid,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  static void _openMode(BuildContext context, SpeakingModeOption option) {
+  static Future<void> _openMode(
+    BuildContext context,
+    SpeakingModeOption option, {
+    required SpeakingHomeAccess access,
+  }) async {
+    if (!access.offlineMode && !access.isPremium && option.premiumOnly) {
+      await _showSpeakingPremiumSheet(
+        context,
+        title: '${option.title} is Premium',
+        message:
+            '${option.title} is included with IELTS AI Master Premium. '
+            'Upgrade for unlimited Speaking practice and advanced AI evaluation.',
+      );
+      return;
+    }
+
+    if (!access.offlineMode &&
+        !access.isPremium &&
+        access.usedFor(option.key) >=
+            SpeakingPremiumManager.freeUsesPerModePerDay) {
+      await _showSpeakingPremiumSheet(
+        context,
+        title: 'Free Speaking limit reached',
+        message:
+            'You already used today’s free ${option.title} activity. '
+            'Free users receive 1 activity per Speaking mode each day. '
+            'Upgrade to Premium to practice without limits.',
+      );
+      return;
+    }
+
+    if (!context.mounted) return;
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -222,8 +764,27 @@ class _SpeakingTestBrowserScreenState extends State<SpeakingTestBrowserScreen> {
     );
   }
 
-  void _openTest(BuildContext context, SpeakingTest test) {
+  Future<void> _openTest(BuildContext context, SpeakingTest test) async {
+    final access = await SpeakingPremiumManager.consumeMode(widget.mode);
+
+    if (!mounted || !context.mounted) return;
+
+    if (!access.allowed) {
+      await _showSpeakingPremiumSheet(
+        context,
+        title: access.premiumOnly
+            ? '${SpeakingModeOption.labelFor(widget.mode)} is Premium'
+            : 'Free Speaking limit reached',
+        message: access.premiumOnly
+            ? 'This Speaking mode is available with IELTS AI Master Premium.'
+            : 'You have used today’s free ${SpeakingModeOption.labelFor(widget.mode)} activity. '
+                  'Free users receive 1 activity per Speaking mode each day.',
+      );
+      return;
+    }
+
     final examMode = test.mode == 'full_test';
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -686,107 +1247,130 @@ class SpeakingReportScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: SColors.background,
-      appBar: AppBar(
-        backgroundColor: SColors.background,
-        title: const Text('Speaking Evaluation'),
+    return FutureBuilder<bool>(
+      future: SpeakingPremiumManager.loadHomeAccess().then(
+        (value) => value.isPremium,
       ),
-      body: Stack(
-        children: [
-          const Positioned.fill(child: _SpeakingBackground()),
-          ListView(
-            padding: const EdgeInsets.fromLTRB(18, 12, 18, 35),
+      builder: (context, snapshot) {
+        final isPremium = snapshot.data ?? false;
+
+        return Scaffold(
+          backgroundColor: SColors.background,
+          appBar: AppBar(
+            backgroundColor: SColors.background,
+            title: const Text('Speaking Evaluation'),
+          ),
+          body: Stack(
             children: [
-              _ReportHero(report: report),
-              const SizedBox(height: 14),
-              _CriteriaGrid(report: report),
-              const SizedBox(height: 14),
-              _MetricsCard(report: report),
-              const SizedBox(height: 14),
-              _ReportSection(
-                title: 'Answer Relevance',
-                icon: Icons.center_focus_strong_rounded,
-                child: Text(
-                  '${report.answerRelevancePercent}%\n'
-                  '${report.answerRelevanceFeedback}',
-                  style: const TextStyle(color: SColors.secondary, height: 1.5),
-                ),
-              ),
-              _ReportSection(
-                title: 'Fillers and Repetition',
-                icon: Icons.repeat_rounded,
-                child: _StringItems(
-                  items: [
-                    ...report.fillerWords.map(
-                      (item) => '${item.word}: ${item.count}',
-                    ),
-                    ...report.repetitions,
-                  ],
-                ),
-              ),
-              _ReportSection(
-                title: 'Word Stress and Intonation',
-                icon: Icons.graphic_eq_rounded,
-                child: _StringItems(
-                  items: [
-                    ...report.wordStressAnalysis,
-                    ...report.intonationAnalysis,
-                  ],
-                ),
-              ),
-              _ReportSection(
-                title: 'Mispronounced Words',
-                icon: Icons.record_voice_over_outlined,
-                child: report.mispronouncedWords.isEmpty
-                    ? const _EmptyFeedback()
-                    : Column(
-                        children: report.mispronouncedWords.map((item) {
-                          return _FeedbackTile(
-                            title: item.word,
-                            body:
-                                'Heard as: ${item.heardAs}\n'
-                                'Practice: ${item.practiceHint}',
-                          );
-                        }).toList(),
+              const Positioned.fill(child: _SpeakingBackground()),
+              ListView(
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 35),
+                children: [
+                  _ReportHero(report: report),
+                  const SizedBox(height: 14),
+                  _CriteriaGrid(report: report),
+                  const SizedBox(height: 14),
+                  _ReportSection(
+                    title: 'Answer Relevance',
+                    icon: Icons.center_focus_strong_rounded,
+                    child: Text(
+                      '${report.answerRelevancePercent}%\n'
+                      '${report.answerRelevanceFeedback}',
+                      style: const TextStyle(
+                        color: SColors.secondary,
+                        height: 1.5,
                       ),
-              ),
-              _ReportSection(
-                title: 'Suggested Improvements',
-                icon: Icons.auto_awesome_rounded,
-                child: _StringItems(items: report.suggestedImprovements),
-              ),
-              _ReportSection(
-                title: 'Shadowing Practice',
-                icon: Icons.multitrack_audio_rounded,
-                child: Text(
-                  '${report.shadowingText}\n\nFocus: '
-                  '${report.shadowingFocus}',
-                  style: const TextStyle(
-                    color: SColors.secondary,
-                    height: 1.55,
-                  ),
-                ),
-              ),
-              _ActionPlan(items: report.actionPlan),
-              if (report.transcript.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                _ReportSection(
-                  title: 'Transcript',
-                  icon: Icons.notes_rounded,
-                  child: SelectableText(
-                    report.transcript,
-                    style: const TextStyle(
-                      color: SColors.secondary,
-                      height: 1.6,
                     ),
                   ),
-                ),
-              ],
+                  if (isPremium) ...[
+                    const SizedBox(height: 14),
+                    _MetricsCard(report: report),
+                    const SizedBox(height: 14),
+                    _ReportSection(
+                      title: 'Fillers and Repetition',
+                      icon: Icons.repeat_rounded,
+                      child: _StringItems(
+                        items: [
+                          ...report.fillerWords.map(
+                            (item) => '${item.word}: ${item.count}',
+                          ),
+                          ...report.repetitions,
+                        ],
+                      ),
+                    ),
+                    _ReportSection(
+                      title: 'Word Stress and Intonation',
+                      icon: Icons.graphic_eq_rounded,
+                      child: _StringItems(
+                        items: [
+                          ...report.wordStressAnalysis,
+                          ...report.intonationAnalysis,
+                        ],
+                      ),
+                    ),
+                    _ReportSection(
+                      title: 'Mispronounced Words',
+                      icon: Icons.record_voice_over_outlined,
+                      child: report.mispronouncedWords.isEmpty
+                          ? const _EmptyFeedback()
+                          : Column(
+                              children: report.mispronouncedWords.map((item) {
+                                return _FeedbackTile(
+                                  title: item.word,
+                                  body:
+                                      'Heard as: ${item.heardAs}\n'
+                                      'Practice: ${item.practiceHint}',
+                                );
+                              }).toList(),
+                            ),
+                    ),
+                    _ReportSection(
+                      title: 'Suggested Improvements',
+                      icon: Icons.auto_awesome_rounded,
+                      child: _StringItems(items: report.suggestedImprovements),
+                    ),
+                    _ReportSection(
+                      title: 'Shadowing Practice',
+                      icon: Icons.multitrack_audio_rounded,
+                      child: Text(
+                        '${report.shadowingText}\n\nFocus: '
+                        '${report.shadowingFocus}',
+                        style: const TextStyle(
+                          color: SColors.secondary,
+                          height: 1.55,
+                        ),
+                      ),
+                    ),
+                    _ActionPlan(items: report.actionPlan),
+                    if (report.transcript.isNotEmpty) ...[
+                      const SizedBox(height: 14),
+                      _ReportSection(
+                        title: 'Transcript',
+                        icon: Icons.notes_rounded,
+                        child: SelectableText(
+                          report.transcript,
+                          style: const TextStyle(
+                            color: SColors.secondary,
+                            height: 1.6,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ] else ...[
+                    const SizedBox(height: 14),
+                    _SpeakingAdvancedReportLockedCard(
+                      onTap: () => _openSpeakingPremium(
+                        context,
+                        source: 'advanced_speaking_report',
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -1227,6 +1811,8 @@ enum SpeakingModeOption {
 
   const SpeakingModeOption(this.key, this.title, this.subtitle, this.icon);
 
+  bool get premiumOnly => SpeakingPremiumManager.premiumOnlyModes.contains(key);
+
   static String labelFor(String key) {
     for (final option in values) {
       if (option.key == key) return option.title;
@@ -1273,34 +1859,296 @@ class _SpeakingHeader extends StatelessWidget {
   }
 }
 
-class _ModeCard extends StatelessWidget {
-  final SpeakingModeOption mode;
-  final VoidCallback onTap;
+class _SpeakingPlanCard extends StatelessWidget {
+  const _SpeakingPlanCard({required this.access});
 
-  const _ModeCard({required this.mode, required this.onTap});
+  final SpeakingHomeAccess access;
 
   @override
   Widget build(BuildContext context) {
+    final isPremium = access.isPremium;
+    final accent = isPremium ? SColors.green : SColors.violet;
+
+    return Container(
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: LinearGradient(
+          colors: [accent.withOpacity(.14), SColors.cyan.withOpacity(.06)],
+        ),
+        border: Border.all(color: accent.withOpacity(.24)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.16),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: isPremium
+                        ? [SColors.green, SColors.cyan]
+                        : [SColors.violet, SColors.cyan],
+                  ),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Icon(
+                  isPremium
+                      ? Icons.verified_rounded
+                      : Icons.workspace_premium_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isPremium
+                          ? 'PREMIUM SPEAKING ACTIVE'
+                          : access.offlineMode
+                          ? 'OFFLINE SPEAKING'
+                          : 'FREE SPEAKING PLAN',
+                      style: TextStyle(
+                        color: accent,
+                        fontSize: 8.8,
+                        letterSpacing: .8,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      isPremium
+                          ? 'Unlimited IELTS Speaking practice'
+                          : access.offlineMode
+                          ? 'Practice your downloaded Speaking content'
+                          : '1 free activity per mode every day',
+                      style: const TextStyle(
+                        color: SColors.text,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      isPremium
+                          ? 'AI Partner, Full Test and complete advanced reports are unlocked.'
+                          : access.offlineMode
+                          ? 'AI evaluation will sync when you reconnect.'
+                          : 'AI Speaking Partner and Full Speaking Test require Premium.',
+                      style: const TextStyle(
+                        color: SColors.secondary,
+                        fontSize: 9.8,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (!isPremium && !access.offlineMode) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              height: 46,
+              child: FilledButton.icon(
+                onPressed: () =>
+                    _openSpeakingPremium(context, source: 'speaking_home'),
+                icon: const Icon(Icons.workspace_premium_rounded, size: 18),
+                label: const Text(
+                  'Unlock Unlimited Speaking',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: SColors.violet,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SpeakingAdvancedReportLockedCard extends StatelessWidget {
+  const _SpeakingAdvancedReportLockedCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              SColors.violet.withOpacity(.14),
+              SColors.cyan.withOpacity(.05),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: SColors.violet.withOpacity(.28)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.workspace_premium_rounded, color: SColors.violet),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Unlock Advanced Speaking Report',
+                    style: TextStyle(
+                      color: SColors.text,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Premium includes detailed fluency metrics, filler analysis, '
+              'word stress, intonation, mispronounced words, shadowing, '
+              'action plans and your full transcript.',
+              style: TextStyle(
+                color: SColors.secondary,
+                fontSize: 10.5,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onTap,
+                icon: const Icon(Icons.lock_open_rounded),
+                label: const Text(
+                  'View Premium Report',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: SColors.violet,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ModeCard extends StatelessWidget {
+  final SpeakingModeOption mode;
+  final SpeakingHomeAccess access;
+  final VoidCallback onTap;
+
+  const _ModeCard({
+    required this.mode,
+    required this.access,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final premiumOnly = mode.premiumOnly && !access.isPremium;
+    final used = access.usedFor(mode.key);
+    final limitReached =
+        !access.offlineMode &&
+        !access.isPremium &&
+        !mode.premiumOnly &&
+        used >= SpeakingPremiumManager.freeUsesPerModePerDay;
+
+    final badgeText = access.isPremium
+        ? 'UNLIMITED'
+        : access.offlineMode
+        ? 'OFFLINE'
+        : premiumOnly
+        ? 'PREMIUM'
+        : limitReached
+        ? 'USED TODAY'
+        : 'FREE • 1/DAY';
+
+    final badgeColor = access.isPremium
+        ? SColors.green
+        : premiumOnly || limitReached
+        ? SColors.violet
+        : SColors.cyan;
+
     return _TapCard(
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(mode.icon, color: SColors.cyan, size: 27),
+          Row(
+            children: [
+              Icon(mode.icon, color: SColors.cyan, size: 27),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                decoration: BoxDecoration(
+                  color: badgeColor.withOpacity(.10),
+                  borderRadius: BorderRadius.circular(99),
+                  border: Border.all(color: badgeColor.withOpacity(.22)),
+                ),
+                child: Text(
+                  badgeText,
+                  style: TextStyle(
+                    color: badgeColor,
+                    fontSize: 6.7,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .2,
+                  ),
+                ),
+              ),
+            ],
+          ),
           const Spacer(),
           Text(
             mode.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: SColors.text,
               fontSize: 12.3,
               fontWeight: FontWeight.w900,
+              height: 1.16,
             ),
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: 4),
           Text(
-            mode.subtitle,
+            premiumOnly ? 'Premium speaking experience' : mode.subtitle,
             maxLines: 2,
-            style: const TextStyle(color: SColors.muted, fontSize: 9.3),
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: SColors.muted,
+              fontSize: 8.9,
+              height: 1.25,
+            ),
           ),
         ],
       ),
@@ -1876,75 +2724,144 @@ class _RecentSpeakingResults extends StatelessWidget {
       );
     }
 
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .collection('speaking_results')
-          .orderBy('completedAt', descending: true)
-          .limit(5)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    return FutureBuilder<bool>(
+      future: SpeakingPremiumManager.loadHomeAccess().then(
+        (value) => value.isPremium,
+      ),
+      builder: (context, premiumSnapshot) {
+        final isPremium = premiumSnapshot.data ?? false;
 
-        final docs = snapshot.data!.docs;
-        if (docs.isEmpty) {
-          return const _MessageState(
-            icon: Icons.history_rounded,
-            title: 'No speaking results yet',
-            subtitle: 'Complete a speaking activity to see results.',
-          );
-        }
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('users')
+              .doc(userId)
+              .collection('speaking_results')
+              .orderBy('completedAt', descending: true)
+              .limit(20)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-        return Column(
-          children: docs.map((doc) {
-            final data = doc.data();
-            final band = _asDouble(data['overallBand']);
-            return Container(
-              margin: const EdgeInsets.only(bottom: 9),
-              padding: const EdgeInsets.all(14),
-              decoration: _panelDecoration(),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    backgroundColor: SColors.cyan.withOpacity(.12),
-                    child: Text(
-                      band.toStringAsFixed(1),
-                      style: const TextStyle(
-                        color: SColors.cyan,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 11),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+            final allDocs = snapshot.data!.docs;
+            final docs = isPremium
+                ? allDocs
+                : allDocs
+                      .take(SpeakingPremiumManager.freeHistoryItems)
+                      .toList();
+
+            if (docs.isEmpty) {
+              return const _MessageState(
+                icon: Icons.history_rounded,
+                title: 'No speaking results yet',
+                subtitle: 'Complete a speaking activity to see results.',
+              );
+            }
+
+            return Column(
+              children: [
+                ...docs.map((doc) {
+                  final data = doc.data();
+                  final band = _asDouble(data['overallBand']);
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 9),
+                    padding: const EdgeInsets.all(14),
+                    decoration: _panelDecoration(),
+                    child: Row(
                       children: [
-                        Text(
-                          (data['title'] ?? 'Speaking Practice').toString(),
-                          style: const TextStyle(
-                            color: SColors.text,
-                            fontWeight: FontWeight.w900,
+                        CircleAvatar(
+                          backgroundColor: SColors.cyan.withOpacity(.12),
+                          child: Text(
+                            band.toStringAsFixed(1),
+                            style: const TextStyle(
+                              color: SColors.cyan,
+                              fontWeight: FontWeight.w900,
+                            ),
                           ),
                         ),
-                        Text(
-                          '${data['speakingSpeedWpm'] ?? 0} WPM • '
-                          '${data['pauseCount'] ?? 0} pauses',
-                          style: const TextStyle(
-                            color: SColors.muted,
-                            fontSize: 9.5,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                (data['title'] ?? 'Speaking Practice')
+                                    .toString(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: SColors.text,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                (data['summary'] ??
+                                        data['feedback'] ??
+                                        'Speaking evaluation completed.')
+                                    .toString(),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: SColors.muted,
+                                  fontSize: 9.5,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
+                  );
+                }),
+                if (!isPremium && allDocs.length > docs.length)
+                  InkWell(
+                    onTap: () => _openSpeakingPremium(
+                      context,
+                      source: 'speaking_history',
+                    ),
+                    borderRadius: BorderRadius.circular(18),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(15),
+                      decoration: BoxDecoration(
+                        color: SColors.violet.withOpacity(.08),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: SColors.violet.withOpacity(.22),
+                        ),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.workspace_premium_rounded,
+                            color: SColors.violet,
+                          ),
+                          SizedBox(width: 11),
+                          Expanded(
+                            child: Text(
+                              'Unlock extended Speaking history with Premium',
+                              style: TextStyle(
+                                color: SColors.text,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 10.5,
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            Icons.arrow_forward_rounded,
+                            color: SColors.violet,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ],
-              ),
+              ],
             );
-          }).toList(),
+          },
         );
       },
     );

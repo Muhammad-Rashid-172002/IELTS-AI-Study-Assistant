@@ -167,6 +167,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
   bool _loading = true;
   bool _submitting = false;
   bool _recording = false;
+  bool _timerStarted = false;
   String? _recordingPath;
   String? _loadError;
 
@@ -208,7 +209,8 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
         _loading = false;
       });
 
-      _startTimer();
+      // Timer intentionally does NOT start here.
+      // It starts only when the user presses Play in Listening.
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -219,7 +221,11 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
   }
 
   void _startTimer() {
+    if (_timerStarted || _submitting) return;
+
+    _timerStarted = true;
     _timer?.cancel();
+
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
 
@@ -249,6 +255,11 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
     if (_audioPlayer.playing) {
       await _audioPlayer.pause();
     } else {
+      // Start the diagnostic countdown only on the user's first Play tap.
+      if (!_timerStarted) {
+        _startTimer();
+      }
+
       await _audioPlayer.play();
     }
 
@@ -300,6 +311,18 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
   Future<void> _goNext() async {
     FocusScope.of(context).unfocus();
 
+    // Stop Listening audio when leaving Listening section
+    if (_currentSection == 0) {
+      await _audioPlayer.stop();
+      await _audioPlayer.seek(Duration.zero);
+
+      if (mounted) {
+        setState(() {
+          _audioPosition = Duration.zero;
+        });
+      }
+    }
+
     if (_currentSection < 3) {
       await _pageController.nextPage(
         duration: const Duration(milliseconds: 380),
@@ -313,6 +336,15 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
 
   Future<void> _goBack() async {
     FocusScope.of(context).unfocus();
+
+    await _audioPlayer.stop();
+    await _audioPlayer.seek(Duration.zero);
+
+    if (mounted) {
+      setState(() {
+        _audioPosition = Duration.zero;
+      });
+    }
 
     if (_currentSection > 0) {
       await _pageController.previousPage(
@@ -439,7 +471,12 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
       if (!mounted) return;
 
       setState(() => _submitting = false);
-      _startTimer();
+
+      if (_timerStarted) {
+        _timerStarted = false;
+        _startTimer();
+      }
+
       _showMessage('Diagnostic submission failed: $error');
     }
   }
@@ -819,7 +856,10 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
         ) ??
         false;
 
-    if (exit && mounted) Navigator.pop(context);
+    if (exit && mounted) {
+      await _audioPlayer.stop();
+      Navigator.pop(context);
+    }
   }
 
   void _showMessage(String message) {

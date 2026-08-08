@@ -5,6 +5,508 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fyproject/offline/offline_content_service.dart';
 import 'package:flutter/material.dart';
+import 'package:fyproject/screens/pages/Subscription/Subscription_screen.dart';
+
+
+
+class _ReadingPremiumAccessService {
+  _ReadingPremiumAccessService._();
+
+  static final _ReadingPremiumAccessService instance =
+      _ReadingPremiumAccessService._();
+
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  static const Map<String, int> _dailyLimits = {
+    'academic': 1,
+    'general': 1,
+    'passage': 2,
+    'question_type': 5,
+    'timed': 1,
+    'speed': 2,
+  };
+
+  static const Map<String, int> _weeklyLimits = {
+    'full': 1,
+  };
+
+  String usageKey({
+    ReadingMode? mode,
+    String? questionType,
+  }) {
+    if (questionType != null && questionType.trim().isNotEmpty) {
+      return 'question_type';
+    }
+
+    return switch (mode) {
+      ReadingMode.academic => 'academic',
+      ReadingMode.generalTraining => 'general',
+      ReadingMode.passage => 'passage',
+      ReadingMode.questionType => 'question_type',
+      ReadingMode.timed => 'timed',
+      ReadingMode.full => 'full',
+      ReadingMode.speed => 'speed',
+      null => 'passage',
+    };
+  }
+
+  int limitFor(String key) =>
+      _dailyLimits[key] ?? _weeklyLimits[key] ?? 1;
+
+  bool isWeekly(String key) => _weeklyLimits.containsKey(key);
+
+  String humanLimit(String key) {
+    final limit = limitFor(key);
+    return isWeekly(key)
+        ? '$limit free ${limit == 1 ? 'test' : 'tests'} per week'
+        : '$limit free ${limit == 1 ? 'practice' : 'practices'} per day';
+  }
+
+  String _dayKey(DateTime now) =>
+      '${now.year.toString().padLeft(4, '0')}-'
+      '${now.month.toString().padLeft(2, '0')}-'
+      '${now.day.toString().padLeft(2, '0')}';
+
+  String _weekKey(DateTime now) {
+    final normalized = DateTime(now.year, now.month, now.day);
+    final thursday = normalized.add(Duration(days: 4 - normalized.weekday));
+    final firstThursday = DateTime(thursday.year, 1, 4);
+    final week =
+        1 +
+        ((thursday.difference(firstThursday).inDays +
+                    firstThursday.weekday -
+                    1) ~/
+            7);
+
+    return '${thursday.year}-W${week.toString().padLeft(2, '0')}';
+  }
+
+  bool isPremiumFromData(Map<String, dynamic> data) {
+    if (data['isPremium'] == true ||
+        data['premium'] == true ||
+        data['subscriptionActive'] == true) {
+      return true;
+    }
+
+    final status = (data['subscriptionStatus'] ??
+            data['premiumStatus'] ??
+            data['subscriptionRequestStatus'] ??
+            '')
+        .toString()
+        .trim()
+        .toLowerCase();
+
+    if (status == 'active' ||
+        status == 'approved' ||
+        status == 'premium') {
+      return true;
+    }
+
+    final expiry = _readDate(
+      data['premiumUntil'] ??
+          data['premiumExpiry'] ??
+          data['subscriptionExpiresAt'] ??
+          data['subscriptionEnd'],
+    );
+
+    return expiry != null && expiry.isAfter(DateTime.now());
+  }
+
+  DateTime? _readDate(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value);
+    return null;
+  }
+
+  Future<_ReadingAccessDecision> check({
+    required User user,
+    required String key,
+  }) async {
+    if (!OfflineContentService.instance.isOnline) {
+      return const _ReadingAccessDecision(
+        allowed: true,
+        premium: false,
+        used: 0,
+        limit: 0,
+        offlineBypass: true,
+      );
+    }
+
+    final userRef = _firestore.collection('users').doc(user.uid);
+    final usageRef = userRef.collection('feature_usage').doc('reading');
+
+    try {
+      final snapshots = await Future.wait([
+        userRef.get().timeout(const Duration(seconds: 10)),
+        usageRef.get().timeout(const Duration(seconds: 10)),
+      ]);
+
+      final userData =
+          (snapshots[0] as DocumentSnapshot<Map<String, dynamic>>).data() ?? {};
+
+      if (isPremiumFromData(userData)) {
+        return const _ReadingAccessDecision(
+          allowed: true,
+          premium: true,
+          used: 0,
+          limit: 0,
+        );
+      }
+
+      final usage =
+          (snapshots[1] as DocumentSnapshot<Map<String, dynamic>>).data() ?? {};
+      final now = DateTime.now();
+      final weekly = isWeekly(key);
+      final periodKey = weekly ? _weekKey(now) : _dayKey(now);
+      final storedPeriod =
+          (usage[weekly ? 'weeklyKey' : 'dailyKey'] ?? '').toString();
+
+      final counts = _intMap(
+        usage[weekly ? 'weeklyCounts' : 'dailyCounts'],
+      );
+
+      final used = storedPeriod == periodKey ? (counts[key] ?? 0) : 0;
+      final limit = limitFor(key);
+
+      return _ReadingAccessDecision(
+        allowed: used < limit,
+        premium: false,
+        used: used,
+        limit: limit,
+      );
+    } catch (error) {
+      // A temporary usage service problem should never lock a genuine learner
+      // out of content. The final consume transaction will retry the check.
+      debugPrint('Reading premium check failed: $error');
+      return _ReadingAccessDecision(
+        allowed: true,
+        premium: false,
+        used: 0,
+        limit: limitFor(key),
+      );
+    }
+  }
+
+  Future<_ReadingAccessDecision> consume({
+    required User user,
+    required String key,
+  }) async {
+    if (!OfflineContentService.instance.isOnline) {
+      return const _ReadingAccessDecision(
+        allowed: true,
+        premium: false,
+        used: 0,
+        limit: 0,
+        offlineBypass: true,
+      );
+    }
+
+    final userRef = _firestore.collection('users').doc(user.uid);
+    final usageRef = userRef.collection('feature_usage').doc('reading');
+
+    return _firestore.runTransaction<_ReadingAccessDecision>((transaction) async {
+      final userSnapshot = await transaction.get(userRef);
+      final userData = userSnapshot.data() ?? <String, dynamic>{};
+
+      if (isPremiumFromData(userData)) {
+        return const _ReadingAccessDecision(
+          allowed: true,
+          premium: true,
+          used: 0,
+          limit: 0,
+        );
+      }
+
+      final usageSnapshot = await transaction.get(usageRef);
+      final usage = usageSnapshot.data() ?? <String, dynamic>{};
+      final now = DateTime.now();
+      final weekly = isWeekly(key);
+      final periodField = weekly ? 'weeklyKey' : 'dailyKey';
+      final countsField = weekly ? 'weeklyCounts' : 'dailyCounts';
+      final currentPeriod = weekly ? _weekKey(now) : _dayKey(now);
+      final storedPeriod = (usage[periodField] ?? '').toString();
+
+      final counts =
+          storedPeriod == currentPeriod
+              ? _intMap(usage[countsField])
+              : <String, int>{};
+
+      final used = counts[key] ?? 0;
+      final limit = limitFor(key);
+
+      if (used >= limit) {
+        return _ReadingAccessDecision(
+          allowed: false,
+          premium: false,
+          used: used,
+          limit: limit,
+        );
+      }
+
+      counts[key] = used + 1;
+
+      transaction.set(
+        usageRef,
+        {
+          periodField: currentPeriod,
+          countsField: counts,
+          'lastFeature': key,
+          'lastUsedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+
+      return _ReadingAccessDecision(
+        allowed: true,
+        premium: false,
+        used: used + 1,
+        limit: limit,
+      );
+    }).timeout(const Duration(seconds: 15));
+  }
+
+  Map<String, int> _intMap(dynamic value) {
+    if (value is! Map) return <String, int>{};
+    final result = <String, int>{};
+
+    value.forEach((key, rawValue) {
+      if (rawValue is int) {
+        result[key.toString()] = rawValue;
+      } else if (rawValue is num) {
+        result[key.toString()] = rawValue.toInt();
+      } else {
+        final parsed = int.tryParse(rawValue.toString());
+        if (parsed != null) result[key.toString()] = parsed;
+      }
+    });
+
+    return result;
+  }
+}
+
+class _ReadingAccessDecision {
+  const _ReadingAccessDecision({
+    required this.allowed,
+    required this.premium,
+    required this.used,
+    required this.limit,
+    this.offlineBypass = false,
+  });
+
+  final bool allowed;
+  final bool premium;
+  final int used;
+  final int limit;
+  final bool offlineBypass;
+
+  int get remaining => limit <= 0 ? 0 : math.max(0, limit - used);
+}
+
+Future<void> _openReadingPremium(
+  BuildContext context, {
+  String? source,
+}) async {
+  await Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => const SubscriptionScreen(),
+      settings: RouteSettings(
+        name: '/premium',
+        arguments: {
+          'source': source ?? 'reading',
+        },
+      ),
+    ),
+  );
+}
+
+Future<void> _showReadingLimitReached(
+  BuildContext context, {
+  required String title,
+  required String limitText,
+}) async {
+  if (!context.mounted) return;
+
+  final upgrade = await showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (sheetContext) {
+      return SafeArea(
+        top: false,
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+          decoration: BoxDecoration(
+            color: RColors.surface,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: RColors.violet.withOpacity(.34)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(.35),
+                blurRadius: 34,
+                offset: const Offset(0, 18),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: RColors.border,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Container(
+                width: 58,
+                height: 58,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [RColors.violet, RColors.cyan],
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: RColors.violet.withOpacity(.26),
+                      blurRadius: 24,
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.workspace_premium_rounded,
+                  color: Colors.white,
+                  size: 30,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Free Reading Limit Reached',
+                style: TextStyle(
+                  color: RColors.text,
+                  fontSize: 21,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                'You have used your $limitText for $title. '
+                'Upgrade to IELTS AI Master Premium to continue practicing without limits.',
+                style: const TextStyle(
+                  color: RColors.secondary,
+                  fontSize: 11.5,
+                  height: 1.55,
+                ),
+              ),
+              const SizedBox(height: 18),
+              const _PremiumBenefitRow(
+                icon: Icons.all_inclusive_rounded,
+                text: 'Unlimited Reading practice',
+              ),
+              const _PremiumBenefitRow(
+                icon: Icons.timer_outlined,
+                text: 'Unlimited timed and full tests',
+              ),
+              const _PremiumBenefitRow(
+                icon: Icons.analytics_outlined,
+                text: 'Advanced performance analytics',
+              ),
+              const _PremiumBenefitRow(
+                icon: Icons.offline_bolt_rounded,
+                text: 'Keep practicing with your offline library',
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.pop(sheetContext, true),
+                  icon: const Icon(Icons.workspace_premium_rounded),
+                  label: const Text(
+                    'Unlock Premium',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: RColors.violet,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(17),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(sheetContext, false),
+                  child: const Text('Maybe later'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+
+  if (upgrade == true && context.mounted) {
+    await _openReadingPremium(context, source: title);
+  }
+}
+
+class _PremiumBenefitRow extends StatelessWidget {
+  const _PremiumBenefitRow({
+    required this.icon,
+    required this.text,
+  });
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: RColors.green.withOpacity(.10),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, color: RColors.green, size: 18),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: RColors.secondary,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const Icon(
+            Icons.check_circle_rounded,
+            color: RColors.green,
+            size: 18,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 
 class ReadingScreen extends StatelessWidget {
   const ReadingScreen({super.key});
@@ -49,6 +551,8 @@ class ReadingScreen extends StatelessWidget {
                         [];
 
                     return _ReadingHome(
+                      isPremium: _ReadingPremiumAccessService.instance
+                          .isPremiumFromData(userData),
                       currentBand: _asDouble(
                         userData['readingBand'] ??
                             (results.isNotEmpty
@@ -72,11 +576,13 @@ class ReadingScreen extends StatelessWidget {
 }
 
 class _ReadingHome extends StatelessWidget {
+  final bool isPremium;
   final double currentBand;
   final List<String> weakTypes;
   final List<ReadingRecentResult> recentResults;
 
   const _ReadingHome({
+    required this.isPremium,
     required this.currentBand,
     required this.weakTypes,
     required this.recentResults,
@@ -113,6 +619,12 @@ class _ReadingHome extends StatelessWidget {
             child: _WeaknessCard(types: effectiveWeak),
           ),
         ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
+            child: _ReadingPlanCard(isPremium: isPremium),
+          ),
+        ),
         const SliverToBoxAdapter(
           child: Padding(
             padding: EdgeInsets.fromLTRB(18, 22, 18, 12),
@@ -129,6 +641,7 @@ class _ReadingHome extends StatelessWidget {
               final mode = ReadingMode.values[index];
               return _ModeCard(
                 mode: mode,
+                isPremium: isPremium,
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -166,6 +679,7 @@ class _ReadingHome extends StatelessWidget {
               return _QuestionTypeCard(
                 type: type,
                 weak: isWeak,
+                isPremium: isPremium,
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -275,6 +789,38 @@ class _ReadingTestBrowserScreenState extends State<ReadingTestBrowserScreen>
     );
 
     try {
+      final user = FirebaseAuth.instance.currentUser;
+      final usageKey = _ReadingPremiumAccessService.instance.usageKey(
+        mode: widget.mode,
+        questionType: widget.questionType,
+      );
+
+      if (user != null && OfflineContentService.instance.isOnline) {
+        final decision = await _ReadingPremiumAccessService.instance.check(
+          user: user,
+          key: usageKey,
+        );
+
+        if (!decision.allowed) {
+          await minimumDelay;
+          if (!mounted) return;
+          setState(() => _loading = false);
+
+          await _showReadingLimitReached(
+            context,
+            title: _title,
+            limitText: _ReadingPremiumAccessService.instance.humanLimit(
+              usageKey,
+            ),
+          );
+
+          if (mounted && Navigator.canPop(context)) {
+            Navigator.pop(context);
+          }
+          return;
+        }
+      }
+
       final tests = await _fetchTests();
       await minimumDelay;
 
@@ -304,6 +850,30 @@ class _ReadingTestBrowserScreenState extends State<ReadingTestBrowserScreen>
 
       await _markTestAsSeen(test);
       if (!mounted) return;
+
+      if (user != null && OfflineContentService.instance.isOnline) {
+        final decision = await _ReadingPremiumAccessService.instance.consume(
+          user: user,
+          key: usageKey,
+        );
+
+        if (!decision.allowed) {
+          setState(() => _loading = false);
+
+          await _showReadingLimitReached(
+            context,
+            title: _title,
+            limitText: _ReadingPremiumAccessService.instance.humanLimit(
+              usageKey,
+            ),
+          );
+
+          if (mounted && Navigator.canPop(context)) {
+            Navigator.pop(context);
+          }
+          return;
+        }
+      }
 
       Navigator.pushReplacement(
         context,
@@ -2071,6 +2641,16 @@ enum ReadingMode {
   final String subtitle;
 
   const ReadingMode(this.label, this.firestoreValue, this.icon, this.subtitle);
+
+  String get freeLimitLabel => switch (this) {
+    ReadingMode.academic => '1 / DAY',
+    ReadingMode.generalTraining => '1 / DAY',
+    ReadingMode.passage => '2 / DAY',
+    ReadingMode.questionType => '5 / DAY',
+    ReadingMode.timed => '1 / DAY',
+    ReadingMode.full => '1 / WEEK',
+    ReadingMode.speed => '2 / DAY',
+  };
 }
 
 enum ReadingQuestionType {
@@ -3289,15 +3869,156 @@ class _WeaknessCard extends StatelessWidget {
   }
 }
 
-class _ModeCard extends StatelessWidget {
-  final ReadingMode mode;
-  final VoidCallback onTap;
 
-  const _ModeCard({required this.mode, required this.onTap});
+class _ReadingPlanCard extends StatelessWidget {
+  const _ReadingPlanCard({required this.isPremium});
+
+  final bool isPremium;
 
   @override
   Widget build(BuildContext context) {
-    final accent = mode == ReadingMode.academic ? RColors.cyan : mode == ReadingMode.generalTraining ? RColors.violet : RColors.green;
+    final accent = isPremium ? RColors.green : RColors.violet;
+
+    return Container(
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: LinearGradient(
+          colors: [
+            accent.withOpacity(.14),
+            RColors.cyan.withOpacity(.05),
+          ],
+        ),
+        border: Border.all(color: accent.withOpacity(.25)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.16),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: isPremium
+                        ? [RColors.green, RColors.cyan]
+                        : [RColors.violet, RColors.cyan],
+                  ),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Icon(
+                  isPremium
+                      ? Icons.verified_rounded
+                      : Icons.workspace_premium_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isPremium
+                          ? 'PREMIUM READING ACTIVE'
+                          : 'FREE READING PLAN',
+                      style: TextStyle(
+                        color: accent,
+                        fontSize: 8.8,
+                        letterSpacing: .8,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      isPremium
+                          ? 'Unlimited IELTS Reading practice'
+                          : 'Practice free every day',
+                      style: const TextStyle(
+                        color: RColors.text,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      isPremium
+                          ? 'All Reading modes are unlocked with no daily or weekly practice limits.'
+                          : 'Passage 2/day • Question types 5/day • Timed 1/day • Full test 1/week.',
+                      style: const TextStyle(
+                        color: RColors.secondary,
+                        fontSize: 9.8,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (!isPremium) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              height: 46,
+              child: FilledButton.icon(
+                onPressed: () => _openReadingPremium(
+                  context,
+                  source: 'reading_home',
+                ),
+                icon: const Icon(
+                  Icons.workspace_premium_rounded,
+                  size: 18,
+                ),
+                label: const Text(
+                  'Unlock Unlimited Reading',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: RColors.violet,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ModeCard extends StatelessWidget {
+  final ReadingMode mode;
+  final bool isPremium;
+  final VoidCallback onTap;
+
+  const _ModeCard({
+    required this.mode,
+    required this.isPremium,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accent =
+        mode == ReadingMode.academic
+            ? RColors.cyan
+            : mode == ReadingMode.generalTraining
+            ? RColors.violet
+            : RColors.green;
+
     return _TapCard(
       onTap: onTap,
       accent: accent,
@@ -3308,13 +4029,59 @@ class _ModeCard extends StatelessWidget {
             children: [
               _MiniIcon(icon: mode.icon, color: accent),
               const Spacer(),
-              Icon(Icons.arrow_outward_rounded, color: RColors.muted.withOpacity(.8), size: 17),
+              if (!isPremium)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: RColors.violet.withOpacity(.10),
+                    borderRadius: BorderRadius.circular(99),
+                    border: Border.all(
+                      color: RColors.violet.withOpacity(.20),
+                    ),
+                  ),
+                  child: Text(
+                    mode.freeLimitLabel,
+                    style: const TextStyle(
+                      color: RColors.violet,
+                      fontSize: 7.2,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: .35,
+                    ),
+                  ),
+                )
+              else
+                const Icon(
+                  Icons.workspace_premium_rounded,
+                  color: RColors.orange,
+                  size: 17,
+                ),
             ],
           ),
           const Spacer(),
-          Text(mode.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: RColors.text, fontSize: 13, fontWeight: FontWeight.w900)),
+          Text(
+            mode.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: RColors.text,
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
           const SizedBox(height: 6),
-          Text(mode.subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: RColors.muted, fontSize: 9.5, height: 1.35)),
+          Text(
+            mode.subtitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: RColors.muted,
+              fontSize: 9.5,
+              height: 1.35,
+            ),
+          ),
         ],
       ),
     );
@@ -3324,13 +4091,20 @@ class _ModeCard extends StatelessWidget {
 class _QuestionTypeCard extends StatelessWidget {
   final ReadingQuestionType type;
   final bool weak;
+  final bool isPremium;
   final VoidCallback onTap;
 
-  const _QuestionTypeCard({required this.type, required this.weak, required this.onTap});
+  const _QuestionTypeCard({
+    required this.type,
+    required this.weak,
+    required this.isPremium,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final color = weak ? RColors.orange : RColors.cyan;
+
     return _TapCard(
       onTap: onTap,
       accent: color,
@@ -3338,9 +4112,47 @@ class _QuestionTypeCard extends StatelessWidget {
         children: [
           _MiniIcon(icon: type.icon, color: color, compact: true),
           const SizedBox(width: 10),
-          Expanded(child: Text(type.label, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: RColors.text, fontSize: 10.3, height: 1.25, fontWeight: FontWeight.w800))),
+          Expanded(
+            child: Text(
+              type.label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: RColors.text,
+                fontSize: 10.3,
+                height: 1.25,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
           const SizedBox(width: 5),
-          Icon(weak ? Icons.priority_high_rounded : Icons.chevron_right_rounded, color: color, size: 17),
+          if (!isPremium)
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 6,
+                vertical: 4,
+              ),
+              decoration: BoxDecoration(
+                color: color.withOpacity(.09),
+                borderRadius: BorderRadius.circular(99),
+              ),
+              child: Text(
+                '5/DAY',
+                style: TextStyle(
+                  color: color,
+                  fontSize: 6.8,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            )
+          else
+            Icon(
+              weak
+                  ? Icons.priority_high_rounded
+                  : Icons.chevron_right_rounded,
+              color: color,
+              size: 17,
+            ),
         ],
       ),
     );

@@ -29,7 +29,6 @@
     }
   ],
   "hosting": {
-    "target": "verification",
     "public": "build/web",
     "ignore": [
       "firebase.json",

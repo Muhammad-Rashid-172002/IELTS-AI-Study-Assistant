@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const {GoogleAuth} = require("google-auth-library");
 const textToSpeech = require("@google-cloud/text-to-speech");
 const {getStorage, getDownloadURL} =
   require("firebase-admin/storage");
@@ -11,6 +12,9 @@ const {onDocumentCreated} =
 
 const {onCall, HttpsError} =
   require("firebase-functions/v2/https");
+
+const {onSchedule} =
+  require("firebase-functions/v2/scheduler");
 
 const {defineSecret} =
   require("firebase-functions/params");
@@ -33,6 +37,23 @@ const storage = getStorage();
 const bucket = storage.bucket();
 const ttsClient = new textToSpeech.TextToSpeechClient();
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
+
+const GOOGLE_PLAY_PACKAGE_NAME = "com.rashidapps.ieltsaimaster";
+const GOOGLE_PLAY_PRODUCT_IDS = new Set([
+  "ielts_premium_monthly",
+  "ielts_premium_quarterly",
+  "ielts_premium_yearly",
+]);
+
+const GOOGLE_PLAY_PRODUCT_LABELS = {
+  ielts_premium_monthly: "Monthly Premium",
+  ielts_premium_quarterly: "3-Month Premium",
+  ielts_premium_yearly: "Annual Premium",
+};
+
+const googlePlayAuth = new GoogleAuth({
+  scopes: ["https://www.googleapis.com/auth/androidpublisher"],
+});
 
 const GEMINI_MODELS = [
   "gemini-3.5-flash",
@@ -95,6 +116,528 @@ setGlobalOptions({
   timeoutSeconds: 540,
   memory: "1GiB",
 });
+
+
+/**
+ * Verifies a Google Play subscription purchase on the server, acknowledges
+ * valid initial purchases, and writes the Premium entitlement to Firestore.
+ *
+ * Flutter sends only:
+ *   - productId
+ *   - purchaseToken
+ *
+ * No Google service-account credential is placed inside the mobile app.
+ */
+exports.verifyGooglePlaySubscription = onCall(
+    {
+      timeoutSeconds: 60,
+      memory: "512MiB",
+    },
+    async (request) => {
+      if (!request.auth) {
+        throw new HttpsError(
+            "unauthenticated",
+            "You must be signed in to verify a subscription.",
+        );
+      }
+
+      const productId = String(request.data?.productId || "").trim();
+      const purchaseToken =
+        String(request.data?.purchaseToken || "").trim();
+
+      if (!GOOGLE_PLAY_PRODUCT_IDS.has(productId)) {
+        throw new HttpsError(
+            "invalid-argument",
+            "Unknown Google Play subscription product.",
+        );
+      }
+
+      if (!purchaseToken || purchaseToken.length < 20) {
+        throw new HttpsError(
+            "invalid-argument",
+            "A valid Google Play purchase token is required.",
+        );
+      }
+
+      try {
+        const verified = await verifyGooglePlaySubscriptionPurchase({
+          purchaseToken,
+          expectedProductId: productId,
+        });
+
+        if (!verified.productMatched) {
+          throw new HttpsError(
+              "failed-precondition",
+              "The verified Google Play purchase does not match this product.",
+          );
+        }
+
+        await saveGooglePlayEntitlement({
+          uid: request.auth.uid,
+          productId,
+          purchaseToken,
+          purchase: verified.purchase,
+          entitlement: verified.entitlement,
+        });
+
+        if (verified.entitlement.isPremium &&
+            verified.purchase.acknowledgementState ===
+              "ACKNOWLEDGEMENT_STATE_PENDING") {
+          await acknowledgeGooglePlaySubscription({
+            productId,
+            purchaseToken,
+          });
+        }
+
+        logger.info("Google Play subscription verified.", {
+          uid: request.auth.uid,
+          productId,
+          subscriptionState: verified.purchase.subscriptionState,
+          isPremium: verified.entitlement.isPremium,
+          expiryTime: verified.entitlement.expiryTime,
+        });
+
+        return {
+          verified: true,
+          isPremium: verified.entitlement.isPremium,
+          productId,
+          planTitle: GOOGLE_PLAY_PRODUCT_LABELS[productId] || "Premium",
+          subscriptionState: verified.purchase.subscriptionState || "",
+          expiryTime: verified.entitlement.expiryTime,
+          autoRenewing: verified.entitlement.autoRenewing,
+          testPurchase: Boolean(verified.purchase.testPurchase),
+          message: verified.entitlement.isPremium ?
+            "Premium subscription verified." :
+            "This subscription is not currently entitled to Premium access.",
+        };
+      } catch (error) {
+        if (error instanceof HttpsError) throw error;
+
+        logger.error("Google Play subscription verification failed.", {
+          uid: request.auth.uid,
+          productId,
+          error: safeErrorMessage(error),
+        });
+
+        throw new HttpsError(
+            "internal",
+            "Google Play could not verify this subscription right now.",
+        );
+      }
+    },
+);
+
+
+/**
+ * Refreshes the signed-in user's currently stored Google Play purchase token.
+ * Call this when the Premium screen opens or when the user restores purchases.
+ */
+exports.syncGooglePlaySubscription = onCall(
+    {
+      timeoutSeconds: 60,
+      memory: "512MiB",
+    },
+    async (request) => {
+      if (!request.auth) {
+        throw new HttpsError(
+            "unauthenticated",
+            "You must be signed in to refresh subscription status.",
+        );
+      }
+
+      const result = await syncGooglePlayEntitlementForUser(request.auth.uid);
+
+      return {
+        verified: result.verified,
+        isPremium: result.isPremium,
+        productId: result.productId || "",
+        subscriptionState: result.subscriptionState || "",
+        expiryTime: result.expiryTime || null,
+        autoRenewing: Boolean(result.autoRenewing),
+        message: result.message,
+      };
+    },
+);
+
+
+/**
+ * Safety net for renewals, cancellations, expirations and payment failures.
+ * This does not replace Google Play RTDN for very large apps, but it keeps
+ * Firestore entitlement state fresh even when the user does not open the
+ * Premium screen after a renewal/cancellation.
+ */
+exports.refreshGooglePlaySubscriptions = onSchedule(
+    {
+      schedule: "every 6 hours",
+      timeZone: "Etc/UTC",
+      timeoutSeconds: 540,
+      memory: "1GiB",
+    },
+    async () => {
+      const snapshot = await db.collection("users")
+          .where("subscriptionProvider", "==", "google_play")
+          .limit(250)
+          .get();
+
+      let checked = 0;
+      let active = 0;
+      let inactive = 0;
+      let failed = 0;
+
+      for (const userDoc of snapshot.docs) {
+        try {
+          const result =
+            await syncGooglePlayEntitlementForUser(userDoc.id);
+          checked++;
+
+          if (result.isPremium) {
+            active++;
+          } else {
+            inactive++;
+          }
+        } catch (error) {
+          failed++;
+          logger.error("Scheduled Play subscription refresh failed.", {
+            uid: userDoc.id,
+            error: safeErrorMessage(error),
+          });
+        }
+      }
+
+      logger.info("Scheduled Google Play subscription refresh completed.", {
+        checked,
+        active,
+        inactive,
+        failed,
+      });
+    },
+);
+
+
+async function syncGooglePlayEntitlementForUser(uid) {
+  const billingRef = db.collection("users")
+      .doc(uid)
+      .collection("private_billing")
+      .doc("google_play");
+
+  const billingSnapshot = await billingRef.get();
+
+  if (!billingSnapshot.exists) {
+    return {
+      verified: false,
+      isPremium: false,
+      message: "No verified Google Play subscription is saved for this account.",
+    };
+  }
+
+  const billing = billingSnapshot.data() || {};
+  const productId = String(billing.productId || "").trim();
+  const purchaseToken = String(billing.purchaseToken || "").trim();
+
+  if (!GOOGLE_PLAY_PRODUCT_IDS.has(productId) || !purchaseToken) {
+    await disableGooglePlayPremium(uid, {
+      reason: "missing_or_invalid_saved_purchase",
+      productId,
+    });
+
+    return {
+      verified: false,
+      isPremium: false,
+      productId,
+      message: "Saved Google Play subscription details are incomplete.",
+    };
+  }
+
+  const verified = await verifyGooglePlaySubscriptionPurchase({
+    purchaseToken,
+    expectedProductId: productId,
+  });
+
+  await saveGooglePlayEntitlement({
+    uid,
+    productId,
+    purchaseToken,
+    purchase: verified.purchase,
+    entitlement: verified.entitlement,
+  });
+
+  if (verified.entitlement.isPremium &&
+      verified.purchase.acknowledgementState ===
+        "ACKNOWLEDGEMENT_STATE_PENDING") {
+    await acknowledgeGooglePlaySubscription({
+      productId,
+      purchaseToken,
+    });
+  }
+
+  return {
+    verified: true,
+    isPremium: verified.entitlement.isPremium,
+    productId,
+    subscriptionState: verified.purchase.subscriptionState || "",
+    expiryTime: verified.entitlement.expiryTime,
+    autoRenewing: verified.entitlement.autoRenewing,
+    message: verified.entitlement.isPremium ?
+      "Google Play Premium access is active." :
+      "No active Google Play Premium entitlement remains.",
+  };
+}
+
+
+async function verifyGooglePlaySubscriptionPurchase({
+  purchaseToken,
+  expectedProductId,
+}) {
+  const accessToken = await getGooglePlayAccessToken();
+
+  const url =
+    "https://androidpublisher.googleapis.com/androidpublisher/v3/" +
+    `applications/${encodeURIComponent(GOOGLE_PLAY_PACKAGE_NAME)}/` +
+    "purchases/subscriptionsv2/tokens/" +
+    encodeURIComponent(purchaseToken);
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  const body = await readGoogleApiResponse(response);
+
+  if (!response.ok) {
+    const message = googleApiErrorMessage(body, response.status);
+    throw new Error(
+        `Google Play subscription lookup failed (${response.status}): ` +
+        message,
+    );
+  }
+
+  const lineItems = Array.isArray(body.lineItems) ? body.lineItems : [];
+  const productMatched = lineItems.some(
+      (item) => String(item.productId || "") === expectedProductId,
+  );
+
+  const entitlement = evaluateGooglePlayEntitlement(body, expectedProductId);
+
+  return {
+    purchase: body,
+    productMatched,
+    entitlement,
+  };
+}
+
+
+function evaluateGooglePlayEntitlement(purchase, expectedProductId) {
+  const state = String(purchase.subscriptionState || "");
+
+  const matchingItems = (Array.isArray(purchase.lineItems) ?
+    purchase.lineItems :
+    []).filter(
+      (item) => String(item.productId || "") === expectedProductId,
+    );
+
+  let latestExpiry = null;
+  let autoRenewing = false;
+
+  for (const item of matchingItems) {
+    const expiry = Date.parse(String(item.expiryTime || ""));
+
+    if (Number.isFinite(expiry) &&
+        (latestExpiry === null || expiry > latestExpiry)) {
+      latestExpiry = expiry;
+    }
+
+    if (item.autoRenewingPlan &&
+        item.autoRenewingPlan.autoRenewEnabled === true) {
+      autoRenewing = true;
+    }
+  }
+
+  const now = Date.now();
+  const notExpired = latestExpiry !== null && latestExpiry > now;
+
+  // ACTIVE and IN_GRACE_PERIOD retain entitlement.
+  // CANCELED can also retain entitlement until lineItems.expiryTime.
+  // PENDING, PAUSED, ON_HOLD and EXPIRED do not receive Premium here.
+  const entitledState = new Set([
+    "SUBSCRIPTION_STATE_ACTIVE",
+    "SUBSCRIPTION_STATE_IN_GRACE_PERIOD",
+    "SUBSCRIPTION_STATE_CANCELED",
+  ]).has(state);
+
+  return {
+    isPremium: entitledState && notExpired && matchingItems.length > 0,
+    expiryTime: latestExpiry === null ?
+      null :
+      new Date(latestExpiry).toISOString(),
+    autoRenewing,
+  };
+}
+
+
+async function saveGooglePlayEntitlement({
+  uid,
+  productId,
+  purchaseToken,
+  purchase,
+  entitlement,
+}) {
+  const userRef = db.collection("users").doc(uid);
+  const billingRef = userRef
+      .collection("private_billing")
+      .doc("google_play");
+
+  const expiryDate = entitlement.expiryTime ?
+    new Date(entitlement.expiryTime) :
+    null;
+
+  const batch = db.batch();
+
+  batch.set(
+      billingRef,
+      {
+        provider: "google_play",
+        packageName: GOOGLE_PLAY_PACKAGE_NAME,
+        productId,
+        purchaseToken,
+        purchaseTokenHash:
+          crypto.createHash("sha256").update(purchaseToken).digest("hex"),
+        subscriptionState: String(purchase.subscriptionState || ""),
+        acknowledgementState:
+          String(purchase.acknowledgementState || ""),
+        autoRenewing: Boolean(entitlement.autoRenewing),
+        expiryTime: expiryDate,
+        isPremium: Boolean(entitlement.isPremium),
+        isTestPurchase: Boolean(purchase.testPurchase),
+        lastVerifiedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      {merge: true},
+  );
+
+  batch.set(
+      userRef,
+      {
+        isPremium: Boolean(entitlement.isPremium),
+        premium: Boolean(entitlement.isPremium),
+        subscription: entitlement.isPremium ?
+          (GOOGLE_PLAY_PRODUCT_LABELS[productId] || "Premium") :
+          "Free",
+        premiumPlan: entitlement.isPremium ?
+          (GOOGLE_PLAY_PRODUCT_LABELS[productId] || "Premium") :
+          "",
+        subscriptionProvider: "google_play",
+        googlePlayProductId: productId,
+        googlePlaySubscriptionState:
+          String(purchase.subscriptionState || ""),
+        googlePlayAutoRenewing: Boolean(entitlement.autoRenewing),
+        subscriptionExpiry: expiryDate,
+        subscriptionUpdatedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      {merge: true},
+  );
+
+  await batch.commit();
+}
+
+
+async function disableGooglePlayPremium(uid, {
+  reason,
+  productId = "",
+}) {
+  await db.collection("users").doc(uid).set(
+      {
+        isPremium: false,
+        premium: false,
+        subscription: "Free",
+        premiumPlan: "",
+        subscriptionProvider: "google_play",
+        googlePlayProductId: productId,
+        googlePlaySubscriptionState: reason,
+        googlePlayAutoRenewing: false,
+        subscriptionUpdatedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      {merge: true},
+  );
+}
+
+
+async function acknowledgeGooglePlaySubscription({
+  productId,
+  purchaseToken,
+}) {
+  const accessToken = await getGooglePlayAccessToken();
+
+  const url =
+    "https://androidpublisher.googleapis.com/androidpublisher/v3/" +
+    `applications/${encodeURIComponent(GOOGLE_PLAY_PACKAGE_NAME)}/` +
+    `purchases/subscriptions/${encodeURIComponent(productId)}/tokens/` +
+    `${encodeURIComponent(purchaseToken)}:acknowledge`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({}),
+  });
+
+  if (response.ok) return;
+
+  const body = await readGoogleApiResponse(response);
+  const message = googleApiErrorMessage(body, response.status);
+
+  // If another trusted path already acknowledged the purchase, entitlement
+  // remains valid. Treat explicit already-acknowledged responses as harmless.
+  if (message.toLowerCase().includes("already acknowledged")) {
+    return;
+  }
+
+  throw new Error(
+      `Google Play acknowledgement failed (${response.status}): ${message}`,
+  );
+}
+
+
+async function getGooglePlayAccessToken() {
+  const client = await googlePlayAuth.getClient();
+  const tokenResponse = await client.getAccessToken();
+  const token = typeof tokenResponse === "string" ?
+    tokenResponse :
+    tokenResponse?.token;
+
+  if (!token) {
+    throw new Error("Could not obtain Google Play Developer API access token.");
+  }
+
+  return token;
+}
+
+
+async function readGoogleApiResponse(response) {
+  const text = await response.text();
+
+  if (!text) return {};
+
+  try {
+    return JSON.parse(text);
+  } catch (_) {
+    return {raw: text};
+  }
+}
+
+
+function googleApiErrorMessage(body, status) {
+  if (body?.error?.message) return String(body.error.message);
+  if (body?.raw) return String(body.raw);
+  return `Google API request failed with HTTP ${status}.`;
+}
+
 
 exports.processListeningGenerationJob = onDocumentCreated(
     {
