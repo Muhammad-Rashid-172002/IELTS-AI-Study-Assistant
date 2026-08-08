@@ -315,6 +315,25 @@ class _HomeDashboardView extends StatelessWidget {
     _push(context, screen);
   }
 
+  void _openAIInsightDialog(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withOpacity(.72),
+      builder: (sheetContext) {
+        return _AICoachInsightSheet(
+          model: model,
+          onPracticeWeakest: () {
+            Navigator.of(sheetContext).pop();
+            _openSkillPractice(context, model.weakestSkill);
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -390,7 +409,10 @@ class _HomeDashboardView extends StatelessWidget {
                       onTap: (action) => _openQuickAction(context, action),
                     ),
                     const SizedBox(height: 20),
-                    _AIInsight(text: model.aiInsight),
+                    _AIInsight(
+                      text: model.aiInsight,
+                      onTap: () => _openAIInsightDialog(context),
+                    ),
                     const SizedBox(height: 20),
                     _Streak(model: model),
                   ],
@@ -1735,8 +1757,522 @@ class _QuickActions extends StatelessWidget {
 
 class _AIInsight extends StatelessWidget {
   final String text;
+  final VoidCallback onTap;
 
-  const _AIInsight({required this.text});
+  const _AIInsight({required this.text, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: Ink(
+          padding: const EdgeInsets.all(17),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                _C.blue.withOpacity(.22),
+                _C.cyan.withOpacity(.11),
+                _C.violet.withOpacity(.17),
+              ],
+            ),
+            border: Border.all(color: _C.cyan.withOpacity(.20)),
+            boxShadow: [
+              BoxShadow(
+                color: _C.cyan.withOpacity(.06),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: _C.gradient,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(color: _C.cyan.withOpacity(.18), blurRadius: 18),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.psychology_alt_rounded,
+                  color: Colors.white,
+                  size: 25,
+                ),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'AI Coach Insight',
+                            style: TextStyle(
+                              color: _C.text,
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _C.green.withOpacity(.10),
+                            borderRadius: BorderRadius.circular(100),
+                            border: Border.all(
+                              color: _C.green.withOpacity(.18),
+                            ),
+                          ),
+                          child: const Text(
+                            'LIVE',
+                            style: TextStyle(
+                              color: _C.green,
+                              fontSize: 7.5,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: .8,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      text,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: _C.secondary,
+                        fontSize: 11.2,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 11),
+                    const Row(
+                      children: [
+                        Text(
+                          'View full coaching report',
+                          style: TextStyle(
+                            color: _C.cyan,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        SizedBox(width: 5),
+                        Icon(
+                          Icons.arrow_forward_rounded,
+                          color: _C.cyan,
+                          size: 16,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AICoachInsightSheet extends StatelessWidget {
+  final HomeDashboardModel model;
+  final VoidCallback onPracticeWeakest;
+
+  const _AICoachInsightSheet({
+    required this.model,
+    required this.onPracticeWeakest,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final completedSkills = model.skills
+        .where((skill) => skill.band > 0 && skill.band <= 9)
+        .toList();
+
+    final sortedSkills = [...completedSkills]
+      ..sort((a, b) => b.band.compareTo(a.band));
+
+    final strongest = sortedSkills.isEmpty ? null : sortedSkills.first;
+    final weakest = sortedSkills.isEmpty ? null : sortedSkills.last;
+
+    final gap = model.currentBand > 0
+        ? math.max(0.0, model.targetBand - model.currentBand)
+        : model.targetBand;
+
+    final pendingTasks = model.todayTasks
+        .where((task) => !task.completed)
+        .toList();
+    final completedTasks = model.todayTasks
+        .where((task) => task.completed)
+        .length;
+
+    final priorityText = model.completedSkillCount == 0
+        ? 'Complete your first skill assessment so your coach can establish a real performance baseline.'
+        : model.completedSkillCount < 4
+        ? 'Complete ${model.missingSkills.join(' and ')} next. Your overall band is still provisional until all four skills have real results.'
+        : '${model.weakestSkill} is currently your lowest-performing skill. Prioritize its targeted practice before adding extra volume elsewhere.';
+
+    final nextAction = pendingTasks.isNotEmpty
+        ? 'Next planned task: ${pendingTasks.first.title} (${pendingTasks.first.durationMinutes} min).'
+        : model.completedSkillCount > 0
+        ? 'Open ${model.weakestSkill} practice and complete one focused session.'
+        : 'Complete one Listening, Reading, Writing or Speaking assessment.';
+
+    return DraggableScrollableSheet(
+      initialChildSize: .88,
+      minChildSize: .64,
+      maxChildSize: .96,
+      expand: false,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: BoxDecoration(
+            color: _C.bg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+            border: Border.all(color: _C.cyan.withOpacity(.16)),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black54,
+                blurRadius: 30,
+                offset: Offset(0, -8),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              const Positioned.fill(child: _AIInsightBackground()),
+              CustomScrollView(
+                controller: scrollController,
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 10, 18, 28),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Center(
+                            child: Container(
+                              width: 44,
+                              height: 5,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(.16),
+                                borderRadius: BorderRadius.circular(100),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: 58,
+                                height: 58,
+                                decoration: BoxDecoration(
+                                  gradient: _C.gradient,
+                                  borderRadius: BorderRadius.circular(19),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: _C.cyan.withOpacity(.18),
+                                      blurRadius: 22,
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.psychology_alt_rounded,
+                                  color: Colors.white,
+                                  size: 30,
+                                ),
+                              ),
+                              const SizedBox(width: 13),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'AI Coach Report',
+                                      style: TextStyle(
+                                        color: _C.text,
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: -.5,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Text(
+                                      'Built from your live IELTS results, study-plan progress and activity.',
+                                      style: const TextStyle(
+                                        color: _C.secondary,
+                                        fontSize: 10.5,
+                                        height: 1.45,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () => Navigator.pop(context),
+                                style: IconButton.styleFrom(
+                                  backgroundColor: _C.surface,
+                                  foregroundColor: _C.text,
+                                ),
+                                icon: const Icon(Icons.close_rounded),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          _CoachHeroSummary(
+                            currentBand: model.currentBand,
+                            targetBand: model.targetBand,
+                            readiness: model.readinessPercent,
+                            completedSkills: model.completedSkillCount,
+                          ),
+                          const SizedBox(height: 18),
+                          const _CoachSectionTitle(
+                            icon: Icons.auto_awesome_rounded,
+                            title: 'Coach Summary',
+                          ),
+                          const SizedBox(height: 10),
+                          _CoachTextCard(
+                            text: model.aiInsight,
+                            accent: _C.cyan,
+                          ),
+                          const SizedBox(height: 18),
+                          const _CoachSectionTitle(
+                            icon: Icons.analytics_outlined,
+                            title: 'Performance Snapshot',
+                          ),
+                          const SizedBox(height: 10),
+                          _CoachSkillGrid(skills: model.skills),
+                          const SizedBox(height: 18),
+                          const _CoachSectionTitle(
+                            icon: Icons.center_focus_strong_rounded,
+                            title: 'Priority Focus',
+                          ),
+                          const SizedBox(height: 10),
+                          _CoachPriorityCard(
+                            title: model.completedSkillCount < 4
+                                ? 'Complete your baseline'
+                                : '${model.weakestSkill} needs attention',
+                            description: priorityText,
+                            icon: model.completedSkillCount < 4
+                                ? Icons.fact_check_outlined
+                                : _coachSkillIcon(model.weakestSkill),
+                          ),
+                          const SizedBox(height: 18),
+                          const _CoachSectionTitle(
+                            icon: Icons.compare_arrows_rounded,
+                            title: 'Band Analysis',
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _CoachMetricCard(
+                                  label: 'Current',
+                                  value: model.currentBand > 0
+                                      ? model.currentBand.toStringAsFixed(1)
+                                      : '—',
+                                  accent: _C.cyan,
+                                ),
+                              ),
+                              const SizedBox(width: 9),
+                              Expanded(
+                                child: _CoachMetricCard(
+                                  label: 'Target',
+                                  value: model.targetBand.toStringAsFixed(1),
+                                  accent: _C.violet,
+                                ),
+                              ),
+                              const SizedBox(width: 9),
+                              Expanded(
+                                child: _CoachMetricCard(
+                                  label: 'Gap',
+                                  value: model.currentBand > 0
+                                      ? gap.toStringAsFixed(1)
+                                      : '—',
+                                  accent: _C.orange,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (strongest != null || weakest != null) ...[
+                            const SizedBox(height: 11),
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: _coachCardDecoration(),
+                              child: Column(
+                                children: [
+                                  if (strongest != null)
+                                    _CoachDetailRow(
+                                      icon: Icons.trending_up_rounded,
+                                      label: 'Strongest skill',
+                                      value:
+                                          '${strongest.name} • ${strongest.band.toStringAsFixed(1)}',
+                                      color: _C.green,
+                                    ),
+                                  if (strongest != null && weakest != null)
+                                    const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 10,
+                                      ),
+                                      child: Divider(
+                                        height: 1,
+                                        color: _C.border,
+                                      ),
+                                    ),
+                                  if (weakest != null)
+                                    _CoachDetailRow(
+                                      icon: Icons.trending_down_rounded,
+                                      label: 'Lowest skill',
+                                      value:
+                                          '${weakest.name} • ${weakest.band.toStringAsFixed(1)}',
+                                      color: _C.orange,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 18),
+                          const _CoachSectionTitle(
+                            icon: Icons.calendar_today_outlined,
+                            title: 'Today’s Execution',
+                          ),
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.all(15),
+                            decoration: _coachCardDecoration(),
+                            child: Column(
+                              children: [
+                                _CoachDetailRow(
+                                  icon: Icons.check_circle_outline_rounded,
+                                  label: 'Tasks completed',
+                                  value:
+                                      '$completedTasks/${model.todayTasks.length}',
+                                  color: _C.green,
+                                ),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 10),
+                                  child: Divider(height: 1, color: _C.border),
+                                ),
+                                _CoachDetailRow(
+                                  icon: Icons.timer_outlined,
+                                  label: 'Planned study time',
+                                  value: '${model.todayTotalMinutes} min',
+                                  color: _C.cyan,
+                                ),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 10),
+                                  child: Divider(height: 1, color: _C.border),
+                                ),
+                                _CoachDetailRow(
+                                  icon: Icons.local_fire_department_rounded,
+                                  label: 'Current streak',
+                                  value: '${model.currentStreak} days',
+                                  color: _C.orange,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          const _CoachSectionTitle(
+                            icon: Icons.route_rounded,
+                            title: 'Recommended Next Step',
+                          ),
+                          const SizedBox(height: 10),
+                          _CoachTextCard(text: nextAction, accent: _C.green),
+                          const SizedBox(height: 20),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 54,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: _C.gradient,
+                                borderRadius: BorderRadius.circular(17),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: _C.cyan.withOpacity(.16),
+                                    blurRadius: 22,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                ],
+                              ),
+                              child: ElevatedButton.icon(
+                                onPressed: onPracticeWeakest,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.transparent,
+                                  shadowColor: Colors.transparent,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(17),
+                                  ),
+                                ),
+                                icon: const Icon(Icons.play_arrow_rounded),
+                                label: Text(
+                                  model.completedSkillCount == 0
+                                      ? 'Start Skill Assessment'
+                                      : 'Practice ${model.weakestSkill}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Center(
+                            child: Text(
+                              'Insight uses your saved dashboard data and updates as your results change.',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: _C.muted,
+                                fontSize: 9,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _CoachHeroSummary extends StatelessWidget {
+  final double currentBand;
+  final double targetBand;
+  final int readiness;
+  final int completedSkills;
+
+  const _CoachHeroSummary({
+    required this.currentBand,
+    required this.targetBand,
+    required this.readiness,
+    required this.completedSkills,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1746,46 +2282,422 @@ class _AIInsight extends StatelessWidget {
         borderRadius: BorderRadius.circular(22),
         gradient: LinearGradient(
           colors: [
-            _C.blue.withOpacity(.18),
-            _C.cyan.withOpacity(.1),
-            _C.violet.withOpacity(.13),
+            _C.blue.withOpacity(.25),
+            _C.cyan.withOpacity(.12),
+            _C.violet.withOpacity(.18),
           ],
         ),
-        border: Border.all(color: _C.cyan.withOpacity(.16)),
+        border: Border.all(color: _C.cyan.withOpacity(.20)),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _SquareIcon(icon: Icons.psychology_alt_rounded),
-          const SizedBox(width: 12),
+          SizedBox(
+            width: 76,
+            height: 76,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 76,
+                  height: 76,
+                  child: CircularProgressIndicator(
+                    value: readiness / 100,
+                    strokeWidth: 7,
+                    backgroundColor: _C.border,
+                    valueColor: const AlwaysStoppedAnimation<Color>(_C.cyan),
+                  ),
+                ),
+                Text(
+                  '$readiness%',
+                  style: const TextStyle(
+                    color: _C.text,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 15),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'AI Coach Insight',
+                  'Your current coaching baseline',
                   style: TextStyle(
                     color: _C.text,
                     fontSize: 14,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
-                const SizedBox(height: 7),
+                const SizedBox(height: 8),
                 Text(
-                  text,
+                  currentBand > 0
+                      ? 'Band ${currentBand.toStringAsFixed(1)} toward ${targetBand.toStringAsFixed(1)} • $completedSkills/4 skills measured'
+                      : '$completedSkills/4 skills measured • Target Band ${targetBand.toStringAsFixed(1)}',
                   style: const TextStyle(
                     color: _C.secondary,
-                    fontSize: 11.2,
+                    fontSize: 10,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CoachSkillGrid extends StatelessWidget {
+  final List<SkillOverview> skills;
+
+  const _CoachSkillGrid({required this.skills});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = (constraints.maxWidth - 9) / 2;
+
+        return Wrap(
+          spacing: 9,
+          runSpacing: 9,
+          children: skills.map((skill) {
+            return SizedBox(
+              width: width,
+              child: Container(
+                padding: const EdgeInsets.all(13),
+                decoration: _coachCardDecoration(),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: skill.color.withOpacity(.11),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(skill.icon, color: skill.color, size: 18),
+                    ),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            skill.name,
+                            style: const TextStyle(
+                              color: _C.muted,
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            skill.band > 0
+                                ? skill.band.toStringAsFixed(1)
+                                : 'Not measured',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: skill.band > 0
+                                  ? skill.color
+                                  : _C.secondary,
+                              fontSize: skill.band > 0 ? 17 : 10,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
+}
+
+class _CoachPriorityCard extends StatelessWidget {
+  final String title;
+  final String description;
+  final IconData icon;
+
+  const _CoachPriorityCard({
+    required this.title,
+    required this.description,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [_C.orange.withOpacity(.13), _C.violet.withOpacity(.08)],
+        ),
+        borderRadius: BorderRadius.circular(19),
+        border: Border.all(color: _C.orange.withOpacity(.22)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 43,
+            height: 43,
+            decoration: BoxDecoration(
+              color: _C.orange.withOpacity(.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: _C.orange, size: 21),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: _C.text,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  description,
+                  style: const TextStyle(
+                    color: _C.secondary,
+                    fontSize: 10,
                     height: 1.5,
                   ),
                 ),
               ],
             ),
           ),
-          const Icon(Icons.arrow_forward_rounded, color: _C.cyan, size: 20),
         ],
       ),
     );
+  }
+}
+
+class _CoachMetricCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color accent;
+
+  const _CoachMetricCard({
+    required this.label,
+    required this.value,
+    required this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 13),
+      decoration: _coachCardDecoration(),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              color: accent,
+              fontSize: 19,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: _C.muted,
+              fontSize: 8.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CoachDetailRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  const _CoachDetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, color: color, size: 18),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: _C.secondary,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              color: _C.text,
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CoachTextCard extends StatelessWidget {
+  final String text;
+  final Color accent;
+
+  const _CoachTextCard({required this.text, required this.accent});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(15),
+      decoration: _coachCardDecoration(),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 4,
+            height: 48,
+            decoration: BoxDecoration(
+              color: accent,
+              borderRadius: BorderRadius.circular(100),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: _C.secondary,
+                fontSize: 10.8,
+                height: 1.55,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CoachSectionTitle extends StatelessWidget {
+  final IconData icon;
+  final String title;
+
+  const _CoachSectionTitle({required this.icon, required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, color: _C.cyan, size: 18),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: const TextStyle(
+            color: _C.text,
+            fontSize: 13.5,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AIInsightBackground extends StatelessWidget {
+  const _AIInsightBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Stack(
+        children: [
+          Positioned(
+            top: -100,
+            right: -110,
+            child: Container(
+              width: 270,
+              height: 270,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _C.violet.withOpacity(.07),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 220,
+            left: -120,
+            child: Container(
+              width: 250,
+              height: 250,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _C.cyan.withOpacity(.045),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+BoxDecoration _coachCardDecoration() {
+  return BoxDecoration(
+    color: _C.surface.withOpacity(.92),
+    borderRadius: BorderRadius.circular(18),
+    border: Border.all(color: Colors.white.withOpacity(.055)),
+  );
+}
+
+IconData _coachSkillIcon(String skill) {
+  switch (skill.toLowerCase()) {
+    case 'listening':
+      return Icons.headphones_rounded;
+    case 'reading':
+      return Icons.menu_book_rounded;
+    case 'writing':
+      return Icons.edit_note_rounded;
+    case 'speaking':
+      return Icons.mic_rounded;
+    default:
+      return Icons.auto_awesome_rounded;
   }
 }
 

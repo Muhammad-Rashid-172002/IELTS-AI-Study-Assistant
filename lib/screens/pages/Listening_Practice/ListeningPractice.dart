@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fyproject/offline/offline_content_service.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:fyproject/screens/pages/Subscription/Subscription_screen.dart';
 import 'package:just_audio/just_audio.dart';
 
 class ListeningScreen extends StatelessWidget {
@@ -60,6 +61,9 @@ class ListeningScreen extends StatelessWidget {
                         [];
 
                     return _ListeningHome(
+                      isPremium: ListeningAccessManager.isPremiumFromData(
+                        userData,
+                      ),
                       currentBand: _asDouble(
                         userData['listeningBand'] ??
                             (results.isNotEmpty
@@ -81,11 +85,13 @@ class ListeningScreen extends StatelessWidget {
 }
 
 class _ListeningHome extends StatelessWidget {
+  final bool isPremium;
   final double currentBand;
   final List<String> weakTypes;
   final List<ListeningRecentResult> recentResults;
 
   const _ListeningHome({
+    required this.isPremium,
     required this.currentBand,
     required this.weakTypes,
     required this.recentResults,
@@ -127,6 +133,12 @@ class _ListeningHome extends StatelessWidget {
             ),
           ),
         ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
+            child: _ListeningPlanCard(isPremium: isPremium),
+          ),
+        ),
         const SliverToBoxAdapter(
           child: Padding(
             padding: EdgeInsets.fromLTRB(18, 22, 18, 12),
@@ -143,6 +155,7 @@ class _ListeningHome extends StatelessWidget {
               final mode = ListeningMode.values[index];
               return _ModeCard(
                 mode: mode,
+                isPremium: isPremium,
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -180,6 +193,7 @@ class _ListeningHome extends StatelessWidget {
               return _QuestionTypeCard(
                 type: type,
                 weak: weak,
+                isPremium: isPremium,
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -246,6 +260,9 @@ class _ListeningTestBrowserScreenState extends State<ListeningTestBrowserScreen>
 
   String? _error;
   bool _loading = true;
+  bool _dailyLimitReached = false;
+  bool _isPremium = false;
+  int _dailyUsed = 0;
   int _availableCount = 0;
 
   String get _title =>
@@ -261,6 +278,22 @@ class _ListeningTestBrowserScreenState extends State<ListeningTestBrowserScreen>
     }
 
     return 'Finding the best published listening test for you';
+  }
+
+  String get _progressKey {
+    if (widget.questionType != null) {
+      return 'question_${_safeProgressKey(widget.questionType!)}';
+    }
+
+    if (widget.mode?.section != null) {
+      return 'section_${widget.mode!.section}';
+    }
+
+    if (widget.mode == ListeningMode.full) {
+      return 'full';
+    }
+
+    return 'mode_${_safeProgressKey(widget.mode?.firestoreValue ?? 'all')}';
   }
 
   @override
@@ -291,6 +324,7 @@ class _ListeningTestBrowserScreenState extends State<ListeningTestBrowserScreen>
     setState(() {
       _loading = true;
       _error = null;
+      _dailyLimitReached = false;
       _availableCount = 0;
     });
 
@@ -299,6 +333,29 @@ class _ListeningTestBrowserScreenState extends State<ListeningTestBrowserScreen>
     );
 
     try {
+      final access = await ListeningAccessManager.loadAccess(
+        progressKey: _progressKey,
+      );
+
+      if (!mounted) return;
+
+      _isPremium = access.isPremium;
+      _dailyUsed = access.usedToday;
+
+      if (!access.canStart) {
+        await minimumLoading;
+
+        if (!mounted) return;
+
+        setState(() {
+          _loading = false;
+          _dailyLimitReached = true;
+          _error =
+              'You have used today\'s free attempt for this Listening activity. Each Listening mode and each question type includes 1 free attempt per day. Upgrade to Premium for unlimited Listening.';
+        });
+        return;
+      }
+
       final tests = await _fetchMatchingTests();
       await minimumLoading;
 
@@ -339,7 +396,10 @@ class _ListeningTestBrowserScreenState extends State<ListeningTestBrowserScreen>
                 parent: animation,
                 curve: Curves.easeOutCubic,
               ),
-              child: FullListeningPracticeScreen(tests: fullMockTests),
+              child: FullListeningPracticeScreen(
+                tests: fullMockTests,
+                progressKey: _progressKey,
+              ),
             ),
           ),
         );
@@ -369,7 +429,10 @@ class _ListeningTestBrowserScreenState extends State<ListeningTestBrowserScreen>
               parent: animation,
               curve: Curves.easeOutCubic,
             ),
-            child: ListeningPracticeScreen(test: selectedTest),
+            child: ListeningPracticeScreen(
+              test: selectedTest,
+              progressKey: _progressKey,
+            ),
           ),
         ),
       );
@@ -478,34 +541,60 @@ class _ListeningTestBrowserScreenState extends State<ListeningTestBrowserScreen>
   Future<ListeningTest?> _selectBestTest(List<ListeningTest> tests) async {
     if (tests.isEmpty) return null;
 
+    final orderedTests = [...tests]
+      ..sort((a, b) {
+        final sectionCompare = a.section.compareTo(b.section);
+        if (sectionCompare != 0) return sectionCompare;
+
+        final titleCompare = a.title.toLowerCase().compareTo(
+          b.title.toLowerCase(),
+        );
+        if (titleCompare != 0) return titleCompare;
+
+        return a.id.compareTo(b.id);
+      });
+
     final user = FirebaseAuth.instance.currentUser;
-    final attemptedIds = <String>{};
+    if (user == null) return orderedTests.first;
 
-    if (user != null) {
-      try {
-        final recentResults = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .collection('listening_results')
-            .orderBy('completedAt', descending: true)
-            .limit(20)
-            .get();
+    try {
+      final progressRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('listening_progress')
+          .doc(_progressKey);
 
-        for (final doc in recentResults.docs) {
-          final testId = (doc.data()['testId'] ?? '').toString();
-          if (testId.isNotEmpty) attemptedIds.add(testId);
-        }
-      } catch (_) {
-        // Recent-history lookup is optional; selection still works without it.
+      final progressSnapshot = await progressRef.get();
+      final data = progressSnapshot.data() ?? const <String, dynamic>{};
+
+      final completedIds = data['completedTestIds'] is List
+          ? (data['completedTestIds'] as List)
+                .map((item) => item.toString())
+                .where((id) => id.isNotEmpty)
+                .toSet()
+          : <String>{};
+
+      final unseenTests = orderedTests
+          .where((test) => !completedIds.contains(test.id))
+          .toList();
+
+      if (unseenTests.isNotEmpty) {
+        return unseenTests.first;
       }
+
+      // All tests in this selected pool have been completed.
+      // Reset the cycle, then start again from the first published test.
+      await progressRef.set({
+        'completedTestIds': <String>[],
+        'cycle': FieldValue.increment(1),
+        'lastCycleResetAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      return orderedTests.first;
+    } catch (_) {
+      return orderedTests.first;
     }
-
-    final unseenTests = tests
-        .where((test) => !attemptedIds.contains(test.id))
-        .toList();
-
-    if (unseenTests.isEmpty) return null;
-    return unseenTests[math.Random.secure().nextInt(unseenTests.length)];
   }
 
   Future<List<ListeningTest>> _selectFullMockTests(
@@ -681,17 +770,21 @@ class _ListeningTestBrowserScreenState extends State<ListeningTestBrowserScreen>
                     color: const Color(0xFFF97316).withOpacity(.28),
                   ),
                 ),
-                child: const Icon(
-                  Icons.headset_off_rounded,
-                  color: Color(0xFFF97316),
+                child: Icon(
+                  _dailyLimitReached
+                      ? Icons.workspace_premium_rounded
+                      : Icons.headset_off_rounded,
+                  color: const Color(0xFFF97316),
                   size: 34,
                 ),
               ),
               const SizedBox(height: 20),
-              const Text(
-                'No matching test yet',
+              Text(
+                _dailyLimitReached
+                    ? 'Daily Listening limit reached'
+                    : 'No matching test yet',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   color: LColors.text,
                   fontSize: 19,
                   fontWeight: FontWeight.w900,
@@ -715,14 +808,62 @@ class _ListeningTestBrowserScreenState extends State<ListeningTestBrowserScreen>
                 ),
               ],
               const SizedBox(height: 22),
-              SizedBox(
-                width: double.infinity,
-                child: _GradientButton(
-                  title: 'Try Again',
-                  icon: Icons.refresh_rounded,
-                  onPressed: _loadAndOpenTest,
+              if (_dailyLimitReached) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: LColors.surface2.withOpacity(.82),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: LColors.orange.withOpacity(.22)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.headphones_rounded,
+                        color: LColors.cyan,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Today: $_dailyUsed/1 used • This activity resets daily',
+                          style: const TextStyle(
+                            color: LColors.secondary,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: _GradientButton(
+                    title: 'Upgrade to Premium',
+                    icon: Icons.workspace_premium_rounded,
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const SubscriptionScreen(),
+                        ),
+                      ).then((_) => _loadAndOpenTest());
+                    },
+                  ),
+                ),
+              ] else ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: _GradientButton(
+                    title: 'Try Again',
+                    icon: Icons.refresh_rounded,
+                    onPressed: _loadAndOpenTest,
+                  ),
+                ),
+              ],
               const SizedBox(height: 9),
               TextButton.icon(
                 onPressed: () => Navigator.pop(context),
@@ -792,8 +933,13 @@ class _PreparationStep extends StatelessWidget {
 
 class FullListeningPracticeScreen extends StatefulWidget {
   final List<ListeningTest> tests;
+  final String progressKey;
 
-  const FullListeningPracticeScreen({super.key, required this.tests});
+  const FullListeningPracticeScreen({
+    super.key,
+    required this.tests,
+    required this.progressKey,
+  });
 
   @override
   State<FullListeningPracticeScreen> createState() =>
@@ -878,6 +1024,7 @@ class _FullListeningPracticeScreenState
   @override
   void dispose() {
     _timer?.cancel();
+    unawaited(_player.stop());
     _player.dispose();
     _pageController.dispose();
 
@@ -1091,11 +1238,13 @@ class _FullListeningPracticeScreenState
   }
 
   Future<void> _back() async {
+    // Moving between questions must NOT stop the listening audio.
     if (_currentQuestion > 0) {
       await _goToQuestion(_currentQuestion - 1);
       return;
     }
 
+    // When moving to another section, load that section's own audio.
     if (_sectionIndex > 0) {
       final previousSectionIndex = _sectionIndex - 1;
       await _player.pause();
@@ -1183,6 +1332,7 @@ class _FullListeningPracticeScreenState
       'testIds': _tests.map((test) => test.id).toList(),
       'title': combinedTest.title,
       'mode': 'full',
+      'progressKey': widget.progressKey,
       'estimatedBand': result.estimatedBand,
       'rawScore': result.rawScore,
       'totalQuestions': result.totalQuestions,
@@ -1216,6 +1366,7 @@ class _FullListeningPracticeScreenState
           'testIds': _tests.map((test) => test.id).toList(),
           'title': combinedTest.title,
           'mode': 'full',
+          'progressKey': widget.progressKey,
           'rawScore': result.rawScore,
           'totalQuestions': result.totalQuestions,
           'estimatedBand': result.estimatedBand,
@@ -1234,6 +1385,11 @@ class _FullListeningPracticeScreenState
           'lastListeningTestAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
+
+        await ListeningAccessManager.recordCompletion(
+          progressKey: widget.progressKey,
+          completedTestIds: _tests.map((test) => test.id).toList(),
+        );
         await OfflineContentService.instance.markCompleted(
           module: 'listening',
           contentId: combinedTest.id,
@@ -1273,134 +1429,144 @@ class _FullListeningPracticeScreenState
   Widget build(BuildContext context) {
     final globalIndex = _globalQuestionIndex;
 
-    return Scaffold(
-      backgroundColor: LColors.bg,
-      body: Stack(
-        children: [
-          const Positioned.fill(child: _Background()),
-          SafeArea(
-            child: Column(
-              children: [
-                _PracticeHeader(
-                  title:
-                      'Full Listening Test • Section ${_currentTest.section}',
-                  current: globalIndex,
-                  total: _totalQuestions,
-                  seconds: _remainingSeconds,
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: Row(
-                    children: List.generate(_tests.length, (index) {
-                      final selected = index == _sectionIndex;
-                      final completed = index < _sectionIndex;
-
-                      return Expanded(
-                        child: Container(
-                          height: 5,
-                          margin: EdgeInsets.only(
-                            right: index == _tests.length - 1 ? 0 : 7,
-                          ),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
-                            color: selected || completed
-                                ? LColors.cyan
-                                : LColors.border,
-                          ),
-                        ),
-                      );
-                    }),
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) {
+          await _player.stop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: LColors.bg,
+        body: Stack(
+          children: [
+            const Positioned.fill(child: _Background()),
+            SafeArea(
+              child: Column(
+                children: [
+                  _PracticeHeader(
+                    title:
+                        'Full Listening Test • Section ${_currentTest.section}',
+                    current: globalIndex,
+                    total: _totalQuestions,
+                    seconds: _remainingSeconds,
                   ),
-                ),
-                _AudioPlayerCard(
-                  player: _player,
-                  loading: _loadingAudio,
-                  error: _audioError,
-                  examMode: true,
-                  learningMode: false,
-                  volume: _volume,
-                  speed: 1,
-                  offlineAvailable: _audioCached,
-                  caching: _audioCaching,
-                  cacheFailed: _audioCacheFailed,
-                  online: OfflineContentService.instance.isOnline,
-                  onPlay: _togglePlay,
-                  onVolumeChanged: (value) async {
-                    setState(() => _volume = value);
-                    await _player.setVolume(value);
-                  },
-                  onSpeedChanged: (_) {},
-                ),
-                _QuestionNav(
-                  total: _currentTest.questions.length,
-                  current: _currentQuestion,
-                  answered: _answeredInCurrentSection,
-                  autoScroll: _autoScroll,
-                  onAutoScroll: (value) => setState(() => _autoScroll = value),
-                  onTap: _goToQuestion,
-                ),
-                Expanded(
-                  child: PageView.builder(
-                    controller: _pageController,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _currentTest.questions.length,
-                    onPageChanged: (index) {
-                      setState(() => _currentQuestion = index);
-                    },
-                    itemBuilder: (_, index) {
-                      final localQuestion = _currentTest.questions[index];
-                      final answerIndex = _questionOffset + index;
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Row(
+                      children: List.generate(_tests.length, (index) {
+                        final selected = index == _sectionIndex;
+                        final completed = index < _sectionIndex;
 
-                      return SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(18, 14, 18, 26),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _FullSectionBanner(
-                              section: _currentTest.section,
-                              title: _currentTest.title,
-                              questionNumber: answerIndex + 1,
-                              totalQuestions: _totalQuestions,
+                        return Expanded(
+                          child: Container(
+                            height: 5,
+                            margin: EdgeInsets.only(
+                              right: index == _tests.length - 1 ? 0 : 7,
                             ),
-                            const SizedBox(height: 12),
-                            _QuestionCard(
-                              question: localQuestion,
-                              selected: _answers[answerIndex],
-                              controller: _controllers[answerIndex],
-                              onSelected: (answer) {
-                                setState(() {
-                                  _answers[answerIndex] = answer;
-                                });
-
-                                if (_autoScroll &&
-                                    index < _currentTest.questions.length - 1) {
-                                  Future.delayed(
-                                    const Duration(milliseconds: 220),
-                                    () => _goToQuestion(index + 1),
-                                  );
-                                }
-                              },
-                              onTextChanged: (value) {
-                                _answers[answerIndex] = value.trim();
-                              },
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              color: selected || completed
+                                  ? LColors.cyan
+                                  : LColors.border,
                             ),
-                          ],
-                        ),
-                      );
-                    },
+                          ),
+                        );
+                      }),
+                    ),
                   ),
-                ),
-                _BottomBar(
-                  current: globalIndex,
-                  total: _totalQuestions,
-                  loading: _submitting,
-                  onBack: globalIndex > 0 ? () => _back() : null,
-                  onNext: _next,
-                ),
-              ],
+                  _AudioPlayerCard(
+                    player: _player,
+                    loading: _loadingAudio,
+                    error: _audioError,
+                    examMode: true,
+                    learningMode: false,
+                    volume: _volume,
+                    speed: 1,
+                    offlineAvailable: _audioCached,
+                    caching: _audioCaching,
+                    cacheFailed: _audioCacheFailed,
+                    online: OfflineContentService.instance.isOnline,
+                    onPlay: _togglePlay,
+                    onVolumeChanged: (value) async {
+                      setState(() => _volume = value);
+                      await _player.setVolume(value);
+                    },
+                    onSpeedChanged: (_) {},
+                  ),
+                  _QuestionNav(
+                    total: _currentTest.questions.length,
+                    current: _currentQuestion,
+                    answered: _answeredInCurrentSection,
+                    autoScroll: _autoScroll,
+                    onAutoScroll: (value) =>
+                        setState(() => _autoScroll = value),
+                    onTap: _goToQuestion,
+                  ),
+                  Expanded(
+                    child: PageView.builder(
+                      controller: _pageController,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _currentTest.questions.length,
+                      onPageChanged: (index) {
+                        setState(() => _currentQuestion = index);
+                      },
+                      itemBuilder: (_, index) {
+                        final localQuestion = _currentTest.questions[index];
+                        final answerIndex = _questionOffset + index;
+
+                        return SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(18, 14, 18, 26),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _FullSectionBanner(
+                                section: _currentTest.section,
+                                title: _currentTest.title,
+                                questionNumber: answerIndex + 1,
+                                totalQuestions: _totalQuestions,
+                              ),
+                              const SizedBox(height: 12),
+                              _QuestionCard(
+                                question: localQuestion,
+                                selected: _answers[answerIndex],
+                                controller: _controllers[answerIndex],
+                                onSelected: (answer) {
+                                  setState(() {
+                                    _answers[answerIndex] = answer;
+                                  });
+
+                                  if (_autoScroll &&
+                                      index <
+                                          _currentTest.questions.length - 1) {
+                                    Future.delayed(
+                                      const Duration(milliseconds: 220),
+                                      () => _goToQuestion(index + 1),
+                                    );
+                                  }
+                                },
+                                onTextChanged: (value) {
+                                  _answers[answerIndex] = value.trim();
+                                },
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  _BottomBar(
+                    current: globalIndex,
+                    total: _totalQuestions,
+                    loading: _submitting,
+                    onBack: globalIndex > 0 ? () => _back() : null,
+                    onNext: _next,
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1481,8 +1647,13 @@ class _FullSectionBanner extends StatelessWidget {
 
 class ListeningPracticeScreen extends StatefulWidget {
   final ListeningTest test;
+  final String progressKey;
 
-  const ListeningPracticeScreen({super.key, required this.test});
+  const ListeningPracticeScreen({
+    super.key,
+    required this.test,
+    required this.progressKey,
+  });
 
   @override
   State<ListeningPracticeScreen> createState() =>
@@ -1533,11 +1704,16 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+
+    unawaited(_player.stop()); // Stop audio before leaving the screen.
     _player.dispose();
+
     _pageController.dispose();
+
     for (final controller in _controllers.values) {
       controller.dispose();
     }
+
     super.dispose();
   }
 
@@ -1729,6 +1905,7 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen> {
       'title': widget.test.title,
       'mode': widget.test.mode,
       'section': widget.test.section,
+      'progressKey': widget.progressKey,
       'estimatedBand': result.estimatedBand,
       'rawScore': result.rawScore,
       'totalQuestions': result.totalQuestions,
@@ -1760,6 +1937,9 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen> {
           'resultId': ref.id,
           'testId': widget.test.id,
           'title': widget.test.title,
+          'mode': widget.test.mode,
+          'section': widget.test.section,
+          'progressKey': widget.progressKey,
           'rawScore': result.rawScore,
           'totalQuestions': result.totalQuestions,
           'estimatedBand': result.estimatedBand,
@@ -1778,6 +1958,11 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen> {
           'lastListeningTestAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
+
+        await ListeningAccessManager.recordCompletion(
+          progressKey: widget.progressKey,
+          completedTestIds: <String>[widget.test.id],
+        );
 
         await OfflineContentService.instance.markCompleted(
           module: 'listening',
@@ -1816,100 +2001,110 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: LColors.bg,
-      body: Stack(
-        children: [
-          const Positioned.fill(child: _Background()),
-          SafeArea(
-            child: Column(
-              children: [
-                _PracticeHeader(
-                  title: widget.test.title,
-                  current: _current,
-                  total: widget.test.questions.length,
-                  seconds: _remainingSeconds,
-                ),
-                _AudioPlayerCard(
-                  player: _player,
-                  loading: _loadingAudio,
-                  error: _audioError,
-                  examMode: _examMode,
-                  learningMode: _learningMode,
-                  volume: _volume,
-                  speed: _speed,
-                  offlineAvailable: _audioCached,
-                  caching: _audioCaching,
-                  cacheFailed: _audioCacheFailed,
-                  online: OfflineContentService.instance.isOnline,
-                  onPlay: _togglePlay,
-                  onVolumeChanged: (value) async {
-                    setState(() => _volume = value);
-                    await _player.setVolume(value);
-                  },
-                  onSpeedChanged: (value) async {
-                    if (!_learningMode) return;
-                    setState(() => _speed = value);
-                    await _player.setSpeed(value);
-                  },
-                ),
-                _QuestionNav(
-                  total: widget.test.questions.length,
-                  current: _current,
-                  answered: _answers.keys.toSet(),
-                  autoScroll: _autoScroll,
-                  onAutoScroll: (value) => setState(() => _autoScroll = value),
-                  onTap: _goTo,
-                ),
-                Expanded(
-                  child: PageView.builder(
-                    controller: _pageController,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: widget.test.questions.length,
-                    onPageChanged: (index) => setState(() => _current = index),
-                    itemBuilder: (_, index) {
-                      final question = widget.test.questions[index];
-
-                      return SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(18, 14, 18, 26),
-                        child: _QuestionCard(
-                          question: question,
-                          selected: _answers[index],
-                          controller: _controllers[index],
-                          onSelected: (answer) {
-                            setState(() => _answers[index] = answer);
-                            if (_autoScroll &&
-                                index < widget.test.questions.length - 1) {
-                              Future.delayed(
-                                const Duration(milliseconds: 220),
-                                () => _goTo(index + 1),
-                              );
-                            }
-                          },
-                          onTextChanged: (value) =>
-                              _answers[index] = value.trim(),
-                        ),
-                      );
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) {
+          await _player.stop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: LColors.bg,
+        body: Stack(
+          children: [
+            const Positioned.fill(child: _Background()),
+            SafeArea(
+              child: Column(
+                children: [
+                  _PracticeHeader(
+                    title: widget.test.title,
+                    current: _current,
+                    total: widget.test.questions.length,
+                    seconds: _remainingSeconds,
+                  ),
+                  _AudioPlayerCard(
+                    player: _player,
+                    loading: _loadingAudio,
+                    error: _audioError,
+                    examMode: _examMode,
+                    learningMode: _learningMode,
+                    volume: _volume,
+                    speed: _speed,
+                    offlineAvailable: _audioCached,
+                    caching: _audioCaching,
+                    cacheFailed: _audioCacheFailed,
+                    online: OfflineContentService.instance.isOnline,
+                    onPlay: _togglePlay,
+                    onVolumeChanged: (value) async {
+                      setState(() => _volume = value);
+                      await _player.setVolume(value);
+                    },
+                    onSpeedChanged: (value) async {
+                      if (!_learningMode) return;
+                      setState(() => _speed = value);
+                      await _player.setSpeed(value);
                     },
                   ),
-                ),
-                _BottomBar(
-                  current: _current,
-                  total: widget.test.questions.length,
-                  loading: _submitting,
-                  onBack: _current > 0 ? () => _goTo(_current - 1) : null,
-                  onNext: () {
-                    if (_current < widget.test.questions.length - 1) {
-                      _goTo(_current + 1);
-                    } else {
-                      _submit();
-                    }
-                  },
-                ),
-              ],
+                  _QuestionNav(
+                    total: widget.test.questions.length,
+                    current: _current,
+                    answered: _answers.keys.toSet(),
+                    autoScroll: _autoScroll,
+                    onAutoScroll: (value) =>
+                        setState(() => _autoScroll = value),
+                    onTap: _goTo,
+                  ),
+                  Expanded(
+                    child: PageView.builder(
+                      controller: _pageController,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: widget.test.questions.length,
+                      onPageChanged: (index) =>
+                          setState(() => _current = index),
+                      itemBuilder: (_, index) {
+                        final question = widget.test.questions[index];
+
+                        return SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(18, 14, 18, 26),
+                          child: _QuestionCard(
+                            question: question,
+                            selected: _answers[index],
+                            controller: _controllers[index],
+                            onSelected: (answer) {
+                              setState(() => _answers[index] = answer);
+                              if (_autoScroll &&
+                                  index < widget.test.questions.length - 1) {
+                                Future.delayed(
+                                  const Duration(milliseconds: 220),
+                                  () => _goTo(index + 1),
+                                );
+                              }
+                            },
+                            onTextChanged: (value) =>
+                                _answers[index] = value.trim(),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  _BottomBar(
+                    current: _current,
+                    total: widget.test.questions.length,
+                    loading: _submitting,
+                    onBack: _current > 0 ? () => _goTo(_current - 1) : null,
+                    onNext: () {
+                      if (_current < widget.test.questions.length - 1) {
+                        _goTo(_current + 1);
+                      } else {
+                        _submit();
+                      }
+                    },
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -2651,10 +2846,7 @@ class _RecommendedLessonCard extends StatelessWidget {
       final label = type.label.toLowerCase();
 
       if (normalizedWeak.any(
-        (weak) =>
-            weak == label ||
-            weak.contains(label) ||
-            label.contains(weak),
+        (weak) => weak == label || weak.contains(label) || label.contains(weak),
       )) {
         return type;
       }
@@ -2740,9 +2932,7 @@ class _RecommendedLessonCard extends StatelessWidget {
                 LColors.cyan.withValues(alpha: .07),
               ],
             ),
-            border: Border.all(
-              color: LColors.green.withValues(alpha: .22),
-            ),
+            border: Border.all(color: LColors.green.withValues(alpha: .22)),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: .16),
@@ -2848,33 +3038,21 @@ class _RecommendationMeta extends StatelessWidget {
   final IconData icon;
   final String label;
 
-  const _RecommendationMeta({
-    required this.icon,
-    required this.label,
-  });
+  const _RecommendationMeta({required this.icon, required this.label});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 8,
-        vertical: 5,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: LColors.surface.withValues(alpha: .72),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: LColors.border.withValues(alpha: .9),
-        ),
+        border: Border.all(color: LColors.border.withValues(alpha: .9)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            color: LColors.green,
-            size: 12,
-          ),
+          Icon(icon, color: LColors.green, size: 12),
           const SizedBox(width: 5),
           Text(
             label,
@@ -2890,11 +3068,143 @@ class _RecommendationMeta extends StatelessWidget {
   }
 }
 
+class _ListeningPlanCard extends StatelessWidget {
+  const _ListeningPlanCard({required this.isPremium});
+
+  final bool isPremium;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = isPremium ? LColors.green : LColors.violet;
+
+    return Container(
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: LinearGradient(
+          colors: [accent.withOpacity(.14), LColors.cyan.withOpacity(.06)],
+        ),
+        border: Border.all(color: accent.withOpacity(.24)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.16),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: isPremium
+                        ? [LColors.green, LColors.cyan]
+                        : [LColors.violet, LColors.cyan],
+                  ),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Icon(
+                  isPremium
+                      ? Icons.verified_rounded
+                      : Icons.workspace_premium_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isPremium
+                          ? 'PREMIUM LISTENING ACTIVE'
+                          : 'FREE LISTENING PLAN',
+                      style: TextStyle(
+                        color: accent,
+                        fontSize: 8.8,
+                        letterSpacing: .8,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      isPremium
+                          ? 'Unlimited Listening practice'
+                          : '1 free attempt per activity each day',
+                      style: const TextStyle(
+                        color: LColors.text,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      isPremium
+                          ? 'Sections, full tests, timed practice, accents and learning modes are available without a daily limit.'
+                          : 'Each Listening mode and each question type has its own 1 free attempt every day.',
+                      style: const TextStyle(
+                        color: LColors.secondary,
+                        fontSize: 9.8,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (!isPremium) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              height: 46,
+              child: FilledButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const SubscriptionScreen(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.workspace_premium_rounded, size: 18),
+                label: const Text(
+                  'Unlock Unlimited Listening',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: LColors.violet,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _ModeCard extends StatelessWidget {
   final ListeningMode mode;
+  final bool isPremium;
   final VoidCallback onTap;
 
-  const _ModeCard({required this.mode, required this.onTap});
+  const _ModeCard({
+    required this.mode,
+    required this.isPremium,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -2917,49 +3227,80 @@ class _ModeCard extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      LColors.cyan.withOpacity(.22),
-                      LColors.violet.withOpacity(.18),
-                    ],
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          LColors.cyan.withOpacity(.22),
+                          LColors.violet.withOpacity(.18),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(13),
+                      border: Border.all(color: LColors.cyan.withOpacity(.18)),
+                    ),
+                    child: Icon(mode.icon, color: LColors.cyan, size: 21),
                   ),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: LColors.cyan.withOpacity(.18)),
-                ),
-                child: Icon(mode.icon, color: LColors.cyan, size: 22),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: (isPremium ? LColors.green : LColors.violet)
+                          .withOpacity(.10),
+                      borderRadius: BorderRadius.circular(99),
+                      border: Border.all(
+                        color: (isPremium ? LColors.green : LColors.violet)
+                            .withOpacity(.20),
+                      ),
+                    ),
+                    child: Text(
+                      isPremium ? 'UNLIMITED' : 'FREE • 1/DAY',
+                      style: TextStyle(
+                        color: isPremium ? LColors.green : LColors.violet,
+                        fontSize: 6.5,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: .2,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const Spacer(),
               Text(
                 mode.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: LColors.text,
-                  fontSize: 13,
+                  fontSize: 12.7,
                   fontWeight: FontWeight.w900,
                 ),
               ),
-              const SizedBox(height: 5),
+              const SizedBox(height: 4),
               Text(
                 mode.subtitle,
-                maxLines: 2,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: LColors.muted,
-                  fontSize: 9.5,
-                  height: 1.35,
+                  fontSize: 9.1,
+                  height: 1.25,
                 ),
               ),
-              const SizedBox(height: 9),
+              const SizedBox(height: 7),
               const Row(
                 children: [
                   Text(
                     'Start practice',
                     style: TextStyle(
                       color: LColors.cyan,
-                      fontSize: 9.2,
+                      fontSize: 8.9,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -2967,7 +3308,7 @@ class _ModeCard extends StatelessWidget {
                   Icon(
                     Icons.arrow_forward_rounded,
                     color: LColors.cyan,
-                    size: 14,
+                    size: 13,
                   ),
                 ],
               ),
@@ -2982,11 +3323,13 @@ class _ModeCard extends StatelessWidget {
 class _QuestionTypeCard extends StatelessWidget {
   final ListeningQuestionType type;
   final bool weak;
+  final bool isPremium;
   final VoidCallback onTap;
 
   const _QuestionTypeCard({
     required this.type,
     required this.weak,
+    required this.isPremium,
     required this.onTap,
   });
 
@@ -3037,10 +3380,22 @@ class _QuestionTypeCard extends StatelessWidget {
               ),
             )
           else
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: LColors.muted,
-              size: 18,
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              decoration: BoxDecoration(
+                color: (isPremium ? LColors.green : LColors.violet).withOpacity(
+                  .09,
+                ),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                isPremium ? '∞' : '1/DAY',
+                style: TextStyle(
+                  color: isPremium ? LColors.green : LColors.violet,
+                  fontSize: 7.2,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
             ),
         ],
       ),
@@ -3143,57 +3498,6 @@ class _RecentResultCard extends StatelessWidget {
     );
   }
 }
-
-// class _TestCard extends StatelessWidget {
-//   final ListeningTest test;
-//   final VoidCallback onTap;
-
-//   const _TestCard({required this.test, required this.onTap});
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return _TapCard(
-//       onTap: onTap,
-//       child: Row(
-//         children: [
-//           const _GradientIcon(icon: Icons.play_circle_outline_rounded),
-//           const SizedBox(width: 12),
-//           Expanded(
-//             child: Column(
-//               crossAxisAlignment: CrossAxisAlignment.start,
-//               children: [
-//                 Text(
-//                   test.title,
-//                   style: const TextStyle(
-//                     color: LColors.text,
-//                     fontSize: 13,
-//                     fontWeight: FontWeight.w900,
-//                   ),
-//                 ),
-//                 const SizedBox(height: 5),
-//                 Text(
-//                   test.description,
-//                   maxLines: 2,
-//                   overflow: TextOverflow.ellipsis,
-//                   style: const TextStyle(color: LColors.muted, fontSize: 9.8),
-//                 ),
-//                 const SizedBox(height: 7),
-//                 Text(
-//                   '${test.questions.length} questions • ${_formatClock(test.durationSeconds)} • ${test.accent}',
-//                   style: const TextStyle(
-//                     color: LColors.cyan,
-//                     fontSize: 8.8,
-//                     fontWeight: FontWeight.w700,
-//                   ),
-//                 ),
-//               ],
-//             ),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-// }
 
 class _PracticeHeader extends StatelessWidget {
   final String title;
@@ -4518,6 +4822,217 @@ class _Background extends StatelessWidget {
       ],
     );
   }
+}
+
+class ListeningAccessState {
+  final bool isPremium;
+  final int usedToday;
+  final bool offlineMode;
+
+  const ListeningAccessState({
+    required this.isPremium,
+    required this.usedToday,
+    this.offlineMode = false,
+  });
+
+  int get remainingToday =>
+      math.max(0, ListeningAccessManager.freeDailyLimitPerActivity - usedToday);
+
+  bool get canStart =>
+      offlineMode ||
+      isPremium ||
+      usedToday < ListeningAccessManager.freeDailyLimitPerActivity;
+}
+
+class ListeningAccessManager {
+  static const int freeDailyLimitPerActivity = 1;
+
+  static bool isPremiumFromData(Map<String, dynamic> data) {
+    if (data['isPremium'] == true ||
+        data['premium'] == true ||
+        data['subscriptionActive'] == true) {
+      return true;
+    }
+
+    final subscription =
+        (data['subscription'] ??
+                data['subscriptionStatus'] ??
+                data['premiumStatus'] ??
+                '')
+            .toString()
+            .trim()
+            .toLowerCase();
+
+    if (subscription == 'active' ||
+        subscription == 'approved' ||
+        subscription == 'premium') {
+      return true;
+    }
+
+    final premiumPlan = (data['premiumPlan'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+
+    if (premiumPlan == 'monthly' ||
+        premiumPlan == 'quarterly' ||
+        premiumPlan == 'yearly' ||
+        premiumPlan == 'annual') {
+      return true;
+    }
+
+    final expiry = _readPremiumDate(
+      data['premiumUntil'] ??
+          data['premiumExpiry'] ??
+          data['subscriptionExpiresAt'] ??
+          data['subscriptionEnd'],
+    );
+
+    return expiry != null && expiry.isAfter(DateTime.now());
+  }
+
+  static DateTime? _readPremiumDate(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value);
+    return null;
+  }
+
+  static Future<ListeningAccessState> loadAccess({
+    required String progressKey,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      return const ListeningAccessState(isPremium: false, usedToday: 0);
+    }
+
+    // Do not block downloaded Listening activities on a Firestore request
+    // while the device is offline.
+    if (!OfflineContentService.instance.isOnline) {
+      return const ListeningAccessState(
+        isPremium: false,
+        usedToday: 0,
+        offlineMode: true,
+      );
+    }
+
+    final userRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid);
+
+    try {
+      final userSnapshot = await userRef.get().timeout(
+        const Duration(seconds: 10),
+      );
+      final userData = userSnapshot.data() ?? const <String, dynamic>{};
+
+      final isPremium = isPremiumFromData(userData);
+      if (isPremium) {
+        return const ListeningAccessState(isPremium: true, usedToday: 0);
+      }
+
+      final now = DateTime.now();
+      final startOfToday = DateTime(now.year, now.month, now.day);
+      final startOfTomorrow = startOfToday.add(const Duration(days: 1));
+
+      int usedToday = 0;
+
+      try {
+        final todayResults = await userRef
+            .collection('listening_results')
+            .where('progressKey', isEqualTo: progressKey)
+            .where(
+              'completedAt',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(startOfToday),
+            )
+            .where(
+              'completedAt',
+              isLessThan: Timestamp.fromDate(startOfTomorrow),
+            )
+            .get()
+            .timeout(const Duration(seconds: 10));
+
+        // Each mode/question type has its own free daily attempt.
+        usedToday = todayResults.docs.length;
+      } catch (_) {
+        final recentResults = await userRef
+            .collection('listening_results')
+            .orderBy('completedAt', descending: true)
+            .limit(100)
+            .get()
+            .timeout(const Duration(seconds: 10));
+
+        usedToday = recentResults.docs.where((doc) {
+          final data = doc.data();
+          if ((data['progressKey'] ?? '').toString() != progressKey) {
+            return false;
+          }
+
+          final value = data['completedAt'];
+
+          DateTime? date;
+          if (value is Timestamp) {
+            date = value.toDate();
+          } else if (value is DateTime) {
+            date = value;
+          } else if (value is String) {
+            date = DateTime.tryParse(value);
+          }
+
+          if (date == null) return false;
+
+          final local = date.toLocal();
+          return local.year == now.year &&
+              local.month == now.month &&
+              local.day == now.day;
+        }).length;
+      }
+
+      return ListeningAccessState(isPremium: false, usedToday: usedToday);
+    } catch (error) {
+      debugPrint('Listening access check failed: $error');
+
+      // A temporary entitlement read error should not crash the module.
+      return const ListeningAccessState(isPremium: false, usedToday: 0);
+    }
+  }
+
+  static Future<void> recordCompletion({
+    required String progressKey,
+    required List<String> completedTestIds,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || !OfflineContentService.instance.isOnline) return;
+
+    final firestore = FirebaseFirestore.instance;
+    final userRef = firestore.collection('users').doc(user.uid);
+    final progressRef = userRef
+        .collection('listening_progress')
+        .doc(progressKey);
+
+    await progressRef.set({
+      'completedTestIds': FieldValue.arrayUnion(completedTestIds),
+      'lastCompletedTestIds': completedTestIds,
+      'lastCompletedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    await userRef.set({
+      'lastListeningActivityAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+}
+
+String _safeProgressKey(String value) {
+  final cleaned = value
+      .trim()
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+      .replaceAll(RegExp(r'^_+|_+$'), '');
+
+  return cleaned.isEmpty ? 'all' : cleaned;
 }
 
 class LColors {

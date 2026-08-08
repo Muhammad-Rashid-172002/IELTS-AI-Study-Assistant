@@ -5,7 +5,598 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fyproject/offline/offline_content_service.dart';
 import 'package:flutter/material.dart';
+import 'package:fyproject/screens/pages/Subscription/Subscription_screen.dart';
 import 'package:fyproject/screens/content_queue_service.dart';
+
+class WritingPremiumManager {
+  WritingPremiumManager._();
+
+  static const int freeWritingTasksPerDay = 1;
+  static const int freeAiChecksPerDay = 1;
+  static const int freeDraftLimit = 3;
+  static const int freeHistoryLimit = 10;
+  static const int freeLessonCount = 3;
+  static const int freeModelAnswers = 3;
+
+  static bool isPremiumFromData(Map<String, dynamic> data) {
+    if (data['isPremium'] == true ||
+        data['premium'] == true ||
+        data['subscriptionActive'] == true) {
+      return true;
+    }
+
+    final status =
+        (data['subscriptionStatus'] ??
+                data['premiumStatus'] ??
+                data['subscriptionRequestStatus'] ??
+                '')
+            .toString()
+            .trim()
+            .toLowerCase();
+
+    if (status == 'active' || status == 'approved' || status == 'premium') {
+      return true;
+    }
+
+    final plan = (data['premiumPlan'] ?? '').toString().trim().toLowerCase();
+    if (plan == 'monthly' ||
+        plan == 'quarterly' ||
+        plan == 'yearly' ||
+        plan == 'annual') {
+      return true;
+    }
+
+    final expiry = _readDate(
+      data['premiumUntil'] ??
+          data['premiumExpiry'] ??
+          data['subscriptionExpiresAt'] ??
+          data['subscriptionEnd'],
+    );
+    return expiry != null && expiry.isAfter(DateTime.now());
+  }
+
+  static DateTime? _readDate(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value);
+    return null;
+  }
+
+  static String _dayKey(DateTime now) =>
+      '${now.year.toString().padLeft(4, '0')}-'
+      '${now.month.toString().padLeft(2, '0')}-'
+      '${now.day.toString().padLeft(2, '0')}';
+
+  static Future<bool> isPremiumUser() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get()
+          .timeout(const Duration(seconds: 10));
+      return isPremiumFromData(doc.data() ?? const <String, dynamic>{});
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<_WritingLimitDecision> checkDaily({
+    required String feature,
+    required int limit,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return _WritingLimitDecision(
+        allowed: false,
+        premium: false,
+        used: 0,
+        limit: limit,
+      );
+    }
+
+    if (!OfflineContentService.instance.isOnline) {
+      return _WritingLimitDecision(
+        allowed: true,
+        premium: false,
+        used: 0,
+        limit: limit,
+        offlineBypass: true,
+      );
+    }
+
+    final userRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid);
+    final usageRef = userRef.collection('feature_usage').doc('writing');
+
+    try {
+      final docs = await Future.wait([
+        userRef.get().timeout(const Duration(seconds: 10)),
+        usageRef.get().timeout(const Duration(seconds: 10)),
+      ]);
+
+      final userData =
+          (docs[0] as DocumentSnapshot<Map<String, dynamic>>).data() ??
+          const <String, dynamic>{};
+
+      if (isPremiumFromData(userData)) {
+        return _WritingLimitDecision(
+          allowed: true,
+          premium: true,
+          used: 0,
+          limit: limit,
+        );
+      }
+
+      final usage =
+          (docs[1] as DocumentSnapshot<Map<String, dynamic>>).data() ??
+          const <String, dynamic>{};
+      final today = _dayKey(DateTime.now());
+      final storedDay = (usage['dailyKey'] ?? '').toString();
+      final counts = _intMap(usage['dailyCounts']);
+      final used = storedDay == today ? (counts[feature] ?? 0) : 0;
+
+      return _WritingLimitDecision(
+        allowed: used < limit,
+        premium: false,
+        used: used,
+        limit: limit,
+      );
+    } catch (error) {
+      debugPrint('Writing premium check failed: $error');
+      return _WritingLimitDecision(
+        allowed: true,
+        premium: false,
+        used: 0,
+        limit: limit,
+      );
+    }
+  }
+
+  static Future<_WritingLimitDecision> consumeDaily({
+    required String feature,
+    required int limit,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return _WritingLimitDecision(
+        allowed: false,
+        premium: false,
+        used: 0,
+        limit: limit,
+      );
+    }
+
+    if (!OfflineContentService.instance.isOnline) {
+      return _WritingLimitDecision(
+        allowed: true,
+        premium: false,
+        used: 0,
+        limit: limit,
+        offlineBypass: true,
+      );
+    }
+
+    final firestore = FirebaseFirestore.instance;
+    final userRef = firestore.collection('users').doc(user.uid);
+    final usageRef = userRef.collection('feature_usage').doc('writing');
+
+    return firestore
+        .runTransaction<_WritingLimitDecision>((tx) async {
+          final userDoc = await tx.get(userRef);
+          final userData = userDoc.data() ?? const <String, dynamic>{};
+
+          if (isPremiumFromData(userData)) {
+            return _WritingLimitDecision(
+              allowed: true,
+              premium: true,
+              used: 0,
+              limit: limit,
+            );
+          }
+
+          final usageDoc = await tx.get(usageRef);
+          final usage = usageDoc.data() ?? const <String, dynamic>{};
+          final today = _dayKey(DateTime.now());
+          final storedDay = (usage['dailyKey'] ?? '').toString();
+          final counts = storedDay == today
+              ? _intMap(usage['dailyCounts'])
+              : <String, int>{};
+
+          final used = counts[feature] ?? 0;
+          if (used >= limit) {
+            return _WritingLimitDecision(
+              allowed: false,
+              premium: false,
+              used: used,
+              limit: limit,
+            );
+          }
+
+          counts[feature] = used + 1;
+
+          tx.set(usageRef, {
+            'dailyKey': today,
+            'dailyCounts': counts,
+            'lastFeature': feature,
+            'lastUsedAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+
+          return _WritingLimitDecision(
+            allowed: true,
+            premium: false,
+            used: used + 1,
+            limit: limit,
+          );
+        })
+        .timeout(const Duration(seconds: 15));
+  }
+
+  static Future<bool> canCreateDraft() async {
+    if (await isPremiumUser()) return true;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('writing_drafts')
+          .limit(freeDraftLimit + 1)
+          .get()
+          .timeout(const Duration(seconds: 10));
+      return snapshot.docs.length < freeDraftLimit;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  static Map<String, int> _intMap(dynamic value) {
+    if (value is! Map) return <String, int>{};
+    final result = <String, int>{};
+    value.forEach((key, raw) {
+      if (raw is int) {
+        result[key.toString()] = raw;
+      } else if (raw is num) {
+        result[key.toString()] = raw.toInt();
+      } else {
+        final parsed = int.tryParse(raw.toString());
+        if (parsed != null) result[key.toString()] = parsed;
+      }
+    });
+    return result;
+  }
+}
+
+class _WritingLimitDecision {
+  const _WritingLimitDecision({
+    required this.allowed,
+    required this.premium,
+    required this.used,
+    required this.limit,
+    this.offlineBypass = false,
+  });
+
+  final bool allowed;
+  final bool premium;
+  final int used;
+  final int limit;
+  final bool offlineBypass;
+
+  int get remaining => math.max(0, limit - used);
+}
+
+Future<void> _openWritingPremium(
+  BuildContext context, {
+  String source = 'writing',
+}) async {
+  await Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => const SubscriptionScreen(),
+      settings: RouteSettings(name: '/premium', arguments: {'source': source}),
+    ),
+  );
+}
+
+Future<void> _showWritingLimitSheet(
+  BuildContext context, {
+  required String title,
+  required String message,
+}) async {
+  if (!context.mounted) return;
+
+  final upgrade = await showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (sheetContext) {
+      return SafeArea(
+        top: false,
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+          decoration: BoxDecoration(
+            color: WColors.surface,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: WColors.violet.withOpacity(.35)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(.35),
+                blurRadius: 34,
+                offset: const Offset(0, 18),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: WColors.border,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Container(
+                width: 58,
+                height: 58,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [WColors.violet, WColors.cyan],
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Icon(
+                  Icons.workspace_premium_rounded,
+                  color: Colors.white,
+                  size: 30,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: WColors.text,
+                  fontSize: 21,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                message,
+                style: const TextStyle(
+                  color: WColors.secondary,
+                  fontSize: 11.5,
+                  height: 1.55,
+                ),
+              ),
+              const SizedBox(height: 18),
+              const _WritingPremiumBenefit(
+                icon: Icons.all_inclusive_rounded,
+                text: 'Unlimited Writing tasks and AI checks',
+              ),
+              const _WritingPremiumBenefit(
+                icon: Icons.auto_awesome_rounded,
+                text: 'Full AI feedback and band estimation',
+              ),
+              const _WritingPremiumBenefit(
+                icon: Icons.save_rounded,
+                text: 'Unlimited drafts and complete history',
+              ),
+              const _WritingPremiumBenefit(
+                icon: Icons.menu_book_rounded,
+                text: 'All lessons and model answers',
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.pop(sheetContext, true),
+                  icon: const Icon(Icons.workspace_premium_rounded),
+                  label: const Text(
+                    'Unlock Premium',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: WColors.violet,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(17),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(sheetContext, false),
+                  child: const Text('Maybe later'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+
+  if (upgrade == true && context.mounted) {
+    await _openWritingPremium(context, source: title);
+  }
+}
+
+class _WritingPremiumBenefit extends StatelessWidget {
+  const _WritingPremiumBenefit({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: WColors.green.withOpacity(.10),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, color: WColors.green, size: 18),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: WColors.secondary,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const Icon(
+            Icons.check_circle_rounded,
+            color: WColors.green,
+            size: 18,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WritingPlanCard extends StatelessWidget {
+  const _WritingPlanCard({required this.userId});
+  final String? userId;
+
+  @override
+  Widget build(BuildContext context) {
+    if (userId == null) return const SizedBox.shrink();
+
+    return FutureBuilder<bool>(
+      future: WritingPremiumManager.isPremiumUser(),
+      builder: (context, snapshot) {
+        final isPremium = snapshot.data ?? false;
+        final accent = isPremium ? WColors.green : WColors.violet;
+
+        return Container(
+          padding: const EdgeInsets.all(17),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            gradient: LinearGradient(
+              colors: [accent.withOpacity(.14), WColors.cyan.withOpacity(.06)],
+            ),
+            border: Border.all(color: accent.withOpacity(.24)),
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: isPremium
+                            ? [WColors.green, WColors.cyan]
+                            : [WColors.violet, WColors.cyan],
+                      ),
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: Icon(
+                      isPremium
+                          ? Icons.verified_rounded
+                          : Icons.workspace_premium_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 13),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isPremium
+                              ? 'PREMIUM WRITING ACTIVE'
+                              : 'FREE WRITING PLAN',
+                          style: TextStyle(
+                            color: accent,
+                            fontSize: 8.8,
+                            letterSpacing: .8,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          isPremium
+                              ? 'Unlimited IELTS Writing practice'
+                              : '1 Writing task + 1 AI check every day',
+                          style: const TextStyle(
+                            color: WColors.text,
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          isPremium
+                              ? 'Unlimited tasks, AI reports, drafts, history, lessons and model answers.'
+                              : 'Free plan: 3 drafts, latest 10 results and first 3 lessons.',
+                          style: const TextStyle(
+                            color: WColors.secondary,
+                            fontSize: 9.8,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (!isPremium) ...[
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: FilledButton.icon(
+                    onPressed: () =>
+                        _openWritingPremium(context, source: 'writing_home'),
+                    icon: const Icon(Icons.workspace_premium_rounded, size: 18),
+                    label: const Text(
+                      'Unlock Unlimited Writing',
+                      style: TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: WColors.violet,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
 
 class WritingChecker extends StatelessWidget {
   const WritingChecker({super.key});
@@ -33,6 +624,12 @@ class WritingChecker extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(18, 20, 18, 0),
                     child: _BandCard(userId: user?.uid),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
+                    child: _WritingPlanCard(userId: user?.uid),
                   ),
                 ),
                 const SliverToBoxAdapter(
@@ -197,6 +794,27 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
     });
 
     try {
+      final access = await WritingPremiumManager.checkDaily(
+        feature: 'writing_task',
+        limit: WritingPremiumManager.freeWritingTasksPerDay,
+      );
+
+      if (!access.allowed) {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = 'Daily Writing limit reached.';
+        });
+
+        await _showWritingLimitSheet(
+          context,
+          title: 'Daily Writing limit reached',
+          message:
+              'Free users can start 1 Writing task per day. Upgrade to Premium for unlimited Writing practice.',
+        );
+        return;
+      }
+
       final queue = ContentQueueService();
       final offline = OfflineContentService.instance;
       final completedIds = await queue.completedIds('writing');
@@ -386,18 +1004,38 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
     );
   }
 
-  void _start(BuildContext sheetContext, WritingTask task, WritingMode mode) {
+  Future<void> _start(
+    BuildContext sheetContext,
+    WritingTask task,
+    WritingMode mode,
+  ) async {
     Navigator.of(sheetContext).pop();
 
-    Future<void>.delayed(const Duration(milliseconds: 120), () {
-      if (!mounted) return;
+    final access = await WritingPremiumManager.consumeDaily(
+      feature: 'writing_task',
+      limit: WritingPremiumManager.freeWritingTasksPerDay,
+    );
 
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => WritingEditorScreen(task: task, mode: mode),
-        ),
+    if (!mounted) return;
+
+    if (!access.allowed) {
+      await _showWritingLimitSheet(
+        context,
+        title: 'Daily Writing limit reached',
+        message:
+            'Free users can start 1 Writing task per day. Upgrade to Premium for unlimited Writing practice.',
       );
-    });
+      return;
+    }
+
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    if (!mounted) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => WritingEditorScreen(task: task, mode: mode),
+      ),
+    );
   }
 }
 
@@ -539,6 +1177,16 @@ class _WritingEditorScreenState extends State<WritingEditorScreen> {
     if (user == null || _controller.text.trim().isEmpty) return;
 
     try {
+      if (_draftId == null) {
+        final canCreate = await WritingPremiumManager.canCreateDraft();
+        if (!canCreate) {
+          if (mounted) {
+            setState(() => _autosaveLabel = 'Free draft limit reached');
+          }
+          return;
+        }
+      }
+
       final collection = FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -1023,6 +1671,23 @@ class _AiWritingCheckerScreenState extends State<AiWritingCheckerScreen> {
       return;
     }
 
+    final access = await WritingPremiumManager.consumeDaily(
+      feature: 'ai_checker',
+      limit: WritingPremiumManager.freeAiChecksPerDay,
+    );
+
+    if (!mounted) return;
+
+    if (!access.allowed) {
+      await _showWritingLimitSheet(
+        context,
+        title: 'AI Writing limit reached',
+        message:
+            'Free users can generate 1 AI Writing report per day. Upgrade to Premium for unlimited AI evaluation.',
+      );
+      return;
+    }
+
     setState(() => _loading = true);
 
     final ref = FirebaseFirestore.instance
@@ -1235,59 +1900,91 @@ class SavedDraftsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
-    return Scaffold(
-      backgroundColor: WColors.background,
-      appBar: _writingAppBar(context, 'Saved Drafts'),
-      body: user == null
-          ? const _MessageState(
-              icon: Icons.lock_outline_rounded,
-              title: 'Sign in required',
-              subtitle: 'Please sign in to access saved drafts.',
-            )
-          : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(user.uid)
-                  .collection('writing_drafts')
-                  .orderBy('updatedAt', descending: true)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+    if (user == null) {
+      return Scaffold(
+        backgroundColor: WColors.background,
+        appBar: _writingAppBar(context, 'Saved Drafts'),
+        body: const _MessageState(
+          icon: Icons.lock_outline_rounded,
+          title: 'Sign in required',
+          subtitle: 'Please sign in to access saved drafts.',
+        ),
+      );
+    }
 
-                final docs = snapshot.data!.docs;
-                if (docs.isEmpty) {
-                  return const _MessageState(
-                    icon: Icons.save_outlined,
-                    title: 'No saved drafts',
-                    subtitle: 'Your autosaved writing drafts will appear here.',
-                  );
-                }
+    return FutureBuilder<bool>(
+      future: WritingPremiumManager.isPremiumUser(),
+      builder: (context, premiumSnapshot) {
+        final isPremium = premiumSnapshot.data ?? false;
 
-                return ListView.separated(
-                  padding: const EdgeInsets.all(18),
-                  itemCount: docs.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) {
-                    final doc = docs[index];
-                    final data = doc.data();
+        return Scaffold(
+          backgroundColor: WColors.background,
+          appBar: _writingAppBar(
+            context,
+            isPremium ? 'Saved Drafts • Unlimited' : 'Saved Drafts • Free: 3',
+          ),
+          body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .collection('writing_drafts')
+                .orderBy('updatedAt', descending: true)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-                    return _SimpleListCard(
-                      title: (data['title'] ?? 'Writing Draft').toString(),
-                      subtitle:
-                          '${data['wordCount'] ?? 0} words • ${data['taskType'] ?? ''}',
-                      icon: Icons.save_outlined,
-                      onTap: null,
-                      trailing: IconButton(
-                        onPressed: () => doc.reference.delete(),
-                        icon: const Icon(Icons.delete_outline_rounded),
-                      ),
-                    );
-                  },
+              final allDocs = snapshot.data!.docs;
+              final docs = isPremium
+                  ? allDocs
+                  : allDocs.take(WritingPremiumManager.freeDraftLimit).toList();
+
+              if (docs.isEmpty) {
+                return const _MessageState(
+                  icon: Icons.save_outlined,
+                  title: 'No saved drafts',
+                  subtitle: 'Your autosaved writing drafts will appear here.',
                 );
-              },
-            ),
+              }
+
+              return ListView.separated(
+                padding: const EdgeInsets.all(18),
+                itemCount:
+                    docs.length +
+                    (!isPremium && allDocs.length > docs.length ? 1 : 0),
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  if (index >= docs.length) {
+                    return _WritingPremiumLockedCard(
+                      title: 'Unlimited Drafts',
+                      subtitle:
+                          'Free users can keep up to ${WritingPremiumManager.freeDraftLimit} drafts. Upgrade to save more.',
+                      onTap: () =>
+                          _openWritingPremium(context, source: 'saved_drafts'),
+                    );
+                  }
+
+                  final doc = docs[index];
+                  final data = doc.data();
+
+                  return _SimpleListCard(
+                    title: (data['title'] ?? 'Writing Draft').toString(),
+                    subtitle:
+                        '${data['wordCount'] ?? 0} words • ${data['taskType'] ?? ''}',
+                    icon: Icons.save_outlined,
+                    onTap: null,
+                    trailing: IconButton(
+                      onPressed: () => doc.reference.delete(),
+                      icon: const Icon(Icons.delete_outline_rounded),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }
@@ -1299,62 +1996,100 @@ class WritingHistoryScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
-    return Scaffold(
-      backgroundColor: WColors.background,
-      appBar: _writingAppBar(context, 'Writing History'),
-      body: user == null
-          ? const _MessageState(
-              icon: Icons.lock_outline_rounded,
-              title: 'Sign in required',
-              subtitle: 'Please sign in to access writing history.',
-            )
-          : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(user.uid)
-                  .collection('writing_results')
-                  .orderBy('completedAt', descending: true)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+    if (user == null) {
+      return Scaffold(
+        backgroundColor: WColors.background,
+        appBar: _writingAppBar(context, 'Writing History'),
+        body: const _MessageState(
+          icon: Icons.lock_outline_rounded,
+          title: 'Sign in required',
+          subtitle: 'Please sign in to access writing history.',
+        ),
+      );
+    }
 
-                final docs = snapshot.data!.docs;
-                if (docs.isEmpty) {
-                  return const _MessageState(
-                    icon: Icons.history_rounded,
-                    title: 'No writing results yet',
-                    subtitle: 'Complete a writing task to build your history.',
-                  );
-                }
+    return FutureBuilder<bool>(
+      future: WritingPremiumManager.isPremiumUser(),
+      builder: (context, premiumSnapshot) {
+        final isPremium = premiumSnapshot.data ?? false;
 
-                return ListView.separated(
-                  padding: const EdgeInsets.all(18),
-                  itemCount: docs.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) {
-                    final data = docs[index].data();
-                    return _SimpleListCard(
-                      title: (data['title'] ?? 'Writing Result').toString(),
+        return Scaffold(
+          backgroundColor: WColors.background,
+          appBar: _writingAppBar(
+            context,
+            isPremium
+                ? 'Writing History • Complete'
+                : 'Writing History • Latest 10',
+          ),
+          body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .collection('writing_results')
+                .orderBy('completedAt', descending: true)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final allDocs = snapshot.data!.docs;
+              final docs = isPremium
+                  ? allDocs
+                  : allDocs
+                        .take(WritingPremiumManager.freeHistoryLimit)
+                        .toList();
+
+              if (docs.isEmpty) {
+                return const _MessageState(
+                  icon: Icons.history_rounded,
+                  title: 'No writing results yet',
+                  subtitle: 'Complete a writing task to build your history.',
+                );
+              }
+
+              return ListView.separated(
+                padding: const EdgeInsets.all(18),
+                itemCount:
+                    docs.length +
+                    (!isPremium && allDocs.length > docs.length ? 1 : 0),
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  if (index >= docs.length) {
+                    return _WritingPremiumLockedCard(
+                      title: 'Complete Writing History',
                       subtitle:
-                          '${data['wordCount'] ?? 0} words • ${data['taskType'] ?? ''}',
-                      icon: Icons.analytics_outlined,
-                      trailing: CircleAvatar(
-                        backgroundColor: WColors.cyan.withOpacity(.12),
-                        child: Text(
-                          _asDouble(data['overallBand']).toStringAsFixed(1),
-                          style: const TextStyle(
-                            color: WColors.cyan,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
+                          'Free users can view the latest ${WritingPremiumManager.freeHistoryLimit} results.',
+                      onTap: () => _openWritingPremium(
+                        context,
+                        source: 'writing_history',
                       ),
                     );
-                  },
-                );
-              },
-            ),
+                  }
+
+                  final data = docs[index].data();
+                  return _SimpleListCard(
+                    title: (data['title'] ?? 'Writing Result').toString(),
+                    subtitle:
+                        '${data['wordCount'] ?? 0} words • ${data['taskType'] ?? ''}',
+                    icon: Icons.analytics_outlined,
+                    trailing: CircleAvatar(
+                      backgroundColor: WColors.cyan.withOpacity(.12),
+                      child: Text(
+                        _asDouble(data['overallBand']).toStringAsFixed(1),
+                        style: const TextStyle(
+                          color: WColors.cyan,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }
@@ -1364,76 +2099,107 @@ class ModelAnswersScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: WColors.background,
-      appBar: _writingAppBar(context, 'Band 8 Model Answers'),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection('writing_tasks')
-            .where('status', isEqualTo: 'published')
-            .limit(60)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    return FutureBuilder<bool>(
+      future: WritingPremiumManager.isPremiumUser(),
+      builder: (context, premiumSnapshot) {
+        final isPremium = premiumSnapshot.data ?? false;
 
-          final tasks = snapshot.data!.docs
-              .map(WritingTask.fromDocument)
-              .where((task) => task.band8ModelAnswer.isNotEmpty)
-              .toList();
+        return Scaffold(
+          backgroundColor: WColors.background,
+          appBar: _writingAppBar(
+            context,
+            isPremium
+                ? 'Band 8–9 Model Answers'
+                : 'Model Answers • First 3 Free',
+          ),
+          body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance
+                .collection('writing_tasks')
+                .where('status', isEqualTo: 'published')
+                .limit(60)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          if (tasks.isEmpty) {
-            return const _MessageState(
-              icon: Icons.library_books_outlined,
-              title: 'No model answers available',
-              subtitle: 'Publish generated Writing tasks with model answers.',
-            );
-          }
+              final allTasks = snapshot.data!.docs
+                  .map(WritingTask.fromDocument)
+                  .where((task) => task.band8ModelAnswer.isNotEmpty)
+                  .toList();
 
-          return ListView.separated(
-            padding: const EdgeInsets.all(18),
-            itemCount: tasks.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (context, index) {
-              final task = tasks[index];
-              return _SimpleListCard(
-                title: task.title,
-                subtitle: task.taskType,
-                icon: Icons.star_outline_rounded,
-                onTap: () => showDialog<void>(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    backgroundColor: WColors.surface,
-                    title: Text(
-                      task.title,
-                      style: const TextStyle(color: WColors.text),
-                    ),
-                    content: SizedBox(
-                      width: 650,
-                      child: SingleChildScrollView(
-                        child: Text(
-                          task.band8ModelAnswer,
-                          style: const TextStyle(
-                            color: WColors.secondary,
-                            height: 1.65,
+              if (allTasks.isEmpty) {
+                return const _MessageState(
+                  icon: Icons.library_books_outlined,
+                  title: 'No model answers available',
+                  subtitle:
+                      'Publish generated Writing tasks with model answers.',
+                );
+              }
+
+              final tasks = isPremium
+                  ? allTasks
+                  : allTasks
+                        .take(WritingPremiumManager.freeModelAnswers)
+                        .toList();
+
+              return ListView.separated(
+                padding: const EdgeInsets.all(18),
+                itemCount:
+                    tasks.length +
+                    (!isPremium && allTasks.length > tasks.length ? 1 : 0),
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  if (index >= tasks.length) {
+                    return _WritingPremiumLockedCard(
+                      title: 'Premium Model Answer Library',
+                      subtitle:
+                          'Unlock the complete Band 8–9 model answer library.',
+                      onTap: () =>
+                          _openWritingPremium(context, source: 'model_answers'),
+                    );
+                  }
+
+                  final task = tasks[index];
+                  return _SimpleListCard(
+                    title: task.title,
+                    subtitle: task.taskType,
+                    icon: Icons.star_outline_rounded,
+                    onTap: () => showDialog<void>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        backgroundColor: WColors.surface,
+                        title: Text(
+                          task.title,
+                          style: const TextStyle(color: WColors.text),
+                        ),
+                        content: SizedBox(
+                          width: 650,
+                          child: SingleChildScrollView(
+                            child: Text(
+                              task.band8ModelAnswer,
+                              style: const TextStyle(
+                                color: WColors.secondary,
+                                height: 1.65,
+                              ),
+                            ),
                           ),
                         ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Close'),
+                          ),
+                        ],
                       ),
                     ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Close'),
-                      ),
-                    ],
-                  ),
-                ),
+                  );
+                },
               );
             },
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -1476,56 +2242,175 @@ class WritingLessonsScreen extends StatelessWidget {
       ),
     ];
 
-    return Scaffold(
-      backgroundColor: WColors.background,
-      appBar: _writingAppBar(context, 'Writing Lessons'),
-      body: GridView.builder(
-        padding: const EdgeInsets.all(18),
-        itemCount: lessons.length,
-        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: 360,
-          mainAxisExtent: 170,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-        ),
-        itemBuilder: (context, index) {
-          final lesson = lessons[index];
-          return Container(
+    return FutureBuilder<bool>(
+      future: WritingPremiumManager.isPremiumUser(),
+      builder: (context, premiumSnapshot) {
+        final isPremium = premiumSnapshot.data ?? false;
+
+        return Scaffold(
+          backgroundColor: WColors.background,
+          appBar: _writingAppBar(
+            context,
+            isPremium
+                ? 'Writing Lessons • All Access'
+                : 'Writing Lessons • First 3 Free',
+          ),
+          body: GridView.builder(
             padding: const EdgeInsets.all(18),
-            decoration: _panelDecoration(),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(lesson.$3, color: WColors.cyan, size: 28),
-                const Spacer(),
-                Text(
-                  lesson.$1,
-                  style: const TextStyle(
-                    color: WColors.text,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 7),
-                Text(
-                  lesson.$2,
-                  style: const TextStyle(
-                    color: WColors.muted,
-                    fontSize: 11,
-                    height: 1.45,
-                  ),
-                ),
-              ],
+            itemCount: lessons.length,
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 360,
+              mainAxisExtent: 178,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
             ),
-          );
-        },
-      ),
+            itemBuilder: (context, index) {
+              final lesson = lessons[index];
+              final locked =
+                  !isPremium && index >= WritingPremiumManager.freeLessonCount;
+
+              return InkWell(
+                onTap: locked
+                    ? () => _openWritingPremium(
+                        context,
+                        source: 'writing_lessons',
+                      )
+                    : null,
+                borderRadius: BorderRadius.circular(22),
+                child: Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: _panelDecoration(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            locked ? Icons.lock_rounded : lesson.$3,
+                            color: locked ? WColors.violet : WColors.cyan,
+                            size: 28,
+                          ),
+                          const Spacer(),
+                          if (locked)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: WColors.violet.withOpacity(.12),
+                                borderRadius: BorderRadius.circular(99),
+                              ),
+                              child: const Text(
+                                'PREMIUM',
+                                style: TextStyle(
+                                  color: WColors.violet,
+                                  fontSize: 7.5,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const Spacer(),
+                      Text(
+                        lesson.$1,
+                        style: TextStyle(
+                          color: locked ? WColors.secondary : WColors.text,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 7),
+                      Text(
+                        locked
+                            ? 'Upgrade to Premium to unlock this lesson.'
+                            : lesson.$2,
+                        style: const TextStyle(
+                          color: WColors.muted,
+                          fontSize: 11,
+                          height: 1.45,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }
 
-// ---------------------------------------------------------------------------
-// Models
-// ---------------------------------------------------------------------------
+class _WritingPremiumLockedCard extends StatelessWidget {
+  const _WritingPremiumLockedCard({
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: WColors.violet.withOpacity(.08),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: WColors.violet.withOpacity(.24)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: WColors.violet.withOpacity(.13),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: const Icon(
+                Icons.workspace_premium_rounded,
+                color: WColors.violet,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: WColors.text,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: WColors.muted,
+                      fontSize: 10,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_rounded, color: WColors.violet),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class WritingTask {
   final String id;
