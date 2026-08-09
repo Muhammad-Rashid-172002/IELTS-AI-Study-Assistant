@@ -638,6 +638,133 @@ class SpeakingPractice extends StatelessWidget {
   }
 }
 
+class _SpeakingCycleSelection {
+  final SpeakingTest? test;
+  final int cycleNumber;
+  final int completedInCycle;
+
+  const _SpeakingCycleSelection({
+    required this.test,
+    required this.cycleNumber,
+    required this.completedInCycle,
+  });
+}
+
+String _safeSpeakingCycleKey(String value) {
+  final cleaned = value
+      .trim()
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+      .replaceAll(RegExp(r'^_+|_+$'), '');
+
+  return cleaned.isEmpty ? 'all' : cleaned;
+}
+
+int _compareSpeakingTestsNaturally(SpeakingTest a, SpeakingTest b) {
+  final aNumber = _firstSpeakingNumber(a.title);
+  final bNumber = _firstSpeakingNumber(b.title);
+
+  if (aNumber != null && bNumber != null && aNumber != bNumber) {
+    return aNumber.compareTo(bNumber);
+  }
+
+  final titleCompare = a.title.toLowerCase().compareTo(b.title.toLowerCase());
+
+  if (titleCompare != 0) return titleCompare;
+
+  return a.id.compareTo(b.id);
+}
+
+int? _firstSpeakingNumber(String value) {
+  final match = RegExp(r'\d+').firstMatch(value);
+  return match == null ? null : int.tryParse(match.group(0)!);
+}
+
+Future<void> _completeSpeakingCycleAttempt({
+  required User user,
+  required String poolKey,
+  required String mode,
+  required int cycleNumber,
+  required String testId,
+  required String testTitle,
+  required int totalTests,
+  required double band,
+}) async {
+  if (!OfflineContentService.instance.isOnline) return;
+
+  final firestore = FirebaseFirestore.instance;
+  final userRef = firestore.collection('users').doc(user.uid);
+  final progressRef = userRef.collection('speaking_cycles').doc(poolKey);
+
+  try {
+    await firestore
+        .runTransaction((transaction) async {
+          final snapshot = await transaction.get(progressRef);
+          final data = snapshot.data() ?? <String, dynamic>{};
+
+          final storedCycle = _asInt(data['cycleNumber'], cycleNumber);
+          if (storedCycle != cycleNumber) return;
+
+          final completedIds = _stringList(data['completedTestIds']).toSet();
+          final alreadyCompleted = completedIds.contains(testId);
+
+          if (!alreadyCompleted) {
+            completedIds.add(testId);
+          }
+
+          final previousCount = _asInt(data['cycleResultCount'], 0);
+          final previousBandSum = _asDouble(data['cycleBandSum']);
+
+          final nextCount = alreadyCompleted
+              ? previousCount
+              : previousCount + 1;
+          final nextBandSum = alreadyCompleted
+              ? previousBandSum
+              : previousBandSum + band;
+
+          final averageBand = nextCount == 0 ? 0.0 : nextBandSum / nextCount;
+
+          final safeTotal = math.max(1, totalTests);
+          final completedCount = math.min(completedIds.length, safeTotal);
+          final progressPercent = ((completedCount / safeTotal) * 100)
+              .round()
+              .clamp(0, 100);
+
+          transaction.set(progressRef, {
+            'poolKey': poolKey,
+            'mode': mode,
+            'cycleNumber': cycleNumber,
+            'completedTestIds': completedIds.toList(),
+            'completedCount': completedCount,
+            'totalTestsAtLastLoad': safeTotal,
+            'progressPercent': progressPercent,
+            'currentTestId': FieldValue.delete(),
+            'currentTestTitle': FieldValue.delete(),
+            'lastCompletedTestId': testId,
+            'lastCompletedTestTitle': testTitle,
+            'lastBand': band,
+            'cycleResultCount': nextCount,
+            'cycleBandSum': nextBandSum,
+            'cycleAverageBand': double.parse(averageBand.toStringAsFixed(2)),
+            'cycleCompleted': completedCount >= safeTotal,
+            'lastCompletedAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+
+          transaction.set(userRef, {
+            'speakingBand': band,
+            'lastSpeakingCycle': cycleNumber,
+            'lastSpeakingTestAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        })
+        .timeout(const Duration(seconds: 15));
+  } catch (error, stackTrace) {
+    debugPrint('Speaking cycle completion update failed: $error');
+    debugPrintStack(stackTrace: stackTrace);
+  }
+}
+
 class SpeakingTestBrowserScreen extends StatefulWidget {
   final String mode;
 
@@ -652,6 +779,10 @@ class _SpeakingTestBrowserScreenState extends State<SpeakingTestBrowserScreen> {
   bool _loading = true;
   String? _error;
   List<SpeakingTest> _tests = [];
+  int _currentCycle = 1;
+  int _availableCount = 0;
+
+  String get _cyclePoolKey => 'mode_${_safeSpeakingCycleKey(widget.mode)}';
 
   @override
   void initState() {
@@ -663,12 +794,12 @@ class _SpeakingTestBrowserScreenState extends State<SpeakingTestBrowserScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _tests = [];
+      _availableCount = 0;
     });
 
     try {
-      final queue = ContentQueueService();
       final offline = OfflineContentService.instance;
-      final completedIds = await queue.completedIds('speaking');
       List<SpeakingTest> available;
 
       try {
@@ -677,13 +808,16 @@ class _SpeakingTestBrowserScreenState extends State<SpeakingTestBrowserScreen> {
             .where('status', isEqualTo: 'published')
             .limit(200)
             .get();
+
         await offline.cacheMany(
           module: 'speaking',
           items: published.docs.map((doc) => MapEntry(doc.id, doc.data())),
         );
+
         available = published.docs
             .where((doc) => doc.data()['mode'] == widget.mode)
             .map(SpeakingTest.fromDocument)
+            .where((test) => test.id.isNotEmpty && test.parts.isNotEmpty)
             .toList();
       } catch (_) {
         available = offline
@@ -697,17 +831,33 @@ class _SpeakingTestBrowserScreenState extends State<SpeakingTestBrowserScreen> {
                 id: data['_offlineId']?.toString() ?? '',
               ),
             )
+            .where((test) => test.id.isNotEmpty && test.parts.isNotEmpty)
             .toList();
       }
 
-      available = available
-          .where((test) => !completedIds.contains(test.id))
-          .take(1)
-          .toList();
+      available.sort(_compareSpeakingTestsNaturally);
+      _availableCount = available.length;
+
+      if (available.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _tests = [];
+          _loading = false;
+          _error = null;
+        });
+        return;
+      }
+
+      final selection = await _selectSpeakingCycleTest(available);
 
       if (!mounted) return;
+
+      _currentCycle = selection.cycleNumber;
+
       setState(() {
-        _tests = available;
+        _tests = selection.test == null
+            ? <SpeakingTest>[]
+            : <SpeakingTest>[selection.test!];
         _loading = false;
       });
     } catch (error) {
@@ -716,6 +866,175 @@ class _SpeakingTestBrowserScreenState extends State<SpeakingTestBrowserScreen> {
         _loading = false;
         _error = 'Speaking tests could not be loaded: $error';
       });
+    }
+  }
+
+  Future<_SpeakingCycleSelection> _selectSpeakingCycleTest(
+    List<SpeakingTest> tests,
+  ) async {
+    if (tests.isEmpty) {
+      return const _SpeakingCycleSelection(
+        test: null,
+        cycleNumber: 1,
+        completedInCycle: 0,
+      );
+    }
+
+    final orderedTests = [...tests]..sort(_compareSpeakingTestsNaturally);
+    final offline = OfflineContentService.instance;
+
+    if (!offline.isOnline) {
+      return _SpeakingCycleSelection(
+        test: orderedTests.first,
+        cycleNumber: 1,
+        completedInCycle: 0,
+      );
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return _SpeakingCycleSelection(
+        test: orderedTests.first,
+        cycleNumber: 1,
+        completedInCycle: 0,
+      );
+    }
+
+    final userRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid);
+    final progressRef = userRef
+        .collection('speaking_cycles')
+        .doc(_cyclePoolKey);
+
+    try {
+      var snapshot = await progressRef.get().timeout(
+        const Duration(seconds: 10),
+      );
+
+      // First-time migration keeps existing users from suddenly receiving
+      // already-completed Speaking tests again after this update.
+      if (!snapshot.exists) {
+        final legacyCompletedIds = <String>{};
+        final availableIds = orderedTests.map((test) => test.id).toSet();
+
+        try {
+          final queue = ContentQueueService();
+          final queueCompletedIds = await queue.completedIds('speaking');
+          legacyCompletedIds.addAll(
+            queueCompletedIds.where(availableIds.contains),
+          );
+
+          final resultSnapshot = await userRef
+              .collection('speaking_results')
+              .get()
+              .timeout(const Duration(seconds: 10));
+
+          for (final doc in resultSnapshot.docs) {
+            final testId = (doc.data()['testId'] ?? '').toString().trim();
+            if (availableIds.contains(testId)) {
+              legacyCompletedIds.add(testId);
+            }
+          }
+        } catch (error) {
+          debugPrint('Speaking cycle migration lookup failed: $error');
+        }
+
+        await progressRef.set({
+          'poolKey': _cyclePoolKey,
+          'mode': widget.mode,
+          'cycleNumber': 1,
+          'completedTestIds': legacyCompletedIds.toList(),
+          'completedCount': legacyCompletedIds.length,
+          'totalTestsAtLastLoad': orderedTests.length,
+          'cycleResultCount': 0,
+          'cycleBandSum': 0.0,
+          'cycleAverageBand': 0.0,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        snapshot = await progressRef.get().timeout(const Duration(seconds: 10));
+      }
+
+      final data = snapshot.data() ?? <String, dynamic>{};
+      var cycleNumber = _asInt(data['cycleNumber'], 1);
+      var completedIds = _stringList(data['completedTestIds']).toSet();
+      final currentTestId = (data['currentTestId'] ?? '').toString().trim();
+
+      final availableIds = orderedTests.map((test) => test.id).toSet();
+      completedIds = completedIds.intersection(availableIds);
+
+      // Reopen the same assigned test until its AI evaluation is completed.
+      if (currentTestId.isNotEmpty &&
+          availableIds.contains(currentTestId) &&
+          !completedIds.contains(currentTestId)) {
+        final currentTest = orderedTests.firstWhere(
+          (test) => test.id == currentTestId,
+        );
+
+        return _SpeakingCycleSelection(
+          test: currentTest,
+          cycleNumber: cycleNumber,
+          completedInCycle: completedIds.length,
+        );
+      }
+
+      var remaining = orderedTests
+          .where((test) => !completedIds.contains(test.id))
+          .toList();
+
+      // All published tests for this mode are complete: start a new cycle.
+      // speaking_results history is NEVER deleted.
+      if (remaining.isEmpty) {
+        cycleNumber += 1;
+        completedIds = <String>{};
+        remaining = [...orderedTests];
+
+        await progressRef.set({
+          'cycleNumber': cycleNumber,
+          'completedTestIds': <String>[],
+          'completedCount': 0,
+          'currentTestId': FieldValue.delete(),
+          'currentTestTitle': FieldValue.delete(),
+          'cycleResultCount': 0,
+          'cycleBandSum': 0.0,
+          'cycleAverageBand': 0.0,
+          'cycleStartedAt': FieldValue.serverTimestamp(),
+          'lastCycleResetAt': FieldValue.serverTimestamp(),
+          'totalTestsAtLastLoad': orderedTests.length,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+
+      final selected = remaining.first;
+
+      await progressRef.set({
+        'poolKey': _cyclePoolKey,
+        'mode': widget.mode,
+        'cycleNumber': cycleNumber,
+        'currentTestId': selected.id,
+        'currentTestTitle': selected.title,
+        'completedCount': completedIds.length,
+        'totalTestsAtLastLoad': orderedTests.length,
+        'lastAssignedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      return _SpeakingCycleSelection(
+        test: selected,
+        cycleNumber: cycleNumber,
+        completedInCycle: completedIds.length,
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Speaking cycle selection failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      return _SpeakingCycleSelection(
+        test: orderedTests.first,
+        cycleNumber: 1,
+        completedInCycle: 0,
+      );
     }
   }
 
@@ -741,9 +1060,10 @@ class _SpeakingTestBrowserScreenState extends State<SpeakingTestBrowserScreen> {
           else if (_tests.isEmpty)
             _MessageState(
               icon: Icons.mic_none_rounded,
-              title: 'No new Speaking activity',
-              subtitle:
-                  'Completed activities are hidden. Publish a new activity from the admin panel.',
+              title: 'No Speaking activity available',
+              subtitle: _availableCount == 0
+                  ? 'No published Speaking activity is available for this mode yet.'
+                  : 'Your next Speaking activity could not be prepared. Please try again.',
               action: _load,
             )
           else
@@ -788,7 +1108,13 @@ class _SpeakingTestBrowserScreenState extends State<SpeakingTestBrowserScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => SpeakingSessionScreen(test: test, examMode: examMode),
+        builder: (_) => SpeakingSessionScreen(
+          test: test,
+          examMode: examMode,
+          cyclePoolKey: _cyclePoolKey,
+          cycleNumber: _currentCycle,
+          cycleTotalTests: _availableCount,
+        ),
       ),
     );
   }
@@ -797,11 +1123,17 @@ class _SpeakingTestBrowserScreenState extends State<SpeakingTestBrowserScreen> {
 class SpeakingSessionScreen extends StatefulWidget {
   final SpeakingTest test;
   final bool examMode;
+  final String cyclePoolKey;
+  final int cycleNumber;
+  final int cycleTotalTests;
 
   const SpeakingSessionScreen({
     super.key,
     required this.test,
     required this.examMode,
+    this.cyclePoolKey = 'speaking_all',
+    this.cycleNumber = 1,
+    this.cycleTotalTests = 1,
   });
 
   @override
@@ -1019,6 +1351,9 @@ class _SpeakingSessionScreenState extends State<SpeakingSessionScreen>
         'audioStoragePath': storagePath,
         'audioMimeType': 'audio/mp4',
         'durationSeconds': _recordedSeconds,
+        'cyclePoolKey': widget.cyclePoolKey,
+        'cycleNumber': widget.cycleNumber,
+        'cycleTotalTests': widget.cycleTotalTests,
         'status': 'queued',
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
@@ -1032,6 +1367,9 @@ class _SpeakingSessionScreenState extends State<SpeakingSessionScreen>
           builder: (_) => SpeakingEvaluationWaitingScreen(
             submissionId: submissionRef.id,
             test: widget.test,
+            cyclePoolKey: widget.cyclePoolKey,
+            cycleNumber: widget.cycleNumber,
+            cycleTotalTests: widget.cycleTotalTests,
           ),
         ),
       );
@@ -1049,6 +1387,9 @@ class _SpeakingSessionScreenState extends State<SpeakingSessionScreen>
               'questionText': _question.question,
               'notes': _notesController.text.trim(),
               'durationSeconds': _recordedSeconds,
+              'cyclePoolKey': widget.cyclePoolKey,
+              'cycleNumber': widget.cycleNumber,
+              'cycleTotalTests': widget.cycleTotalTests,
               'status': 'pending_ai_evaluation',
             },
           );
@@ -1183,11 +1524,17 @@ class _SpeakingSessionScreenState extends State<SpeakingSessionScreen>
 class SpeakingEvaluationWaitingScreen extends StatelessWidget {
   final String submissionId;
   final SpeakingTest test;
+  final String cyclePoolKey;
+  final int cycleNumber;
+  final int cycleTotalTests;
 
   const SpeakingEvaluationWaitingScreen({
     super.key,
     required this.submissionId,
     required this.test,
+    this.cyclePoolKey = 'speaking_all',
+    this.cycleNumber = 1,
+    this.cycleTotalTests = 1,
   });
 
   @override
@@ -1211,7 +1558,24 @@ class SpeakingEvaluationWaitingScreen extends StatelessWidget {
                   Map<String, dynamic>.from(data!['report']),
                 );
 
-                WidgetsBinding.instance.addPostFrameCallback((_) {
+                WidgetsBinding.instance.addPostFrameCallback((_) async {
+                  final user = FirebaseAuth.instance.currentUser;
+
+                  if (user != null) {
+                    await _completeSpeakingCycleAttempt(
+                      user: user,
+                      poolKey: cyclePoolKey,
+                      mode: test.mode,
+                      cycleNumber: cycleNumber,
+                      testId: test.id,
+                      testTitle: test.title,
+                      totalTests: cycleTotalTests,
+                      band: report.overallBand,
+                    );
+                  }
+
+                  if (!context.mounted) return;
+
                   Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(
@@ -2798,10 +3162,14 @@ class _RecentSpeakingResults extends StatelessWidget {
                               ),
                               const SizedBox(height: 3),
                               Text(
-                                (data['summary'] ??
-                                        data['feedback'] ??
-                                        'Speaking evaluation completed.')
-                                    .toString(),
+                                [
+                                  if (_asInt(data['cycleNumber'], 0) > 0)
+                                    'Cycle ${_asInt(data['cycleNumber'], 1)}',
+                                  (data['summary'] ??
+                                          data['feedback'] ??
+                                          'Speaking evaluation completed.')
+                                      .toString(),
+                                ].join(' • '),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(

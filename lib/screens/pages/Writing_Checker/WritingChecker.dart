@@ -761,6 +761,143 @@ class WritingChecker extends StatelessWidget {
   }
 }
 
+class _WritingCycleSelection {
+  final WritingTask? task;
+  final int cycleNumber;
+  final int completedInCycle;
+
+  const _WritingCycleSelection({
+    required this.task,
+    required this.cycleNumber,
+    required this.completedInCycle,
+  });
+}
+
+String _safeWritingCycleKey(String value) {
+  final cleaned = value
+      .trim()
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+      .replaceAll(RegExp(r'^_+|_+$'), '');
+
+  return cleaned.isEmpty ? 'all' : cleaned;
+}
+
+int _compareWritingTasksNaturally(WritingTask a, WritingTask b) {
+  final aNumber = _firstWritingNumber(a.title);
+  final bNumber = _firstWritingNumber(b.title);
+
+  if (aNumber != null && bNumber != null && aNumber != bNumber) {
+    return aNumber.compareTo(bNumber);
+  }
+
+  final titleCompare = a.title.toLowerCase().compareTo(b.title.toLowerCase());
+
+  if (titleCompare != 0) return titleCompare;
+
+  return a.id.compareTo(b.id);
+}
+
+int? _firstWritingNumber(String value) {
+  final match = RegExp(r'\d+').firstMatch(value);
+  return match == null ? null : int.tryParse(match.group(0)!);
+}
+
+Future<void> _completeWritingCycleAttempt({
+  required User user,
+  required String poolKey,
+  required String category,
+  required String taskType,
+  required int cycleNumber,
+  required String taskId,
+  required String taskTitle,
+  required int totalTasks,
+  required double band,
+}) async {
+  if (!OfflineContentService.instance.isOnline) return;
+
+  final firestore = FirebaseFirestore.instance;
+  final userRef = firestore.collection('users').doc(user.uid);
+  final progressRef = userRef.collection('writing_cycles').doc(poolKey);
+
+  try {
+    await firestore
+        .runTransaction((transaction) async {
+          final snapshot = await transaction.get(progressRef);
+          final data = snapshot.data() ?? <String, dynamic>{};
+
+          final storedCycle = _asInt(
+            data['cycleNumber'],
+            fallback: cycleNumber,
+          );
+
+          // Ignore stale completion callbacks from an older cycle.
+          if (storedCycle != cycleNumber) return;
+
+          final completedIds = _stringList(data['completedTaskIds']).toSet();
+          final alreadyCompleted = completedIds.contains(taskId);
+
+          if (!alreadyCompleted) {
+            completedIds.add(taskId);
+          }
+
+          final previousCount = _asInt(data['cycleResultCount'], fallback: 0);
+          final previousBandSum = _asDouble(data['cycleBandSum']);
+
+          final nextCount = alreadyCompleted
+              ? previousCount
+              : previousCount + 1;
+          final nextBandSum = alreadyCompleted
+              ? previousBandSum
+              : previousBandSum + band;
+
+          final averageBand = nextCount == 0 ? 0.0 : nextBandSum / nextCount;
+
+          final safeTotal = math.max(1, totalTasks);
+          final completedCount = math.min(completedIds.length, safeTotal);
+          final progressPercent = ((completedCount / safeTotal) * 100)
+              .round()
+              .clamp(0, 100);
+
+          transaction.set(progressRef, {
+            'poolKey': poolKey,
+            'category': category,
+            'taskType': taskType,
+            'cycleNumber': cycleNumber,
+            'completedTaskIds': completedIds.toList(),
+            'completedCount': completedCount,
+            'totalTasksAtLastLoad': safeTotal,
+            'progressPercent': progressPercent,
+            'currentTaskId': FieldValue.delete(),
+            'currentTaskTitle': FieldValue.delete(),
+            'lastCompletedTaskId': taskId,
+            'lastCompletedTaskTitle': taskTitle,
+            'lastBand': band,
+            'cycleResultCount': nextCount,
+            'cycleBandSum': nextBandSum,
+            'cycleAverageBand': double.parse(averageBand.toStringAsFixed(2)),
+            'cycleCompleted': completedCount >= safeTotal,
+            'lastCompletedAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+
+          // Keep a simple current Writing band on the user profile while
+          // preserving full result history in writing_results.
+          transaction.set(userRef, {
+            'writingBand': band,
+            'lastWritingCycle': cycleNumber,
+            'lastWritingTaskAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        })
+        .timeout(const Duration(seconds: 15));
+  } catch (error, stackTrace) {
+    // The AI report/result remains valid even if secondary cycle metadata fails.
+    debugPrint('Writing cycle completion update failed: $error');
+    debugPrintStack(stackTrace: stackTrace);
+  }
+}
+
 class WritingTaskBrowserScreen extends StatefulWidget {
   final String category;
   final String? taskType;
@@ -780,6 +917,16 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
   bool _loading = true;
   String? _error;
   List<WritingTask> _tasks = [];
+  int _currentCycle = 1;
+  int _availableCount = 0;
+
+  String get _cyclePoolKey {
+    final category = _safeWritingCycleKey(widget.category);
+    final type = widget.taskType == null || widget.taskType!.trim().isEmpty
+        ? 'all'
+        : _safeWritingCycleKey(widget.taskType!);
+    return 'category_${category}_type_$type';
+  }
 
   @override
   void initState() {
@@ -791,6 +938,8 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _tasks = [];
+      _availableCount = 0;
     });
 
     try {
@@ -815,9 +964,7 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
         return;
       }
 
-      final queue = ContentQueueService();
       final offline = OfflineContentService.instance;
-      final completedIds = await queue.completedIds('writing');
       List<WritingTask> available;
 
       try {
@@ -826,10 +973,12 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
             .where('status', isEqualTo: 'published')
             .limit(200)
             .get();
+
         await offline.cacheMany(
           module: 'writing',
           items: published.docs.map((doc) => MapEntry(doc.id, doc.data())),
         );
+
         available = published.docs
             .where((doc) {
               final data = doc.data();
@@ -838,6 +987,7 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
                       data['taskType'] == widget.taskType);
             })
             .map(WritingTask.fromDocument)
+            .where((task) => task.id.isNotEmpty)
             .toList();
       } catch (_) {
         available = offline
@@ -854,17 +1004,33 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
                 id: data['_offlineId']?.toString() ?? '',
               ),
             )
+            .where((task) => task.id.isNotEmpty)
             .toList();
       }
 
-      available = available
-          .where((task) => !completedIds.contains(task.id))
-          .take(1)
-          .toList();
+      available.sort(_compareWritingTasksNaturally);
+      _availableCount = available.length;
+
+      if (available.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _tasks = [];
+          _loading = false;
+          _error = null;
+        });
+        return;
+      }
+
+      final selection = await _selectWritingCycleTask(available);
 
       if (!mounted) return;
+
+      _currentCycle = selection.cycleNumber;
+
       setState(() {
-        _tasks = available;
+        _tasks = selection.task == null
+            ? <WritingTask>[]
+            : <WritingTask>[selection.task!];
         _loading = false;
       });
     } catch (error) {
@@ -873,6 +1039,178 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
         _loading = false;
         _error = 'Writing tasks could not be loaded: $error';
       });
+    }
+  }
+
+  Future<_WritingCycleSelection> _selectWritingCycleTask(
+    List<WritingTask> tasks,
+  ) async {
+    if (tasks.isEmpty) {
+      return const _WritingCycleSelection(
+        task: null,
+        cycleNumber: 1,
+        completedInCycle: 0,
+      );
+    }
+
+    final orderedTasks = [...tasks]..sort(_compareWritingTasksNaturally);
+    final offline = OfflineContentService.instance;
+
+    if (!offline.isOnline) {
+      return _WritingCycleSelection(
+        task: orderedTasks.first,
+        cycleNumber: 1,
+        completedInCycle: 0,
+      );
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return _WritingCycleSelection(
+        task: orderedTasks.first,
+        cycleNumber: 1,
+        completedInCycle: 0,
+      );
+    }
+
+    final userRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid);
+    final progressRef = userRef.collection('writing_cycles').doc(_cyclePoolKey);
+
+    try {
+      var snapshot = await progressRef.get().timeout(
+        const Duration(seconds: 10),
+      );
+
+      // One-time migration. Existing completed tasks are seeded into Cycle 1
+      // so an update does not suddenly repeat old tasks for current users.
+      if (!snapshot.exists) {
+        final legacyCompletedIds = <String>{};
+        final availableIds = orderedTasks.map((task) => task.id).toSet();
+
+        try {
+          final queue = ContentQueueService();
+          final queueCompletedIds = await queue.completedIds('writing');
+          legacyCompletedIds.addAll(
+            queueCompletedIds.where(availableIds.contains),
+          );
+
+          final resultSnapshot = await userRef
+              .collection('writing_results')
+              .get()
+              .timeout(const Duration(seconds: 10));
+
+          for (final doc in resultSnapshot.docs) {
+            final taskId = (doc.data()['taskId'] ?? '').toString().trim();
+            if (availableIds.contains(taskId)) {
+              legacyCompletedIds.add(taskId);
+            }
+          }
+        } catch (error) {
+          debugPrint('Writing cycle migration lookup failed: $error');
+        }
+
+        await progressRef.set({
+          'poolKey': _cyclePoolKey,
+          'category': widget.category,
+          'taskType': widget.taskType,
+          'cycleNumber': 1,
+          'completedTaskIds': legacyCompletedIds.toList(),
+          'completedCount': legacyCompletedIds.length,
+          'totalTasksAtLastLoad': orderedTasks.length,
+          'cycleResultCount': 0,
+          'cycleBandSum': 0.0,
+          'cycleAverageBand': 0.0,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        snapshot = await progressRef.get().timeout(const Duration(seconds: 10));
+      }
+
+      final data = snapshot.data() ?? <String, dynamic>{};
+      var cycleNumber = _asInt(data['cycleNumber'], fallback: 1);
+      var completedIds = _stringList(data['completedTaskIds']).toSet();
+      final currentTaskId = (data['currentTaskId'] ?? '').toString().trim();
+
+      final availableIds = orderedTasks.map((task) => task.id).toSet();
+      completedIds = completedIds.intersection(availableIds);
+
+      // Keep showing the assigned task until its real AI evaluation finishes.
+      // Existing draft/autosave logic can therefore continue the same task.
+      if (currentTaskId.isNotEmpty &&
+          availableIds.contains(currentTaskId) &&
+          !completedIds.contains(currentTaskId)) {
+        final currentTask = orderedTasks.firstWhere(
+          (task) => task.id == currentTaskId,
+        );
+
+        return _WritingCycleSelection(
+          task: currentTask,
+          cycleNumber: cycleNumber,
+          completedInCycle: completedIds.length,
+        );
+      }
+
+      var remaining = orderedTasks
+          .where((task) => !completedIds.contains(task.id))
+          .toList();
+
+      // Every published task in this pool is complete.
+      // Start Cycle 2/3/... without deleting writing_results or old analytics.
+      if (remaining.isEmpty) {
+        cycleNumber += 1;
+        completedIds = <String>{};
+        remaining = [...orderedTasks];
+
+        await progressRef.set({
+          'cycleNumber': cycleNumber,
+          'completedTaskIds': <String>[],
+          'completedCount': 0,
+          'currentTaskId': FieldValue.delete(),
+          'currentTaskTitle': FieldValue.delete(),
+          'cycleResultCount': 0,
+          'cycleBandSum': 0.0,
+          'cycleAverageBand': 0.0,
+          'cycleStartedAt': FieldValue.serverTimestamp(),
+          'lastCycleResetAt': FieldValue.serverTimestamp(),
+          'totalTasksAtLastLoad': orderedTasks.length,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+
+      // Sequential/stable selection: first unfinished task in natural order.
+      final selected = remaining.first;
+
+      await progressRef.set({
+        'poolKey': _cyclePoolKey,
+        'category': widget.category,
+        'taskType': widget.taskType,
+        'cycleNumber': cycleNumber,
+        'currentTaskId': selected.id,
+        'currentTaskTitle': selected.title,
+        'completedCount': completedIds.length,
+        'totalTasksAtLastLoad': orderedTasks.length,
+        'lastAssignedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      return _WritingCycleSelection(
+        task: selected,
+        cycleNumber: cycleNumber,
+        completedInCycle: completedIds.length,
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Writing cycle selection failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      // Fail open: a cycle metadata issue should not block Writing practice.
+      return _WritingCycleSelection(
+        task: orderedTasks.first,
+        cycleNumber: 1,
+        completedInCycle: 0,
+      );
     }
   }
 
@@ -898,9 +1236,10 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
           else if (_tasks.isEmpty)
             _MessageState(
               icon: Icons.edit_note_rounded,
-              title: 'No new Writing task available',
-              subtitle:
-                  'Complete tasks are hidden. A new task will appear when the administrator publishes it.',
+              title: 'No Writing task available',
+              subtitle: _availableCount == 0
+                  ? 'No published Writing task is available for this selection yet.'
+                  : 'Your next Writing task could not be prepared. Please try again.',
               action: _load,
             )
           else
@@ -1033,7 +1372,14 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
 
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => WritingEditorScreen(task: task, mode: mode),
+        builder: (_) => WritingEditorScreen(
+          task: task,
+          mode: mode,
+          trackCycle: true,
+          cyclePoolKey: _cyclePoolKey,
+          cycleNumber: _currentCycle,
+          cycleTotalTasks: _availableCount,
+        ),
       ),
     );
   }
@@ -1044,6 +1390,10 @@ class WritingEditorScreen extends StatefulWidget {
   final WritingMode mode;
   final String initialAnswer;
   final String? draftId;
+  final bool trackCycle;
+  final String cyclePoolKey;
+  final int cycleNumber;
+  final int cycleTotalTasks;
 
   const WritingEditorScreen({
     super.key,
@@ -1051,6 +1401,10 @@ class WritingEditorScreen extends StatefulWidget {
     required this.mode,
     this.initialAnswer = '',
     this.draftId,
+    this.trackCycle = false,
+    this.cyclePoolKey = 'writing_all',
+    this.cycleNumber = 1,
+    this.cycleTotalTasks = 1,
   });
 
   @override
@@ -1206,6 +1560,10 @@ class _WritingEditorScreenState extends State<WritingEditorScreen> {
         'answer': _controller.text,
         'wordCount': _wordCount,
         'elapsedSeconds': _elapsedSeconds,
+        'trackCycle': widget.trackCycle,
+        'cyclePoolKey': widget.cyclePoolKey,
+        'cycleNumber': widget.cycleNumber,
+        'cycleTotalTasks': widget.cycleTotalTasks,
         'updatedAt': FieldValue.serverTimestamp(),
         'createdAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
@@ -1297,6 +1655,10 @@ class _WritingEditorScreenState extends State<WritingEditorScreen> {
         'answer': answer,
         'wordCount': _wordCount,
         'durationUsedSeconds': _elapsedSeconds,
+        'trackCycle': widget.trackCycle,
+        'cyclePoolKey': widget.cyclePoolKey,
+        'cycleNumber': widget.cycleNumber,
+        'cycleTotalTasks': widget.cycleTotalTasks,
         'status': 'queued',
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
@@ -1311,6 +1673,10 @@ class _WritingEditorScreenState extends State<WritingEditorScreen> {
             submissionId: ref.id,
             task: widget.task,
             answer: answer,
+            trackCycle: widget.trackCycle,
+            cyclePoolKey: widget.cyclePoolKey,
+            cycleNumber: widget.cycleNumber,
+            cycleTotalTasks: widget.cycleTotalTasks,
           ),
         ),
       );
@@ -1328,6 +1694,10 @@ class _WritingEditorScreenState extends State<WritingEditorScreen> {
               'answer': answer,
               'wordCount': _wordCount,
               'durationUsedSeconds': _elapsedSeconds,
+              'trackCycle': widget.trackCycle,
+              'cyclePoolKey': widget.cyclePoolKey,
+              'cycleNumber': widget.cycleNumber,
+              'cycleTotalTasks': widget.cycleTotalTasks,
               'status': 'pending_ai_evaluation',
             },
           );
@@ -1476,12 +1846,20 @@ class WritingEvaluationWaitingScreen extends StatelessWidget {
   final String submissionId;
   final WritingTask task;
   final String answer;
+  final bool trackCycle;
+  final String cyclePoolKey;
+  final int cycleNumber;
+  final int cycleTotalTasks;
 
   const WritingEvaluationWaitingScreen({
     super.key,
     required this.submissionId,
     required this.task,
     required this.answer,
+    this.trackCycle = false,
+    this.cyclePoolKey = 'writing_all',
+    this.cycleNumber = 1,
+    this.cycleTotalTasks = 1,
   });
 
   @override
@@ -1505,7 +1883,25 @@ class WritingEvaluationWaitingScreen extends StatelessWidget {
                   Map<String, dynamic>.from(data!['report']),
                 );
 
-                WidgetsBinding.instance.addPostFrameCallback((_) {
+                WidgetsBinding.instance.addPostFrameCallback((_) async {
+                  final user = FirebaseAuth.instance.currentUser;
+
+                  if (trackCycle && user != null && task.id.isNotEmpty) {
+                    await _completeWritingCycleAttempt(
+                      user: user,
+                      poolKey: cyclePoolKey,
+                      category: task.taskCategory,
+                      taskType: task.taskType,
+                      cycleNumber: cycleNumber,
+                      taskId: task.id,
+                      taskTitle: task.title,
+                      totalTasks: cycleTotalTasks,
+                      band: report.overallBand,
+                    );
+                  }
+
+                  if (!context.mounted) return;
+
                   Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(
@@ -1970,8 +2366,12 @@ class SavedDraftsScreen extends StatelessWidget {
 
                   return _SimpleListCard(
                     title: (data['title'] ?? 'Writing Draft').toString(),
-                    subtitle:
-                        '${data['wordCount'] ?? 0} words • ${data['taskType'] ?? ''}',
+                    subtitle: [
+                      if (_asInt(data['cycleNumber'], fallback: 0) > 0)
+                        'Cycle ${_asInt(data['cycleNumber'], fallback: 1)}',
+                      '${data['wordCount'] ?? 0} words',
+                      (data['taskType'] ?? '').toString(),
+                    ].where((item) => item.trim().isNotEmpty).join(' • '),
                     icon: Icons.save_outlined,
                     onTap: null,
                     trailing: IconButton(

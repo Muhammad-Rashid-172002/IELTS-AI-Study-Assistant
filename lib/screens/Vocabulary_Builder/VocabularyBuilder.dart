@@ -181,8 +181,12 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
                             onTap: () => Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) =>
-                                    VocabularyWordScreen(word: word),
+                                builder: (_) => VocabularyWordScreen(
+                                  word: word,
+                                  cyclePoolKey: _category == 'all'
+                                      ? 'all'
+                                      : 'category_${_safeVocabularyCycleKey(_category)}',
+                                ),
                               ),
                             ),
                           );
@@ -274,8 +278,13 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
 
 class VocabularyWordScreen extends StatefulWidget {
   final VWord word;
+  final String cyclePoolKey;
 
-  const VocabularyWordScreen({super.key, required this.word});
+  const VocabularyWordScreen({
+    super.key,
+    required this.word,
+    this.cyclePoolKey = 'all',
+  });
 
   @override
   State<VocabularyWordScreen> createState() => _VocabularyWordScreenState();
@@ -436,6 +445,7 @@ class _VocabularyWordScreenState extends State<VocabularyWordScreen> {
                                   widget.word,
                                   'learned',
                                   7,
+                                  cyclePoolKey: widget.cyclePoolKey,
                                 ),
                                 icon: Icon(
                                   status == 'learned'
@@ -453,6 +463,7 @@ class _VocabularyWordScreenState extends State<VocabularyWordScreen> {
                                   widget.word,
                                   'mastered',
                                   30,
+                                  cyclePoolKey: widget.cyclePoolKey,
                                 ),
                                 icon: Icon(
                                   status == 'mastered'
@@ -1277,6 +1288,30 @@ class WordCollectionScreen extends StatelessWidget {
   }
 }
 
+String _safeVocabularyCycleKey(String value) {
+  final cleaned = value
+      .trim()
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+      .replaceAll(RegExp(r'^_+|_+$'), '');
+
+  return cleaned.isEmpty ? 'all' : cleaned;
+}
+
+int _asIntV(dynamic value, {int fallback = 0}) {
+  if (value is int) return value;
+  if (value is num) return value.round();
+  return int.tryParse(value?.toString() ?? '') ?? fallback;
+}
+
+List<String> _stringListV(dynamic value) {
+  if (value is! List) return const <String>[];
+  return value
+      .map((item) => item.toString().trim())
+      .where((item) => item.isNotEmpty)
+      .toList();
+}
+
 class VocabularyRepository {
   final FirebaseFirestore db = FirebaseFirestore.instance;
 
@@ -1290,13 +1325,110 @@ class VocabularyRepository {
     }
 
     return query.snapshots().asyncMap((snapshot) async {
-      final completedIds = await ContentQueueService().completedVocabularyIds();
       final orderedDocs = ContentQueueService().sortPublished(snapshot.docs);
-      final nextDocs = orderedDocs
-          .where((doc) => !completedIds.contains(doc.id))
-          .take(1)
-          .toList();
-      return nextDocs.map(VWord.fromDocument).toList();
+      if (orderedDocs.isEmpty) return <VWord>[];
+
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+
+      // Signed-out/offline users can still see the first published word.
+      if (uid == null || !OfflineContentService.instance.isOnline) {
+        return <VWord>[VWord.fromDocument(orderedDocs.first)];
+      }
+
+      final poolKey = category == 'all'
+          ? 'all'
+          : 'category_${_safeVocabularyCycleKey(category)}';
+
+      final cycleRef = db
+          .collection('users')
+          .doc(uid)
+          .collection('vocabulary_cycles')
+          .doc(poolKey);
+
+      try {
+        var cycleSnapshot = await cycleRef.get();
+        var cycleData = cycleSnapshot.data() ?? const <String, dynamic>{};
+
+        // First-time migration: preserve old "completed" behavior by seeding
+        // Cycle 1 from the existing completed vocabulary IDs.
+        if (!cycleSnapshot.exists) {
+          final oldCompleted = await ContentQueueService()
+              .completedVocabularyIds();
+
+          final availableIds = orderedDocs.map((doc) => doc.id).toSet();
+          final migrated = oldCompleted.where(availableIds.contains).toSet();
+
+          await cycleRef.set({
+            'poolKey': poolKey,
+            'category': category,
+            'cycleNumber': 1,
+            'completedWordIds': migrated.toList(),
+            'completedCount': migrated.length,
+            'totalWordsAtLastLoad': orderedDocs.length,
+            'progressPercent': orderedDocs.isEmpty
+                ? 0
+                : ((migrated.length / orderedDocs.length) * 100).round().clamp(
+                    0,
+                    100,
+                  ),
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+
+          cycleSnapshot = await cycleRef.get();
+          cycleData = cycleSnapshot.data() ?? const <String, dynamic>{};
+        }
+
+        var cycleNumber = _asIntV(cycleData['cycleNumber'], fallback: 1);
+
+        var completedIds = _stringListV(cycleData['completedWordIds']).toSet();
+
+        final availableIds = orderedDocs.map((doc) => doc.id).toSet();
+        completedIds = completedIds.intersection(availableIds);
+
+        var unseenDocs = orderedDocs
+            .where((doc) => !completedIds.contains(doc.id))
+            .toList();
+
+        // No unseen vocabulary remains: start the next cycle from word 1.
+        // Vocabulary progress/history is not deleted.
+        if (unseenDocs.isEmpty) {
+          cycleNumber += 1;
+          completedIds = <String>{};
+          unseenDocs = [...orderedDocs];
+
+          await cycleRef.set({
+            'cycleNumber': cycleNumber,
+            'completedWordIds': <String>[],
+            'completedCount': 0,
+            'progressPercent': 0,
+            'cycleCompleted': false,
+            'cycleStartedAt': FieldValue.serverTimestamp(),
+            'lastCycleResetAt': FieldValue.serverTimestamp(),
+            'totalWordsAtLastLoad': orderedDocs.length,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        }
+
+        final selected = unseenDocs.first;
+
+        await cycleRef.set({
+          'poolKey': poolKey,
+          'category': category,
+          'cycleNumber': cycleNumber,
+          'currentWordId': selected.id,
+          'completedCount': completedIds.length,
+          'totalWordsAtLastLoad': orderedDocs.length,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        return <VWord>[VWord.fromDocument(selected)];
+      } catch (error, stackTrace) {
+        debugPrint('Vocabulary cycle selection failed: $error');
+        debugPrintStack(stackTrace: stackTrace);
+
+        return <VWord>[VWord.fromDocument(orderedDocs.first)];
+      }
     });
   }
 
@@ -1373,8 +1505,14 @@ class VocabularyRepository {
     }, SetOptions(merge: true));
   }
 
-  Future<void> markStatus(String uid, VWord word, String status, int days) {
-    return _progress(uid, word).set({
+  Future<void> markStatus(
+    String uid,
+    VWord word,
+    String status,
+    int days, {
+    String cyclePoolKey = 'all',
+  }) async {
+    await _progress(uid, word).set({
       'wordId': word.id,
       'wordData': word.toMap(),
       'status': status,
@@ -1386,6 +1524,84 @@ class VocabularyRepository {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+
+    if (status == 'learned' || status == 'mastered') {
+      await _recordVocabularyCycleCompletion(
+        uid: uid,
+        word: word,
+        poolKey: cyclePoolKey,
+      );
+
+      // Also keep the category-specific cycle aligned when the user learned
+      // the word from the "All" pool.
+      final categoryKey = 'category_${_safeVocabularyCycleKey(word.category)}';
+
+      if (categoryKey != cyclePoolKey) {
+        await _recordVocabularyCycleCompletion(
+          uid: uid,
+          word: word,
+          poolKey: categoryKey,
+        );
+      }
+    }
+  }
+
+  Future<void> _recordVocabularyCycleCompletion({
+    required String uid,
+    required VWord word,
+    required String poolKey,
+  }) async {
+    if (!OfflineContentService.instance.isOnline) return;
+
+    final ref = db
+        .collection('users')
+        .doc(uid)
+        .collection('vocabulary_cycles')
+        .doc(poolKey);
+
+    try {
+      await db
+          .runTransaction((transaction) async {
+            final snapshot = await transaction.get(ref);
+            final data = snapshot.data() ?? const <String, dynamic>{};
+
+            final completedIds = _stringListV(data['completedWordIds']).toSet();
+            completedIds.add(word.id);
+
+            final total = math.max(
+              1,
+              _asIntV(
+                data['totalWordsAtLastLoad'],
+                fallback: completedIds.length,
+              ),
+            );
+
+            final completedCount = math.min(completedIds.length, total);
+            final progressPercent = ((completedCount / total) * 100)
+                .round()
+                .clamp(0, 100);
+
+            transaction.set(ref, {
+              'poolKey': poolKey,
+              'category': poolKey == 'all' ? 'all' : word.category,
+              'cycleNumber': _asIntV(data['cycleNumber'], fallback: 1),
+              'completedWordIds': completedIds.toList(),
+              'completedCount': completedCount,
+              'totalWordsAtLastLoad': total,
+              'progressPercent': progressPercent,
+              'currentWordId': FieldValue.delete(),
+              'lastCompletedWordId': word.id,
+              'lastCompletedWord': word.word,
+              'cycleCompleted': completedCount >= total,
+              'lastCompletedAt': FieldValue.serverTimestamp(),
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+          })
+          .timeout(const Duration(seconds: 15));
+    } catch (error, stackTrace) {
+      debugPrint('Vocabulary cycle completion failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
   }
 
   Future<void> review(String uid, VWord word, int rating) async {
@@ -1414,6 +1630,18 @@ class VocabularyRepository {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+
+    await _recordVocabularyCycleCompletion(
+      uid: uid,
+      word: word,
+      poolKey: 'all',
+    );
+
+    await _recordVocabularyCycleCompletion(
+      uid: uid,
+      word: word,
+      poolKey: 'category_${_safeVocabularyCycleKey(word.category)}',
+    );
   }
 
   DocumentReference<Map<String, dynamic>> _progress(String uid, VWord word) {

@@ -7,8 +7,6 @@ import 'package:fyproject/offline/offline_content_service.dart';
 import 'package:flutter/material.dart';
 import 'package:fyproject/screens/pages/Subscription/Subscription_screen.dart';
 
-
-
 class _ReadingPremiumAccessService {
   _ReadingPremiumAccessService._();
 
@@ -26,14 +24,9 @@ class _ReadingPremiumAccessService {
     'speed': 2,
   };
 
-  static const Map<String, int> _weeklyLimits = {
-    'full': 1,
-  };
+  static const Map<String, int> _weeklyLimits = {'full': 1};
 
-  String usageKey({
-    ReadingMode? mode,
-    String? questionType,
-  }) {
+  String usageKey({ReadingMode? mode, String? questionType}) {
     if (questionType != null && questionType.trim().isNotEmpty) {
       return 'question_type';
     }
@@ -50,8 +43,7 @@ class _ReadingPremiumAccessService {
     };
   }
 
-  int limitFor(String key) =>
-      _dailyLimits[key] ?? _weeklyLimits[key] ?? 1;
+  int limitFor(String key) => _dailyLimits[key] ?? _weeklyLimits[key] ?? 1;
 
   bool isWeekly(String key) => _weeklyLimits.containsKey(key);
 
@@ -74,8 +66,8 @@ class _ReadingPremiumAccessService {
     final week =
         1 +
         ((thursday.difference(firstThursday).inDays +
-                    firstThursday.weekday -
-                    1) ~/
+                firstThursday.weekday -
+                1) ~/
             7);
 
     return '${thursday.year}-W${week.toString().padLeft(2, '0')}';
@@ -88,17 +80,16 @@ class _ReadingPremiumAccessService {
       return true;
     }
 
-    final status = (data['subscriptionStatus'] ??
-            data['premiumStatus'] ??
-            data['subscriptionRequestStatus'] ??
-            '')
-        .toString()
-        .trim()
-        .toLowerCase();
+    final status =
+        (data['subscriptionStatus'] ??
+                data['premiumStatus'] ??
+                data['subscriptionRequestStatus'] ??
+                '')
+            .toString()
+            .trim()
+            .toLowerCase();
 
-    if (status == 'active' ||
-        status == 'approved' ||
-        status == 'premium') {
+    if (status == 'active' || status == 'approved' || status == 'premium') {
       return true;
     }
 
@@ -159,12 +150,10 @@ class _ReadingPremiumAccessService {
       final now = DateTime.now();
       final weekly = isWeekly(key);
       final periodKey = weekly ? _weekKey(now) : _dayKey(now);
-      final storedPeriod =
-          (usage[weekly ? 'weeklyKey' : 'dailyKey'] ?? '').toString();
+      final storedPeriod = (usage[weekly ? 'weeklyKey' : 'dailyKey'] ?? '')
+          .toString();
 
-      final counts = _intMap(
-        usage[weekly ? 'weeklyCounts' : 'dailyCounts'],
-      );
+      final counts = _intMap(usage[weekly ? 'weeklyCounts' : 'dailyCounts']);
 
       final used = storedPeriod == periodKey ? (counts[key] ?? 0) : 0;
       final limit = limitFor(key);
@@ -205,66 +194,63 @@ class _ReadingPremiumAccessService {
     final userRef = _firestore.collection('users').doc(user.uid);
     final usageRef = userRef.collection('feature_usage').doc('reading');
 
-    return _firestore.runTransaction<_ReadingAccessDecision>((transaction) async {
-      final userSnapshot = await transaction.get(userRef);
-      final userData = userSnapshot.data() ?? <String, dynamic>{};
+    return _firestore
+        .runTransaction<_ReadingAccessDecision>((transaction) async {
+          final userSnapshot = await transaction.get(userRef);
+          final userData = userSnapshot.data() ?? <String, dynamic>{};
 
-      if (isPremiumFromData(userData)) {
-        return const _ReadingAccessDecision(
-          allowed: true,
-          premium: true,
-          used: 0,
-          limit: 0,
-        );
-      }
+          if (isPremiumFromData(userData)) {
+            return const _ReadingAccessDecision(
+              allowed: true,
+              premium: true,
+              used: 0,
+              limit: 0,
+            );
+          }
 
-      final usageSnapshot = await transaction.get(usageRef);
-      final usage = usageSnapshot.data() ?? <String, dynamic>{};
-      final now = DateTime.now();
-      final weekly = isWeekly(key);
-      final periodField = weekly ? 'weeklyKey' : 'dailyKey';
-      final countsField = weekly ? 'weeklyCounts' : 'dailyCounts';
-      final currentPeriod = weekly ? _weekKey(now) : _dayKey(now);
-      final storedPeriod = (usage[periodField] ?? '').toString();
+          final usageSnapshot = await transaction.get(usageRef);
+          final usage = usageSnapshot.data() ?? <String, dynamic>{};
+          final now = DateTime.now();
+          final weekly = isWeekly(key);
+          final periodField = weekly ? 'weeklyKey' : 'dailyKey';
+          final countsField = weekly ? 'weeklyCounts' : 'dailyCounts';
+          final currentPeriod = weekly ? _weekKey(now) : _dayKey(now);
+          final storedPeriod = (usage[periodField] ?? '').toString();
 
-      final counts =
-          storedPeriod == currentPeriod
+          final counts = storedPeriod == currentPeriod
               ? _intMap(usage[countsField])
               : <String, int>{};
 
-      final used = counts[key] ?? 0;
-      final limit = limitFor(key);
+          final used = counts[key] ?? 0;
+          final limit = limitFor(key);
 
-      if (used >= limit) {
-        return _ReadingAccessDecision(
-          allowed: false,
-          premium: false,
-          used: used,
-          limit: limit,
-        );
-      }
+          if (used >= limit) {
+            return _ReadingAccessDecision(
+              allowed: false,
+              premium: false,
+              used: used,
+              limit: limit,
+            );
+          }
 
-      counts[key] = used + 1;
+          counts[key] = used + 1;
 
-      transaction.set(
-        usageRef,
-        {
-          periodField: currentPeriod,
-          countsField: counts,
-          'lastFeature': key,
-          'lastUsedAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
+          transaction.set(usageRef, {
+            periodField: currentPeriod,
+            countsField: counts,
+            'lastFeature': key,
+            'lastUsedAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
 
-      return _ReadingAccessDecision(
-        allowed: true,
-        premium: false,
-        used: used + 1,
-        limit: limit,
-      );
-    }).timeout(const Duration(seconds: 15));
+          return _ReadingAccessDecision(
+            allowed: true,
+            premium: false,
+            used: used + 1,
+            limit: limit,
+          );
+        })
+        .timeout(const Duration(seconds: 15));
   }
 
   Map<String, int> _intMap(dynamic value) {
@@ -304,18 +290,13 @@ class _ReadingAccessDecision {
   int get remaining => limit <= 0 ? 0 : math.max(0, limit - used);
 }
 
-Future<void> _openReadingPremium(
-  BuildContext context, {
-  String? source,
-}) async {
+Future<void> _openReadingPremium(BuildContext context, {String? source}) async {
   await Navigator.of(context).push(
     MaterialPageRoute<void>(
       builder: (_) => const SubscriptionScreen(),
       settings: RouteSettings(
         name: '/premium',
-        arguments: {
-          'source': source ?? 'reading',
-        },
+        arguments: {'source': source ?? 'reading'},
       ),
     ),
   );
@@ -462,10 +443,7 @@ Future<void> _showReadingLimitReached(
 }
 
 class _PremiumBenefitRow extends StatelessWidget {
-  const _PremiumBenefitRow({
-    required this.icon,
-    required this.text,
-  });
+  const _PremiumBenefitRow({required this.icon, required this.text});
 
   final IconData icon;
   final String text;
@@ -506,7 +484,6 @@ class _PremiumBenefitRow extends StatelessWidget {
     );
   }
 }
-
 
 class ReadingScreen extends StatelessWidget {
   const ReadingScreen({super.key});
@@ -654,7 +631,9 @@ class _ReadingHome extends StatelessWidget {
               crossAxisCount: MediaQuery.sizeOf(context).width >= 720 ? 4 : 2,
               mainAxisSpacing: 12,
               crossAxisSpacing: 12,
-              childAspectRatio: MediaQuery.sizeOf(context).width >= 720 ? 1.05 : 1.12,
+              childAspectRatio: MediaQuery.sizeOf(context).width >= 720
+                  ? 1.05
+                  : 1.12,
             ),
           ),
         ),
@@ -693,11 +672,13 @@ class _ReadingHome extends StatelessWidget {
               crossAxisCount: MediaQuery.sizeOf(context).width >= 900
                   ? 4
                   : MediaQuery.sizeOf(context).width >= 600
-                      ? 3
-                      : 2,
+                  ? 3
+                  : 2,
               mainAxisSpacing: 10,
               crossAxisSpacing: 10,
-              childAspectRatio: MediaQuery.sizeOf(context).width >= 600 ? 1.75 : 1.48,
+              childAspectRatio: MediaQuery.sizeOf(context).width >= 600
+                  ? 1.75
+                  : 1.48,
             ),
           ),
         ),
@@ -732,6 +713,140 @@ class _ReadingHome extends StatelessWidget {
   }
 }
 
+class _ReadingCycleSelection {
+  final ReadingTest? test;
+  final int cycleNumber;
+  final int completedInCycle;
+
+  const _ReadingCycleSelection({
+    required this.test,
+    required this.cycleNumber,
+    required this.completedInCycle,
+  });
+}
+
+String _safeReadingCycleKey(String value) {
+  final cleaned = value
+      .trim()
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+      .replaceAll(RegExp(r'^_+|_+$'), '');
+
+  return cleaned.isEmpty ? 'all' : cleaned;
+}
+
+int _compareReadingTestsNaturally(ReadingTest a, ReadingTest b) {
+  final aNumber = _firstNumber(a.title);
+  final bNumber = _firstNumber(b.title);
+
+  if (aNumber != null && bNumber != null && aNumber != bNumber) {
+    return aNumber.compareTo(bNumber);
+  }
+
+  final titleCompare = a.title.toLowerCase().compareTo(b.title.toLowerCase());
+
+  if (titleCompare != 0) return titleCompare;
+
+  return a.id.compareTo(b.id);
+}
+
+int? _firstNumber(String value) {
+  final match = RegExp(r'\d+').firstMatch(value);
+  return match == null ? null : int.tryParse(match.group(0)!);
+}
+
+Future<void> _completeReadingCycleAttempt({
+  required User user,
+  required String poolKey,
+  required int cycleNumber,
+  required String testId,
+  required String testTitle,
+  required int totalTests,
+  required double band,
+  required int accuracyPercent,
+}) async {
+  if (!OfflineContentService.instance.isOnline) return;
+
+  final firestore = FirebaseFirestore.instance;
+  final progressRef = firestore
+      .collection('users')
+      .doc(user.uid)
+      .collection('reading_cycles')
+      .doc(poolKey);
+
+  try {
+    await firestore
+        .runTransaction((transaction) async {
+          final snapshot = await transaction.get(progressRef);
+          final data = snapshot.data() ?? <String, dynamic>{};
+
+          final storedCycle = _asInt(
+            data['cycleNumber'],
+            fallback: cycleNumber,
+          );
+
+          // Ignore a stale completion event from an older cycle.
+          if (storedCycle != cycleNumber) return;
+
+          final completedIds = _asStringList(data['completedTestIds']).toSet();
+          final wasAlreadyCompleted = completedIds.contains(testId);
+
+          if (!wasAlreadyCompleted) {
+            completedIds.add(testId);
+          }
+
+          final previousResultCount = _asInt(
+            data['cycleResultCount'],
+            fallback: 0,
+          );
+          final previousBandSum = _asDouble(data['cycleBandSum']);
+
+          final nextResultCount = wasAlreadyCompleted
+              ? previousResultCount
+              : previousResultCount + 1;
+          final nextBandSum = wasAlreadyCompleted
+              ? previousBandSum
+              : previousBandSum + band;
+          final averageBand = nextResultCount == 0
+              ? 0.0
+              : nextBandSum / nextResultCount;
+
+          final safeTotal = math.max(1, totalTests);
+          final completedCount = math.min(completedIds.length, safeTotal);
+          final progressPercent = ((completedCount / safeTotal) * 100)
+              .round()
+              .clamp(0, 100);
+
+          transaction.set(progressRef, {
+            'poolKey': poolKey,
+            'cycleNumber': cycleNumber,
+            'completedTestIds': completedIds.toList(),
+            'completedCount': completedCount,
+            'totalTestsAtLastLoad': safeTotal,
+            'progressPercent': progressPercent,
+            'currentTestId': FieldValue.delete(),
+            'currentTestTitle': FieldValue.delete(),
+            'lastCompletedTestId': testId,
+            'lastCompletedTestTitle': testTitle,
+            'lastBand': band,
+            'lastAccuracyPercent': accuracyPercent,
+            'cycleResultCount': nextResultCount,
+            'cycleBandSum': nextBandSum,
+            'cycleAverageBand': double.parse(averageBand.toStringAsFixed(2)),
+            'cycleCompleted': completedCount >= safeTotal,
+            'lastCompletedAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        })
+        .timeout(const Duration(seconds: 15));
+  } catch (error, stackTrace) {
+    // The result itself has already been saved. Cycle tracking is secondary
+    // and should never make a completed Reading result fail.
+    debugPrint('Reading cycle completion update failed: $error');
+    debugPrintStack(stackTrace: stackTrace);
+  }
+}
+
 class ReadingTestBrowserScreen extends StatefulWidget {
   final ReadingMode? mode;
   final String? questionType;
@@ -751,9 +866,21 @@ class _ReadingTestBrowserScreenState extends State<ReadingTestBrowserScreen>
   bool _loading = true;
   String? _error;
   int _availableCount = 0;
+  int _currentCycle = 1;
 
   String get _title =>
       widget.questionType ?? widget.mode?.label ?? 'Reading Practice';
+
+  String get _cyclePoolKey {
+    if (widget.questionType != null && widget.questionType!.trim().isNotEmpty) {
+      return 'question_${_safeReadingCycleKey(widget.questionType!)}';
+    }
+
+    final mode = widget.mode;
+    if (mode == null) return 'reading_all';
+
+    return 'mode_${_safeReadingCycleKey(mode.firestoreValue)}';
+  }
 
   @override
   void initState() {
@@ -835,20 +962,23 @@ class _ReadingTestBrowserScreenState extends State<ReadingTestBrowserScreen>
       }
 
       _availableCount = tests.length;
-      final test = await _selectUnseenTest(tests);
+
+      final selection = await _selectCycleTest(tests);
 
       if (!mounted) return;
+
+      final test = selection.test;
+      _currentCycle = selection.cycleNumber;
 
       if (test == null) {
         setState(() {
           _loading = false;
           _error =
-              'You have completed or already received every available Reading test for this selection. New tests will appear when the administrator publishes them.';
+              'No Reading test could be prepared for this selection. Please try again.';
         });
         return;
       }
 
-      await _markTestAsSeen(test);
       if (!mounted) return;
 
       if (user != null && OfflineContentService.instance.isOnline) {
@@ -884,7 +1014,12 @@ class _ReadingTestBrowserScreenState extends State<ReadingTestBrowserScreen>
               parent: animation,
               curve: Curves.easeOutCubic,
             ),
-            child: ReadingPracticeScreen(test: test),
+            child: ReadingPracticeScreen(
+              test: test,
+              cyclePoolKey: _cyclePoolKey,
+              cycleNumber: _currentCycle,
+              cycleTotalTests: _availableCount,
+            ),
           ),
         ),
       );
@@ -1003,83 +1138,179 @@ class _ReadingTestBrowserScreenState extends State<ReadingTestBrowserScreen>
     return true;
   }
 
-  Future<ReadingTest?> _selectUnseenTest(List<ReadingTest> tests) async {
-    if (tests.isEmpty) return null;
+  Future<_ReadingCycleSelection> _selectCycleTest(
+    List<ReadingTest> tests,
+  ) async {
+    if (tests.isEmpty) {
+      return const _ReadingCycleSelection(
+        test: null,
+        cycleNumber: 1,
+        completedInCycle: 0,
+      );
+    }
 
+    final orderedTests = [...tests]..sort(_compareReadingTestsNaturally);
     final offline = OfflineContentService.instance;
 
-    // Cached content remains usable offline, including completed content in
-    // revision mode. This prevents a blank screen when no new item exists.
     if (!offline.isOnline) {
-      return tests.first;
+      return _ReadingCycleSelection(
+        test: orderedTests.first,
+        cycleNumber: 1,
+        completedInCycle: 0,
+      );
     }
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      return tests[math.Random.secure().nextInt(tests.length)];
+      return _ReadingCycleSelection(
+        test: orderedTests.first,
+        cycleNumber: 1,
+        completedInCycle: 0,
+      );
     }
 
-    final seenIds = <String>{};
+    final userRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid);
+    final progressRef = userRef.collection('reading_cycles').doc(_cyclePoolKey);
 
     try {
-      final seenSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('reading_seen_tests')
-          .get()
-          .timeout(const Duration(seconds: 10));
+      var progressSnapshot = await progressRef.get().timeout(
+        const Duration(seconds: 10),
+      );
 
-      seenIds.addAll(seenSnapshot.docs.map((doc) => doc.id));
+      // First-time migration:
+      // Existing users may already have reading_seen_tests / reading_results.
+      // Seed Cycle 1 once so previously completed tests do not suddenly repeat.
+      if (!progressSnapshot.exists) {
+        final legacyCompletedIds = <String>{};
 
-      final completedSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('reading_results')
-          .get()
-          .timeout(const Duration(seconds: 10));
+        try {
+          final seenSnapshot = await userRef
+              .collection('reading_seen_tests')
+              .get()
+              .timeout(const Duration(seconds: 10));
 
-      for (final doc in completedSnapshot.docs) {
-        final testId = (doc.data()['testId'] ?? '').toString().trim();
-        if (testId.isNotEmpty) seenIds.add(testId);
+          legacyCompletedIds.addAll(
+            seenSnapshot.docs
+                .map((doc) => doc.id)
+                .where((id) => orderedTests.any((test) => test.id == id)),
+          );
+
+          final completedSnapshot = await userRef
+              .collection('reading_results')
+              .get()
+              .timeout(const Duration(seconds: 10));
+
+          for (final doc in completedSnapshot.docs) {
+            final testId = (doc.data()['testId'] ?? '').toString().trim();
+            if (testId.isNotEmpty &&
+                orderedTests.any((test) => test.id == testId)) {
+              legacyCompletedIds.add(testId);
+            }
+          }
+        } catch (error) {
+          debugPrint('Reading cycle migration lookup failed: $error');
+        }
+
+        await progressRef.set({
+          'poolKey': _cyclePoolKey,
+          'cycleNumber': 1,
+          'completedTestIds': legacyCompletedIds.toList(),
+          'completedCount': legacyCompletedIds.length,
+          'totalTestsAtLastLoad': orderedTests.length,
+          'cycleResultCount': 0,
+          'cycleBandSum': 0.0,
+          'cycleAverageBand': 0.0,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        progressSnapshot = await progressRef.get().timeout(
+          const Duration(seconds: 10),
+        );
       }
+
+      final progress = progressSnapshot.data() ?? <String, dynamic>{};
+      var cycleNumber = _asInt(progress['cycleNumber'], fallback: 1);
+      var completedIds = _asStringList(progress['completedTestIds']).toSet();
+      final currentTestId = (progress['currentTestId'] ?? '').toString().trim();
+
+      // Ignore IDs for content that no longer belongs to this current pool.
+      final availableIds = orderedTests.map((test) => test.id).toSet();
+      completedIds = completedIds.intersection(availableIds);
+
+      // If a test was already assigned but not completed, reopen the same one.
+      // This works nicely with the existing draft restore feature.
+      if (currentTestId.isNotEmpty &&
+          availableIds.contains(currentTestId) &&
+          !completedIds.contains(currentTestId)) {
+        final currentTest = orderedTests.firstWhere(
+          (test) => test.id == currentTestId,
+        );
+
+        return _ReadingCycleSelection(
+          test: currentTest,
+          cycleNumber: cycleNumber,
+          completedInCycle: completedIds.length,
+        );
+      }
+
+      var remaining = orderedTests
+          .where((test) => !completedIds.contains(test.id))
+          .toList();
+
+      // All currently published tests are completed in this cycle:
+      // start a fresh cycle without deleting reading_results/history.
+      if (remaining.isEmpty) {
+        cycleNumber += 1;
+        completedIds = <String>{};
+        remaining = [...orderedTests];
+
+        await progressRef.set({
+          'cycleNumber': cycleNumber,
+          'completedTestIds': <String>[],
+          'completedCount': 0,
+          'currentTestId': FieldValue.delete(),
+          'cycleResultCount': 0,
+          'cycleBandSum': 0.0,
+          'cycleAverageBand': 0.0,
+          'cycleStartedAt': FieldValue.serverTimestamp(),
+          'lastCycleResetAt': FieldValue.serverTimestamp(),
+          'totalTestsAtLastLoad': orderedTests.length,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+
+      // Sequential, stable selection: first unfinished test in natural order.
+      final selected = remaining.first;
+
+      await progressRef.set({
+        'poolKey': _cyclePoolKey,
+        'cycleNumber': cycleNumber,
+        'currentTestId': selected.id,
+        'currentTestTitle': selected.title,
+        'completedCount': completedIds.length,
+        'totalTestsAtLastLoad': orderedTests.length,
+        'lastAssignedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      return _ReadingCycleSelection(
+        test: selected,
+        cycleNumber: cycleNumber,
+        completedInCycle: completedIds.length,
+      );
     } catch (error, stackTrace) {
-      // A history failure must not keep the loading screen open or hide all
-      // available tests. Open a valid test and continue gracefully.
-      debugPrint('Reading history lookup failed: $error');
+      debugPrint('Reading cycle selection failed: $error');
       debugPrintStack(stackTrace: stackTrace);
-      return tests.first;
-    }
 
-    final unseen = tests.where((test) => !seenIds.contains(test.id)).toList();
-    if (unseen.isEmpty) return null;
-
-    return unseen[math.Random.secure().nextInt(unseen.length)];
-  }
-
-  Future<void> _markTestAsSeen(ReadingTest test) async {
-    final offline = OfflineContentService.instance;
-    if (!offline.isOnline) return;
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('reading_seen_tests')
-          .doc(test.id)
-          .set({
-            'testId': test.id,
-            'title': test.title,
-            'ieltsType': test.ieltsType,
-            'mode': test.mode,
-            'firstShownAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true))
-          .timeout(const Duration(seconds: 10));
-    } catch (error, stackTrace) {
-      debugPrint('Reading seen status save failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
+      // Fail open so learners are never blocked by a progress-document issue.
+      return _ReadingCycleSelection(
+        test: orderedTests.first,
+        cycleNumber: 1,
+        completedInCycle: 0,
+      );
     }
   }
 
@@ -1281,8 +1512,17 @@ class _ReadingTestBrowserScreenState extends State<ReadingTestBrowserScreen>
 
 class ReadingPracticeScreen extends StatefulWidget {
   final ReadingTest test;
+  final String cyclePoolKey;
+  final int cycleNumber;
+  final int cycleTotalTests;
 
-  const ReadingPracticeScreen({super.key, required this.test});
+  const ReadingPracticeScreen({
+    super.key,
+    required this.test,
+    this.cyclePoolKey = 'reading_all',
+    this.cycleNumber = 1,
+    this.cycleTotalTests = 1,
+  });
 
   @override
   State<ReadingPracticeScreen> createState() => _ReadingPracticeScreenState();
@@ -1897,6 +2137,9 @@ class _ReadingPracticeScreenState extends State<ReadingPracticeScreen> {
       'rawScore': result.rawScore,
       'totalQuestions': result.totalQuestions,
       'accuracyPercent': result.accuracyPercent,
+      'cyclePoolKey': widget.cyclePoolKey,
+      'cycleNumber': widget.cycleNumber,
+      'cycleTotalTests': widget.cycleTotalTests,
       'answers': _answers.map((key, value) => MapEntry('$key', value)),
       'completedAt': DateTime.now().toIso8601String(),
     };
@@ -1933,6 +2176,9 @@ class _ReadingPracticeScreenState extends State<ReadingPracticeScreen> {
           'weakQuestionTypes': result.weakQuestionTypes,
           'durationUsedSeconds': result.durationUsedSeconds,
           'markedForReviewCount': _markedForReview.length,
+          'cyclePoolKey': widget.cyclePoolKey,
+          'cycleNumber': widget.cycleNumber,
+          'cycleTotalTests': widget.cycleTotalTests,
           'answers': _answers.map((key, value) => MapEntry('$key', value)),
           'completedAt': FieldValue.serverTimestamp(),
         });
@@ -1941,8 +2187,20 @@ class _ReadingPracticeScreenState extends State<ReadingPracticeScreen> {
           'readingBand': result.estimatedBand,
           'weakReadingQuestionTypes': result.weakQuestionTypes,
           'lastReadingTestAt': FieldValue.serverTimestamp(),
+          'lastReadingCycle': widget.cycleNumber,
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
+
+        await _completeReadingCycleAttempt(
+          user: user,
+          poolKey: widget.cyclePoolKey,
+          cycleNumber: widget.cycleNumber,
+          testId: widget.test.id,
+          testTitle: widget.test.title,
+          totalTests: widget.cycleTotalTests,
+          band: result.estimatedBand,
+          accuracyPercent: result.accuracyPercent,
+        );
 
         await FirebaseFirestore.instance
             .collection('users')
@@ -3651,10 +3909,10 @@ class _BandHero extends StatelessWidget {
     final status = band <= 0
         ? 'Take your first test'
         : band >= 7
-            ? 'Advanced level'
-            : band >= 5.5
-                ? 'Good progress'
-                : 'Building foundation';
+        ? 'Advanced level'
+        : band >= 5.5
+        ? 'Good progress'
+        : 'Building foundation';
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -3766,10 +4024,7 @@ class _BandScoreRing extends StatelessWidget {
               color: RColors.bg.withOpacity(.72),
               border: Border.all(color: Colors.white.withOpacity(.07)),
               boxShadow: [
-                BoxShadow(
-                  color: RColors.cyan.withOpacity(.14),
-                  blurRadius: 24,
-                ),
+                BoxShadow(color: RColors.cyan.withOpacity(.14), blurRadius: 24),
               ],
             ),
             child: Column(
@@ -3818,7 +4073,10 @@ class _WeaknessCard extends StatelessWidget {
         children: [
           const Row(
             children: [
-              _MiniIcon(icon: Icons.track_changes_rounded, color: RColors.orange),
+              _MiniIcon(
+                icon: Icons.track_changes_rounded,
+                color: RColors.orange,
+              ),
               SizedBox(width: 11),
               Expanded(
                 child: Column(
@@ -3846,29 +4104,49 @@ class _WeaknessCard extends StatelessWidget {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: types.take(4).map((type) => Container(
-              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-              decoration: BoxDecoration(
-                color: RColors.orange.withOpacity(.09),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: RColors.orange.withOpacity(.22)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.trending_up_rounded, color: RColors.orange, size: 14),
-                  const SizedBox(width: 6),
-                  Text(type, style: const TextStyle(color: RColors.orangeLight, fontSize: 9.5, fontWeight: FontWeight.w800)),
-                ],
-              ),
-            )).toList(),
+            children: types
+                .take(4)
+                .map(
+                  (type) => Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 11,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: RColors.orange.withOpacity(.09),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: RColors.orange.withOpacity(.22),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.trending_up_rounded,
+                          color: RColors.orange,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          type,
+                          style: const TextStyle(
+                            color: RColors.orangeLight,
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(),
           ),
         ],
       ),
     );
   }
 }
-
 
 class _ReadingPlanCard extends StatelessWidget {
   const _ReadingPlanCard({required this.isPremium});
@@ -3884,10 +4162,7 @@ class _ReadingPlanCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(22),
         gradient: LinearGradient(
-          colors: [
-            accent.withOpacity(.14),
-            RColors.cyan.withOpacity(.05),
-          ],
+          colors: [accent.withOpacity(.14), RColors.cyan.withOpacity(.05)],
         ),
         border: Border.all(color: accent.withOpacity(.25)),
         boxShadow: [
@@ -3971,14 +4246,9 @@ class _ReadingPlanCard extends StatelessWidget {
               width: double.infinity,
               height: 46,
               child: FilledButton.icon(
-                onPressed: () => _openReadingPremium(
-                  context,
-                  source: 'reading_home',
-                ),
-                icon: const Icon(
-                  Icons.workspace_premium_rounded,
-                  size: 18,
-                ),
+                onPressed: () =>
+                    _openReadingPremium(context, source: 'reading_home'),
+                icon: const Icon(Icons.workspace_premium_rounded, size: 18),
                 label: const Text(
                   'Unlock Unlimited Reading',
                   style: TextStyle(fontWeight: FontWeight.w900),
@@ -4012,12 +4282,11 @@ class _ModeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent =
-        mode == ReadingMode.academic
-            ? RColors.cyan
-            : mode == ReadingMode.generalTraining
-            ? RColors.violet
-            : RColors.green;
+    final accent = mode == ReadingMode.academic
+        ? RColors.cyan
+        : mode == ReadingMode.generalTraining
+        ? RColors.violet
+        : RColors.green;
 
     return _TapCard(
       onTap: onTap,
@@ -4038,9 +4307,7 @@ class _ModeCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: RColors.violet.withOpacity(.10),
                     borderRadius: BorderRadius.circular(99),
-                    border: Border.all(
-                      color: RColors.violet.withOpacity(.20),
-                    ),
+                    border: Border.all(color: RColors.violet.withOpacity(.20)),
                   ),
                   child: Text(
                     mode.freeLimitLabel,
@@ -4128,10 +4395,7 @@ class _QuestionTypeCard extends StatelessWidget {
           const SizedBox(width: 5),
           if (!isPremium)
             Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 6,
-                vertical: 4,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
               decoration: BoxDecoration(
                 color: color.withOpacity(.09),
                 borderRadius: BorderRadius.circular(99),
@@ -4147,9 +4411,7 @@ class _QuestionTypeCard extends StatelessWidget {
             )
           else
             Icon(
-              weak
-                  ? Icons.priority_high_rounded
-                  : Icons.chevron_right_rounded,
+              weak ? Icons.priority_high_rounded : Icons.chevron_right_rounded,
               color: color,
               size: 17,
             ),
@@ -4166,7 +4428,9 @@ class _RecentResultCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accuracy = result.totalQuestions <= 0 ? 0 : ((result.rawScore / result.totalQuestions) * 100).round();
+    final accuracy = result.totalQuestions <= 0
+        ? 0
+        : ((result.rawScore / result.totalQuestions) * 100).round();
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: _cardDecoration(radius: 20),
@@ -4177,33 +4441,75 @@ class _RecentResultCard extends StatelessWidget {
             height: 50,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [RColors.cyan.withOpacity(.22), RColors.violet.withOpacity(.14)]),
+              gradient: LinearGradient(
+                colors: [
+                  RColors.cyan.withOpacity(.22),
+                  RColors.violet.withOpacity(.14),
+                ],
+              ),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: RColors.cyan.withOpacity(.25)),
             ),
-            child: Text(result.estimatedBand.toStringAsFixed(1), style: const TextStyle(color: RColors.text, fontSize: 16, fontWeight: FontWeight.w900)),
+            child: Text(
+              result.estimatedBand.toStringAsFixed(1),
+              style: const TextStyle(
+                color: RColors.text,
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(result.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: RColors.text, fontSize: 12.5, fontWeight: FontWeight.w900)),
+                Text(
+                  result.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: RColors.text,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
                 const SizedBox(height: 7),
-                Row(children: [
-                  _ResultMeta(icon: Icons.check_circle_outline_rounded, text: '${result.rawScore}/${result.totalQuestions}'),
-                  const SizedBox(width: 10),
-                  _ResultMeta(icon: Icons.speed_rounded, text: '${result.readingSpeedWpm} WPM'),
-                ]),
+                Row(
+                  children: [
+                    _ResultMeta(
+                      icon: Icons.check_circle_outline_rounded,
+                      text: '${result.rawScore}/${result.totalQuestions}',
+                    ),
+                    const SizedBox(width: 10),
+                    _ResultMeta(
+                      icon: Icons.speed_rounded,
+                      text: '${result.readingSpeedWpm} WPM',
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
           const SizedBox(width: 8),
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text('$accuracy%', style: const TextStyle(color: RColors.green, fontSize: 12, fontWeight: FontWeight.w900)),
-            const SizedBox(height: 3),
-            const Text('accuracy', style: TextStyle(color: RColors.muted, fontSize: 8.5)),
-          ]),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '$accuracy%',
+                style: const TextStyle(
+                  color: RColors.green,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 3),
+              const Text(
+                'accuracy',
+                style: TextStyle(color: RColors.muted, fontSize: 8.5),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -4214,12 +4520,20 @@ class _MiniIcon extends StatelessWidget {
   final IconData icon;
   final Color color;
   final bool compact;
-  const _MiniIcon({required this.icon, required this.color, this.compact = false});
+  const _MiniIcon({
+    required this.icon,
+    required this.color,
+    this.compact = false,
+  });
   @override
   Widget build(BuildContext context) => Container(
     width: compact ? 34 : 40,
     height: compact ? 34 : 40,
-    decoration: BoxDecoration(color: color.withOpacity(.11), borderRadius: BorderRadius.circular(compact ? 11 : 13), border: Border.all(color: color.withOpacity(.22))),
+    decoration: BoxDecoration(
+      color: color.withOpacity(.11),
+      borderRadius: BorderRadius.circular(compact ? 11 : 13),
+      border: Border.all(color: color.withOpacity(.22)),
+    ),
     child: Icon(icon, color: color, size: compact ? 17 : 20),
   );
 }
@@ -4229,7 +4543,21 @@ class _ResultMeta extends StatelessWidget {
   final String text;
   const _ResultMeta({required this.icon, required this.text});
   @override
-  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, color: RColors.muted, size: 13), const SizedBox(width: 4), Text(text, style: const TextStyle(color: RColors.secondary, fontSize: 9.2, fontWeight: FontWeight.w700))]);
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, color: RColors.muted, size: 13),
+      const SizedBox(width: 4),
+      Text(
+        text,
+        style: const TextStyle(
+          color: RColors.secondary,
+          fontSize: 9.2,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    ],
+  );
 }
 
 class _ResultHeader extends StatelessWidget {
@@ -4662,9 +4990,9 @@ class _TapCard extends StatelessWidget {
         highlightColor: color.withOpacity(.04),
         child: Ink(
           padding: const EdgeInsets.all(15),
-          decoration: _cardDecoration(radius: 22).copyWith(
-            border: Border.all(color: color.withOpacity(.17)),
-          ),
+          decoration: _cardDecoration(
+            radius: 22,
+          ).copyWith(border: Border.all(color: color.withOpacity(.17))),
           child: child,
         ),
       ),
@@ -4682,10 +5010,20 @@ class _GradientIcon extends StatelessWidget {
       width: 50,
       height: 50,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [RColors.cyan, RColors.violet], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        gradient: const LinearGradient(
+          colors: [RColors.cyan, RColors.violet],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(17),
         border: Border.all(color: Colors.white.withOpacity(.12)),
-        boxShadow: [BoxShadow(color: RColors.cyan.withOpacity(.18), blurRadius: 22, offset: const Offset(0, 9))],
+        boxShadow: [
+          BoxShadow(
+            color: RColors.cyan.withOpacity(.18),
+            blurRadius: 22,
+            offset: const Offset(0, 9),
+          ),
+        ],
       ),
       child: Icon(icon, color: Colors.white, size: 25),
     );
@@ -4756,14 +5094,26 @@ class _ReadingBackground extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          const Positioned(top: -120, right: -90, child: _Glow(size: 300, color: RColors.cyan)),
-          const Positioned(bottom: -150, left: -110, child: _Glow(size: 340, color: RColors.violet)),
+          const Positioned(
+            top: -120,
+            right: -90,
+            child: _Glow(size: 300, color: RColors.cyan),
+          ),
+          const Positioned(
+            bottom: -150,
+            left: -110,
+            child: _Glow(size: 340, color: RColors.violet),
+          ),
           Positioned(
             top: 210,
             left: -70,
             child: Transform.rotate(
               angle: -.25,
-              child: Container(width: 190, height: 1, color: Colors.white.withOpacity(.025)),
+              child: Container(
+                width: 190,
+                height: 1,
+                color: Colors.white.withOpacity(.025),
+              ),
             ),
           ),
           Positioned(
@@ -4771,7 +5121,11 @@ class _ReadingBackground extends StatelessWidget {
             right: -40,
             child: Transform.rotate(
               angle: .35,
-              child: Container(width: 170, height: 1, color: Colors.white.withOpacity(.02)),
+              child: Container(
+                width: 170,
+                height: 1,
+                color: Colors.white.withOpacity(.02),
+              ),
             ),
           ),
         ],
@@ -4792,7 +5146,9 @@ class _Glow extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: RadialGradient(colors: [color.withOpacity(.12), color.withOpacity(0)]),
+        gradient: RadialGradient(
+          colors: [color.withOpacity(.12), color.withOpacity(0)],
+        ),
       ),
     );
   }
@@ -4815,28 +5171,47 @@ abstract final class RColors {
 
 BoxDecoration _cardDecoration({double radius = 24}) => BoxDecoration(
   gradient: LinearGradient(
-    colors: [RColors.surfaceHigh.withOpacity(.90), RColors.surface.withOpacity(.94)],
+    colors: [
+      RColors.surfaceHigh.withOpacity(.90),
+      RColors.surface.withOpacity(.94),
+    ],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   ),
   borderRadius: BorderRadius.circular(radius),
   border: Border.all(color: Colors.white.withOpacity(.065)),
   boxShadow: [
-    BoxShadow(color: Colors.black.withOpacity(.20), blurRadius: 28, offset: const Offset(0, 14)),
-    BoxShadow(color: RColors.cyan.withOpacity(.018), blurRadius: 20, offset: const Offset(0, -4)),
+    BoxShadow(
+      color: Colors.black.withOpacity(.20),
+      blurRadius: 28,
+      offset: const Offset(0, 14),
+    ),
+    BoxShadow(
+      color: RColors.cyan.withOpacity(.018),
+      blurRadius: 20,
+      offset: const Offset(0, -4),
+    ),
   ],
 );
 
 BoxDecoration _heroDecoration() => BoxDecoration(
   gradient: LinearGradient(
-    colors: [RColors.cyan.withOpacity(.16), RColors.violet.withOpacity(.11), RColors.surface.withOpacity(.96)],
+    colors: [
+      RColors.cyan.withOpacity(.16),
+      RColors.violet.withOpacity(.11),
+      RColors.surface.withOpacity(.96),
+    ],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   ),
   borderRadius: BorderRadius.circular(28),
   border: Border.all(color: RColors.cyan.withOpacity(.20)),
   boxShadow: [
-    BoxShadow(color: Colors.black.withOpacity(.24), blurRadius: 34, offset: const Offset(0, 16)),
+    BoxShadow(
+      color: Colors.black.withOpacity(.24),
+      blurRadius: 34,
+      offset: const Offset(0, 16),
+    ),
     BoxShadow(color: RColors.cyan.withOpacity(.06), blurRadius: 30),
   ],
 );

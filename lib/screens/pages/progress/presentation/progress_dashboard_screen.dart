@@ -102,26 +102,35 @@ class _ProgressDashboardScreenState extends State<ProgressDashboardScreen> {
 
   Widget _header() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 17, 20, 10),
+      padding: const EdgeInsets.fromLTRB(20, 17, 20, 12),
       child: Row(
         children: [
           Container(
-            width: 48,
-            height: 48,
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
               gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
                 colors: [
                   ProgressColors.cyan,
                   ProgressColors.blue,
                   ProgressColors.violet,
                 ],
               ),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(17),
+              boxShadow: [
+                BoxShadow(
+                  color: ProgressColors.cyan.withOpacity(.18),
+                  blurRadius: 22,
+                  offset: const Offset(0, 10),
+                ),
+              ],
             ),
             child: const Icon(
               Icons.insights_rounded,
               color: Colors.white,
-              size: 27,
+              size: 28,
             ),
           ),
           const SizedBox(width: 13),
@@ -135,20 +144,79 @@ class _ProgressDashboardScreenState extends State<ProgressDashboardScreen> {
                     color: ProgressColors.text,
                     fontSize: 26,
                     fontWeight: FontWeight.w900,
+                    letterSpacing: -.4,
                   ),
                 ),
-                SizedBox(height: 2),
+                SizedBox(height: 3),
                 Text(
                   'Your IELTS performance and readiness',
-                  style: TextStyle(color: ProgressColors.muted, fontSize: 10.5),
+                  style: TextStyle(
+                    color: ProgressColors.muted,
+                    fontSize: 10.5,
+                    height: 1.35,
+                  ),
                 ),
               ],
             ),
           ),
-          IconButton.filledTonal(
-            tooltip: 'Target readiness report',
-            onPressed: () => _openReport(ProgressPeriod.all),
-            icon: const Icon(Icons.description_outlined),
+          const SizedBox(width: 10),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => _openReport(ProgressPeriod.all),
+              borderRadius: BorderRadius.circular(16),
+              child: Ink(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      ProgressColors.blue.withOpacity(.22),
+                      ProgressColors.violet.withOpacity(.18),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: ProgressColors.cyan.withOpacity(.22),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: ProgressColors.blue.withOpacity(.10),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    const Icon(
+                      Icons.analytics_outlined,
+                      color: ProgressColors.cyan,
+                      size: 23,
+                    ),
+                    Positioned(
+                      right: 6,
+                      top: 6,
+                      child: Container(
+                        width: 9,
+                        height: 9,
+                        decoration: BoxDecoration(
+                          color: ProgressColors.green,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: ProgressColors.surface,
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -156,24 +224,116 @@ class _ProgressDashboardScreenState extends State<ProgressDashboardScreen> {
   }
 
   Widget _periodSelector() {
-    return SizedBox(
-      height: 47,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        scrollDirection: Axis.horizontal,
-        itemCount: ProgressPeriod.values.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final period = ProgressPeriod.values[index];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 2, 20, 14),
+      child: Container(
+        padding: const EdgeInsets.all(5),
+        decoration: BoxDecoration(
+          color: ProgressColors.surface.withOpacity(.90),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: ProgressColors.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(.14),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Row(
+          children: ProgressPeriod.values.map((period) {
+            final selected = _period == period;
 
-          return ChoiceChip(
-            selected: _period == period,
-            label: Text(period.label),
-            onSelected: (_) {
-              setState(() => _period = period);
-            },
-          );
-        },
+            final icon = switch (period) {
+              ProgressPeriod.week => Icons.calendar_view_week_rounded,
+              ProgressPeriod.month => Icons.calendar_month_rounded,
+              ProgressPeriod.all => Icons.timeline_rounded,
+            };
+
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      if (_period == period) return;
+                      setState(() => _period = period);
+                    },
+                    borderRadius: BorderRadius.circular(14),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 11,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: selected
+                            ? const LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  ProgressColors.blue,
+                                  ProgressColors.cyan,
+                                ],
+                              )
+                            : null,
+                        color: selected
+                            ? null
+                            : ProgressColors.background.withOpacity(.22),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: selected
+                              ? Colors.white.withOpacity(.10)
+                              : Colors.transparent,
+                        ),
+                        boxShadow: selected
+                            ? [
+                                BoxShadow(
+                                  color: ProgressColors.cyan.withOpacity(.18),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 7),
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            icon,
+                            size: 15,
+                            color: selected
+                                ? Colors.white
+                                : ProgressColors.muted,
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              period.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: selected
+                                    ? Colors.white
+                                    : ProgressColors.secondary,
+                                fontSize: 9.5,
+                                fontWeight: selected
+                                    ? FontWeight.w900
+                                    : FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
       ),
     );
   }

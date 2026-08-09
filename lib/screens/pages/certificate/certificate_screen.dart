@@ -151,16 +151,45 @@ class _CertificatesScreenState extends State<CertificatesScreen> {
           ),
           const SizedBox(width: 12),
           Container(
-            width: 48,
-            height: 48,
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
               gradient: CertificateColors.gradient,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withOpacity(.10)),
+              boxShadow: [
+                BoxShadow(
+                  color: CertificateColors.cyan.withOpacity(.18),
+                  blurRadius: 22,
+                  offset: const Offset(0, 9),
+                ),
+              ],
             ),
-            child: const Icon(
-              Icons.workspace_premium_rounded,
-              color: Colors.white,
-              size: 27,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                const Icon(
+                  Icons.workspace_premium_rounded,
+                  color: Colors.white,
+                  size: 29,
+                ),
+                Positioned(
+                  right: 7,
+                  top: 7,
+                  child: Container(
+                    width: 9,
+                    height: 9,
+                    decoration: BoxDecoration(
+                      color: CertificateColors.green,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: CertificateColors.blue,
+                        width: 1.4,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(width: 12),
@@ -272,12 +301,64 @@ class _CertificatesScreenState extends State<CertificatesScreen> {
             separatorBuilder: (_, __) => const SizedBox(width: 8),
             itemBuilder: (context, index) {
               final type = types[index];
-              return ChoiceChip(
-                selected: _selectedType == type,
-                label: Text(type),
-                onSelected: (_) {
-                  setState(() => _selectedType = type);
-                },
+              final selected = _selectedType == type;
+              return Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => setState(() => _selectedType = type),
+                  borderRadius: BorderRadius.circular(14),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 13,
+                      vertical: 9,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: selected ? CertificateColors.gradient : null,
+                      color: selected ? null : CertificateColors.surface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: selected
+                            ? Colors.white.withOpacity(.10)
+                            : CertificateColors.border,
+                      ),
+                      boxShadow: selected
+                          ? [
+                              BoxShadow(
+                                color: CertificateColors.cyan.withOpacity(.15),
+                                blurRadius: 14,
+                                offset: const Offset(0, 6),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          type == 'All'
+                              ? Icons.grid_view_rounded
+                              : Icons.workspace_premium_outlined,
+                          size: 14,
+                          color: selected
+                              ? Colors.white
+                              : CertificateColors.cyan,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          type,
+                          style: TextStyle(
+                            color: selected
+                                ? Colors.white
+                                : CertificateColors.secondary,
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               );
             },
           ),
@@ -392,131 +473,699 @@ class _CertificatePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(1.2),
-      decoration: BoxDecoration(
-        gradient: CertificateColors.gradient,
-        borderRadius: BorderRadius.circular(28),
-      ),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
-        decoration: BoxDecoration(
-          color: const Color(0xFF0C1728),
-          borderRadius: BorderRadius.circular(27),
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: 66,
-              height: 66,
+    final valid = certificate.status.toLowerCase() == 'valid';
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 430;
+
+        return Container(
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                CertificateColors.gold,
+                CertificateColors.cyan,
+                CertificateColors.blue,
+                CertificateColors.gold,
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(.34),
+                blurRadius: 34,
+                offset: const Offset(0, 16),
+              ),
+              BoxShadow(
+                color: CertificateColors.gold.withOpacity(.08),
+                blurRadius: 24,
+              ),
+            ],
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
+              color: const Color(0xFF091321),
+              borderRadius: BorderRadius.circular(26),
+            ),
+            child: Container(
               decoration: BoxDecoration(
-                gradient: CertificateColors.gradient,
-                borderRadius: BorderRadius.circular(21),
-              ),
-              child: const Icon(
-                Icons.workspace_premium_rounded,
-                color: Colors.white,
-                size: 36,
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'IELTS AI MASTER',
-              style: TextStyle(
-                color: CertificateColors.cyan,
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 2.4,
-              ),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'Certificate of Course Completion',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: CertificateColors.text,
-                fontSize: 24,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'This certificate is proudly presented to',
-              style: TextStyle(color: CertificateColors.muted, fontSize: 11),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              certificate.userName,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: CertificateColors.text,
-                fontSize: 27,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              certificate.title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: CertificateColors.secondary,
-                fontSize: 15,
-                height: 1.45,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            if (certificate.band > 0) ...[
-              const SizedBox(height: 13),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
+                color: const Color(0xFF0D1828),
+                borderRadius: BorderRadius.circular(23),
+                border: Border.all(
+                  color: CertificateColors.gold.withOpacity(.28),
                 ),
-                decoration: BoxDecoration(
-                  color: CertificateColors.cyan.withOpacity(.10),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  'Estimated Band ${certificate.band.toStringAsFixed(1)}',
-                  style: const TextStyle(
-                    color: CertificateColors.cyan,
-                    fontWeight: FontWeight.w900,
+              ),
+              child: Stack(
+                children: [
+                  const Positioned.fill(child: _FormalCertificateWatermark()),
+                  const Positioned(
+                    top: 10,
+                    left: 10,
+                    child: _CertificateCorner(top: true, left: true),
                   ),
+                  const Positioned(
+                    top: 10,
+                    right: 10,
+                    child: _CertificateCorner(top: true, left: false),
+                  ),
+                  const Positioned(
+                    bottom: 10,
+                    left: 10,
+                    child: _CertificateCorner(top: false, left: true),
+                  ),
+                  const Positioned(
+                    bottom: 10,
+                    right: 10,
+                    child: _CertificateCorner(top: false, left: false),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      compact ? 17 : 23,
+                      22,
+                      compact ? 17 : 23,
+                      20,
+                    ),
+                    child: Column(
+                      children: [
+                        _FormalCertificateHeader(
+                          valid: valid,
+                          status: certificate.status,
+                        ),
+                        SizedBox(height: compact ? 20 : 25),
+                        const Text(
+                          'CERTIFICATE OF COMPLETION',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: CertificateColors.gold,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 2.4,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          certificate.certificateType.toUpperCase(),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: CertificateColors.muted,
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                        SizedBox(height: compact ? 18 : 22),
+                        const Text(
+                          'THIS CERTIFIES THAT',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: CertificateColors.secondary,
+                            fontSize: 8.2,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.35,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          certificate.userName,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: CertificateColors.text,
+                            fontSize: compact ? 25 : 30,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -.45,
+                            height: 1.08,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: compact ? 125 : 155,
+                          height: 1.4,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [
+                                Colors.transparent,
+                                CertificateColors.gold,
+                                CertificateColors.cyan,
+                                CertificateColors.gold,
+                                Colors.transparent,
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(100),
+                          ),
+                        ),
+                        SizedBox(height: compact ? 16 : 19),
+                        const Text(
+                          'has successfully completed the required learning '
+                          'activities and assessments for',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: CertificateColors.secondary,
+                            fontSize: 10,
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          certificate.title,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: CertificateColors.text,
+                            fontSize: compact ? 15 : 17,
+                            height: 1.35,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        if (certificate.band > 0) ...[
+                          const SizedBox(height: 15),
+                          _FormalBandBadge(band: certificate.band),
+                        ],
+                        SizedBox(height: compact ? 19 : 24),
+                        Container(
+                          width: double.infinity,
+                          height: 1,
+                          color: CertificateColors.gold.withOpacity(.15),
+                        ),
+                        const SizedBox(height: 16),
+                        compact
+                            ? Column(
+                                children: [
+                                  _FormalCredentialRow(
+                                    certificate: certificate,
+                                  ),
+                                  const SizedBox(height: 15),
+                                  _CertificateVerificationSeal(
+                                    certificate: certificate,
+                                    valid: valid,
+                                  ),
+                                ],
+                              )
+                            : Row(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Expanded(
+                                    child: _FormalCredentialRow(
+                                      certificate: certificate,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 15),
+                                  _CertificateVerificationSeal(
+                                    certificate: certificate,
+                                    valid: valid,
+                                  ),
+                                ],
+                              ),
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 9,
+                          ),
+                          decoration: BoxDecoration(
+                            color: CertificateColors.background.withOpacity(
+                              .46,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: CertificateColors.border.withOpacity(.78),
+                            ),
+                          ),
+                          child: const Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.info_outline_rounded,
+                                size: 14,
+                                color: CertificateColors.muted,
+                              ),
+                              SizedBox(width: 7),
+                              Expanded(
+                                child: Text(
+                                  'IELTS AI Master learning credential. '
+                                  'This is not an official IELTS Test Report Form '
+                                  'or an official IELTS certificate.',
+                                  style: TextStyle(
+                                    color: CertificateColors.muted,
+                                    fontSize: 7.8,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _FormalCertificateHeader extends StatelessWidget {
+  final bool valid;
+  final String status;
+
+  const _FormalCertificateHeader({required this.valid, required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = valid
+        ? CertificateColors.green
+        : CertificateColors.orange;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: CertificateColors.gold.withOpacity(.09),
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: CertificateColors.gold.withOpacity(.30)),
+          ),
+          child: const Icon(
+            Icons.workspace_premium_rounded,
+            color: CertificateColors.gold,
+            size: 27,
+          ),
+        ),
+        const SizedBox(width: 11),
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'IELTS AI MASTER',
+                style: TextStyle(
+                  color: CertificateColors.text,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.55,
+                ),
+              ),
+              SizedBox(height: 3),
+              Text(
+                'DIGITAL LEARNING CREDENTIAL',
+                style: TextStyle(
+                  color: CertificateColors.gold,
+                  fontSize: 7.2,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.15,
                 ),
               ),
             ],
-            const SizedBox(height: 18),
-            const Divider(color: CertificateColors.border),
-            const SizedBox(height: 14),
-            Row(
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+          decoration: BoxDecoration(
+            color: statusColor.withOpacity(.09),
+            borderRadius: BorderRadius.circular(100),
+            border: Border.all(color: statusColor.withOpacity(.25)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                valid ? Icons.verified_rounded : Icons.info_outline_rounded,
+                color: statusColor,
+                size: 12,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                valid ? 'VERIFIED' : status.toUpperCase(),
+                style: TextStyle(
+                  color: statusColor,
+                  fontSize: 7,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: .55,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FormalBandBadge extends StatelessWidget {
+  final double band;
+
+  const _FormalBandBadge({required this.band});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+      decoration: BoxDecoration(
+        color: CertificateColors.cyan.withOpacity(.06),
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(color: CertificateColors.cyan.withOpacity(.18)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.insights_rounded,
+            color: CertificateColors.cyan,
+            size: 14,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            'Estimated Band ${band.toStringAsFixed(1)}',
+            style: const TextStyle(
+              color: CertificateColors.cyan,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FormalCredentialRow extends StatelessWidget {
+  final AppCertificate certificate;
+
+  const _FormalCredentialRow({required this.certificate});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _CredentialField(
+                label: 'ISSUED ON',
+                value: _formatCertificateDate(certificate.issuedAt),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _CredentialField(
+                label: 'CERTIFICATE ID',
+                value: certificate.certificateId,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _CredentialField(
+                label: 'ISSUED BY',
+                value: certificate.issuer,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _CredentialField(
+                label: 'STATUS',
+                value: certificate.status.toUpperCase(),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _CredentialField extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _CredentialField({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 61),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: CertificateColors.background.withOpacity(.43),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: CertificateColors.gold.withOpacity(.10)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: CertificateColors.gold,
+              fontSize: 6.8,
+              fontWeight: FontWeight.w900,
+              letterSpacing: .75,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: CertificateColors.secondary,
+              fontSize: 8.5,
+              height: 1.25,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CertificateVerificationSeal extends StatelessWidget {
+  final AppCertificate certificate;
+  final bool valid;
+
+  const _CertificateVerificationSeal({
+    required this.certificate,
+    required this.valid,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final sealColor = valid
+        ? CertificateColors.green
+        : CertificateColors.orange;
+
+    return Container(
+      constraints: const BoxConstraints(minWidth: 135),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: sealColor.withOpacity(.055),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: sealColor.withOpacity(.19)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 45,
+            height: 45,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: sealColor.withOpacity(.45), width: 1.3),
+            ),
+            child: Icon(
+              valid ? Icons.verified_user_rounded : Icons.shield_outlined,
+              color: sealColor,
+              size: 23,
+            ),
+          ),
+          const SizedBox(width: 9),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: _MiniField(
-                    label: 'Issued On',
-                    value: _formatDate(certificate.issuedAt),
+                Text(
+                  valid ? 'VERIFIED' : 'CHECK STATUS',
+                  style: TextStyle(
+                    color: sealColor,
+                    fontSize: 7.2,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .7,
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _MiniField(
-                    label: 'Certificate ID',
-                    value: certificate.certificateId,
+                const SizedBox(height: 3),
+                Text(
+                  certificate.verificationCode,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: CertificateColors.secondary,
+                    fontSize: 8.2,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'Online verification available',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: CertificateColors.muted,
+                    fontSize: 6.8,
                   ),
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
+}
 
-  static String _formatDate(DateTime? value) {
-    if (value == null) return 'Not available';
-    return '${value.day.toString().padLeft(2, '0')}/'
-        '${value.month.toString().padLeft(2, '0')}/'
-        '${value.year}';
+class _FormalCertificateWatermark extends StatelessWidget {
+  const _FormalCertificateWatermark();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Stack(
+        children: [
+          Center(
+            child: Opacity(
+              opacity: .025,
+              child: Transform.rotate(
+                angle: -.18,
+                child: const Icon(
+                  Icons.workspace_premium_rounded,
+                  color: Colors.white,
+                  size: 205,
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: -80,
+            right: -60,
+            child: Container(
+              width: 190,
+              height: 190,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: CertificateColors.gold.withOpacity(.025),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -85,
+            left: -65,
+            child: Container(
+              width: 200,
+              height: 200,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: CertificateColors.cyan.withOpacity(.022),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
+}
+
+class _CertificateCorner extends StatelessWidget {
+  final bool top;
+  final bool left;
+
+  const _CertificateCorner({required this.top, required this.left});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 28,
+      height: 28,
+      child: CustomPaint(
+        painter: _CertificateCornerPainter(top: top, left: left),
+      ),
+    );
+  }
+}
+
+class _CertificateCornerPainter extends CustomPainter {
+  final bool top;
+  final bool left;
+
+  const _CertificateCornerPainter({required this.top, required this.left});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = CertificateColors.gold.withOpacity(.42)
+      ..strokeWidth = 1.4
+      ..style = PaintingStyle.stroke;
+
+    final path = Path();
+
+    final horizontalY = top ? 0.0 : size.height;
+    final verticalX = left ? 0.0 : size.width;
+
+    if (left) {
+      path.moveTo(0, horizontalY);
+      path.lineTo(size.width * .75, horizontalY);
+    } else {
+      path.moveTo(size.width, horizontalY);
+      path.lineTo(size.width * .25, horizontalY);
+    }
+
+    if (top) {
+      path.moveTo(verticalX, 0);
+      path.lineTo(verticalX, size.height * .75);
+    } else {
+      path.moveTo(verticalX, size.height);
+      path.lineTo(verticalX, size.height * .25);
+    }
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CertificateCornerPainter oldDelegate) {
+    return oldDelegate.top != top || oldDelegate.left != left;
+  }
+}
+
+String _formatCertificateDate(DateTime? value) {
+  if (value == null) return 'Not available';
+
+  const months = <String>[
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  return '${value.day.toString().padLeft(2, '0')} '
+      '${months[value.month - 1]} ${value.year}';
 }
 
 class _VerificationPanel extends StatelessWidget {
@@ -548,17 +1197,30 @@ class _VerificationPanel extends StatelessWidget {
           const SizedBox(height: 18),
           Center(
             child: Container(
-              padding: const EdgeInsets.all(13),
+              padding: const EdgeInsets.all(5),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
+                gradient: const LinearGradient(
+                  colors: [
+                    CertificateColors.gold,
+                    CertificateColors.cyan,
+                    CertificateColors.blue,
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(22),
               ),
-              child: QrImageView(
-                data: certificate.verificationUrl,
-                version: QrVersions.auto,
-                size: 190,
-                backgroundColor: Colors.white,
-                errorCorrectionLevel: QrErrorCorrectLevel.H,
+              child: Container(
+                padding: const EdgeInsets.all(13),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: QrImageView(
+                  data: certificate.verificationUrl,
+                  version: QrVersions.auto,
+                  size: 185,
+                  backgroundColor: Colors.white,
+                  errorCorrectionLevel: QrErrorCorrectLevel.H,
+                ),
               ),
             ),
           ),
@@ -696,11 +1358,19 @@ class _CertificateCard extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 58,
-              height: 58,
+              width: 60,
+              height: 60,
               decoration: BoxDecoration(
                 gradient: CertificateColors.gradient,
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(19),
+                border: Border.all(color: Colors.white.withOpacity(.10)),
+                boxShadow: [
+                  BoxShadow(
+                    color: CertificateColors.cyan.withOpacity(.13),
+                    blurRadius: 16,
+                    offset: const Offset(0, 7),
+                  ),
+                ],
               ),
               child: const Icon(
                 Icons.workspace_premium_rounded,
@@ -867,45 +1537,45 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-class _MiniField extends StatelessWidget {
-  final String label;
-  final String value;
+// class _MiniField extends StatelessWidget {
+//   final String label;
+//   final String value;
 
-  const _MiniField({required this.label, required this.value});
+//   const _MiniField({required this.label, required this.value});
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: CertificateColors.background.withOpacity(.48),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: CertificateColors.border),
-      ),
-      child: Column(
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: CertificateColors.muted,
-              fontSize: 8.5,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: CertificateColors.text,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+//   @override
+//   Widget build(BuildContext context) {
+//     return Container(
+//       padding: const EdgeInsets.all(13),
+//       decoration: BoxDecoration(
+//         color: CertificateColors.background.withOpacity(.48),
+//         borderRadius: BorderRadius.circular(14),
+//         border: Border.all(color: CertificateColors.border),
+//       ),
+//       child: Column(
+//         children: [
+//           Text(
+//             label,
+//             style: const TextStyle(
+//               color: CertificateColors.muted,
+//               fontSize: 8.5,
+//             ),
+//           ),
+//           const SizedBox(height: 4),
+//           Text(
+//             value,
+//             textAlign: TextAlign.center,
+//             style: const TextStyle(
+//               color: CertificateColors.text,
+//               fontSize: 11,
+//               fontWeight: FontWeight.w900,
+//             ),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+// }
 
 class _SectionHeading extends StatelessWidget {
   final IconData icon;
@@ -1197,6 +1867,7 @@ class CertificateColors {
   static const green = Color(0xFF22C55E);
   static const orange = Color(0xFFF59E0B);
   static const red = Color(0xFFEF4444);
+  static const gold = Color(0xFFD6B45A);
 
   static const gradient = LinearGradient(colors: [cyan, blue, violet]);
 }

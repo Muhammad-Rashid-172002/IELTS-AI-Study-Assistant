@@ -88,6 +88,8 @@ class MockTestConfig {
   final String difficulty;
   final DateTime testDate;
   final double targetBand;
+  final int cycleNumber;
+  final int cycleTotalTests;
 
   const MockTestConfig({
     this.mockTestId = '',
@@ -99,6 +101,8 @@ class MockTestConfig {
     required this.difficulty,
     required this.testDate,
     required this.targetBand,
+    this.cycleNumber = 1,
+    this.cycleTotalTests = 1,
   });
 
   List<MockSkill> get skills {
@@ -124,6 +128,8 @@ class MockTestConfig {
       'difficulty': difficulty,
       'testDate': Timestamp.fromDate(testDate),
       'targetBand': targetBand,
+      'cycleNumber': cycleNumber,
+      'cycleTotalTests': cycleTotalTests,
       'skills': skills.map((skill) => skill.value).toList(),
       'totalDurationMinutes': totalDurationMinutes,
     };

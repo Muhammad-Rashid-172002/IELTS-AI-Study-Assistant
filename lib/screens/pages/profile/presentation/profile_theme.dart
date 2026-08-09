@@ -13,6 +13,7 @@ class ProfileColors {
   static const green = Color(0xFF22C55E);
   static const orange = Color(0xFFF59E0B);
   static const red = Color(0xFFEF4444);
+  static const Color primary = Color(0xFF2563EB);
 }
 
 BoxDecoration profilePanel() => BoxDecoration(

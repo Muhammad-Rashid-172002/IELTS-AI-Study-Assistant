@@ -9,6 +9,20 @@ import '../content_queue_service.dart';
 import 'mock_shared_ui.dart';
 import 'mock_test_runner_screen.dart';
 
+int _mockAsInt(dynamic value, {int fallback = 0}) {
+  if (value is int) return value;
+  if (value is num) return value.round();
+  return int.tryParse(value?.toString() ?? '') ?? fallback;
+}
+
+List<String> _mockStringList(dynamic value) {
+  if (value is! List) return const <String>[];
+  return value
+      .map((item) => item.toString().trim())
+      .where((item) => item.isNotEmpty)
+      .toList();
+}
+
 class MockTestSetupScreen extends StatefulWidget {
   const MockTestSetupScreen({super.key});
 
@@ -29,22 +43,135 @@ class _MockTestSetupScreenState extends State<MockTestSetupScreen> {
   double _targetBand = 7;
   DateTime _testDate = DateTime.now();
   bool _loading = false;
-  bool _loadingHistory = true;
+  bool _loadingHistory = false;
+  int _currentCycle = 1;
+  int _cycleTotalTests = 0;
   Set<String> _completedMockIds = <String>{};
+  String _lastPreparedSignature = '';
+  Future<List<PublishedMockTest>>? _preparedCycleFuture;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadCompletedMocks();
+  String get _cyclePoolKey => 'all_published_mocks';
+
+  Future<List<PublishedMockTest>> _prepareCycleTests(
+    List<PublishedMockTest> rawTests,
+  ) async {
+    final tests = _uniquePublishedTests(rawTests)
+      ..sort((a, b) {
+        final titleCompare =
+            a.title.toLowerCase().compareTo(b.title.toLowerCase());
+        if (titleCompare != 0) return titleCompare;
+        return a.id.compareTo(b.id);
+      });
+
+    _cycleTotalTests = tests.length;
+
+    if (tests.isEmpty) {
+      _completedMockIds = <String>{};
+      return const <PublishedMockTest>[];
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _currentCycle = 1;
+      _completedMockIds = <String>{};
+      return tests;
+    }
+
+    final userRef =
+        FirebaseFirestore.instance.collection('users').doc(user.uid);
+    final progressRef =
+        userRef.collection('mock_test_cycles').doc(_cyclePoolKey);
+
+    try {
+      var snapshot =
+          await progressRef.get().timeout(const Duration(seconds: 10));
+
+      if (!snapshot.exists) {
+        final legacyCompleted =
+            await ContentQueueService().completedIds('mock_test');
+
+        final availableIds = tests.map((test) => test.id).toSet();
+        final migrated =
+            legacyCompleted.where(availableIds.contains).toSet();
+
+        await progressRef.set({
+          'poolKey': _cyclePoolKey,
+          'cycleNumber': 1,
+          'completedMockIds': migrated.toList(),
+          'completedCount': migrated.length,
+          'totalMocksAtLastLoad': tests.length,
+          'progressPercent': tests.isEmpty
+              ? 0
+              : ((migrated.length / tests.length) * 100)
+                  .round()
+                  .clamp(0, 100),
+          'cycleCompleted': migrated.length >= tests.length,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        snapshot =
+            await progressRef.get().timeout(const Duration(seconds: 10));
+      }
+
+      final data = snapshot.data() ?? const <String, dynamic>{};
+      var cycleNumber = _mockAsInt(data['cycleNumber'], fallback: 1);
+      var completedIds =
+          _mockStringList(data['completedMockIds']).toSet();
+
+      final availableIds = tests.map((test) => test.id).toSet();
+      completedIds = completedIds.intersection(availableIds);
+
+      var unseen = tests
+          .where((test) => !completedIds.contains(test.id))
+          .toList();
+
+      if (unseen.isEmpty) {
+        cycleNumber += 1;
+        completedIds = <String>{};
+        unseen = [...tests];
+
+        await progressRef.set({
+          'cycleNumber': cycleNumber,
+          'completedMockIds': <String>[],
+          'completedCount': 0,
+          'progressPercent': 0,
+          'cycleCompleted': false,
+          'cycleStartedAt': FieldValue.serverTimestamp(),
+          'lastCycleResetAt': FieldValue.serverTimestamp(),
+          'totalMocksAtLastLoad': tests.length,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+
+      _currentCycle = cycleNumber;
+      _completedMockIds = completedIds;
+
+      return unseen;
+    } catch (error) {
+      debugPrint('Mock test cycle preparation failed: $error');
+      _currentCycle = 1;
+      _completedMockIds = <String>{};
+      return tests;
+    }
   }
 
-  Future<void> _loadCompletedMocks() async {
-    final completed = await ContentQueueService().completedIds('mock_test');
-    if (!mounted) return;
-    setState(() {
-      _completedMockIds = completed;
-      _loadingHistory = false;
-    });
+  Future<List<PublishedMockTest>> _cycleFutureFor(
+    List<PublishedMockTest> rawTests,
+  ) {
+    final ids = _uniquePublishedTests(rawTests)
+        .map((test) => test.id)
+        .toList()
+      ..sort();
+
+    final signature = ids.join('|');
+
+    if (_preparedCycleFuture == null || signature != _lastPreparedSignature) {
+      _lastPreparedSignature = signature;
+      _preparedCycleFuture = _prepareCycleTests(rawTests);
+    }
+
+    return _preparedCycleFuture!;
   }
 
   Future<void> _startMock() async {
@@ -68,6 +195,8 @@ class _MockTestSetupScreenState extends State<MockTestSetupScreen> {
       difficulty: _difficulty,
       testDate: _testDate,
       targetBand: _targetBand,
+      cycleNumber: _currentCycle,
+      cycleTotalTests: _cycleTotalTests,
     );
 
     setState(() => _loading = true);
@@ -172,71 +301,115 @@ class _MockTestSetupScreenState extends State<MockTestSetupScreen> {
 
                     final rawTests =
                         snapshot.data ?? const <PublishedMockTest>[];
-                    if (_loadingHistory) {
-                      return const _PublishedMockStatus(
-                        icon: Icons.history_rounded,
-                        message: 'Checking your completed mock tests...',
-                        showProgress: true,
-                      );
-                    }
-                    final tests = _uniquePublishedTests(rawTests)
-                        .where((test) => !_completedMockIds.contains(test.id))
-                        .toList(growable: false);
-                    _publishedTests = tests;
 
-                    if (tests.isEmpty) {
-                      _selectedMockId = null;
-                      return const _PublishedMockStatus(
-                        icon: Icons.info_outline_rounded,
-                        message:
-                            'No new mock test is available. Completed mocks are hidden and the next mock will appear when the administrator publishes it.',
-                      );
-                    }
+                    return FutureBuilder<List<PublishedMockTest>>(
+                      future: _cycleFutureFor(rawTests),
+                      builder: (context, cycleSnapshot) {
+                        if (cycleSnapshot.connectionState ==
+                                ConnectionState.waiting &&
+                            !cycleSnapshot.hasData) {
+                          return const _PublishedMockStatus(
+                            icon: Icons.history_rounded,
+                            message: 'Preparing your next mock-test cycle...',
+                            showProgress: true,
+                          );
+                        }
 
-                    final selectedId =
-                        tests.any((test) => test.id == _selectedMockId)
-                        ? _selectedMockId!
-                        : tests.first.id;
+                        if (cycleSnapshot.hasError) {
+                          return _PublishedMockStatus(
+                            icon: Icons.error_outline_rounded,
+                            message:
+                                'Your mock-test cycle could not be prepared. ${cycleSnapshot.error}',
+                          );
+                        }
 
-                    if (_selectedMockId != selectedId) {
-                      _selectedMockId = selectedId;
-                      _applyPublishedMock(tests.first, rebuild: false);
-                    }
+                        final tests =
+                            cycleSnapshot.data ?? const <PublishedMockTest>[];
+                        _publishedTests = tests;
 
-                    return DropdownButtonFormField<String>(
-                      key: ValueKey(selectedId),
-                      initialValue: selectedId,
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Published Mock Test',
-                        prefixIcon: Icon(Icons.fact_check_outlined),
-                      ),
-                      items: tests.map((test) {
-                        return DropdownMenuItem<String>(
-                          value: test.id,
-                          child: Text(
-                            '${test.title} • ${test.track.label} • ${test.difficulty}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                        if (tests.isEmpty) {
+                          _selectedMockId = null;
+                          return const _PublishedMockStatus(
+                            icon: Icons.info_outline_rounded,
+                            message:
+                                'No published mock test is available right now.',
+                          );
+                        }
+
+                        final selectedId =
+                            tests.any((test) => test.id == _selectedMockId)
+                            ? _selectedMockId!
+                            : tests.first.id;
+
+                        if (_selectedMockId != selectedId) {
+                          _selectedMockId = selectedId;
+                          _applyPublishedMock(tests.first, rebuild: false);
+                        }
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: double.infinity,
+                              margin: const EdgeInsets.only(bottom: 10),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 9,
+                              ),
+                              decoration: BoxDecoration(
+                                color: MockColors.cyan.withOpacity(.08),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: MockColors.cyan.withOpacity(.22),
+                                ),
+                              ),
+                              child: Text(
+                                'Cycle $_currentCycle • ${tests.length} mock test${tests.length == 1 ? '' : 's'} remaining',
+                                style: const TextStyle(
+                                  color: MockColors.secondary,
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            DropdownButtonFormField<String>(
+                              key: ValueKey('${_currentCycle}_$selectedId'),
+                              initialValue: selectedId,
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Published Mock Test',
+                                prefixIcon: Icon(Icons.fact_check_outlined),
+                              ),
+                              items: tests.map((test) {
+                                return DropdownMenuItem<String>(
+                                  value: test.id,
+                                  child: Text(
+                                    '${test.title} • ${test.track.label} • ${test.difficulty}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: _loading
+                                  ? null
+                                  : (id) {
+                                      if (id == null) return;
+
+                                      PublishedMockTest? selectedTest;
+                                      for (final test in tests) {
+                                        if (test.id == id) {
+                                          selectedTest = test;
+                                          break;
+                                        }
+                                      }
+
+                                      if (selectedTest == null) return;
+                                      _applyPublishedMock(selectedTest);
+                                    },
+                            ),
+                          ],
                         );
-                      }).toList(),
-                      onChanged: _loading
-                          ? null
-                          : (id) {
-                              if (id == null) return;
-
-                              PublishedMockTest? selectedTest;
-                              for (final test in tests) {
-                                if (test.id == id) {
-                                  selectedTest = test;
-                                  break;
-                                }
-                              }
-
-                              if (selectedTest == null) return;
-                              _applyPublishedMock(selectedTest);
-                            },
+                      },
                     );
                   },
                 ),
