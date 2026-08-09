@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:fyproject/data/mock_test_repository.dart';
 import 'package:fyproject/models/mock_test_models.dart';
@@ -8,6 +11,20 @@ import 'package:fyproject/services/mock_timer_controller.dart';
 
 import 'mock_shared_ui.dart';
 import 'mock_test_result_screen.dart';
+
+int _runnerInt(dynamic value, {int fallback = 0}) {
+  if (value is int) return value;
+  if (value is num) return value.round();
+  return int.tryParse(value?.toString() ?? '') ?? fallback;
+}
+
+List<String> _runnerStrings(dynamic value) {
+  if (value is! List) return const <String>[];
+  return value
+      .map((item) => item.toString().trim())
+      .where((item) => item.isNotEmpty)
+      .toList();
+}
 
 class MockTestRunnerScreen extends StatefulWidget {
   final String attemptId;
@@ -246,6 +263,8 @@ class _MockTestRunnerScreenState extends State<MockTestRunnerScreen> {
         skillTimeSpent: _skillTimeSpent,
       );
 
+      await _recordMockCycleCompletion();
+
       if (!mounted) return;
 
       Navigator.pushReplacement(
@@ -256,6 +275,73 @@ class _MockTestRunnerScreenState extends State<MockTestRunnerScreen> {
       );
     } finally {
       if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _recordMockCycleCompletion() async {
+    final user = FirebaseAuth.instance.currentUser;
+    final mockId = widget.config.mockTestId.trim();
+
+    if (user == null || mockId.isEmpty) return;
+
+    final firestore = FirebaseFirestore.instance;
+    final userRef = firestore.collection('users').doc(user.uid);
+    final cycleRef =
+        userRef.collection('mock_test_cycles').doc('all_published_mocks');
+
+    try {
+      await firestore.runTransaction((transaction) async {
+        final snapshot = await transaction.get(cycleRef);
+        final data = snapshot.data() ?? const <String, dynamic>{};
+
+        final storedCycle = _runnerInt(
+          data['cycleNumber'],
+          fallback: widget.config.cycleNumber,
+        );
+
+        if (storedCycle != widget.config.cycleNumber) return;
+
+        final completedIds =
+            _runnerStrings(data['completedMockIds']).toSet();
+        completedIds.add(mockId);
+
+        final total = math.max(1, widget.config.cycleTotalTests);
+        final completedCount = math.min(completedIds.length, total);
+        final progressPercent =
+            ((completedCount / total) * 100).round().clamp(0, 100);
+
+        transaction.set(
+          cycleRef,
+          {
+            'poolKey': 'all_published_mocks',
+            'cycleNumber': widget.config.cycleNumber,
+            'completedMockIds': completedIds.toList(),
+            'completedCount': completedCount,
+            'totalMocksAtLastLoad': total,
+            'progressPercent': progressPercent,
+            'lastCompletedMockId': mockId,
+            'lastCompletedMockTitle': widget.config.mockTitle,
+            'cycleCompleted': completedCount >= total,
+            'lastCompletedAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+
+        transaction.set(
+          userRef,
+          {
+            'lastMockCycle': widget.config.cycleNumber,
+            'lastMockTestId': mockId,
+            'lastMockTestAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      }).timeout(const Duration(seconds: 15));
+    } catch (error, stackTrace) {
+      debugPrint('Mock cycle completion update failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
     }
   }
 

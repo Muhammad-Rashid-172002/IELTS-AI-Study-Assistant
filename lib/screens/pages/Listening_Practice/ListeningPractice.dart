@@ -264,6 +264,7 @@ class _ListeningTestBrowserScreenState extends State<ListeningTestBrowserScreen>
   bool _isPremium = false;
   int _dailyUsed = 0;
   int _availableCount = 0;
+  int _currentCycle = 1;
 
   String get _title =>
       widget.questionType ?? widget.mode?.label ?? 'Listening Practice';
@@ -399,6 +400,8 @@ class _ListeningTestBrowserScreenState extends State<ListeningTestBrowserScreen>
               child: FullListeningPracticeScreen(
                 tests: fullMockTests,
                 progressKey: _progressKey,
+                cycleNumber: _currentCycle,
+                cycleTotalTests: tests.length,
               ),
             ),
           ),
@@ -432,6 +435,8 @@ class _ListeningTestBrowserScreenState extends State<ListeningTestBrowserScreen>
             child: ListeningPracticeScreen(
               test: selectedTest,
               progressKey: _progressKey,
+              cycleNumber: _currentCycle,
+              cycleTotalTests: tests.length,
             ),
           ),
         ),
@@ -541,21 +546,13 @@ class _ListeningTestBrowserScreenState extends State<ListeningTestBrowserScreen>
   Future<ListeningTest?> _selectBestTest(List<ListeningTest> tests) async {
     if (tests.isEmpty) return null;
 
-    final orderedTests = [...tests]
-      ..sort((a, b) {
-        final sectionCompare = a.section.compareTo(b.section);
-        if (sectionCompare != 0) return sectionCompare;
-
-        final titleCompare = a.title.toLowerCase().compareTo(
-          b.title.toLowerCase(),
-        );
-        if (titleCompare != 0) return titleCompare;
-
-        return a.id.compareTo(b.id);
-      });
-
+    final orderedTests = [...tests]..sort(_compareListeningTestsNaturally);
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return orderedTests.first;
+
+    if (user == null || !OfflineContentService.instance.isOnline) {
+      _currentCycle = 1;
+      return orderedTests.first;
+    }
 
     try {
       final progressRef = FirebaseFirestore.instance
@@ -564,35 +561,90 @@ class _ListeningTestBrowserScreenState extends State<ListeningTestBrowserScreen>
           .collection('listening_progress')
           .doc(_progressKey);
 
-      final progressSnapshot = await progressRef.get();
-      final data = progressSnapshot.data() ?? const <String, dynamic>{};
+      var snapshot = await progressRef.get();
+      var data = snapshot.data() ?? const <String, dynamic>{};
 
-      final completedIds = data['completedTestIds'] is List
-          ? (data['completedTestIds'] as List)
-                .map((item) => item.toString())
-                .where((id) => id.isNotEmpty)
-                .toSet()
-          : <String>{};
+      if (!snapshot.exists) {
+        final legacyCompletedIds = <String>{};
+        final availableIds = orderedTests.map((test) => test.id).toSet();
 
-      final unseenTests = orderedTests
+        try {
+          final history = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .collection('listening_results')
+              .where('progressKey', isEqualTo: _progressKey)
+              .get()
+              .timeout(const Duration(seconds: 10));
+
+          for (final doc in history.docs) {
+            final resultData = doc.data();
+            final singleId = (resultData['testId'] ?? '').toString().trim();
+
+            if (availableIds.contains(singleId)) {
+              legacyCompletedIds.add(singleId);
+            }
+
+            legacyCompletedIds.addAll(
+              _asStringList(resultData['testIds']).where(availableIds.contains),
+            );
+          }
+        } catch (error) {
+          debugPrint('Listening cycle migration lookup failed: $error');
+        }
+
+        await progressRef.set({
+          'progressKey': _progressKey,
+          'cycleNumber': 1,
+          'completedTestIds': legacyCompletedIds.toList(),
+          'completedCount': legacyCompletedIds.length,
+          'totalTestsAtLastLoad': orderedTests.length,
+          'cycleResultCount': 0,
+          'cycleBandSum': 0.0,
+          'cycleAverageBand': 0.0,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        snapshot = await progressRef.get();
+        data = snapshot.data() ?? const <String, dynamic>{};
+      }
+
+      var cycleNumber = _asInt(data['cycleNumber'], fallback: 1);
+      var completedIds = _asStringList(data['completedTestIds']).toSet();
+
+      final availableIds = orderedTests.map((test) => test.id).toSet();
+      completedIds = completedIds.intersection(availableIds);
+
+      var unseenTests = orderedTests
           .where((test) => !completedIds.contains(test.id))
           .toList();
 
-      if (unseenTests.isNotEmpty) {
-        return unseenTests.first;
+      if (unseenTests.isEmpty) {
+        cycleNumber += 1;
+        unseenTests = [...orderedTests];
+
+        await progressRef.set({
+          'cycleNumber': cycleNumber,
+          'completedTestIds': <String>[],
+          'completedCount': 0,
+          'cycleResultCount': 0,
+          'cycleBandSum': 0.0,
+          'cycleAverageBand': 0.0,
+          'cycleCompleted': false,
+          'cycleStartedAt': FieldValue.serverTimestamp(),
+          'lastCycleResetAt': FieldValue.serverTimestamp(),
+          'totalTestsAtLastLoad': orderedTests.length,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
       }
 
-      // All tests in this selected pool have been completed.
-      // Reset the cycle, then start again from the first published test.
-      await progressRef.set({
-        'completedTestIds': <String>[],
-        'cycle': FieldValue.increment(1),
-        'lastCycleResetAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      return orderedTests.first;
-    } catch (_) {
+      _currentCycle = cycleNumber;
+      return unseenTests.first;
+    } catch (error, stackTrace) {
+      debugPrint('Listening cycle selection failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      _currentCycle = 1;
       return orderedTests.first;
     }
   }
@@ -600,24 +652,104 @@ class _ListeningTestBrowserScreenState extends State<ListeningTestBrowserScreen>
   Future<List<ListeningTest>> _selectFullMockTests(
     List<ListeningTest> tests,
   ) async {
-    final selected = <ListeningTest>[];
+    if (tests.isEmpty) return const <ListeningTest>[];
 
-    for (int section = 1; section <= 4; section++) {
-      final sectionTests = tests
-          .where((test) => test.section == section)
-          .toList();
+    final orderedTests = [...tests]..sort(_compareListeningTestsNaturally);
+    final user = FirebaseAuth.instance.currentUser;
 
-      if (sectionTests.isEmpty) {
-        return const <ListeningTest>[];
-      }
-
-      final next = await _selectBestTest(sectionTests);
-      if (next == null) return const <ListeningTest>[];
-      selected.add(next);
+    if (user == null || !OfflineContentService.instance.isOnline) {
+      _currentCycle = 1;
+      return _firstListeningTestPerSection(orderedTests);
     }
 
-    selected.sort((a, b) => a.section.compareTo(b.section));
-    return selected;
+    final progressRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('listening_progress')
+        .doc(_progressKey);
+
+    try {
+      var snapshot = await progressRef.get();
+      var data = snapshot.data() ?? const <String, dynamic>{};
+
+      if (!snapshot.exists) {
+        await progressRef.set({
+          'progressKey': _progressKey,
+          'cycleNumber': 1,
+          'completedTestIds': <String>[],
+          'completedCount': 0,
+          'totalTestsAtLastLoad': orderedTests.length,
+          'cycleResultCount': 0,
+          'cycleBandSum': 0.0,
+          'cycleAverageBand': 0.0,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        snapshot = await progressRef.get();
+        data = snapshot.data() ?? const <String, dynamic>{};
+      }
+
+      var cycleNumber = _asInt(data['cycleNumber'], fallback: 1);
+      var completedIds = _asStringList(data['completedTestIds']).toSet();
+
+      final availableIds = orderedTests.map((test) => test.id).toSet();
+      completedIds = completedIds.intersection(availableIds);
+
+      List<ListeningTest> buildSelection(Set<String> completed) {
+        final selected = <ListeningTest>[];
+
+        for (int section = 1; section <= 4; section++) {
+          final sectionTests = orderedTests
+              .where((test) => test.section == section)
+              .toList();
+
+          if (sectionTests.isEmpty) return const <ListeningTest>[];
+
+          final unseen = sectionTests
+              .where((test) => !completed.contains(test.id))
+              .toList();
+
+          if (unseen.isEmpty) return const <ListeningTest>[];
+
+          selected.add(unseen.first);
+        }
+
+        selected.sort((a, b) => a.section.compareTo(b.section));
+        return selected;
+      }
+
+      var selected = buildSelection(completedIds);
+
+      if (selected.length != 4) {
+        cycleNumber += 1;
+        completedIds = <String>{};
+
+        await progressRef.set({
+          'cycleNumber': cycleNumber,
+          'completedTestIds': <String>[],
+          'completedCount': 0,
+          'cycleResultCount': 0,
+          'cycleBandSum': 0.0,
+          'cycleAverageBand': 0.0,
+          'cycleCompleted': false,
+          'cycleStartedAt': FieldValue.serverTimestamp(),
+          'lastCycleResetAt': FieldValue.serverTimestamp(),
+          'totalTestsAtLastLoad': orderedTests.length,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        selected = buildSelection(completedIds);
+      }
+
+      _currentCycle = cycleNumber;
+      return selected;
+    } catch (error, stackTrace) {
+      debugPrint('Full Listening cycle selection failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      _currentCycle = 1;
+      return _firstListeningTestPerSection(orderedTests);
+    }
   }
 
   @override
@@ -934,11 +1066,15 @@ class _PreparationStep extends StatelessWidget {
 class FullListeningPracticeScreen extends StatefulWidget {
   final List<ListeningTest> tests;
   final String progressKey;
+  final int cycleNumber;
+  final int cycleTotalTests;
 
   const FullListeningPracticeScreen({
     super.key,
     required this.tests,
     required this.progressKey,
+    this.cycleNumber = 1,
+    this.cycleTotalTests = 1,
   });
 
   @override
@@ -1333,6 +1469,8 @@ class _FullListeningPracticeScreenState
       'title': combinedTest.title,
       'mode': 'full',
       'progressKey': widget.progressKey,
+      'cycleNumber': widget.cycleNumber,
+      'cycleTotalTests': widget.cycleTotalTests,
       'estimatedBand': result.estimatedBand,
       'rawScore': result.rawScore,
       'totalQuestions': result.totalQuestions,
@@ -1367,6 +1505,8 @@ class _FullListeningPracticeScreenState
           'title': combinedTest.title,
           'mode': 'full',
           'progressKey': widget.progressKey,
+          'cycleNumber': widget.cycleNumber,
+          'cycleTotalTests': widget.cycleTotalTests,
           'rawScore': result.rawScore,
           'totalQuestions': result.totalQuestions,
           'estimatedBand': result.estimatedBand,
@@ -1389,6 +1529,9 @@ class _FullListeningPracticeScreenState
         await ListeningAccessManager.recordCompletion(
           progressKey: widget.progressKey,
           completedTestIds: _tests.map((test) => test.id).toList(),
+          cycleNumber: widget.cycleNumber,
+          totalTests: widget.cycleTotalTests,
+          band: result.estimatedBand,
         );
         await OfflineContentService.instance.markCompleted(
           module: 'listening',
@@ -1648,11 +1791,15 @@ class _FullSectionBanner extends StatelessWidget {
 class ListeningPracticeScreen extends StatefulWidget {
   final ListeningTest test;
   final String progressKey;
+  final int cycleNumber;
+  final int cycleTotalTests;
 
   const ListeningPracticeScreen({
     super.key,
     required this.test,
     required this.progressKey,
+    this.cycleNumber = 1,
+    this.cycleTotalTests = 1,
   });
 
   @override
@@ -1906,6 +2053,8 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen> {
       'mode': widget.test.mode,
       'section': widget.test.section,
       'progressKey': widget.progressKey,
+      'cycleNumber': widget.cycleNumber,
+      'cycleTotalTests': widget.cycleTotalTests,
       'estimatedBand': result.estimatedBand,
       'rawScore': result.rawScore,
       'totalQuestions': result.totalQuestions,
@@ -1940,6 +2089,8 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen> {
           'mode': widget.test.mode,
           'section': widget.test.section,
           'progressKey': widget.progressKey,
+          'cycleNumber': widget.cycleNumber,
+          'cycleTotalTests': widget.cycleTotalTests,
           'rawScore': result.rawScore,
           'totalQuestions': result.totalQuestions,
           'estimatedBand': result.estimatedBand,
@@ -1962,6 +2113,9 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen> {
         await ListeningAccessManager.recordCompletion(
           progressKey: widget.progressKey,
           completedTestIds: <String>[widget.test.id],
+          cycleNumber: widget.cycleNumber,
+          totalTests: widget.cycleTotalTests,
+          band: result.estimatedBand,
         );
 
         await OfflineContentService.instance.markCompleted(
@@ -5001,6 +5155,9 @@ class ListeningAccessManager {
   static Future<void> recordCompletion({
     required String progressKey,
     required List<String> completedTestIds,
+    required int cycleNumber,
+    required int totalTests,
+    required double band,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || !OfflineContentService.instance.isOnline) return;
@@ -5011,18 +5168,124 @@ class ListeningAccessManager {
         .collection('listening_progress')
         .doc(progressKey);
 
-    await progressRef.set({
-      'completedTestIds': FieldValue.arrayUnion(completedTestIds),
-      'lastCompletedTestIds': completedTestIds,
-      'lastCompletedAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    try {
+      await firestore
+          .runTransaction((transaction) async {
+            final snapshot = await transaction.get(progressRef);
+            final data = snapshot.data() ?? const <String, dynamic>{};
 
-    await userRef.set({
-      'lastListeningActivityAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+            final storedCycle = _asInt(
+              data['cycleNumber'],
+              fallback: cycleNumber,
+            );
+
+            if (storedCycle != cycleNumber) return;
+
+            final completedIds = _asStringList(
+              data['completedTestIds'],
+            ).toSet();
+            final beforeCount = completedIds.length;
+
+            completedIds.addAll(
+              completedTestIds
+                  .map((id) => id.trim())
+                  .where((id) => id.isNotEmpty),
+            );
+
+            final newlyAdded = completedIds.length > beforeCount;
+            final previousResultCount = _asInt(
+              data['cycleResultCount'],
+              fallback: 0,
+            );
+            final previousBandSum = _asDouble(data['cycleBandSum']);
+
+            final nextResultCount = newlyAdded
+                ? previousResultCount + 1
+                : previousResultCount;
+            final nextBandSum = newlyAdded
+                ? previousBandSum + band
+                : previousBandSum;
+
+            final averageBand = nextResultCount == 0
+                ? 0.0
+                : nextBandSum / nextResultCount;
+
+            final safeTotal = math.max(1, totalTests);
+            final completedCount = math.min(completedIds.length, safeTotal);
+            final progressPercent = ((completedCount / safeTotal) * 100)
+                .round()
+                .clamp(0, 100);
+
+            transaction.set(progressRef, {
+              'progressKey': progressKey,
+              'cycleNumber': cycleNumber,
+              'completedTestIds': completedIds.toList(),
+              'completedCount': completedCount,
+              'totalTestsAtLastLoad': safeTotal,
+              'progressPercent': progressPercent,
+              'lastCompletedTestIds': completedTestIds,
+              'lastBand': band,
+              'cycleResultCount': nextResultCount,
+              'cycleBandSum': nextBandSum,
+              'cycleAverageBand': double.parse(averageBand.toStringAsFixed(2)),
+              'cycleCompleted': completedCount >= safeTotal,
+              'lastCompletedAt': FieldValue.serverTimestamp(),
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+
+            transaction.set(userRef, {
+              'listeningBand': band,
+              'lastListeningCycle': cycleNumber,
+              'lastListeningActivityAt': FieldValue.serverTimestamp(),
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+          })
+          .timeout(const Duration(seconds: 15));
+    } catch (error, stackTrace) {
+      debugPrint('Listening cycle completion update failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
   }
+}
+
+int _compareListeningTestsNaturally(ListeningTest a, ListeningTest b) {
+  final sectionCompare = a.section.compareTo(b.section);
+  if (sectionCompare != 0) return sectionCompare;
+
+  final aNumber = _firstListeningNumber(a.title);
+  final bNumber = _firstListeningNumber(b.title);
+
+  if (aNumber != null && bNumber != null && aNumber != bNumber) {
+    return aNumber.compareTo(bNumber);
+  }
+
+  final titleCompare = a.title.toLowerCase().compareTo(b.title.toLowerCase());
+  if (titleCompare != 0) return titleCompare;
+
+  return a.id.compareTo(b.id);
+}
+
+int? _firstListeningNumber(String value) {
+  final match = RegExp(r'\d+').firstMatch(value);
+  return match == null ? null : int.tryParse(match.group(0)!);
+}
+
+List<ListeningTest> _firstListeningTestPerSection(List<ListeningTest> tests) {
+  final selected = <ListeningTest>[];
+
+  for (int section = 1; section <= 4; section++) {
+    final sectionTests = tests.where((test) => test.section == section).toList()
+      ..sort(_compareListeningTestsNaturally);
+
+    if (sectionTests.isEmpty) {
+      return const <ListeningTest>[];
+    }
+
+    selected.add(sectionTests.first);
+  }
+
+  selected.sort((a, b) => a.section.compareTo(b.section));
+  return selected;
 }
 
 String _safeProgressKey(String value) {
