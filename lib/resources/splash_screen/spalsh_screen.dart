@@ -4,8 +4,8 @@ import 'dart:math' as math;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:fyproject/Language_selection_screen/language_selection_screen.dart';
 import 'package:fyproject/resources/bottom_navigation_bar/botton_navigation.dart';
+import 'package:fyproject/screens/Onboarding_Screen/Onboarding_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -96,7 +96,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     final Widget nextScreen = FirebaseAuth.instance.currentUser != null
         ? const IELTSMainNavigation()
-        : const LanguageSelectionScreen();
+        : const PremiumOnboardingScreen();
 
     Navigator.of(context).pushReplacement(
       PageRouteBuilder<void>(
