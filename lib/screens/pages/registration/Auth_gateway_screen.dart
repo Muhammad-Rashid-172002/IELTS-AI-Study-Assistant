@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -9,6 +10,37 @@ import 'package:fyproject/resources/bottom_navigation_bar/botton_navigation.dart
 import 'package:fyproject/screens/pages/9-step%20premium%20profile%20setup%20wizard/initial_profile_setup.dart';
 
 enum AuthMode { createAccount, signIn }
+
+final FirebaseFunctions _authEmailFunctions = FirebaseFunctions.instanceFor(
+  region: 'us-central1',
+);
+
+Future<void> _sendCustomVerificationEmail() async {
+  final callable = _authEmailFunctions.httpsCallable(
+    'sendCustomVerificationEmail',
+    options: HttpsCallableOptions(timeout: const Duration(seconds: 60)),
+  );
+
+  await callable.call<void>();
+}
+
+Future<void> _sendCustomPasswordResetEmail(String email) async {
+  final callable = _authEmailFunctions.httpsCallable(
+    'sendCustomPasswordResetEmail',
+    options: HttpsCallableOptions(timeout: const Duration(seconds: 60)),
+  );
+
+  await callable.call<void>({'email': email.trim().toLowerCase()});
+}
+
+String _functionsErrorMessage(
+  FirebaseFunctionsException error, {
+  required String fallback,
+}) {
+  final message = error.message?.trim();
+  if (message != null && message.isNotEmpty) return message;
+  return fallback;
+}
 
 class AuthenticationGatewayScreen extends StatefulWidget {
   final AuthMode initialMode;
@@ -171,7 +203,6 @@ class _CreateAccountFormState extends State<CreateAccountForm> {
       }
 
       await user.updateDisplayName(_nameController.text.trim());
-      await user.sendEmailVerification();
 
       await _firestore.collection('users').doc(user.uid).set({
         'uid': user.uid,
@@ -198,12 +229,23 @@ class _CreateAccountFormState extends State<CreateAccountForm> {
 
       await _recordLoginEvent(user: user, method: 'password_registration');
 
+      var verificationEmailSent = true;
+
+      try {
+        await _sendCustomVerificationEmail();
+      } on FirebaseFunctionsException {
+        verificationEmailSent = false;
+      } catch (_) {
+        verificationEmailSent = false;
+      }
+
       if (!mounted) return;
 
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => EmailVerificationScreen(
             email: user.email ?? _emailController.text.trim(),
+            initialEmailSent: verificationEmailSent,
           ),
         ),
       );
@@ -605,10 +647,7 @@ class _SignInFormState extends State<SignInForm> {
       backgroundColor: Colors.transparent,
       useSafeArea: true,
       builder: (sheetContext) {
-        return _ForgotPasswordSheet(
-          initialEmail: _emailController.text.trim(),
-          auth: _auth,
-        );
+        return _ForgotPasswordSheet(initialEmail: _emailController.text.trim());
       },
     );
 
@@ -720,8 +759,13 @@ class _SignInFormState extends State<SignInForm> {
 
 class EmailVerificationScreen extends StatefulWidget {
   final String email;
+  final bool initialEmailSent;
 
-  const EmailVerificationScreen({super.key, required this.email});
+  const EmailVerificationScreen({
+    super.key,
+    required this.email,
+    this.initialEmailSent = true,
+  });
 
   @override
   State<EmailVerificationScreen> createState() =>
@@ -788,11 +832,18 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     setState(() => _isSending = true);
 
     try {
-      await FirebaseAuth.instance.currentUser?.sendEmailVerification();
+      await _sendCustomVerificationEmail();
       _startResendTimer();
       _message('Verification email sent again.');
-    } on FirebaseAuthException catch (error) {
-      _message(_authErrorMessage(error));
+    } on FirebaseFunctionsException catch (error) {
+      _message(
+        _functionsErrorMessage(
+          error,
+          fallback: 'Verification email could not be sent right now.',
+        ),
+      );
+    } catch (_) {
+      _message('Verification email could not be sent right now.');
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
@@ -873,7 +924,9 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                       const SizedBox(height: 11),
 
                       Text(
-                        'We sent a verification link to\n${widget.email}',
+                        widget.initialEmailSent
+                            ? 'We sent a secure verification link to\n${widget.email}'
+                            : 'Your account was created, but the verification email could not be delivered.\nUse Resend Verification Email below.',
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           color: AuthColors.mutedText,
@@ -2100,9 +2153,8 @@ String _authErrorMessage(FirebaseAuthException error) {
 
 class _ForgotPasswordSheet extends StatefulWidget {
   final String initialEmail;
-  final FirebaseAuth auth;
 
-  const _ForgotPasswordSheet({required this.initialEmail, required this.auth});
+  const _ForgotPasswordSheet({required this.initialEmail});
 
   @override
   State<_ForgotPasswordSheet> createState() => _ForgotPasswordSheetState();
@@ -2147,15 +2199,13 @@ class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
     setState(() => _sending = true);
 
     try {
-      await widget.auth.sendPasswordResetEmail(email: email);
+      await _sendCustomPasswordResetEmail(email);
 
       if (!mounted) return;
 
-      // Keyboard pehle close hoga.
       FocusScope.of(context).unfocus();
-
       Navigator.of(context).pop(email);
-    } on FirebaseAuthException catch (error) {
+    } on FirebaseFunctionsException catch (error) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context)
@@ -2164,7 +2214,12 @@ class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
           SnackBar(
             behavior: SnackBarBehavior.floating,
             backgroundColor: AuthColors.error,
-            content: Text(_authErrorMessage(error)),
+            content: Text(
+              _functionsErrorMessage(
+                error,
+                fallback: 'Password reset email could not be sent right now.',
+              ),
+            ),
           ),
         );
     } catch (_) {
