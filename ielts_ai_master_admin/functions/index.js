@@ -3,6 +3,8 @@ const {GoogleAuth} = require("google-auth-library");
 const textToSpeech = require("@google-cloud/text-to-speech");
 const {getStorage, getDownloadURL} =
   require("firebase-admin/storage");
+const {getAuth} = require("firebase-admin/auth");
+const nodemailer = require("nodemailer");
 
 const {setGlobalOptions} =
   require("firebase-functions/v2/options");
@@ -37,6 +39,7 @@ const storage = getStorage();
 const bucket = storage.bucket();
 const ttsClient = new textToSpeech.TextToSpeechClient();
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
+const smtpAppPassword = defineSecret("SMTP_APP_PASSWORD");
 
 const GOOGLE_PLAY_PACKAGE_NAME = "com.rashidapps.ieltsaimaster";
 const GOOGLE_PLAY_PRODUCT_IDS = new Set([
@@ -116,6 +119,360 @@ setGlobalOptions({
   timeoutSeconds: 540,
   memory: "1GiB",
 });
+
+
+/**
+ * Sends a premium branded verification email for the currently signed-in user.
+ * Firebase Admin generates the secure verification action link; Gmail/Workspace
+ * SMTP is used only for delivery. The SMTP app password stays in Secret Manager.
+ */
+exports.sendCustomVerificationEmail = onCall(
+    {
+      secrets: [smtpAppPassword],
+      timeoutSeconds: 60,
+      memory: "256MiB",
+    },
+    async (request) => {
+      if (!request.auth) {
+        throw new HttpsError(
+            "unauthenticated",
+            "You must be signed in to request email verification.",
+        );
+      }
+
+      const uid = request.auth.uid;
+      const auth = getAuth();
+      const user = await auth.getUser(uid);
+
+      if (!user.email) {
+        throw new HttpsError(
+            "failed-precondition",
+            "No email address is associated with this account.",
+        );
+      }
+
+      if (user.emailVerified) {
+        return {
+          success: true,
+          alreadyVerified: true,
+          message: "Your email address is already verified.",
+        };
+      }
+
+      const displayName = String(user.displayName || "").trim();
+      const firstName = displayName ? displayName.split(/\s+/)[0] : "there";
+      const email = user.email.trim();
+
+      try {
+        const verificationLink = await auth.generateEmailVerificationLink(
+            email,
+            {
+              url: "https://ielts-ai-study-assistant.web.app/",
+              handleCodeInApp: false,
+            },
+        );
+
+        const transporter = nodemailer.createTransport({
+          host: "smtp.gmail.com",
+          port: 465,
+          secure: true,
+          auth: {
+            user: "ceo@korvenzatech.com",
+            pass: smtpAppPassword.value(),
+          },
+        });
+
+        await transporter.sendMail({
+          from: '"IELTS AI Master" <noreply@korvenzatech.com>',
+          to: email,
+          replyTo: "info@korvenzatech.com",
+          subject: "Verify your email | IELTS AI Master",
+          text:
+            `Hi ${firstName},\n\n` +
+            "Welcome to IELTS AI Master. Please verify your email address " +
+            "to secure your account and continue.\n\n" +
+            `${verificationLink}\n\n` +
+            "This verification link is intended only for you. If you did not " +
+            "create an IELTS AI Master account, you can safely ignore this email.\n\n" +
+            "IELTS AI Master\nPowered by KorvenzaTech",
+          html: buildVerificationEmailHtml({
+            firstName,
+            verificationLink,
+          }),
+        });
+
+        logger.info("Custom verification email sent.", {uid});
+
+        return {
+          success: true,
+          alreadyVerified: false,
+          message: "Verification email sent successfully.",
+        };
+      } catch (error) {
+        logger.error("Custom verification email failed.", {
+          uid,
+          error: safeErrorMessage(error),
+        });
+
+        throw new HttpsError(
+            "internal",
+            "We could not send the verification email right now. Please try again.",
+        );
+      }
+    },
+);
+
+function buildVerificationEmailHtml({firstName, verificationLink}) {
+  const safeName = escapeEmailHtml(firstName);
+  const safeLink = escapeEmailHtml(verificationLink);
+  const year = new Date().getUTCFullYear();
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+  <title>Verify your email</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f7fb;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#0f172a;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Verify your email to finish setting up your IELTS AI Master account.</div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f4f7fb;padding:40px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:620px;">
+        <tr><td style="padding:0 8px 22px;text-align:center;">
+          <div style="font-size:24px;font-weight:800;letter-spacing:-0.6px;color:#0b1220;">IELTS <span style="color:#2563eb;">AI Master</span></div>
+          <div style="margin-top:6px;font-size:12px;letter-spacing:1.8px;text-transform:uppercase;color:#64748b;">Learn · Practice · Improve</div>
+        </td></tr>
+        <tr><td style="background:#ffffff;border:1px solid #e5eaf1;border-radius:24px;overflow:hidden;box-shadow:0 18px 50px rgba(15,23,42,.08);">
+          <div style="height:6px;background:linear-gradient(90deg,#2563eb,#7c3aed,#06b6d4);"></div>
+          <div style="padding:46px 46px 40px;">
+            <div style="width:56px;height:56px;line-height:56px;text-align:center;border-radius:16px;background:#eff6ff;color:#2563eb;font-size:26px;font-weight:800;margin-bottom:28px;">✓</div>
+            <h1 style="margin:0 0 14px;font-size:30px;line-height:1.2;letter-spacing:-.8px;color:#0f172a;">Verify your email address</h1>
+            <p style="margin:0 0 18px;font-size:16px;line-height:1.75;color:#475569;">Hi ${safeName},</p>
+            <p style="margin:0 0 28px;font-size:16px;line-height:1.75;color:#475569;">Welcome to <strong style="color:#0f172a;">IELTS AI Master</strong>. Confirm your email address to secure your account and unlock your learning experience.</p>
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td style="border-radius:12px;background:#2563eb;">
+              <a href="${safeLink}" style="display:inline-block;padding:15px 28px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:12px;">Verify email address</a>
+            </td></tr></table>
+            <p style="margin:28px 0 0;font-size:13px;line-height:1.7;color:#94a3b8;">For your security, use the button above only if you created this account. If you did not sign up for IELTS AI Master, no action is required.</p>
+            <div style="margin-top:30px;padding-top:26px;border-top:1px solid #edf0f4;">
+              <p style="margin:0 0 8px;font-size:12px;font-weight:700;color:#64748b;">Button not working?</p>
+              <p style="margin:0;font-size:11px;line-height:1.6;color:#94a3b8;word-break:break-all;">${safeLink}</p>
+            </div>
+          </div>
+        </td></tr>
+        <tr><td style="padding:26px 20px 0;text-align:center;">
+          <p style="margin:0 0 7px;font-size:12px;color:#64748b;">IELTS AI Master · Powered by KorvenzaTech</p>
+          <p style="margin:0;font-size:11px;color:#94a3b8;">© ${year} KorvenzaTech. All rights reserved.</p>
+          <p style="margin:10px 0 0;font-size:10px;line-height:1.5;color:#a8b1c0;">IELTS AI Master is an independent preparation platform and is not affiliated with or endorsed by IELTS, Cambridge University Press & Assessment, British Council, or IDP.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+function escapeEmailHtml(value) {
+  return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+}
+
+
+
+/**
+ * Sends a premium branded password-reset email.
+ *
+ * This callable intentionally does not require an authenticated Firebase user,
+ * because users normally request a password reset while signed out.
+ * To reduce account-enumeration risk, the public response is generic whether
+ * or not the supplied address belongs to a Firebase account.
+ */
+exports.sendCustomPasswordResetEmail = onCall(
+    {
+      secrets: [smtpAppPassword],
+      timeoutSeconds: 60,
+      memory: "256MiB",
+    },
+    async (request) => {
+      const email = String(request.data?.email || "").trim().toLowerCase();
+
+      if (!isValidEmailAddress(email)) {
+        throw new HttpsError(
+            "invalid-argument",
+            "Please enter a valid email address.",
+        );
+      }
+
+      const genericResponse = {
+        success: true,
+        message:
+          "If an IELTS AI Master account exists for this email, " +
+          "password reset instructions have been sent.",
+      };
+
+      const auth = getAuth();
+
+      try {
+        // Check server-side only. Never reveal account existence to the caller.
+        const user = await auth.getUserByEmail(email);
+
+        const resetLink = await auth.generatePasswordResetLink(
+            email,
+            {
+              url: "https://ielts-ai-study-assistant.web.app/",
+              handleCodeInApp: false,
+            },
+        );
+
+        const displayName = String(user.displayName || "").trim();
+        const firstName = displayName ? displayName.split(/\s+/)[0] : "there";
+
+        const transporter = createKorvenzaMailTransport();
+
+        await transporter.sendMail({
+          from: '"IELTS AI Master" <noreply@korvenzatech.com>',
+          to: email,
+          replyTo: "info@korvenzatech.com",
+          subject: "Reset your password | IELTS AI Master",
+          text:
+            `Hi ${firstName},\n\n` +
+            "We received a request to reset the password for your " +
+            "IELTS AI Master account.\n\n" +
+            `${resetLink}\n\n` +
+            "If you did not request a password reset, you can safely ignore " +
+            "this email. Your password will remain unchanged.\n\n" +
+            "For your security, never share this link with anyone.\n\n" +
+            "IELTS AI Master\nPowered by KorvenzaTech",
+          html: buildPasswordResetEmailHtml({
+            firstName,
+            resetLink,
+          }),
+        });
+
+        logger.info("Custom password reset email sent.", {
+          uid: user.uid,
+        });
+
+        return genericResponse;
+      } catch (error) {
+        const code = String(error?.code || "");
+
+        // Do not reveal whether an account exists for the supplied email.
+        if (code === "auth/user-not-found") {
+          logger.info("Password reset requested for unknown email.");
+          return genericResponse;
+        }
+
+        logger.error("Custom password reset email failed.", {
+          error: safeErrorMessage(error),
+        });
+
+        throw new HttpsError(
+            "internal",
+            "We could not process the password reset request right now. " +
+            "Please try again.",
+        );
+      }
+    },
+);
+
+
+function createKorvenzaMailTransport() {
+  return nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
+    auth: {
+      user: "ceo@korvenzatech.com",
+      pass: smtpAppPassword.value(),
+    },
+  });
+}
+
+
+function buildPasswordResetEmailHtml({firstName, resetLink}) {
+  const safeName = escapeEmailHtml(firstName);
+  const safeLink = escapeEmailHtml(resetLink);
+  const year = new Date().getUTCFullYear();
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+  <title>Reset your password</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f7fb;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#0f172a;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Securely reset the password for your IELTS AI Master account.</div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f4f7fb;padding:40px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:620px;">
+        <tr><td style="padding:0 8px 22px;text-align:center;">
+          <div style="font-size:24px;font-weight:800;letter-spacing:-0.6px;color:#0b1220;">IELTS <span style="color:#2563eb;">AI Master</span></div>
+          <div style="margin-top:6px;font-size:12px;letter-spacing:1.8px;text-transform:uppercase;color:#64748b;">Learn · Practice · Improve</div>
+        </td></tr>
+
+        <tr><td style="background:#ffffff;border:1px solid #e5eaf1;border-radius:24px;overflow:hidden;box-shadow:0 18px 50px rgba(15,23,42,.08);">
+          <div style="height:6px;background:linear-gradient(90deg,#2563eb,#7c3aed,#06b6d4);"></div>
+
+          <div style="padding:46px 46px 40px;">
+            <div style="width:56px;height:56px;line-height:56px;text-align:center;border-radius:16px;background:#eff6ff;color:#2563eb;font-size:25px;font-weight:800;margin-bottom:28px;">↻</div>
+
+            <h1 style="margin:0 0 14px;font-size:30px;line-height:1.2;letter-spacing:-.8px;color:#0f172a;">Reset your password</h1>
+
+            <p style="margin:0 0 18px;font-size:16px;line-height:1.75;color:#475569;">Hi ${safeName},</p>
+
+            <p style="margin:0 0 28px;font-size:16px;line-height:1.75;color:#475569;">
+              We received a request to reset the password for your
+              <strong style="color:#0f172a;">IELTS AI Master</strong> account.
+              Use the secure button below to choose a new password.
+            </p>
+
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+              <tr><td style="border-radius:12px;background:#2563eb;">
+                <a href="${safeLink}" style="display:inline-block;padding:15px 28px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:12px;">Reset password</a>
+              </td></tr>
+            </table>
+
+            <div style="margin-top:30px;padding:18px 20px;border-radius:14px;background:#f8fafc;border:1px solid #e8edf4;">
+              <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#334155;">Security notice</p>
+              <p style="margin:0;font-size:13px;line-height:1.7;color:#64748b;">
+                If you did not request this password reset, no action is required.
+                Your existing password will remain unchanged. Never forward or
+                share this reset link with anyone.
+              </p>
+            </div>
+
+            <div style="margin-top:30px;padding-top:26px;border-top:1px solid #edf0f4;">
+              <p style="margin:0 0 8px;font-size:12px;font-weight:700;color:#64748b;">Button not working?</p>
+              <p style="margin:0;font-size:11px;line-height:1.6;color:#94a3b8;word-break:break-all;">${safeLink}</p>
+            </div>
+          </div>
+        </td></tr>
+
+        <tr><td style="padding:26px 20px 0;text-align:center;">
+          <p style="margin:0 0 7px;font-size:12px;color:#64748b;">IELTS AI Master · Powered by KorvenzaTech</p>
+          <p style="margin:0;font-size:11px;color:#94a3b8;">© ${year} KorvenzaTech. All rights reserved.</p>
+          <p style="margin:10px 0 0;font-size:10px;line-height:1.5;color:#a8b1c0;">IELTS AI Master is an independent preparation platform and is not affiliated with or endorsed by IELTS, Cambridge University Press & Assessment, British Council, or IDP.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+
+function isValidEmailAddress(value) {
+  if (!value || value.length > 254) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
 
 
 /**
