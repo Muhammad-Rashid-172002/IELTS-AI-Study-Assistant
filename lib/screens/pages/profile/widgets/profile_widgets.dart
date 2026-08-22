@@ -83,7 +83,7 @@ class ProfileHeader extends StatelessWidget {
                       profile.email,
                       style: const TextStyle(
                         color: ProfileColors.secondary,
-                        fontSize: 10,
+                        fontSize: 11.5,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -91,7 +91,7 @@ class ProfileHeader extends StatelessWidget {
                       '${profile.ieltsType} • ${profile.subscription}',
                       style: const TextStyle(
                         color: ProfileColors.cyan,
-                        fontSize: 9,
+                        fontSize: 12,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -205,7 +205,7 @@ class _Metric extends StatelessWidget {
           ),
           Text(
             label,
-            style: const TextStyle(color: ProfileColors.muted, fontSize: 8),
+            style: const TextStyle(color: ProfileColors.muted, fontSize: 12),
           ),
         ],
       ),
@@ -295,7 +295,7 @@ class ProfileTile extends StatelessWidget {
         subtitle,
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(color: ProfileColors.muted, fontSize: 9.5),
+        style: const TextStyle(color: ProfileColors.muted, fontSize: 12),
       ),
       trailing:
           trailing ?? const Icon(Icons.arrow_forward_ios_rounded, size: 15),

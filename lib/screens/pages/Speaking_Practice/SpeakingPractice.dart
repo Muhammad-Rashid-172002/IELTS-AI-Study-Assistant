@@ -7,6 +7,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fyproject/offline/offline_content_service.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:fyproject/resources/components/learner_state_view.dart';
+import 'package:fyproject/resources/components/ielts_result_widgets.dart';
 import 'package:fyproject/screens/pages/Subscription/Subscription_screen.dart';
 import 'package:fyproject/screens/content_queue_service.dart';
 import 'package:just_audio/just_audio.dart';
@@ -489,7 +491,7 @@ class _SpeakingPremiumBenefit extends StatelessWidget {
               text,
               style: const TextStyle(
                 color: SColors.secondary,
-                fontSize: 10.5,
+                fontSize: 11.5,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -565,7 +567,7 @@ class SpeakingPractice extends StatelessWidget {
                               crossAxisCount: 2,
                               mainAxisSpacing: 11,
                               crossAxisSpacing: 11,
-                              childAspectRatio: 1.10,
+                              mainAxisExtent: 160,
                             ),
                       ),
                     ),
@@ -861,10 +863,12 @@ class _SpeakingTestBrowserScreenState extends State<SpeakingTestBrowserScreen> {
         _loading = false;
       });
     } catch (error) {
+      debugPrint('Speaking test loading failed: $error');
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = 'Speaking tests could not be loaded: $error';
+        _error =
+            'Speaking tests could not be loaded. Check your connection and try again.';
       });
     }
   }
@@ -1049,22 +1053,29 @@ class _SpeakingTestBrowserScreenState extends State<SpeakingTestBrowserScreen> {
         children: [
           const Positioned.fill(child: _SpeakingBackground()),
           if (_loading)
-            const Center(child: CircularProgressIndicator())
+            const LearnerStateView.loading(
+              title: 'Preparing your speaking session',
+              message:
+                  'Selecting a fresh activity for your mode and completed practice history.',
+              icon: Icons.mic_rounded,
+            )
           else if (_error != null)
-            _MessageState(
+            LearnerStateView.error(
               icon: Icons.error_outline_rounded,
               title: 'Unable to load speaking tests',
-              subtitle: _error!,
-              action: _load,
+              message:
+                  'Your recordings and feedback are safe. Check your connection and try once more.',
+              onAction: _load,
             )
           else if (_tests.isEmpty)
-            _MessageState(
+            LearnerStateView.empty(
               icon: Icons.mic_none_rounded,
-              title: 'No Speaking activity available',
-              subtitle: _availableCount == 0
+              title: 'No speaking activity available',
+              message: _availableCount == 0
                   ? 'No published Speaking activity is available for this mode yet.'
                   : 'Your next Speaking activity could not be prepared. Please try again.',
-              action: _load,
+              actionLabel: 'Refresh activities',
+              onAction: _load,
             )
           else
             ListView.separated(
@@ -1550,6 +1561,15 @@ class SpeakingEvaluationWaitingScreen extends StatelessWidget {
                 .doc(submissionId)
                 .snapshots(),
             builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return _MessageState(
+                  icon: Icons.cloud_off_rounded,
+                  title: 'Report connection interrupted',
+                  subtitle:
+                      'Your recording is safe. Check your connection and reopen this report in a moment.',
+                  action: () => Navigator.pop(context),
+                );
+              }
               final data = snapshot.data?.data();
               final status = (data?['status'] ?? 'queued').toString();
 
@@ -1579,7 +1599,8 @@ class SpeakingEvaluationWaitingScreen extends StatelessWidget {
                   Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => SpeakingReportScreen(report: report),
+                      builder: (_) =>
+                          SpeakingReportScreen(report: report, test: test),
                     ),
                   );
                 });
@@ -1589,13 +1610,25 @@ class SpeakingEvaluationWaitingScreen extends StatelessWidget {
                 return _MessageState(
                   icon: Icons.error_outline_rounded,
                   title: 'Speaking evaluation failed',
-                  subtitle: (data?['errorMessage'] ?? 'Please try again later.')
-                      .toString(),
+                  subtitle:
+                      'We could not complete this speaking report. Your recording is safe—please try the evaluation again.',
                   action: () => Navigator.pop(context),
                 );
               }
 
-              return const Center(child: _EvaluationLoadingCard());
+              return const IeltsAiAnalysisLoader(
+                title: 'Building your speaking report',
+                subtitle:
+                    'Your recording is being assessed against all four IELTS Speaking criteria.',
+                steps: [
+                  'Analysing fluency and coherence',
+                  'Reviewing vocabulary and grammar',
+                  'Assessing pronunciation and delivery',
+                  'Preparing actionable feedback',
+                ],
+                accent: SColors.cyan,
+                icon: Icons.graphic_eq_rounded,
+              );
             },
           ),
         ],
@@ -1606,8 +1639,29 @@ class SpeakingEvaluationWaitingScreen extends StatelessWidget {
 
 class SpeakingReportScreen extends StatelessWidget {
   final SpeakingReport report;
+  final SpeakingTest? test;
 
-  const SpeakingReportScreen({super.key, required this.report});
+  const SpeakingReportScreen({super.key, required this.report, this.test});
+
+  List<(String, SpeakingCriterion)> get _criteria => [
+    ('Fluency & Coherence', report.fluencyAndCoherence),
+    ('Lexical Resource', report.lexicalResource),
+    ('Grammatical Range & Accuracy', report.grammaticalRangeAndAccuracy),
+    ('Pronunciation', report.pronunciation),
+  ];
+
+  List<String> get _strengths => _criteria
+      .expand((item) => item.$2.strengths.map((text) => '${item.$1}: $text'))
+      .toSet()
+      .take(5)
+      .toList();
+
+  List<String> get _improvements => <String>[
+    ..._criteria.expand(
+      (item) => item.$2.improvements.map((text) => '${item.$1}: $text'),
+    ),
+    ...report.suggestedImprovements,
+  ].toSet().take(5).toList();
 
   @override
   Widget build(BuildContext context) {
@@ -1616,6 +1670,19 @@ class SpeakingReportScreen extends StatelessWidget {
         (value) => value.isPremium,
       ),
       builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            backgroundColor: SColors.background,
+            body: IeltsAiAnalysisLoader(
+              title: 'Opening your speaking report',
+              subtitle:
+                  'Preparing your personalised evaluation and practice guidance.',
+              steps: ['Loading score profile', 'Preparing report access'],
+              accent: SColors.cyan,
+              icon: Icons.mic_rounded,
+            ),
+          );
+        }
         final isPremium = snapshot.data ?? false;
 
         return Scaffold(
@@ -1630,24 +1697,126 @@ class SpeakingReportScreen extends StatelessWidget {
               ListView(
                 padding: const EdgeInsets.fromLTRB(18, 12, 18, 35),
                 children: [
-                  _ReportHero(report: report),
-                  const SizedBox(height: 14),
-                  _CriteriaGrid(report: report),
-                  const SizedBox(height: 14),
-                  _ReportSection(
-                    title: 'Answer Relevance',
-                    icon: Icons.center_focus_strong_rounded,
-                    child: Text(
-                      '${report.answerRelevancePercent}%\n'
-                      '${report.answerRelevanceFeedback}',
-                      style: const TextStyle(
-                        color: SColors.secondary,
-                        height: 1.5,
+                  IeltsResultHero(
+                    accent: SColors.cyan,
+                    band: report.overallBand,
+                    title: 'Estimated Overall Band',
+                    eyebrow: 'AI SPEAKING EVALUATION',
+                    summary: report.summary,
+                    aiEstimated: true,
+                    meta: [
+                      IeltsResultMetric(
+                        value: '${report.answerRelevancePercent}%',
+                        label: 'Answer relevance',
+                        icon: Icons.center_focus_strong_rounded,
                       ),
+                      IeltsResultMetric(
+                        value: '${report.speakingSpeedWpm}',
+                        label: 'Words / minute',
+                        icon: Icons.speed_rounded,
+                      ),
+                      IeltsResultMetric(
+                        value: '${report.pauseCount}',
+                        label: 'Pauses detected',
+                        icon: Icons.pause_circle_outline_rounded,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 22),
+                  IeltsResultSectionTitle(
+                    title: 'IELTS criterion scores',
+                    subtitle:
+                        'A separate estimated band for every official scoring dimension',
+                    icon: Icons.radar_rounded,
+                    accent: SColors.cyan,
+                  ),
+                  const SizedBox(height: 12),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final columns = constraints.maxWidth >= 760 ? 4 : 2;
+                      const spacing = 10.0;
+                      final width =
+                          (constraints.maxWidth - spacing * (columns - 1)) /
+                          columns;
+                      return Wrap(
+                        spacing: spacing,
+                        runSpacing: spacing,
+                        children: _criteria
+                            .map(
+                              (item) => SizedBox(
+                                width: width,
+                                child: IeltsCriterionCard(
+                                  title: item.$1,
+                                  band: item.$2.band,
+                                  feedback: item.$2.feedback,
+                                  accent: SColors.cyan,
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 22),
+                  _ReportSection(
+                    title: 'Answer relevance',
+                    icon: Icons.center_focus_strong_rounded,
+                    child: IeltsResultProgressRow(
+                      label: 'Response relevance',
+                      value: report.answerRelevancePercent,
+                      detail: report.answerRelevanceFeedback,
+                      accent: SColors.cyan,
                     ),
                   ),
                   if (isPremium) ...[
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 10),
+                    IeltsResultSectionTitle(
+                      title: 'What matters most',
+                      subtitle:
+                          'Your strongest evidence and highest-impact improvements',
+                      icon: Icons.insights_rounded,
+                      accent: SColors.cyan,
+                    ),
+                    const SizedBox(height: 12),
+                    IeltsInsightCard(
+                      title: 'Strengths',
+                      items: _strengths,
+                      tone: IeltsInsightTone.strength,
+                      emptyMessage:
+                          'The report did not identify a specific strength in this recording.',
+                    ),
+                    const SizedBox(height: 10),
+                    IeltsInsightCard(
+                      title: 'Areas to improve',
+                      items: _improvements,
+                      tone: IeltsInsightTone.improvement,
+                      emptyMessage:
+                          'No major criterion weakness was identified.',
+                    ),
+                    const SizedBox(height: 10),
+                    IeltsInsightCard(
+                      title: 'Recommended next practice',
+                      items: report.actionPlan,
+                      tone: IeltsInsightTone.recommendation,
+                      emptyMessage:
+                          'Record the same prompt again while applying one fluency and one pronunciation improvement.',
+                    ),
+                    const SizedBox(height: 22),
+                    IeltsResultSectionTitle(
+                      title: 'Detailed criterion feedback',
+                      subtitle:
+                          'Open a criterion for its complete AI assessment',
+                      icon: Icons.rate_review_outlined,
+                      accent: SColors.cyan,
+                    ),
+                    const SizedBox(height: 12),
+                    ..._criteria.map(
+                      (item) => _SpeakingCriterionDetail(
+                        title: item.$1,
+                        criterion: item.$2,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
                     _MetricsCard(report: report),
                     const SizedBox(height: 14),
                     _ReportSection(
@@ -1689,11 +1858,6 @@ class SpeakingReportScreen extends StatelessWidget {
                             ),
                     ),
                     _ReportSection(
-                      title: 'Suggested Improvements',
-                      icon: Icons.auto_awesome_rounded,
-                      child: _StringItems(items: report.suggestedImprovements),
-                    ),
-                    _ReportSection(
                       title: 'Shadowing Practice',
                       icon: Icons.multitrack_audio_rounded,
                       child: Text(
@@ -1705,7 +1869,6 @@ class SpeakingReportScreen extends StatelessWidget {
                         ),
                       ),
                     ),
-                    _ActionPlan(items: report.actionPlan),
                     if (report.transcript.isNotEmpty) ...[
                       const SizedBox(height: 14),
                       _ReportSection(
@@ -1729,6 +1892,30 @@ class SpeakingReportScreen extends StatelessWidget {
                       ),
                     ),
                   ],
+                  const SizedBox(height: 22),
+                  IeltsResultActions(
+                    primaryLabel: test == null
+                        ? 'Back to Speaking'
+                        : 'Practice Again',
+                    primaryIcon: test == null
+                        ? Icons.mic_rounded
+                        : Icons.replay_rounded,
+                    onPrimary: () => test == null
+                        ? _backToSpeaking(context)
+                        : Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => SpeakingSessionScreen(
+                                test: test!,
+                                examMode: false,
+                              ),
+                            ),
+                          ),
+                    secondaryLabel: 'Back to Speaking',
+                    secondaryIcon: Icons.mic_none_rounded,
+                    onSecondary: () => _backToSpeaking(context),
+                    accent: SColors.cyan,
+                  ),
                 ],
               ),
             ],
@@ -1737,6 +1924,72 @@ class SpeakingReportScreen extends StatelessWidget {
       },
     );
   }
+
+  void _backToSpeaking(BuildContext context) => Navigator.pushAndRemoveUntil(
+    context,
+    MaterialPageRoute(builder: (_) => const SpeakingPractice()),
+    (route) => route.isFirst,
+  );
+}
+
+class _SpeakingCriterionDetail extends StatelessWidget {
+  const _SpeakingCriterionDetail({
+    required this.title,
+    required this.criterion,
+  });
+  final String title;
+  final SpeakingCriterion criterion;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.only(bottom: 10),
+    decoration: _panelDecoration(),
+    child: Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        iconColor: SColors.cyan,
+        collapsedIconColor: SColors.muted,
+        title: Text(
+          title,
+          style: const TextStyle(
+            color: SColors.text,
+            fontWeight: FontWeight.w900,
+            fontSize: 13,
+          ),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              criterion.band.toStringAsFixed(1),
+              style: const TextStyle(
+                color: SColors.cyan,
+                fontWeight: FontWeight.w900,
+                fontSize: 18,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.expand_more_rounded),
+          ],
+        ),
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              criterion.feedback,
+              style: const TextStyle(
+                color: SColors.secondary,
+                fontSize: 12.5,
+                height: 1.55,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -2194,11 +2447,15 @@ class _SpeakingHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
+    final canGoBack = Navigator.of(context).canPop();
+
+    return Row(
       children: [
-        _GradientIcon(icon: Icons.mic_rounded),
-        SizedBox(width: 12),
-        Expanded(
+        canGoBack
+            ? _SpeakingBackButton(onPressed: () => Navigator.pop(context))
+            : const _GradientIcon(icon: Icons.mic_rounded),
+        const SizedBox(width: 12),
+        const Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -2213,12 +2470,39 @@ class _SpeakingHeader extends StatelessWidget {
               SizedBox(height: 4),
               Text(
                 'Practice, record and receive detailed AI feedback',
-                style: TextStyle(color: SColors.muted, fontSize: 10.5),
+                style: TextStyle(color: SColors.muted, fontSize: 11.5),
               ),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+class _SpeakingBackButton extends StatelessWidget {
+  const _SpeakingBackButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 54,
+      height: 54,
+      child: IconButton(
+        tooltip: 'Back to Home',
+        onPressed: onPressed,
+        style: IconButton.styleFrom(
+          foregroundColor: SColors.text,
+          backgroundColor: SColors.surface.withOpacity(.94),
+          side: BorderSide(color: Colors.white.withOpacity(.08)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+        ),
+        icon: const Icon(Icons.arrow_back_rounded),
+      ),
     );
   }
 }
@@ -2399,7 +2683,7 @@ class _SpeakingAdvancedReportLockedCard extends StatelessWidget {
               'action plans and your full transcript.',
               style: TextStyle(
                 color: SColors.secondary,
-                fontSize: 10.5,
+                fontSize: 11.5,
                 height: 1.5,
               ),
             ),
@@ -2561,7 +2845,7 @@ class _SpeakingTestCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: SColors.muted,
-                    fontSize: 10.5,
+                    fontSize: 11.5,
                     height: 1.4,
                   ),
                 ),
@@ -2624,7 +2908,7 @@ class _SessionHeader extends StatelessWidget {
                 ),
                 Text(
                   'Part $part • Question $questionNumber/$totalQuestions',
-                  style: const TextStyle(color: SColors.muted, fontSize: 9.5),
+                  style: const TextStyle(color: SColors.muted, fontSize: 12),
                 ),
               ],
             ),
@@ -2826,7 +3110,7 @@ class _TimerCard extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: const TextStyle(color: SColors.muted, fontSize: 9.5),
+                style: const TextStyle(color: SColors.muted, fontSize: 12),
               ),
               Text(
                 _clock(seconds),
@@ -3016,7 +3300,7 @@ class _ModelAudioCard extends StatelessWidget {
                 ),
                 Text(
                   'Listen, repeat and compare your delivery',
-                  style: TextStyle(color: SColors.muted, fontSize: 10),
+                  style: TextStyle(color: SColors.muted, fontSize: 11.5),
                 ),
               ],
             ),
@@ -3104,8 +3388,21 @@ class _RecentSpeakingResults extends StatelessWidget {
               .limit(20)
               .snapshots(),
           builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return const _MessageState(
+                icon: Icons.cloud_off_rounded,
+                title: 'Speaking history could not be synced',
+                subtitle:
+                    'Your recordings and evaluations are safe. Check your connection and reopen this screen.',
+              );
+            }
             if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
+              return const _MessageState(
+                icon: Icons.auto_awesome_rounded,
+                title: 'Loading speaking history',
+                subtitle:
+                    'Bringing together your latest estimated bands and feedback.',
+              );
             }
 
             final allDocs = snapshot.data!.docs;
@@ -3174,7 +3471,7 @@ class _RecentSpeakingResults extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   color: SColors.muted,
-                                  fontSize: 9.5,
+                                  fontSize: 12,
                                   height: 1.3,
                                 ),
                               ),
@@ -3215,7 +3512,7 @@ class _RecentSpeakingResults extends StatelessWidget {
                               style: TextStyle(
                                 color: SColors.text,
                                 fontWeight: FontWeight.w800,
-                                fontSize: 10.5,
+                                fontSize: 11.5,
                               ),
                             ),
                           ),
@@ -3372,7 +3669,7 @@ class _CriterionCard extends StatelessWidget {
             style: const TextStyle(
               color: SColors.text,
               fontWeight: FontWeight.w900,
-              fontSize: 11,
+              fontSize: 12,
             ),
           ),
           const SizedBox(height: 7),
@@ -3382,7 +3679,7 @@ class _CriterionCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: SColors.muted,
-              fontSize: 9.5,
+              fontSize: 12,
               height: 1.4,
             ),
           ),
@@ -3452,7 +3749,7 @@ class _Metric extends StatelessWidget {
         Text(
           label,
           textAlign: TextAlign.center,
-          style: const TextStyle(color: SColors.muted, fontSize: 9),
+          style: const TextStyle(color: SColors.muted, fontSize: 12),
         ),
       ],
     );
@@ -3483,11 +3780,13 @@ class _ReportSection extends StatelessWidget {
             children: [
               Icon(icon, color: SColors.cyan),
               const SizedBox(width: 9),
-              Text(
-                title,
-                style: const TextStyle(
-                  color: SColors.text,
-                  fontWeight: FontWeight.w900,
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: SColors.text,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
             ],
@@ -3571,7 +3870,7 @@ class _FeedbackTile extends StatelessWidget {
             body,
             style: const TextStyle(
               color: SColors.secondary,
-              fontSize: 10.5,
+              fontSize: 11.5,
               height: 1.45,
             ),
           ),
@@ -3721,7 +4020,7 @@ class _SectionTitle extends StatelessWidget {
         const SizedBox(height: 3),
         Text(
           subtitle,
-          style: const TextStyle(color: SColors.muted, fontSize: 10.5),
+          style: const TextStyle(color: SColors.muted, fontSize: 11.5),
         ),
       ],
     );

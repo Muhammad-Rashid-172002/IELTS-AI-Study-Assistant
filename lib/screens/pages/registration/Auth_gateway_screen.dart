@@ -73,52 +73,98 @@ class _AuthenticationGatewayScreenState
         children: [
           const Positioned.fill(child: _AuthBackground()),
           SafeArea(
-            child: Column(
-              children: [
-                _TopBar(
-                  title: _mode == AuthMode.createAccount
-                      ? 'Create Account'
-                      : 'Welcome Back',
-                  subtitle: _mode == AuthMode.createAccount
-                      ? 'Create your personalized IELTS learning experience.'
-                      : 'Continue learning from exactly where you stopped.',
-                  onBack: () => Navigator.maybePop(context),
-                ),
-                Expanded(
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 280),
-                    switchInCurve: Curves.easeOutCubic,
-                    switchOutCurve: Curves.easeInCubic,
-                    transitionBuilder: (child, animation) => FadeTransition(
-                      opacity: animation,
-                      child: SlideTransition(
-                        position: Tween<Offset>(
-                          begin: const Offset(0.03, 0),
-                          end: Offset.zero,
-                        ).animate(animation),
-                        child: child,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth >= 940;
+                final authPanel = Column(
+                  children: [
+                    _TopBar(
+                      title: _mode == AuthMode.createAccount
+                          ? 'Create your account'
+                          : 'Welcome back',
+                      subtitle: _mode == AuthMode.createAccount
+                          ? 'Your personalized IELTS plan starts here.'
+                          : 'Sign in to continue your learning journey.',
+                      onBack: () => Navigator.maybePop(context),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 22),
+                      child: _AuthModeSelector(
+                        mode: _mode,
+                        onChanged: (mode) => setState(() => _mode = mode),
                       ),
                     ),
-                    child: _mode == AuthMode.createAccount
-                        ? CreateAccountForm(
-                            key: const ValueKey('create'),
-                            onOpenSignIn: () {
-                              setState(() => _mode = AuthMode.signIn);
-                            },
-                          )
-                        : SignInForm(
-                            key: const ValueKey('signin'),
-                            onOpenCreateAccount: () {
-                              setState(() => _mode = AuthMode.createAccount);
-                            },
+                    const SizedBox(height: 8),
+                    Expanded(child: _buildActiveForm()),
+                  ],
+                );
+
+                if (!isWide) return authPanel;
+
+                return Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1320),
+                    child: Row(
+                      children: [
+                        const Expanded(flex: 11, child: _AuthStoryPanel()),
+                        const SizedBox(width: 24),
+                        Expanded(
+                          flex: 9,
+                          child: Container(
+                            height: double.infinity,
+                            decoration: BoxDecoration(
+                              color: AuthColors.panel.withOpacity(.78),
+                              borderRadius: BorderRadius.circular(32),
+                              border: Border.all(color: AuthColors.border),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(.28),
+                                  blurRadius: 40,
+                                  offset: const Offset(0, 20),
+                                ),
+                              ],
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: authPanel,
                           ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                );
+              },
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildActiveForm() {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 320),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(.035, 0),
+            end: Offset.zero,
+          ).animate(animation),
+          child: child,
+        ),
+      ),
+      child: _mode == AuthMode.createAccount
+          ? CreateAccountForm(
+              key: const ValueKey('create'),
+              onOpenSignIn: () => setState(() => _mode = AuthMode.signIn),
+            )
+          : SignInForm(
+              key: const ValueKey('signin'),
+              onOpenCreateAccount: () =>
+                  setState(() => _mode = AuthMode.createAccount),
+            ),
     );
   }
 }
@@ -322,123 +368,135 @@ class _CreateAccountFormState extends State<CreateAccountForm> {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(22, 8, 22, 30),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          children: [
-            const _SecurityBanner(),
-            const SizedBox(height: 18),
-            _AuthTextField(
-              controller: _nameController,
-              label: 'Full name',
-              hint: 'Enter your full name',
-              icon: Icons.person_outline_rounded,
-              textInputAction: TextInputAction.next,
-              validator: (value) {
-                if (value == null || value.trim().length < 3) {
-                  return 'Enter your complete name.';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 13),
-            _AuthTextField(
-              controller: _emailController,
-              label: 'Email',
-              hint: 'name@example.com',
-              icon: Icons.mail_outline_rounded,
-              keyboardType: TextInputType.emailAddress,
-              textInputAction: TextInputAction.next,
-              validator: _validateEmail,
-            ),
-            const SizedBox(height: 13),
-            _AuthTextField(
-              controller: _passwordController,
-              label: 'Password',
-              hint: 'Minimum 8 characters',
-              icon: Icons.lock_outline_rounded,
-              obscureText: _obscurePassword,
-              textInputAction: TextInputAction.next,
-              suffixIcon: IconButton(
-                onPressed: () {
-                  setState(() => _obscurePassword = !_obscurePassword);
-                },
-                icon: Icon(
-                  _obscurePassword
-                      ? Icons.visibility_outlined
-                      : Icons.visibility_off_outlined,
-                  color: AuthColors.mutedText,
-                ),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Form(
+            key: _formKey,
+            child: _AuthFormSurface(
+              eyebrow: 'NEW LEARNER',
+              title: 'Build your IELTS profile',
+              description:
+                  'A few secure details now unlock your adaptive study path.',
+              child: Column(
+                children: [
+                  const _SecurityBanner(),
+                  const SizedBox(height: 18),
+                  _AuthTextField(
+                    controller: _nameController,
+                    label: 'Full name',
+                    hint: 'Enter your full name',
+                    icon: Icons.person_outline_rounded,
+                    textInputAction: TextInputAction.next,
+                    validator: (value) {
+                      if (value == null || value.trim().length < 3) {
+                        return 'Enter your complete name.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 13),
+                  _AuthTextField(
+                    controller: _emailController,
+                    label: 'Email',
+                    hint: 'name@example.com',
+                    icon: Icons.mail_outline_rounded,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    validator: _validateEmail,
+                  ),
+                  const SizedBox(height: 13),
+                  _AuthTextField(
+                    controller: _passwordController,
+                    label: 'Password',
+                    hint: 'Minimum 8 characters',
+                    icon: Icons.lock_outline_rounded,
+                    obscureText: _obscurePassword,
+                    textInputAction: TextInputAction.next,
+                    suffixIcon: IconButton(
+                      onPressed: () {
+                        setState(() => _obscurePassword = !_obscurePassword);
+                      },
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                        color: AuthColors.mutedText,
+                      ),
+                    ),
+                    validator: _validatePassword,
+                  ),
+                  const SizedBox(height: 13),
+                  _AuthTextField(
+                    controller: _confirmPasswordController,
+                    label: 'Confirm password',
+                    hint: 'Re-enter your password',
+                    icon: Icons.verified_user_outlined,
+                    obscureText: _obscureConfirmPassword,
+                    textInputAction: TextInputAction.done,
+                    suffixIcon: IconButton(
+                      onPressed: () {
+                        setState(
+                          () => _obscureConfirmPassword =
+                              !_obscureConfirmPassword,
+                        );
+                      },
+                      icon: Icon(
+                        _obscureConfirmPassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                        color: AuthColors.mutedText,
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value != _passwordController.text) {
+                        return 'Passwords do not match.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 13),
+                  _CountrySelector(
+                    value: _country,
+                    countries: _countries,
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() => _country = value);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  _TermsCheckbox(
+                    value: _acceptedTerms,
+                    onChanged: (value) {
+                      setState(() => _acceptedTerms = value ?? false);
+                    },
+                  ),
+                  const SizedBox(height: 18),
+                  _PrimaryAuthButton(
+                    title: 'Create Account',
+                    icon: Icons.arrow_forward_rounded,
+                    isLoading: _isLoading,
+                    onPressed: _isGoogleLoading ? null : _createAccount,
+                  ),
+                  const SizedBox(height: 18),
+                  const _OrDivider(),
+                  const SizedBox(height: 18),
+                  _GoogleAuthButton(
+                    title: 'Continue with Google',
+                    isLoading: _isGoogleLoading,
+                    onPressed: _isLoading ? null : _continueWithGoogle,
+                  ),
+                  const SizedBox(height: 20),
+                  _ModeSwitchText(
+                    normalText: 'Already have an account? ',
+                    actionText: 'Sign In',
+                    onTap: widget.onOpenSignIn,
+                  ),
+                ],
               ),
-              validator: _validatePassword,
             ),
-            const SizedBox(height: 13),
-            _AuthTextField(
-              controller: _confirmPasswordController,
-              label: 'Confirm password',
-              hint: 'Re-enter your password',
-              icon: Icons.verified_user_outlined,
-              obscureText: _obscureConfirmPassword,
-              textInputAction: TextInputAction.done,
-              suffixIcon: IconButton(
-                onPressed: () {
-                  setState(
-                    () => _obscureConfirmPassword = !_obscureConfirmPassword,
-                  );
-                },
-                icon: Icon(
-                  _obscureConfirmPassword
-                      ? Icons.visibility_outlined
-                      : Icons.visibility_off_outlined,
-                  color: AuthColors.mutedText,
-                ),
-              ),
-              validator: (value) {
-                if (value != _passwordController.text) {
-                  return 'Passwords do not match.';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 13),
-            _CountrySelector(
-              value: _country,
-              countries: _countries,
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() => _country = value);
-                }
-              },
-            ),
-            const SizedBox(height: 14),
-            _TermsCheckbox(
-              value: _acceptedTerms,
-              onChanged: (value) {
-                setState(() => _acceptedTerms = value ?? false);
-              },
-            ),
-            const SizedBox(height: 18),
-            _PrimaryAuthButton(
-              title: 'Create Account',
-              icon: Icons.arrow_forward_rounded,
-              isLoading: _isLoading,
-              onPressed: _isGoogleLoading ? null : _createAccount,
-            ),
-            const SizedBox(height: 18),
-            const _OrDivider(),
-            const SizedBox(height: 18),
-            _GoogleAuthButton(
-              title: 'Continue with Google',
-              isLoading: _isGoogleLoading,
-              onPressed: _isLoading ? null : _continueWithGoogle,
-            ),
-            const SizedBox(height: 20),
-            _ModeSwitchText(
-              normalText: 'Already have an account? ',
-              actionText: 'Sign In',
-              onTap: widget.onOpenSignIn,
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -661,82 +719,98 @@ class _SignInFormState extends State<SignInForm> {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(22, 8, 22, 30),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          children: [
-            const _SecurityBanner(),
-            const SizedBox(height: 18),
-            _AuthTextField(
-              controller: _emailController,
-              label: 'Email',
-              hint: 'name@example.com',
-              icon: Icons.mail_outline_rounded,
-              keyboardType: TextInputType.emailAddress,
-              textInputAction: TextInputAction.next,
-              validator: _validateEmail,
-            ),
-            const SizedBox(height: 13),
-            _AuthTextField(
-              controller: _passwordController,
-              label: 'Password',
-              hint: 'Enter your password',
-              icon: Icons.lock_outline_rounded,
-              obscureText: _obscurePassword,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _signIn(),
-              suffixIcon: IconButton(
-                onPressed: () {
-                  setState(() => _obscurePassword = !_obscurePassword);
-                },
-                icon: Icon(
-                  _obscurePassword
-                      ? Icons.visibility_outlined
-                      : Icons.visibility_off_outlined,
-                  color: AuthColors.mutedText,
-                ),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Form(
+            key: _formKey,
+            child: _AuthFormSurface(
+              eyebrow: 'MEMBER ACCESS',
+              title: 'Continue where you left off',
+              description:
+                  'Your plan, practice history and feedback are ready for you.',
+              child: Column(
+                children: [
+                  const _SecurityBanner(),
+                  const SizedBox(height: 18),
+                  _AuthTextField(
+                    controller: _emailController,
+                    label: 'Email',
+                    hint: 'name@example.com',
+                    icon: Icons.mail_outline_rounded,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    validator: _validateEmail,
+                  ),
+                  const SizedBox(height: 13),
+                  _AuthTextField(
+                    controller: _passwordController,
+                    label: 'Password',
+                    hint: 'Enter your password',
+                    icon: Icons.lock_outline_rounded,
+                    obscureText: _obscurePassword,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _signIn(),
+                    suffixIcon: IconButton(
+                      onPressed: () {
+                        setState(() => _obscurePassword = !_obscurePassword);
+                      },
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                        color: AuthColors.mutedText,
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Enter your password.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 7),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: _showForgotPassword,
+                      style: TextButton.styleFrom(
+                        foregroundColor: AuthColors.cyan,
+                      ),
+                      child: const Text(
+                        'Forgot Password?',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 9),
+                  _PrimaryAuthButton(
+                    title: 'Sign In',
+                    icon: Icons.login_rounded,
+                    isLoading: _isLoading,
+                    onPressed: _isGoogleLoading ? null : _signIn,
+                  ),
+                  const SizedBox(height: 18),
+                  const _OrDivider(),
+                  const SizedBox(height: 18),
+                  _GoogleAuthButton(
+                    title: 'Continue with Google',
+                    isLoading: _isGoogleLoading,
+                    onPressed: _isLoading ? null : _continueWithGoogle,
+                  ),
+                  const SizedBox(height: 20),
+                  _ModeSwitchText(
+                    normalText: 'New to IELTS AI Master? ',
+                    actionText: 'Create Account',
+                    onTap: widget.onOpenCreateAccount,
+                  ),
+                ],
               ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Enter your password.';
-                }
-                return null;
-              },
             ),
-            const SizedBox(height: 7),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: _showForgotPassword,
-                style: TextButton.styleFrom(foregroundColor: AuthColors.cyan),
-                child: const Text(
-                  'Forgot Password?',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
-            const SizedBox(height: 9),
-            _PrimaryAuthButton(
-              title: 'Sign In',
-              icon: Icons.login_rounded,
-              isLoading: _isLoading,
-              onPressed: _isGoogleLoading ? null : _signIn,
-            ),
-            const SizedBox(height: 18),
-            const _OrDivider(),
-            const SizedBox(height: 18),
-            _GoogleAuthButton(
-              title: 'Continue with Google',
-              isLoading: _isGoogleLoading,
-              onPressed: _isLoading ? null : _continueWithGoogle,
-            ),
-            const SizedBox(height: 20),
-            _ModeSwitchText(
-              normalText: 'New to IELTS AI Master? ',
-              actionText: 'Create Account',
-              onTap: widget.onOpenCreateAccount,
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -875,153 +949,63 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AuthColors.background,
-      body: Stack(
+    return _AuthStatusScaffold(
+      eyebrow: 'ONE SECURE STEP',
+      title: 'Verify your email',
+      description: widget.initialEmailSent
+          ? 'Open the secure link we sent to finish setting up your account.'
+          : 'Your account is ready. Request a new verification email to continue.',
+      icon: Icons.mark_email_read_rounded,
+      child: Column(
         children: [
-          const Positioned.fill(child: _AuthBackground()),
-          SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(22),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(25),
-                  decoration: _panelDecoration(),
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 78,
-                        height: 78,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(25),
-                          gradient: AuthColors.gradient,
-                          boxShadow: [
-                            BoxShadow(
-                              color: AuthColors.cyan.withOpacity(0.22),
-                              blurRadius: 24,
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.mark_email_read_outlined,
-                          color: Colors.white,
-                          size: 35,
-                        ),
-                      ),
-                      const SizedBox(height: 22),
-
-                      const Text(
-                        'Verify your email',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AuthColors.mainText,
-                          fontSize: 25,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-
-                      const SizedBox(height: 11),
-
-                      Text(
-                        widget.initialEmailSent
-                            ? 'We sent a secure verification link to\n${widget.email}'
-                            : 'Your account was created, but the verification email could not be delivered.\nUse Resend Verification Email below.',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AuthColors.mutedText,
-                          fontSize: 13.5,
-                          height: 1.55,
-                        ),
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 13,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AuthColors.cyan.withOpacity(0.06),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: AuthColors.cyan.withOpacity(0.16),
-                          ),
-                        ),
-                        child: const Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(
-                              Icons.info_outline_rounded,
-                              color: AuthColors.cyan,
-                              size: 19,
-                            ),
-                            SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                'Check your Inbox for the verification email. If it is not there, please check your Spam or Junk folder.',
-                                style: TextStyle(
-                                  color: AuthColors.secondaryText,
-                                  fontSize: 12,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      _PrimaryAuthButton(
-                        title: 'I Have Verified My Email',
-                        icon: Icons.verified_rounded,
-                        isLoading: _isChecking,
-                        onPressed: _checkVerification,
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 52,
-                        child: OutlinedButton(
-                          onPressed: _isSending || _secondsUntilResend > 0
-                              ? null
-                              : _resendVerification,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AuthColors.cyan,
-                            side: BorderSide(
-                              color: AuthColors.cyan.withOpacity(0.26),
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(17),
-                            ),
-                          ),
-                          child: Text(
-                            _secondsUntilResend > 0
-                                ? 'Resend in ${_secondsUntilResend}s'
-                                : 'Resend Verification Email',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextButton(
-                        onPressed: _signOut,
-                        child: const Text(
-                          'Use another account',
-                          style: TextStyle(
-                            color: AuthColors.mutedText,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+          _AuthNoticeCard(
+            icon: Icons.alternate_email_rounded,
+            title: 'Verification sent to',
+            message: widget.email,
+            accent: AuthColors.cyan,
+          ),
+          const SizedBox(height: 12),
+          const _AuthNoticeCard(
+            icon: Icons.inbox_rounded,
+            title: 'Can’t find the email?',
+            message:
+                'Check Spam or Junk, then add IELTS AI Master to your trusted senders.',
+            accent: AuthColors.violet,
+          ),
+          const SizedBox(height: 20),
+          _PrimaryAuthButton(
+            title: 'I’ve verified my email',
+            icon: Icons.verified_rounded,
+            isLoading: _isChecking,
+            onPressed: _checkVerification,
+          ),
+          const SizedBox(height: 11),
+          SizedBox(
+            width: double.infinity,
+            height: 54,
+            child: OutlinedButton.icon(
+              onPressed: _isSending || _secondsUntilResend > 0
+                  ? null
+                  : _resendVerification,
+              icon: _isSending
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.refresh_rounded, size: 19),
+              label: Text(
+                _secondsUntilResend > 0
+                    ? 'Resend available in ${_secondsUntilResend}s'
+                    : 'Resend verification email',
               ),
             ),
+          ),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: _signOut,
+            icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+            label: const Text('Use another account'),
           ),
         ],
       ),
@@ -1053,11 +1037,9 @@ Future<void> _upsertGoogleUser(User user, {required bool isNewUser}) async {
     'fullName': user.displayName ?? '',
     'email': user.email?.trim().toLowerCase(),
     'photoUrl': user.photoURL,
-    'role': 'student',
     'authProvider': 'google',
     'emailVerified': user.emailVerified,
     'phoneVerified': user.phoneNumber != null,
-    'accountStatus': 'active',
     'updatedAt': FieldValue.serverTimestamp(),
     'lastLoginAt': FieldValue.serverTimestamp(),
   };
@@ -1066,6 +1048,8 @@ Future<void> _upsertGoogleUser(User user, {required bool isNewUser}) async {
     data.addAll({
       'profileCompleted': false,
       'diagnosticCompleted': false,
+      'role': 'student',
+      'accountStatus': 'active',
       'ieltsType': null,
       'educationLevel': null,
       'currentBand': null,
@@ -1267,95 +1251,62 @@ class _OptionalPhoneVerificationScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AuthColors.background,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        foregroundColor: AuthColors.mainText,
-        elevation: 0,
-        title: const Text('Phone Verification'),
-      ),
-      body: Stack(
+    return _AuthStatusScaffold(
+      eyebrow: 'OPTIONAL SECURITY',
+      title: _verificationId == null
+          ? 'Protect your account'
+          : 'Enter your security code',
+      description: _verificationId == null
+          ? 'Add a verified number for stronger recovery and important account alerts.'
+          : 'We sent a 6-digit code to ${_phoneController.text.trim()}.',
+      icon: _verificationId == null
+          ? Icons.phonelink_lock_rounded
+          : Icons.sms_rounded,
+      showBackButton: true,
+      child: Column(
         children: [
-          const Positioned.fill(child: _AuthBackground()),
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(22),
-            child: Container(
-              padding: const EdgeInsets.all(22),
-              decoration: _panelDecoration(),
-              child: Column(
-                children: [
-                  const Icon(
-                    Icons.phone_iphone_rounded,
-                    color: AuthColors.cyan,
-                    size: 42,
-                  ),
-                  const SizedBox(height: 14),
-                  const Text(
-                    'Optional phone security',
-                    style: TextStyle(
-                      color: AuthColors.mainText,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Add a verified phone number for stronger account recovery and security.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: AuthColors.mutedText,
-                      fontSize: 13,
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  _AuthTextField(
-                    controller: _phoneController,
-                    label: 'Phone number',
-                    hint: '+923001234567',
-                    icon: Icons.phone_outlined,
-                    keyboardType: TextInputType.phone,
-                  ),
-                  if (_verificationId != null) ...[
-                    const SizedBox(height: 13),
-                    _AuthTextField(
-                      controller: _codeController,
-                      label: 'Verification code',
-                      hint: '6-digit code',
-                      icon: Icons.password_rounded,
-                      keyboardType: TextInputType.number,
-                    ),
-                  ],
-                  const SizedBox(height: 18),
-                  _PrimaryAuthButton(
-                    title: _verificationId == null
-                        ? 'Send Verification Code'
-                        : 'Verify Phone Number',
-                    icon: Icons.arrow_forward_rounded,
-                    isLoading: _sendingCode || _verifyingCode,
-                    onPressed: _verificationId == null
-                        ? _sendCode
-                        : _verifyCode,
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(
-                        builder: (_) => const InitialProfileSetupScreen(),
-                      ),
-                    ),
-                    child: const Text(
-                      'Skip for now',
-                      style: TextStyle(
-                        color: AuthColors.mutedText,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
+          _AuthTextField(
+            controller: _phoneController,
+            label: 'Phone number',
+            hint: '+92 300 1234567',
+            icon: Icons.phone_outlined,
+            keyboardType: TextInputType.phone,
+          ),
+          if (_verificationId != null) ...[
+            const SizedBox(height: 14),
+            _AuthTextField(
+              controller: _codeController,
+              label: 'Verification code',
+              hint: 'Enter the 6-digit code',
+              icon: Icons.password_rounded,
+              keyboardType: TextInputType.number,
+            ),
+          ],
+          const SizedBox(height: 14),
+          const _AuthNoticeCard(
+            icon: Icons.privacy_tip_outlined,
+            title: 'Private by design',
+            message:
+                'Your number is used only for security and account recovery.',
+            accent: AuthColors.success,
+          ),
+          const SizedBox(height: 20),
+          _PrimaryAuthButton(
+            title: _verificationId == null
+                ? 'Send verification code'
+                : 'Verify phone number',
+            icon: Icons.arrow_forward_rounded,
+            isLoading: _sendingCode || _verifyingCode,
+            onPressed: _verificationId == null ? _sendCode : _verifyCode,
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: () => Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (_) => const InitialProfileSetupScreen(),
               ),
             ),
+            child: const Text('Skip for now'),
           ),
         ],
       ),
@@ -1411,101 +1362,682 @@ class AuthenticatedPreviewScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return _AuthStatusScaffold(
+      eyebrow: 'ACCOUNT SECURITY',
+      title: user.displayName?.trim().isNotEmpty == true
+          ? 'Hi, ${user.displayName!.trim().split(' ').first}'
+          : 'Your account',
+      description:
+          'Review your verified identity and choose how you want to continue.',
+      icon: Icons.person_rounded,
+      avatarUrl: user.photoURL,
+      child: Column(
+        children: [
+          _AuthNoticeCard(
+            icon: Icons.alternate_email_rounded,
+            title: 'Signed in as',
+            message: user.email ?? 'No email available',
+            accent: AuthColors.cyan,
+          ),
+          const SizedBox(height: 12),
+          _AuthNoticeCard(
+            icon: user.emailVerified
+                ? Icons.verified_rounded
+                : Icons.gpp_maybe_rounded,
+            title: user.emailVerified
+                ? 'Email verified'
+                : 'Verification needed',
+            message: user.emailVerified
+                ? 'Your primary identity is protected and verified.'
+                : 'Verify your email to protect all account features.',
+            accent: user.emailVerified
+                ? AuthColors.success
+                : AuthColors.warning,
+          ),
+          const SizedBox(height: 20),
+          _PrimaryAuthButton(
+            title: 'Add phone security',
+            icon: Icons.phonelink_lock_rounded,
+            isLoading: false,
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const OptionalPhoneVerificationScreen(),
+              ),
+            ),
+          ),
+          const SizedBox(height: 11),
+          SizedBox(
+            width: double.infinity,
+            height: 54,
+            child: OutlinedButton.icon(
+              onPressed: () => _logoutCurrentDevice(context),
+              icon: const Icon(Icons.logout_rounded),
+              label: const Text('Sign out on this device'),
+            ),
+          ),
+          const SizedBox(height: 6),
+          TextButton.icon(
+            onPressed: () => _requestLogoutFromAllDevices(context),
+            icon: const Icon(Icons.phonelink_erase_rounded, size: 18),
+            label: const Text('Sign out everywhere'),
+            style: TextButton.styleFrom(foregroundColor: AuthColors.error),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AuthStoryPanel extends StatelessWidget {
+  const _AuthStoryPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(34, 34, 34, 34),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _AuthBrand(),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AuthColors.cyan.withOpacity(.08),
+              borderRadius: BorderRadius.circular(100),
+              border: Border.all(color: AuthColors.cyan.withOpacity(.18)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.auto_awesome_rounded,
+                  color: AuthColors.cyan,
+                  size: 15,
+                ),
+                SizedBox(width: 7),
+                Text(
+                  'YOUR BAND. YOUR PLAN. YOUR PACE.',
+                  style: TextStyle(
+                    color: AuthColors.cyan,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 22),
+          const Text(
+            'Prepare with clarity.\nImprove with purpose.',
+            style: TextStyle(
+              color: AuthColors.mainText,
+              fontSize: 42,
+              height: 1.06,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -1.4,
+            ),
+          ),
+          const SizedBox(height: 18),
+          const SizedBox(
+            width: 520,
+            child: Text(
+              'One intelligent workspace for IELTS practice, AI feedback, progress and a plan that adapts as you improve.',
+              style: TextStyle(
+                color: AuthColors.mutedText,
+                fontSize: 15,
+                height: 1.65,
+              ),
+            ),
+          ),
+          const SizedBox(height: 28),
+          const _AuthJourneyCard(),
+          const Spacer(),
+          const Wrap(
+            spacing: 22,
+            runSpacing: 12,
+            children: [
+              _AuthTrustItem(Icons.lock_outline_rounded, 'Secure sign-in'),
+              _AuthTrustItem(Icons.cloud_done_outlined, 'Cloud synced'),
+              _AuthTrustItem(Icons.psychology_alt_outlined, 'AI guided'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AuthBrand extends StatelessWidget {
+  const _AuthBrand();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            gradient: AuthColors.gradient,
+            borderRadius: BorderRadius.circular(15),
+            boxShadow: [
+              BoxShadow(
+                color: AuthColors.cyan.withOpacity(.18),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: const Icon(Icons.auto_stories_rounded, color: Colors.white),
+        ),
+        const SizedBox(width: 12),
+        const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'IELTS AI',
+              style: TextStyle(
+                color: AuthColors.mainText,
+                fontSize: 15,
+                height: 1,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            SizedBox(height: 4),
+            Text(
+              'MASTER',
+              style: TextStyle(
+                color: AuthColors.cyan,
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 2.1,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _AuthJourneyCard extends StatelessWidget {
+  const _AuthJourneyCard();
+
+  @override
+  Widget build(BuildContext context) {
+    const skills = [
+      (Icons.headphones_rounded, 'Listening', AuthColors.cyan),
+      (Icons.menu_book_rounded, 'Reading', AuthColors.blue),
+      (Icons.edit_note_rounded, 'Writing', AuthColors.violet),
+      (Icons.mic_rounded, 'Speaking', AuthColors.success),
+    ];
+
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 560),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AuthColors.panel.withOpacity(.74),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AuthColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.18),
+            blurRadius: 28,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.route_rounded, color: AuthColors.cyan, size: 19),
+              SizedBox(width: 8),
+              Text(
+                'Your adaptive journey',
+                style: TextStyle(
+                  color: AuthColors.mainText,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              Spacer(),
+              _AuthMiniBadge('BAND 7.0'),
+            ],
+          ),
+          const SizedBox(height: 17),
+          Row(
+            children: skills
+                .map(
+                  (skill) => Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        right: skill == skills.last ? 0 : 8,
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: skill.$3.withOpacity(.08),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: skill.$3.withOpacity(.14)),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(skill.$1, color: skill.$3, size: 19),
+                            const SizedBox(height: 6),
+                            Text(
+                              skill.$2,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AuthColors.secondaryText,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AuthMiniBadge extends StatelessWidget {
+  final String label;
+
+  const _AuthMiniBadge(this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: AuthColors.cyan.withOpacity(.09),
+        borderRadius: BorderRadius.circular(100),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AuthColors.cyan,
+          fontSize: 12,
+          fontWeight: FontWeight.w900,
+          letterSpacing: .6,
+        ),
+      ),
+    );
+  }
+}
+
+class _AuthTrustItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _AuthTrustItem(this.icon, this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: AuthColors.cyan, size: 17),
+        const SizedBox(width: 7),
+        Text(
+          label,
+          style: const TextStyle(
+            color: AuthColors.secondaryText,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AuthModeSelector extends StatelessWidget {
+  final AuthMode mode;
+  final ValueChanged<AuthMode> onChanged;
+
+  const _AuthModeSelector({required this.mode, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(5),
+      decoration: BoxDecoration(
+        color: AuthColors.surface.withOpacity(.72),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AuthColors.border),
+      ),
+      child: Row(
+        children: AuthMode.values.map((item) {
+          final selected = item == mode;
+          final title = item == AuthMode.createAccount
+              ? 'Create account'
+              : 'Sign in';
+
+          return Expanded(
+            child: Semantics(
+              button: true,
+              selected: selected,
+              child: InkWell(
+                onTap: () => onChanged(item),
+                borderRadius: BorderRadius.circular(12),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? AuthColors.surfaceElevated
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                    border: selected
+                        ? Border.all(color: AuthColors.cyan.withOpacity(.18))
+                        : null,
+                    boxShadow: selected
+                        ? [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(.16),
+                              blurRadius: 12,
+                              offset: const Offset(0, 5),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: selected
+                          ? AuthColors.mainText
+                          : AuthColors.mutedText,
+                      fontSize: 12,
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class _AuthFormSurface extends StatelessWidget {
+  final String eyebrow;
+  final String title;
+  final String description;
+  final Widget child;
+
+  const _AuthFormSurface({
+    required this.eyebrow,
+    required this.title,
+    required this.description,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 21, 20, 22),
+      decoration: BoxDecoration(
+        color: AuthColors.panel.withOpacity(.88),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AuthColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.18),
+            blurRadius: 26,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            eyebrow,
+            style: const TextStyle(
+              color: AuthColors.cyan,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.45,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            title,
+            style: const TextStyle(
+              color: AuthColors.mainText,
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -.35,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            description,
+            style: const TextStyle(
+              color: AuthColors.mutedText,
+              fontSize: 11.5,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 17),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _AuthStatusScaffold extends StatelessWidget {
+  final String eyebrow;
+  final String title;
+  final String description;
+  final IconData icon;
+  final String? avatarUrl;
+  final bool showBackButton;
+  final Widget child;
+
+  const _AuthStatusScaffold({
+    required this.eyebrow,
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.child,
+    this.avatarUrl,
+    this.showBackButton = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final statusCard = Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(22),
+        child: Container(
+          width: double.infinity,
+          constraints: const BoxConstraints(maxWidth: 560),
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 22),
+          decoration: _panelDecoration(),
+          child: Column(
+            children: [
+              if (showBackButton)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: IconButton(
+                    onPressed: () => Navigator.maybePop(context),
+                    icon: const Icon(Icons.arrow_back_rounded),
+                  ),
+                ),
+              Container(
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(
+                  gradient: avatarUrl == null ? AuthColors.gradient : null,
+                  color: avatarUrl == null ? null : AuthColors.surfaceElevated,
+                  image: avatarUrl == null
+                      ? null
+                      : DecorationImage(
+                          image: NetworkImage(avatarUrl!),
+                          fit: BoxFit.cover,
+                        ),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: Colors.white.withOpacity(.10)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AuthColors.cyan.withOpacity(.18),
+                      blurRadius: 26,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: avatarUrl == null
+                    ? Icon(icon, color: Colors.white, size: 34)
+                    : null,
+              ),
+              const SizedBox(height: 18),
+              Text(
+                eyebrow,
+                style: const TextStyle(
+                  color: AuthColors.cyan,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const SizedBox(height: 9),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AuthColors.mainText,
+                  fontSize: 25,
+                  height: 1.15,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -.55,
+                ),
+              ),
+              const SizedBox(height: 9),
+              Text(
+                description,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AuthColors.mutedText,
+                  fontSize: 13,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 22),
+              child,
+            ],
+          ),
+        ),
+      ),
+    );
+
     return Scaffold(
       backgroundColor: AuthColors.background,
       body: Stack(
         children: [
           const Positioned.fill(child: _AuthBackground()),
           SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(22),
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: _panelDecoration(),
-                  child: Column(
-                    children: [
-                      CircleAvatar(
-                        radius: 38,
-                        backgroundColor: AuthColors.blue,
-                        backgroundImage: user.photoURL == null
-                            ? null
-                            : NetworkImage(user.photoURL!),
-                        child: user.photoURL != null
-                            ? null
-                            : const Icon(
-                                Icons.person_rounded,
-                                color: Colors.white,
-                                size: 36,
-                              ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        user.displayName ?? 'IELTS Learner',
-                        style: const TextStyle(
-                          color: AuthColors.mainText,
-                          fontSize: 23,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        user.email ?? '',
-                        style: const TextStyle(
-                          color: AuthColors.mutedText,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      _PrimaryAuthButton(
-                        title: 'Optional Phone Verification',
-                        icon: Icons.phone_iphone_rounded,
-                        isLoading: false,
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  const OptionalPhoneVerificationScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 52,
-                        child: OutlinedButton.icon(
-                          onPressed: () => _logoutCurrentDevice(context),
-                          icon: const Icon(Icons.logout_rounded),
-                          label: const Text('Logout This Device'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AuthColors.mainText,
-                            side: BorderSide(
-                              color: Colors.white.withOpacity(0.1),
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(17),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      TextButton.icon(
-                        onPressed: () => _requestLogoutFromAllDevices(context),
-                        icon: const Icon(
-                          Icons.phonelink_erase_rounded,
-                          size: 18,
-                        ),
-                        label: const Text('Logout From All Devices'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: AuthColors.error,
-                        ),
-                      ),
-                    ],
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth < 940) return statusCard;
+                return Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1260),
+                    child: Row(
+                      children: [
+                        const Expanded(child: _AuthStoryPanel()),
+                        Expanded(child: statusCard),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AuthNoticeCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+  final Color accent;
+
+  const _AuthNoticeCard({
+    required this.icon,
+    required this.title,
+    required this.message,
+    required this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: accent.withOpacity(.065),
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: accent.withOpacity(.16)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: accent.withOpacity(.11),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Icon(icon, color: accent, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: AuthColors.mainText,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-              ),
+                const SizedBox(height: 4),
+                Text(
+                  message,
+                  style: const TextStyle(
+                    color: AuthColors.mutedText,
+                    fontSize: 11.5,
+                    height: 1.4,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -1528,19 +2060,20 @@ class _TopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 22, 12),
+      padding: const EdgeInsets.fromLTRB(18, 16, 22, 12),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           IconButton(
             onPressed: onBack,
             style: IconButton.styleFrom(
-              backgroundColor: AuthColors.surface,
+              backgroundColor: AuthColors.surfaceElevated,
               foregroundColor: AuthColors.mainText,
+              side: const BorderSide(color: AuthColors.border),
             ),
             icon: const Icon(Icons.arrow_back_rounded),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1549,23 +2082,26 @@ class _TopBar extends StatelessWidget {
                   title,
                   style: const TextStyle(
                     color: AuthColors.mainText,
-                    fontSize: 25,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.6,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -.35,
                   ),
                 ),
-                const SizedBox(height: 5),
+                const SizedBox(height: 3),
                 Text(
                   subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: AuthColors.mutedText,
-                    fontSize: 12.5,
-                    height: 1.45,
+                    fontSize: 11.5,
                   ),
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 10),
+          const _AuthMiniBadge('SECURE'),
         ],
       ),
     );
@@ -1580,26 +2116,60 @@ class _SecurityBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AuthColors.blue.withOpacity(0.09),
+        color: AuthColors.cyan.withOpacity(.055),
         borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: AuthColors.cyan.withOpacity(0.16)),
+        border: Border.all(color: AuthColors.cyan.withOpacity(.14)),
       ),
       child: const Row(
         children: [
-          Icon(Icons.shield_outlined, color: AuthColors.cyan, size: 22),
-          SizedBox(width: 11),
+          _SecurityIcon(),
+          SizedBox(width: 12),
           Expanded(
-            child: Text(
-              'Secure authentication with email verification and protected cloud profiles.',
-              style: TextStyle(
-                color: AuthColors.secondaryText,
-                fontSize: 11.5,
-                height: 1.45,
-                fontWeight: FontWeight.w500,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Secure account access',
+                  style: TextStyle(
+                    color: AuthColors.mainText,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                SizedBox(height: 3),
+                Text(
+                  'Encrypted sign-in, verified email and protected cloud progress.',
+                  style: TextStyle(
+                    color: AuthColors.mutedText,
+                    fontSize: 11.5,
+                    height: 1.4,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SecurityIcon extends StatelessWidget {
+  const _SecurityIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: AuthColors.cyan.withOpacity(.10),
+        borderRadius: BorderRadius.circular(13),
+      ),
+      child: const Icon(
+        Icons.shield_outlined,
+        color: AuthColors.cyan,
+        size: 21,
       ),
     );
   }
@@ -1632,38 +2202,66 @@ class _AuthTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextFormField(
-      controller: controller,
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      textInputAction: textInputAction,
-      validator: validator,
-      onFieldSubmitted: onSubmitted,
-      cursorColor: AuthColors.cyan,
-      style: const TextStyle(
-        color: AuthColors.mainText,
-        fontSize: 14,
-        fontWeight: FontWeight.w500,
-      ),
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        labelStyle: const TextStyle(color: AuthColors.mutedText, fontSize: 13),
-        hintStyle: const TextStyle(color: AuthColors.subtleText, fontSize: 13),
-        prefixIcon: Icon(icon, color: AuthColors.mutedText, size: 21),
-        suffixIcon: suffixIcon,
-        filled: true,
-        fillColor: AuthColors.surface.withOpacity(0.92),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 17,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 2, bottom: 7),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: AuthColors.secondaryText,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: .15,
+            ),
+          ),
         ),
-        border: _fieldBorder(AuthColors.border),
-        enabledBorder: _fieldBorder(AuthColors.border),
-        focusedBorder: _fieldBorder(AuthColors.cyan, width: 1.4),
-        errorBorder: _fieldBorder(AuthColors.error),
-        focusedErrorBorder: _fieldBorder(AuthColors.error, width: 1.4),
-      ),
+        TextFormField(
+          controller: controller,
+          obscureText: obscureText,
+          keyboardType: keyboardType,
+          textInputAction: textInputAction,
+          validator: validator,
+          onFieldSubmitted: onSubmitted,
+          cursorColor: AuthColors.cyan,
+          style: const TextStyle(
+            color: AuthColors.mainText,
+            fontSize: 13.5,
+            fontWeight: FontWeight.w600,
+          ),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: const TextStyle(
+              color: AuthColors.subtleText,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w500,
+            ),
+            prefixIcon: Padding(
+              padding: const EdgeInsets.all(10),
+              child: Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: AuthColors.surfaceElevated,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: AuthColors.cyan, size: 18),
+              ),
+            ),
+            prefixIconConstraints: const BoxConstraints(minWidth: 54),
+            suffixIcon: suffixIcon,
+            filled: true,
+            fillColor: AuthColors.surface.withOpacity(.88),
+            contentPadding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
+            border: _fieldBorder(AuthColors.border),
+            enabledBorder: _fieldBorder(AuthColors.border),
+            focusedBorder: _fieldBorder(AuthColors.cyan, width: 1.4),
+            errorBorder: _fieldBorder(AuthColors.error),
+            focusedErrorBorder: _fieldBorder(AuthColors.error, width: 1.4),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1681,33 +2279,50 @@ class _CountrySelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DropdownButtonFormField<String>(
-      value: value,
-      dropdownColor: AuthColors.surface,
-      iconEnabledColor: AuthColors.cyan,
-      style: const TextStyle(
-        color: AuthColors.mainText,
-        fontSize: 14,
-        fontWeight: FontWeight.w500,
-      ),
-      decoration: InputDecoration(
-        labelText: 'Country',
-        labelStyle: const TextStyle(color: AuthColors.mutedText, fontSize: 13),
-        prefixIcon: const Icon(
-          Icons.public_rounded,
-          color: AuthColors.mutedText,
-          size: 21,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(left: 2, bottom: 7),
+          child: Text(
+            'Country',
+            style: TextStyle(
+              color: AuthColors.secondaryText,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
         ),
-        filled: true,
-        fillColor: AuthColors.surface.withOpacity(0.92),
-        border: _fieldBorder(AuthColors.border),
-        enabledBorder: _fieldBorder(AuthColors.border),
-        focusedBorder: _fieldBorder(AuthColors.cyan, width: 1.4),
-      ),
-      items: countries.map((country) {
-        return DropdownMenuItem(value: country, child: Text(country));
-      }).toList(),
-      onChanged: onChanged,
+        DropdownButtonFormField<String>(
+          initialValue: value,
+          dropdownColor: AuthColors.surfaceElevated,
+          iconEnabledColor: AuthColors.cyan,
+          style: const TextStyle(
+            color: AuthColors.mainText,
+            fontSize: 13.5,
+            fontWeight: FontWeight.w600,
+          ),
+          decoration: InputDecoration(
+            prefixIcon: const Padding(
+              padding: EdgeInsets.all(16),
+              child: Icon(
+                Icons.public_rounded,
+                color: AuthColors.cyan,
+                size: 19,
+              ),
+            ),
+            filled: true,
+            fillColor: AuthColors.surface.withOpacity(.88),
+            border: _fieldBorder(AuthColors.border),
+            enabledBorder: _fieldBorder(AuthColors.border),
+            focusedBorder: _fieldBorder(AuthColors.cyan, width: 1.4),
+          ),
+          items: countries.map((country) {
+            return DropdownMenuItem(value: country, child: Text(country));
+          }).toList(),
+          onChanged: onChanged,
+        ),
+      ],
     );
   }
 }
@@ -1720,53 +2335,58 @@ class _TermsCheckbox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Transform.translate(
-          offset: const Offset(-4, -3),
-          child: Checkbox(
+    return Container(
+      padding: const EdgeInsets.fromLTRB(9, 8, 12, 8),
+      decoration: BoxDecoration(
+        color: AuthColors.surface.withOpacity(.56),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: AuthColors.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Checkbox(
             value: value,
             onChanged: onChanged,
             activeColor: AuthColors.cyan,
             checkColor: AuthColors.background,
             side: const BorderSide(color: AuthColors.mutedText),
           ),
-        ),
-        const Expanded(
-          child: Padding(
-            padding: EdgeInsets.only(top: 7),
-            child: Text.rich(
-              TextSpan(
-                text: 'I agree to the ',
-                children: [
-                  TextSpan(
-                    text: 'Terms of Service',
-                    style: TextStyle(
-                      color: AuthColors.cyan,
-                      fontWeight: FontWeight.w700,
+          const Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(top: 10),
+              child: Text.rich(
+                TextSpan(
+                  text: 'I agree to the ',
+                  children: [
+                    TextSpan(
+                      text: 'Terms of Service',
+                      style: TextStyle(
+                        color: AuthColors.cyan,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                  ),
-                  TextSpan(text: ' and '),
-                  TextSpan(
-                    text: 'Privacy Policy',
-                    style: TextStyle(
-                      color: AuthColors.cyan,
-                      fontWeight: FontWeight.w700,
+                    TextSpan(text: ' and '),
+                    TextSpan(
+                      text: 'Privacy Policy',
+                      style: TextStyle(
+                        color: AuthColors.cyan,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                  ),
-                  TextSpan(text: '.'),
-                ],
-              ),
-              style: TextStyle(
-                color: AuthColors.mutedText,
-                fontSize: 11.5,
-                height: 1.45,
+                    TextSpan(text: '.'),
+                  ],
+                ),
+                style: TextStyle(
+                  color: AuthColors.mutedText,
+                  fontSize: 11.5,
+                  height: 1.4,
+                ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -1786,20 +2406,28 @@ class _PrimaryAuthButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final visuallyActive = isLoading || onPressed != null;
+
     return SizedBox(
       width: double.infinity,
       height: 56,
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
-          gradient: AuthColors.gradient,
-          boxShadow: [
-            BoxShadow(
-              color: AuthColors.blue.withOpacity(0.28),
-              blurRadius: 22,
-              offset: const Offset(0, 11),
-            ),
-          ],
+          gradient: visuallyActive
+              ? AuthColors.gradient
+              : const LinearGradient(
+                  colors: [AuthColors.surfaceElevated, AuthColors.surface],
+                ),
+          boxShadow: visuallyActive
+              ? [
+                  BoxShadow(
+                    color: AuthColors.blue.withOpacity(.24),
+                    blurRadius: 22,
+                    offset: const Offset(0, 11),
+                  ),
+                ]
+              : null,
         ),
         child: ElevatedButton(
           onPressed: isLoading ? null : onPressed,
@@ -1855,7 +2483,7 @@ class _OrDivider extends StatelessWidget {
             'OR',
             style: TextStyle(
               color: AuthColors.subtleText,
-              fontSize: 10.5,
+              fontSize: 11.5,
               fontWeight: FontWeight.w800,
               letterSpacing: 1.5,
             ),
@@ -1951,23 +2579,26 @@ class _ModeSwitchText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      alignment: WrapAlignment.center,
-      crossAxisAlignment: WrapCrossAlignment.center,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text(
-          normalText,
-          style: const TextStyle(color: AuthColors.mutedText, fontSize: 12),
+        Flexible(
+          child: Text(
+            normalText,
+            textAlign: TextAlign.right,
+            style: const TextStyle(color: AuthColors.mutedText, fontSize: 11.5),
+          ),
         ),
-        GestureDetector(
-          onTap: onTap,
+        TextButton(
+          onPressed: onTap,
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 7),
+            minimumSize: const Size(44, 36),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
           child: Text(
             actionText,
-            style: const TextStyle(
-              color: AuthColors.cyan,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
+            style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900),
           ),
         ),
       ],
@@ -1988,14 +2619,17 @@ class _AuthBackground extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color(0xFF040A13),
+                Color(0xFF030812),
                 Color(0xFF07111F),
-                Color(0xFF09182A),
-                Color(0xFF07111F),
+                Color(0xFF091728),
+                Color(0xFF06101D),
               ],
               stops: [0, 0.35, 0.72, 1],
             ),
           ),
+        ),
+        const Positioned.fill(
+          child: IgnorePointer(child: CustomPaint(painter: _AuthGridPainter())),
         ),
         const Positioned(
           top: -160,
@@ -2038,22 +2672,49 @@ class _GlowCircle extends StatelessWidget {
   }
 }
 
+class _AuthGridPainter extends CustomPainter {
+  const _AuthGridPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(.018)
+      ..strokeWidth = 1;
+
+    const gap = 42.0;
+    for (double x = 0; x <= size.width; x += gap) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+    for (double y = 0; y <= size.height; y += gap) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _AuthGridPainter oldDelegate) => false;
+}
+
 class AuthColors {
-  static const background = Color(0xFF07111F);
-  static const surface = Color(0xFF101C2E);
+  static const background = Color(0xFF06101D);
+  static const panel = Color(0xFF0C1727);
+  static const surface = Color(0xFF101D2F);
+  static const surfaceElevated = Color(0xFF17283D);
   static const mainText = Color(0xFFF8FAFC);
   static const secondaryText = Color(0xFFCBD5E1);
   static const mutedText = Color(0xFF94A3B8);
   static const subtleText = Color(0xFF64748B);
-  static const border = Color(0xFF26364A);
-  static const blue = Color(0xFF2563EB);
+  static const border = Color(0xFF22344A);
+  static const blue = Color(0xFF4F7CFF);
   static const cyan = Color(0xFF22D3EE);
-  static const violet = Color(0xFF8B5CF6);
-  static const success = Color(0xFF16A34A);
-  static const error = Color(0xFFDC2626);
+  static const violet = Color(0xFFA78BFA);
+  static const success = Color(0xFF34D399);
+  static const warning = Color(0xFFFBBF24);
+  static const error = Color(0xFFFB7185);
 
   static const gradient = LinearGradient(
-    colors: [Color(0xFF2563EB), Color(0xFF06B6D4), Color(0xFF7C3AED)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF4F7CFF), Color(0xFF22D3EE)],
   );
 }
 
@@ -2066,14 +2727,14 @@ OutlineInputBorder _fieldBorder(Color color, {double width = 1}) {
 
 BoxDecoration _panelDecoration() {
   return BoxDecoration(
-    color: AuthColors.surface.withOpacity(0.94),
-    borderRadius: BorderRadius.circular(27),
-    border: Border.all(color: Colors.white.withOpacity(0.075)),
+    color: AuthColors.panel.withOpacity(.94),
+    borderRadius: BorderRadius.circular(28),
+    border: Border.all(color: AuthColors.border),
     boxShadow: [
       BoxShadow(
-        color: Colors.black.withOpacity(0.22),
-        blurRadius: 28,
-        offset: const Offset(0, 15),
+        color: Colors.black.withOpacity(.26),
+        blurRadius: 36,
+        offset: const Offset(0, 18),
       ),
     ],
   );
@@ -2247,83 +2908,122 @@ class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOut,
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-      child: SingleChildScrollView(
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(22, 14, 22, 24),
-          decoration: const BoxDecoration(
-            color: AuthColors.surface,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AuthColors.border,
-                  borderRadius: BorderRadius.circular(20),
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 620),
+          child: SingleChildScrollView(
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(22, 12, 22, 24),
+              decoration: BoxDecoration(
+                color: AuthColors.panel,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(30),
                 ),
+                border: Border.all(color: AuthColors.border),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(.32),
+                    blurRadius: 36,
+                    offset: const Offset(0, -12),
+                  ),
+                ],
               ),
-
-              const SizedBox(height: 22),
-
-              const Icon(
-                Icons.lock_reset_rounded,
-                color: AuthColors.cyan,
-                size: 36,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AuthColors.border,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Row(
+                    children: [
+                      _ResetIcon(),
+                      SizedBox(width: 13),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Reset your password',
+                              style: TextStyle(
+                                color: AuthColors.mainText,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'We’ll send a secure recovery link to your inbox.',
+                              style: TextStyle(
+                                color: AuthColors.mutedText,
+                                fontSize: 12,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  _AuthTextField(
+                    controller: _emailController,
+                    label: 'Account email',
+                    hint: 'name@example.com',
+                    icon: Icons.mail_outline_rounded,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) {
+                      if (!_sending) _sendReset();
+                    },
+                  ),
+                  const SizedBox(height: 13),
+                  const _AuthNoticeCard(
+                    icon: Icons.schedule_rounded,
+                    title: 'Link expires automatically',
+                    message:
+                        'For your security, use the newest recovery email you receive.',
+                    accent: AuthColors.violet,
+                  ),
+                  const SizedBox(height: 18),
+                  _PrimaryAuthButton(
+                    title: 'Send recovery link',
+                    icon: Icons.arrow_forward_rounded,
+                    isLoading: _sending,
+                    onPressed: _sending ? null : _sendReset,
+                  ),
+                ],
               ),
-
-              const SizedBox(height: 13),
-
-              const Text(
-                'Reset your password',
-                style: TextStyle(
-                  color: AuthColors.mainText,
-                  fontSize: 21,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              const Text(
-                'We will send a secure password reset link to your email.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AuthColors.mutedText,
-                  fontSize: 13,
-                  height: 1.5,
-                ),
-              ),
-
-              const SizedBox(height: 18),
-
-              _AuthTextField(
-                controller: _emailController,
-                label: 'Email',
-                hint: 'name@example.com',
-                icon: Icons.mail_outline_rounded,
-                keyboardType: TextInputType.emailAddress,
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) {
-                  if (!_sending) {
-                    _sendReset();
-                  }
-                },
-              ),
-
-              const SizedBox(height: 16),
-
-              _PrimaryAuthButton(
-                title: 'Send Reset Link',
-                icon: Icons.send_rounded,
-                isLoading: _sending,
-                onPressed: _sending ? null : _sendReset,
-              ),
-            ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ResetIcon extends StatelessWidget {
+  const _ResetIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 52,
+      height: 52,
+      decoration: BoxDecoration(
+        gradient: AuthColors.gradient,
+        borderRadius: BorderRadius.circular(17),
+      ),
+      child: const Icon(
+        Icons.lock_reset_rounded,
+        color: Colors.white,
+        size: 26,
       ),
     );
   }

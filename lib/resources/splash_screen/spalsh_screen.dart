@@ -751,7 +751,7 @@ class _FeatureBadge extends StatelessWidget {
               'ADAPTIVE  •  INTELLIGENT  •  PERSONALIZED',
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.65),
-                fontSize: 8.5,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.80,
               ),

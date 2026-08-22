@@ -232,7 +232,7 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
                           'Personalized from your real IELTS performance',
                           style: TextStyle(
                             color: CoachColors.secondary,
-                            fontSize: 10,
+                            fontSize: 11.5,
                             height: 1.35,
                           ),
                         ),
@@ -312,7 +312,7 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
                       prompt.label,
                       style: const TextStyle(
                         color: CoachColors.secondary,
-                        fontSize: 10.5,
+                        fontSize: 11.5,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -518,7 +518,7 @@ class _PremiumAppBar extends StatelessWidget {
                 SizedBox(height: 2),
                 Text(
                   'Your private IELTS study assistant',
-                  style: TextStyle(color: CoachColors.muted, fontSize: 9.5),
+                  style: TextStyle(color: CoachColors.muted, fontSize: 12),
                 ),
               ],
             ),
@@ -647,7 +647,7 @@ class _MessageBubble extends StatelessWidget {
                             'IELTS AI COACH',
                             style: TextStyle(
                               color: CoachColors.cyan,
-                              fontSize: 8.5,
+                              fontSize: 12,
                               fontWeight: FontWeight.w900,
                               letterSpacing: .8,
                             ),
@@ -838,7 +838,7 @@ class _TypingCard extends StatelessWidget {
             'AI Coach is typing',
             style: TextStyle(
               color: CoachColors.secondary,
-              fontSize: 10.5,
+              fontSize: 11.5,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -1208,7 +1208,7 @@ class _LoginRequiredView extends StatelessWidget {
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: CoachColors.muted,
-                          fontSize: 9.5,
+                          fontSize: 12,
                         ),
                       ),
                     ],
@@ -1247,7 +1247,7 @@ class _LoginFeature extends StatelessWidget {
               text,
               style: const TextStyle(
                 color: CoachColors.secondary,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -1387,7 +1387,7 @@ class _SmallSuggestion extends StatelessWidget {
         label,
         style: const TextStyle(
           color: CoachColors.secondary,
-          fontSize: 8.5,
+          fontSize: 12,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -1550,7 +1550,7 @@ class _MiniMetric extends StatelessWidget {
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: CoachColors.text,
-              fontSize: 9.5,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
             ),
           ),

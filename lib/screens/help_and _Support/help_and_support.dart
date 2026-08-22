@@ -632,7 +632,7 @@ class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
                   'Typical response time: within 24–48 hours',
                   style: TextStyle(
                     color: SupportColors.mutedText,
-                    fontSize: 10.5,
+                    fontSize: 11.5,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -763,7 +763,7 @@ class _SupportActionCard extends StatelessWidget {
                 subtitle,
                 style: const TextStyle(
                   color: SupportColors.mutedText,
-                  fontSize: 10.5,
+                  fontSize: 11.5,
                   height: 1.35,
                 ),
               ),
@@ -851,7 +851,7 @@ class _FaqTile extends StatelessWidget {
                             faq.category,
                             style: const TextStyle(
                               color: SupportColors.cyan,
-                              fontSize: 9.5,
+                              fontSize: 12,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -930,7 +930,7 @@ class _InfoTile extends StatelessWidget {
                       subtitle,
                       style: const TextStyle(
                         color: SupportColors.mutedText,
-                        fontSize: 10.5,
+                        fontSize: 11.5,
                         height: 1.35,
                       ),
                     ),
@@ -1219,7 +1219,7 @@ class _SectionHeading extends StatelessWidget {
                 subtitle,
                 style: const TextStyle(
                   color: SupportColors.mutedText,
-                  fontSize: 10.5,
+                  fontSize: 11.5,
                 ),
               ),
             ],
@@ -1310,7 +1310,7 @@ class _SecurityFooter extends StatelessWidget {
             textAlign: TextAlign.center,
             style: TextStyle(
               color: SupportColors.subtleText,
-              fontSize: 9.5,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
           ),

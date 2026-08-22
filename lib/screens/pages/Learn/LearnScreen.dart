@@ -124,7 +124,7 @@ class _LearnScreenState extends State<LearnScreen> {
               ),
               Text(
                 'Master IELTS step by step',
-                style: TextStyle(color: LearnColors.muted, fontSize: 11),
+                style: TextStyle(color: LearnColors.muted, fontSize: 12),
               ),
             ],
           ),
@@ -197,7 +197,11 @@ class _LearnScreenState extends State<LearnScreen> {
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
       sliver: SliverLayoutBuilder(
         builder: (_, c) {
-          final cols = c.crossAxisExtent >= 850 ? 3 : 2;
+          final cols = c.crossAxisExtent >= 980
+              ? 4
+              : c.crossAxisExtent >= 540
+              ? 3
+              : 2;
           return SliverGrid(
             delegate: SliverChildBuilderDelegate((context, i) {
               final item = filtered[i];
@@ -215,7 +219,7 @@ class _LearnScreenState extends State<LearnScreen> {
               crossAxisCount: cols,
               mainAxisSpacing: 12,
               crossAxisSpacing: 12,
-              childAspectRatio: .92,
+              mainAxisExtent: 190,
             ),
           );
         },
@@ -259,7 +263,7 @@ class _LearnScreenState extends State<LearnScreen> {
                   'Get lessons based on your weak skills and target band.',
                   style: TextStyle(
                     color: LearnColors.secondary,
-                    fontSize: 10.5,
+                    fontSize: 11.5,
                     height: 1.4,
                   ),
                 ),
@@ -719,7 +723,7 @@ class DailyGoalCard extends StatelessWidget {
                         '$done of $g lessons completed',
                         style: const TextStyle(
                           color: LearnColors.secondary,
-                          fontSize: 10,
+                          fontSize: 11.5,
                         ),
                       ),
                     ],
@@ -763,7 +767,7 @@ class CategoryCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CourseIcon(icon: category.icon, color: category.color),
-          const Spacer(),
+          const SizedBox(height: 16),
           Text(
             category.title,
             maxLines: 2,
@@ -780,7 +784,7 @@ class CategoryCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: LearnColors.muted,
-              fontSize: 9,
+              fontSize: 12,
               height: 1.3,
             ),
           ),
@@ -789,7 +793,7 @@ class CategoryCard extends StatelessWidget {
             '${category.lessonCount} lessons',
             style: TextStyle(
               color: category.color,
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -868,7 +872,7 @@ class CategoryHero extends StatelessWidget {
                 category.subtitle,
                 style: const TextStyle(
                   color: LearnColors.secondary,
-                  fontSize: 10.5,
+                  fontSize: 11.5,
                 ),
               ),
             ],
@@ -924,7 +928,7 @@ class LessonTile extends StatelessWidget {
                   '${lesson.durationMinutes} min • ${lesson.level}',
                   style: const TextStyle(
                     color: LearnColors.muted,
-                    fontSize: 9.5,
+                    fontSize: 12,
                   ),
                 ),
               ],
@@ -1009,7 +1013,7 @@ class SectionTitle extends StatelessWidget {
         const SizedBox(height: 3),
         Text(
           subtitle,
-          style: const TextStyle(color: LearnColors.muted, fontSize: 10),
+          style: const TextStyle(color: LearnColors.muted, fontSize: 11.5),
         ),
       ],
     ),
@@ -1068,7 +1072,7 @@ class Tag extends StatelessWidget {
     ),
     child: Text(
       label,
-      style: const TextStyle(color: LearnColors.secondary, fontSize: 8.5),
+      style: const TextStyle(color: LearnColors.secondary, fontSize: 12),
     ),
   );
 }
@@ -1081,25 +1085,57 @@ class EmptyState extends StatelessWidget {
     this.subtitle = 'Try another search term.',
   });
   @override
-  Widget build(BuildContext context) => Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      const Icon(Icons.search_off_rounded, color: LearnColors.cyan, size: 48),
-      const SizedBox(height: 12),
-      Text(
-        title,
-        style: const TextStyle(
-          color: LearnColors.text,
-          fontWeight: FontWeight.w900,
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    constraints: const BoxConstraints(maxWidth: 430),
+    padding: const EdgeInsets.all(24),
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        colors: [
+          LearnColors.surface,
+          LearnColors.cyan.withOpacity(.07),
+          LearnColors.surface,
+        ],
+      ),
+      borderRadius: BorderRadius.circular(24),
+      border: Border.all(color: LearnColors.cyan.withOpacity(.16)),
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 62,
+          height: 62,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [LearnColors.blue, LearnColors.cyan],
+            ),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Icon(
+            Icons.search_off_rounded,
+            color: Colors.white,
+            size: 29,
+          ),
         ),
-      ),
-      const SizedBox(height: 6),
-      Text(
-        subtitle,
-        textAlign: TextAlign.center,
-        style: const TextStyle(color: LearnColors.muted),
-      ),
-    ],
+        const SizedBox(height: 15),
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: LearnColors.text,
+            fontSize: 17,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 7),
+        Text(
+          subtitle,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: LearnColors.muted, height: 1.45),
+        ),
+      ],
+    ),
   );
 }
 

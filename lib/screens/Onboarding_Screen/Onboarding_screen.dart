@@ -175,87 +175,95 @@ class _PremiumOnboardingScreenState extends State<PremiumOnboardingScreen>
   }
 
   Widget _buildTopBar() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 12, 22, 6),
-      child: Row(
-        children: [
-          Container(
-            width: 43,
-            height: 43,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF2563EB),
-                  Color(0xFF06B6D4),
-                  Color(0xFF8B5CF6),
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1120),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 12, 22, 6),
+          child: Row(
+            children: [
+              Container(
+                width: 43,
+                height: 43,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFF2563EB),
+                      Color(0xFF06B6D4),
+                      Color(0xFF8B5CF6),
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF06B6D4).withOpacity(0.18),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.auto_stories_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'IELTS AI',
+                    style: TextStyle(
+                      color: Color(0xFFF8FAFC),
+                      fontSize: 15,
+                      height: 1,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  SizedBox(height: 3),
+                  Text(
+                    'MASTER',
+                    style: TextStyle(
+                      color: Color(0xFF67E8F9),
+                      fontSize: 12,
+                      height: 1,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 2.1,
+                    ),
+                  ),
                 ],
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF06B6D4).withOpacity(0.18),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: const Icon(
-              Icons.auto_stories_rounded,
-              color: Colors.white,
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 12),
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'IELTS AI',
-                style: TextStyle(
-                  color: Color(0xFFF8FAFC),
-                  fontSize: 15,
-                  height: 1,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              SizedBox(height: 3),
-              Text(
-                'MASTER',
-                style: TextStyle(
-                  color: Color(0xFF67E8F9),
-                  fontSize: 9,
-                  height: 1,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 2.1,
+              const Spacer(),
+              AnimatedOpacity(
+                duration: const Duration(milliseconds: 220),
+                opacity: _isLastPage ? 0 : 1,
+                child: IgnorePointer(
+                  ignoring: _isLastPage,
+                  child: TextButton(
+                    onPressed: _skip,
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFF94A3B8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                    child: const Text(
+                      'Skip',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],
           ),
-          const Spacer(),
-          AnimatedOpacity(
-            duration: const Duration(milliseconds: 220),
-            opacity: _isLastPage ? 0 : 1,
-            child: IgnorePointer(
-              ignoring: _isLastPage,
-              child: TextButton(
-                onPressed: _skip,
-                style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFF94A3B8),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                ),
-                child: const Text(
-                  'Skip',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -267,87 +275,94 @@ class _PremiumOnboardingScreenState extends State<PremiumOnboardingScreen>
         color: const Color(0xFF07111F).withOpacity(0.94),
         border: Border(top: BorderSide(color: Colors.white.withOpacity(0.05))),
       ),
-      child: Column(
-        children: [
-          Row(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 680),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: Row(
-                  children: List.generate(
-                    _pages.length,
-                    (index) => _PageIndicator(isActive: index == _currentPage),
+              Row(
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: List.generate(
+                        _pages.length,
+                        (index) =>
+                            _PageIndicator(isActive: index == _currentPage),
+                      ),
+                    ),
                   ),
-                ),
+                  Text(
+                    '${_currentPage + 1} / ${_pages.length}',
+                    style: const TextStyle(
+                      color: Color(0xFF64748B),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
-              Text(
-                '${_currentPage + 1} / ${_pages.length}',
-                style: const TextStyle(
-                  color: Color(0xFF64748B),
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(18),
+                    gradient: const LinearGradient(
+                      colors: [
+                        Color(0xFF2563EB),
+                        Color(0xFF06B6D4),
+                        Color(0xFF7C3AED),
+                      ],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF2563EB).withOpacity(0.28),
+                        blurRadius: 24,
+                        offset: const Offset(0, 12),
+                      ),
+                    ],
+                  ),
+                  child: ElevatedButton(
+                    onPressed: _nextPage,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                    ),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      child: Row(
+                        key: ValueKey<bool>(_isLastPage),
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            _isLastPage ? 'Get Started' : 'Continue',
+                            style: const TextStyle(
+                              fontSize: 15.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(width: 9),
+                          Icon(
+                            _isLastPage
+                                ? Icons.rocket_launch_rounded
+                                : Icons.arrow_forward_rounded,
+                            size: 21,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 18),
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                gradient: const LinearGradient(
-                  colors: [
-                    Color(0xFF2563EB),
-                    Color(0xFF06B6D4),
-                    Color(0xFF7C3AED),
-                  ],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF2563EB).withOpacity(0.28),
-                    blurRadius: 24,
-                    offset: const Offset(0, 12),
-                  ),
-                ],
-              ),
-              child: ElevatedButton(
-                onPressed: _nextPage,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                ),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 220),
-                  child: Row(
-                    key: ValueKey<bool>(_isLastPage),
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        _isLastPage ? 'Get Started' : 'Continue',
-                        style: const TextStyle(
-                          fontSize: 15.5,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(width: 9),
-                      Icon(
-                        _isLastPage
-                            ? Icons.rocket_launch_rounded
-                            : Icons.arrow_forward_rounded,
-                        size: 21,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -375,42 +390,92 @@ class _OnboardingPage extends StatelessWidget {
         duration: const Duration(milliseconds: 480),
         curve: Curves.easeOutCubic,
         scale: isVisible ? 1 : 0.96,
-        child: SingleChildScrollView(
-          physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(22, 14, 22, 18),
-          child: Column(
-            children: [
-              const SizedBox(height: 4),
-              _OnboardingVisual(type: data.type),
-              const SizedBox(height: 32),
-              _EyebrowLabel(text: data.eyebrow, icon: data.icon),
-              const SizedBox(height: 14),
-              Text(
-                data.title,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Color(0xFFF8FAFC),
-                  fontSize: 29,
-                  height: 1.15,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.75,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth >= 840;
+
+            return SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(
+                isWide ? 32 : 22,
+                isWide ? 20 : 14,
+                isWide ? 32 : 22,
+                20,
+              ),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1080),
+                  child: isWide
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Expanded(child: _buildVisual(maxWidth: 500)),
+                            const SizedBox(width: 64),
+                            Expanded(
+                              child: _buildCopy(textAlign: TextAlign.left),
+                            ),
+                          ],
+                        )
+                      : Column(
+                          children: [
+                            const SizedBox(height: 4),
+                            _buildVisual(maxWidth: 430),
+                            const SizedBox(height: 32),
+                            _buildCopy(textAlign: TextAlign.center),
+                          ],
+                        ),
                 ),
               ),
-              const SizedBox(height: 13),
-              Text(
-                data.description,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Color(0xFF94A3B8),
-                  fontSize: 14.5,
-                  height: 1.6,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         ),
       ),
+    );
+  }
+
+  Widget _buildVisual({required double maxWidth}) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: _OnboardingVisual(type: data.type),
+      ),
+    );
+  }
+
+  Widget _buildCopy({required TextAlign textAlign}) {
+    final alignment = textAlign == TextAlign.left
+        ? CrossAxisAlignment.start
+        : CrossAxisAlignment.center;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: alignment,
+      children: [
+        _EyebrowLabel(text: data.eyebrow, icon: data.icon),
+        const SizedBox(height: 14),
+        Text(
+          data.title,
+          textAlign: textAlign,
+          style: const TextStyle(
+            color: Color(0xFFF8FAFC),
+            fontSize: 29,
+            height: 1.15,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.75,
+          ),
+        ),
+        const SizedBox(height: 13),
+        Text(
+          data.description,
+          textAlign: textAlign,
+          style: const TextStyle(
+            color: Color(0xFF94A3B8),
+            fontSize: 14.5,
+            height: 1.6,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -439,7 +504,7 @@ class _EyebrowLabel extends StatelessWidget {
             text,
             style: const TextStyle(
               color: Color(0xFFBAE6FD),
-              fontSize: 9.5,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
               letterSpacing: 1.2,
             ),
@@ -669,7 +734,7 @@ class _ModulesVisual extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: Color(0xFF94A3B8),
-                        fontSize: 9.5,
+                        fontSize: 12,
                         height: 1.25,
                       ),
                     ),
@@ -769,7 +834,7 @@ class _FeedbackVisual extends StatelessWidget {
                         'Fluency improved',
                         style: TextStyle(
                           color: Color(0xFF6EE7B7),
-                          fontSize: 10,
+                          fontSize: 11.5,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -808,7 +873,7 @@ class _FeedbackVisual extends StatelessWidget {
                         'Improve paragraph linking and reduce repeated vocabulary.',
                         style: TextStyle(
                           color: Color(0xFF94A3B8),
-                          fontSize: 10.5,
+                          fontSize: 11.5,
                           height: 1.45,
                         ),
                       ),
@@ -825,7 +890,7 @@ class _FeedbackVisual extends StatelessWidget {
                             '+0.5 band',
                             style: TextStyle(
                               color: Color(0xFF6EE7B7),
-                              fontSize: 10,
+                              fontSize: 11.5,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -871,9 +936,13 @@ class _MockVisual extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Container(
-                            padding: const EdgeInsets.all(12),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
                             decoration: _visualCardDecoration(),
                             child: const Column(
+                              mainAxisSize: MainAxisSize.min,
                               mainAxisAlignment: MainAxisAlignment.center,
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -883,19 +952,21 @@ class _MockVisual extends StatelessWidget {
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     color: Color(0xFF67E8F9),
-                                    fontSize: 9,
+                                    fontSize: 11,
+                                    height: 1.0,
                                     fontWeight: FontWeight.w800,
-                                    letterSpacing: 1,
+                                    letterSpacing: 0.9,
                                   ),
                                 ),
-                                SizedBox(height: 6),
+                                SizedBox(height: 4),
                                 Text(
                                   'Academic',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     color: Color(0xFFF8FAFC),
-                                    fontSize: 17,
+                                    fontSize: 16,
+                                    height: 1.05,
                                     fontWeight: FontWeight.w800,
                                   ),
                                 ),
@@ -906,7 +977,8 @@ class _MockVisual extends StatelessWidget {
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     color: Color(0xFF94A3B8),
-                                    fontSize: 10,
+                                    fontSize: 11,
+                                    height: 1.0,
                                   ),
                                 ),
                               ],
@@ -959,7 +1031,7 @@ class _MockVisual extends StatelessWidget {
                                 maxLines: 1,
                                 style: TextStyle(
                                   color: Color(0xFFBAE6FD),
-                                  fontSize: 8.5,
+                                  fontSize: 12,
                                 ),
                               ),
                             ],
@@ -1043,7 +1115,7 @@ class _MockVisual extends StatelessWidget {
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     color: Color(0xFF94A3B8),
-                                    fontSize: 9.5,
+                                    fontSize: 12,
                                     height: 1.25,
                                   ),
                                 ),
@@ -1213,7 +1285,7 @@ class _MetricCard extends StatelessWidget {
                   title,
                   style: const TextStyle(
                     color: Color(0xFF94A3B8),
-                    fontSize: 9.5,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -1235,7 +1307,7 @@ class _MetricCard extends StatelessWidget {
             subtitle,
             style: TextStyle(
               color: accent,
-              fontSize: 9.5,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -1269,7 +1341,7 @@ class _MiniLabel extends StatelessWidget {
             label,
             style: const TextStyle(
               color: Color(0xFFBAE6FD),
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -1363,7 +1435,7 @@ class _CircleProgress extends StatelessWidget {
           value,
           style: const TextStyle(
             color: Color(0xFFF8FAFC),
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -1506,7 +1578,7 @@ class _QuestionPalette extends StatelessWidget {
                     '$number',
                     style: TextStyle(
                       color: textColor,
-                      fontSize: 10.5,
+                      fontSize: 11.5,
                       fontWeight: FontWeight.w800,
                     ),
                   ),

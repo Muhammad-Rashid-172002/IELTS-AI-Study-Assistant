@@ -1,30 +1,20 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:fyproject/main.dart';
+import 'package:fyproject/models/mock_test_models.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  test('full mock configuration includes all IELTS skills and durations', () {
+    final config = MockTestConfig(
+      track: MockTrack.academic,
+      scope: MockScope.fullMock,
+      mode: MockMode.computerDelivered,
+      singleSkill: null,
+      difficulty: 'Adaptive',
+      testDate: DateTime(2026, 8, 22),
+      targetBand: 7,
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(config.skills, MockSkill.values);
+    expect(config.totalDurationMinutes, 164);
+    expect(config.toMap()['track'], 'academic');
   });
 }

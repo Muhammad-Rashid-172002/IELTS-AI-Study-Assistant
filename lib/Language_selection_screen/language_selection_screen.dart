@@ -309,7 +309,7 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen>
               '6 languages',
               style: TextStyle(
                 color: LanguageColors.cyan,
-                fontSize: 9.5,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -396,7 +396,7 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen>
                       'CURRENT SELECTION',
                       style: TextStyle(
                         color: LanguageColors.cyan,
-                        fontSize: 8.5,
+                        fontSize: 12,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 1.3,
                       ),

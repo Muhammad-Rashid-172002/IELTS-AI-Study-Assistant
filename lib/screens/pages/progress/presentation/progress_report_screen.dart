@@ -309,7 +309,7 @@ class _IncompleteBandNotice extends StatelessWidget {
               'Writing and Speaking to calculate a valid IELTS overall band.',
               style: TextStyle(
                 color: ProgressColors.secondary,
-                fontSize: 11,
+                fontSize: 12,
                 height: 1.45,
                 fontWeight: FontWeight.w600,
               ),
@@ -362,7 +362,7 @@ class _ReportMetric extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: ProgressColors.muted, fontSize: 8.5),
+            style: const TextStyle(color: ProgressColors.muted, fontSize: 12),
           ),
         ],
       ),

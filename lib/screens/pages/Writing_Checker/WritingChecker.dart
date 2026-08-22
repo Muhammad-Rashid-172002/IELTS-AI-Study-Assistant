@@ -5,12 +5,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fyproject/offline/offline_content_service.dart';
 import 'package:flutter/material.dart';
+import 'package:fyproject/resources/components/learner_state_view.dart';
+import 'package:fyproject/resources/components/ielts_result_widgets.dart';
 import 'package:fyproject/screens/pages/Subscription/Subscription_screen.dart';
 import 'package:fyproject/screens/content_queue_service.dart';
 
 class WritingPremiumManager {
   WritingPremiumManager._();
 
+  // Free Writing access is completion-based: each published test once.
+  // Kept only for backward compatibility with older usage documents.
   static const int freeWritingTasksPerDay = 1;
   static const int freeAiChecksPerDay = 1;
   static const int freeDraftLimit = 3;
@@ -80,6 +84,46 @@ class WritingPremiumManager {
       return isPremiumFromData(doc.data() ?? const <String, dynamic>{});
     } catch (_) {
       return false;
+    }
+  }
+
+  /// Free users may successfully complete each published Writing test once.
+  /// Opening a task, choosing a mode, typing, autosaving, or navigating back
+  /// does NOT consume the free attempt. The attempt is considered used only
+  /// after a real completed AI evaluation is persisted to writing_cycles.
+  static Future<bool> canAttemptWritingTask({
+    required String poolKey,
+    required String taskId,
+  }) async {
+    if (taskId.trim().isEmpty) return false;
+    if (await isPremiumUser()) return true;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
+
+    if (!OfflineContentService.instance.isOnline) {
+      // Keep offline writing usable. Completion will be reconciled after sync.
+      return true;
+    }
+
+    try {
+      final progress = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('writing_cycles')
+          .doc(poolKey)
+          .get()
+          .timeout(const Duration(seconds: 10));
+
+      final completedIds = _stringList(
+        progress.data()?['completedTaskIds'],
+      ).map((e) => e.trim()).where((e) => e.isNotEmpty).toSet();
+
+      return !completedIds.contains(taskId);
+    } catch (error) {
+      debugPrint('Writing single-attempt check failed: $error');
+      // Fail open so a metadata/network issue does not wrongly lock practice.
+      return true;
     }
   }
 
@@ -462,7 +506,7 @@ class _WritingPremiumBenefit extends StatelessWidget {
               text,
               style: const TextStyle(
                 color: WColors.secondary,
-                fontSize: 10.5,
+                fontSize: 11.5,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -544,7 +588,7 @@ class _WritingPlanCard extends StatelessWidget {
                         Text(
                           isPremium
                               ? 'Unlimited IELTS Writing practice'
-                              : '1 Writing task + 1 AI check every day',
+                              : 'Each Writing test once + 1 AI check every day',
                           style: const TextStyle(
                             color: WColors.text,
                             fontSize: 13.5,
@@ -555,7 +599,7 @@ class _WritingPlanCard extends StatelessWidget {
                         Text(
                           isPremium
                               ? 'Unlimited tasks, AI reports, drafts, history, lessons and model answers.'
-                              : 'Free plan: 3 drafts, latest 10 results and first 3 lessons.',
+                              : 'Free plan: each Writing test once, 3 drafts, latest 10 results and first 3 lessons.',
                           style: const TextStyle(
                             color: WColors.secondary,
                             fontSize: 9.8,
@@ -919,6 +963,7 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
   List<WritingTask> _tasks = [];
   int _currentCycle = 1;
   int _availableCount = 0;
+  int _completedInCycle = 0;
 
   String get _cyclePoolKey {
     final category = _safeWritingCycleKey(widget.category);
@@ -940,30 +985,10 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
       _error = null;
       _tasks = [];
       _availableCount = 0;
+      _completedInCycle = 0;
     });
 
     try {
-      final access = await WritingPremiumManager.checkDaily(
-        feature: 'writing_task',
-        limit: WritingPremiumManager.freeWritingTasksPerDay,
-      );
-
-      if (!access.allowed) {
-        if (!mounted) return;
-        setState(() {
-          _loading = false;
-          _error = 'Daily Writing limit reached.';
-        });
-
-        await _showWritingLimitSheet(
-          context,
-          title: 'Daily Writing limit reached',
-          message:
-              'Free users can start 1 Writing task per day. Upgrade to Premium for unlimited Writing practice.',
-        );
-        return;
-      }
-
       final offline = OfflineContentService.instance;
       List<WritingTask> available;
 
@@ -1027,17 +1052,23 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
 
       _currentCycle = selection.cycleNumber;
 
+      if (!mounted) return;
       setState(() {
+        // Sequential IELTS flow: expose only the current assigned test.
+        // Test 1 -> Test 2 -> ... -> last test -> new cycle -> Test 1.
         _tasks = selection.task == null
             ? <WritingTask>[]
             : <WritingTask>[selection.task!];
+        _completedInCycle = selection.completedInCycle;
         _loading = false;
       });
     } catch (error) {
+      debugPrint('Writing task loading failed: $error');
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = 'Writing tasks could not be loaded: $error';
+        _error =
+            'Writing tasks could not be loaded. Check your connection and try again.';
       });
     }
   }
@@ -1158,7 +1189,7 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
           .toList();
 
       // Every published task in this pool is complete.
-      // Start Cycle 2/3/... without deleting writing_results or old analytics.
+      // Start a fresh cycle for every user and return to Test 1.
       if (remaining.isEmpty) {
         cycleNumber += 1;
         completedIds = <String>{};
@@ -1173,6 +1204,7 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
           'cycleResultCount': 0,
           'cycleBandSum': 0.0,
           'cycleAverageBand': 0.0,
+          'cycleCompleted': false,
           'cycleStartedAt': FieldValue.serverTimestamp(),
           'lastCycleResetAt': FieldValue.serverTimestamp(),
           'totalTasksAtLastLoad': orderedTasks.length,
@@ -1225,35 +1257,50 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
         children: [
           const Positioned.fill(child: _WritingBackground()),
           if (_loading)
-            const Center(child: CircularProgressIndicator())
+            const LearnerStateView.loading(
+              title: 'Selecting your next writing task',
+              message:
+                  'Matching a fresh prompt to your mode, level and completed practice.',
+              icon: Icons.edit_note_rounded,
+            )
           else if (_error != null)
-            _MessageState(
+            LearnerStateView.error(
               icon: Icons.error_outline_rounded,
               title: 'Unable to load writing tasks',
-              subtitle: _error!,
-              action: _load,
+              message:
+                  'Your drafts and feedback are safe. Check your connection and try loading the tasks again.',
+              onAction: _load,
             )
           else if (_tasks.isEmpty)
-            _MessageState(
+            LearnerStateView.empty(
               icon: Icons.edit_note_rounded,
-              title: 'No Writing task available',
-              subtitle: _availableCount == 0
+              title: 'No writing task available',
+              message: _availableCount == 0
                   ? 'No published Writing task is available for this selection yet.'
                   : 'Your next Writing task could not be prepared. Please try again.',
-              action: _load,
+              actionLabel: 'Refresh tasks',
+              onAction: _load,
             )
           else
-            ListView.separated(
+            ListView(
               padding: const EdgeInsets.fromLTRB(18, 16, 18, 30),
-              itemCount: _tasks.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 11),
-              itemBuilder: (context, index) {
-                final task = _tasks[index];
-                return _WritingTaskCard(
-                  task: task,
-                  onTap: () => _showModeSheet(context, task),
-                );
-              },
+              children: [
+                _WritingCycleProgressCard(
+                  currentNumber: math.min(
+                    _completedInCycle + 1,
+                    _availableCount,
+                  ),
+                  total: _availableCount,
+                  cycleNumber: _currentCycle,
+                ),
+                const SizedBox(height: 12),
+                _WritingTaskCard(
+                  task: _tasks.first,
+                  completed: false,
+                  premiumLocked: false,
+                  onTap: () => _showModeSheet(context, _tasks.first),
+                ),
+              ],
             ),
         ],
       ),
@@ -1307,7 +1354,7 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
                   '${task.taskType} • ${task.minimumWords}+ words • '
                   '${_formatClock(task.durationSeconds)}',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: WColors.muted, fontSize: 11),
+                  style: const TextStyle(color: WColors.muted, fontSize: 12),
                 ),
                 const SizedBox(height: 20),
                 _ModeTile(
@@ -1350,20 +1397,17 @@ class _WritingTaskBrowserScreenState extends State<WritingTaskBrowserScreen> {
   ) async {
     Navigator.of(sheetContext).pop();
 
-    final access = await WritingPremiumManager.consumeDaily(
-      feature: 'writing_task',
-      limit: WritingPremiumManager.freeWritingTasksPerDay,
+    final canAttempt = await WritingPremiumManager.canAttemptWritingTask(
+      poolKey: _cyclePoolKey,
+      taskId: task.id,
     );
 
     if (!mounted) return;
 
-    if (!access.allowed) {
-      await _showWritingLimitSheet(
-        context,
-        title: 'Daily Writing limit reached',
-        message:
-            'Free users can start 1 Writing task per day. Upgrade to Premium for unlimited Writing practice.',
-      );
+    if (!canAttempt) {
+      // The visible card became stale because its AI evaluation completed.
+      // Reloading advances to the next sequential test (or starts a new cycle).
+      await _load();
       return;
     }
 
@@ -1807,13 +1851,22 @@ class _WritingEditorScreenState extends State<WritingEditorScreen> {
                 );
               }
 
+              // On small screens the editor can temporarily receive a very
+              // short height (for example while the keyboard is animating).
+              // Do not force the suggestion strip into that constrained space.
+              final canShowSuggestionStrip =
+                  _practiceMode && !_fullscreen && constraints.maxHeight >= 150;
+
               return Column(
                 children: [
                   Expanded(child: writingBox),
-                  if (_practiceMode && !_fullscreen)
-                    _MobileSuggestionStrip(
-                      suggestions: _liveSuggestions,
-                      vocabulary: widget.task.usefulVocabulary,
+                  if (canShowSuggestionStrip)
+                    Flexible(
+                      flex: 0,
+                      child: _MobileSuggestionStrip(
+                        suggestions: _liveSuggestions,
+                        vocabulary: widget.task.usefulVocabulary,
+                      ),
                     ),
                 ],
               );
@@ -1875,6 +1928,15 @@ class WritingEvaluationWaitingScreen extends StatelessWidget {
                 .doc(submissionId)
                 .snapshots(),
             builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return _MessageState(
+                  icon: Icons.cloud_off_rounded,
+                  title: 'Report connection interrupted',
+                  subtitle:
+                      'Your submission is safe. Check your connection and reopen this report in a moment.',
+                  action: () => Navigator.pop(context),
+                );
+              }
               final data = snapshot.data?.data();
               final status = (data?['status'] ?? 'queued').toString();
 
@@ -1919,13 +1981,25 @@ class WritingEvaluationWaitingScreen extends StatelessWidget {
                 return _MessageState(
                   icon: Icons.error_outline_rounded,
                   title: 'Evaluation failed',
-                  subtitle: (data?['errorMessage'] ?? 'Please try again later.')
-                      .toString(),
+                  subtitle:
+                      'We could not complete this writing report. Your response is safe—please try the evaluation again.',
                   action: () => Navigator.pop(context),
                 );
               }
 
-              return const Center(child: _EvaluationLoadingCard());
+              return const IeltsAiAnalysisLoader(
+                title: 'Building your writing report',
+                subtitle:
+                    'Your response is being assessed against all four IELTS Writing criteria.',
+                steps: [
+                  'Assessing task response',
+                  'Mapping coherence and cohesion',
+                  'Reviewing vocabulary and grammar',
+                  'Preparing actionable feedback',
+                ],
+                accent: WColors.cyan,
+                icon: Icons.auto_awesome_rounded,
+              );
             },
           ),
         ],
@@ -1946,6 +2020,30 @@ class WritingReportScreen extends StatelessWidget {
     required this.report,
   });
 
+  List<(String, WritingCriterion)> get _criteria => [
+    (
+      task.taskCategory.toLowerCase().contains('task_1')
+          ? 'Task Achievement'
+          : 'Task Response',
+      report.taskAchievement,
+    ),
+    ('Coherence & Cohesion', report.coherenceAndCohesion),
+    ('Lexical Resource', report.lexicalResource),
+    ('Grammatical Range & Accuracy', report.grammaticalRangeAndAccuracy),
+  ];
+
+  List<String> get _strengths => _criteria
+      .expand((item) => item.$2.strengths.map((text) => '${item.$1}: $text'))
+      .toSet()
+      .take(5)
+      .toList();
+
+  List<String> get _improvements => _criteria
+      .expand((item) => item.$2.improvements.map((text) => '${item.$1}: $text'))
+      .toSet()
+      .take(5)
+      .toList();
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1957,10 +2055,112 @@ class WritingReportScreen extends StatelessWidget {
           ListView(
             padding: const EdgeInsets.fromLTRB(18, 12, 18, 35),
             children: [
-              _ReportHero(report: report),
-              const SizedBox(height: 14),
-              _CriteriaGrid(report: report),
-              const SizedBox(height: 18),
+              IeltsResultHero(
+                accent: WColors.cyan,
+                band: report.overallBand,
+                title: 'Estimated Overall Band',
+                eyebrow: 'AI WRITING EVALUATION',
+                summary: report.summary,
+                aiEstimated: true,
+                meta: [
+                  IeltsResultMetric(
+                    value: '${report.wordCount}',
+                    label: 'Words written',
+                    icon: Icons.notes_rounded,
+                  ),
+                  IeltsResultMetric(
+                    value: '${task.minimumWords}',
+                    label: 'Task minimum',
+                    icon: Icons.flag_outlined,
+                  ),
+                  IeltsResultMetric(
+                    value: report.minimumWordsMet ? 'Met' : 'Below',
+                    label: 'Word requirement',
+                    icon: report.minimumWordsMet
+                        ? Icons.check_circle_outline_rounded
+                        : Icons.warning_amber_rounded,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 22),
+              IeltsResultSectionTitle(
+                title: 'IELTS criterion scores',
+                subtitle:
+                    'A separate estimated band for every official scoring dimension',
+                icon: Icons.radar_rounded,
+                accent: WColors.cyan,
+              ),
+              const SizedBox(height: 12),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final columns = constraints.maxWidth >= 760 ? 4 : 2;
+                  const spacing = 10.0;
+                  final width =
+                      (constraints.maxWidth - spacing * (columns - 1)) /
+                      columns;
+                  return Wrap(
+                    spacing: spacing,
+                    runSpacing: spacing,
+                    children: _criteria
+                        .map(
+                          (item) => SizedBox(
+                            width: width,
+                            child: IeltsCriterionCard(
+                              title: item.$1,
+                              band: item.$2.band,
+                              feedback: item.$2.feedback,
+                              accent: WColors.cyan,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  );
+                },
+              ),
+              const SizedBox(height: 22),
+              IeltsResultSectionTitle(
+                title: 'What matters most',
+                subtitle:
+                    'Your strongest evidence and highest-impact improvements',
+                icon: Icons.insights_rounded,
+                accent: WColors.cyan,
+              ),
+              const SizedBox(height: 12),
+              IeltsInsightCard(
+                title: 'Strengths',
+                items: _strengths,
+                tone: IeltsInsightTone.strength,
+                emptyMessage:
+                    'The report did not identify a specific strength for this response.',
+              ),
+              const SizedBox(height: 10),
+              IeltsInsightCard(
+                title: 'Priority improvements',
+                items: _improvements,
+                tone: IeltsInsightTone.improvement,
+                emptyMessage: 'No major criterion weakness was identified.',
+              ),
+              const SizedBox(height: 10),
+              IeltsInsightCard(
+                title: 'Recommended next practice',
+                items: report.actionPlan,
+                tone: IeltsInsightTone.recommendation,
+                emptyMessage:
+                    'Rewrite one paragraph using the feedback above, then compare both versions.',
+              ),
+              const SizedBox(height: 22),
+              IeltsResultSectionTitle(
+                title: 'Detailed criterion feedback',
+                subtitle: 'Open a criterion for its complete AI assessment',
+                icon: Icons.rate_review_outlined,
+                accent: WColors.cyan,
+              ),
+              const SizedBox(height: 12),
+              ..._criteria.map(
+                (item) =>
+                    _WritingCriterionDetail(title: item.$1, criterion: item.$2),
+              ),
+              const SizedBox(height: 10),
               _ReportSection(
                 title: 'Grammar Errors',
                 icon: Icons.spellcheck_rounded,
@@ -2009,27 +2209,113 @@ class WritingReportScreen extends StatelessWidget {
                       ),
               ),
               _ReportSection(
-                title: 'Sentence-by-Sentence Corrections',
+                title: 'Corrections & Improved Examples',
                 icon: Icons.compare_arrows_rounded,
-                child: _ObjectFeedbackList(
-                  items: report.sentenceCorrections,
-                  titleKey: 'original',
-                  bodyKeys: const ['improved', 'reason'],
-                ),
+                child: report.sentenceCorrections.isEmpty
+                    ? const _EmptyFeedback()
+                    : Column(
+                        children: report.sentenceCorrections
+                            .map(
+                              (item) => IeltsCorrectionTile(
+                                original: (item['original'] ?? '').toString(),
+                                improved: (item['improved'] ?? '').toString(),
+                                reason: (item['reason'] ?? '').toString(),
+                                accent: WColors.cyan,
+                              ),
+                            )
+                            .toList(),
+                      ),
               ),
               _ComparisonTabs(
                 answer: answer,
                 improved: report.improvedVersion,
                 model: task.band8ModelAnswer,
               ),
-              const SizedBox(height: 14),
-              _ActionPlan(items: report.actionPlan),
+              const SizedBox(height: 22),
+              IeltsResultActions(
+                primaryLabel: 'Practice Again',
+                primaryIcon: Icons.edit_note_rounded,
+                onPrimary: () => Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => WritingEditorScreen(
+                      task: task,
+                      mode: WritingMode.practice,
+                    ),
+                  ),
+                ),
+                secondaryLabel: 'Back to Writing',
+                secondaryIcon: Icons.library_books_outlined,
+                onSecondary: () => Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => const WritingChecker()),
+                  (route) => route.isFirst,
+                ),
+                accent: WColors.cyan,
+              ),
             ],
           ),
         ],
       ),
     );
   }
+}
+
+class _WritingCriterionDetail extends StatelessWidget {
+  const _WritingCriterionDetail({required this.title, required this.criterion});
+  final String title;
+  final WritingCriterion criterion;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.only(bottom: 10),
+    decoration: _panelDecoration(),
+    child: Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        iconColor: WColors.cyan,
+        collapsedIconColor: WColors.muted,
+        title: Text(
+          title,
+          style: const TextStyle(
+            color: WColors.text,
+            fontWeight: FontWeight.w900,
+            fontSize: 13,
+          ),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              criterion.band.toStringAsFixed(1),
+              style: const TextStyle(
+                color: WColors.cyan,
+                fontWeight: FontWeight.w900,
+                fontSize: 18,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.expand_more_rounded),
+          ],
+        ),
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              criterion.feedback,
+              style: const TextStyle(
+                color: WColors.secondary,
+                fontSize: 12.5,
+                height: 1.55,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class AiWritingCheckerScreen extends StatefulWidget {
@@ -2327,8 +2613,21 @@ class SavedDraftsScreen extends StatelessWidget {
                 .orderBy('updatedAt', descending: true)
                 .snapshots(),
             builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return const LearnerStateView.error(
+                  title: 'Drafts could not be synced',
+                  message:
+                      'Your locally saved work is safe. Check your connection and reopen Saved Drafts.',
+                  icon: Icons.save_outlined,
+                );
+              }
               if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
+                return const LearnerStateView.loading(
+                  title: 'Loading your drafts',
+                  message:
+                      'Restoring your saved writing and latest autosave points.',
+                  icon: Icons.save_rounded,
+                );
               }
 
               final allDocs = snapshot.data!.docs;
@@ -2429,8 +2728,21 @@ class WritingHistoryScreen extends StatelessWidget {
                 .orderBy('completedAt', descending: true)
                 .snapshots(),
             builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return const LearnerStateView.error(
+                  title: 'Writing history could not be synced',
+                  message:
+                      'Your completed evaluations are safe. Check your connection and reopen this screen.',
+                  icon: Icons.history_rounded,
+                );
+              }
               if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
+                return const LearnerStateView.loading(
+                  title: 'Loading your writing history',
+                  message:
+                      'Bringing together recent bands, task types and feedback.',
+                  icon: Icons.history_rounded,
+                );
               }
 
               final allDocs = snapshot.data!.docs;
@@ -2519,8 +2831,21 @@ class ModelAnswersScreen extends StatelessWidget {
                 .limit(60)
                 .snapshots(),
             builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return const LearnerStateView.error(
+                  title: 'Model answers are temporarily unavailable',
+                  message:
+                      'Check your connection and reopen the library to try again.',
+                  icon: Icons.library_books_outlined,
+                );
+              }
               if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
+                return const LearnerStateView.loading(
+                  title: 'Curating model answers',
+                  message:
+                      'Loading high-band examples for the available IELTS task types.',
+                  icon: Icons.library_books_rounded,
+                );
               }
 
               final allTasks = snapshot.data!.docs
@@ -2727,7 +3052,7 @@ class WritingLessonsScreen extends StatelessWidget {
                             : lesson.$2,
                         style: const TextStyle(
                           color: WColors.muted,
-                          fontSize: 11,
+                          fontSize: 12,
                           height: 1.45,
                         ),
                       ),
@@ -2797,7 +3122,7 @@ class _WritingPremiumLockedCard extends StatelessWidget {
                     subtitle,
                     style: const TextStyle(
                       color: WColors.muted,
-                      fontSize: 10,
+                      fontSize: 11.5,
                       height: 1.35,
                     ),
                   ),
@@ -2908,40 +3233,121 @@ class WritingVocabularyItem {
 }
 
 class WritingVisualData {
+  final String type;
   final String title;
   final String description;
+  final String unit;
   final List<String> categories;
   final List<Map<String, dynamic>> series;
   final List<String> stages;
   final List<String> locations;
+  final List<WritingMapPanel> mapPanels;
 
   const WritingVisualData({
+    required this.type,
     required this.title,
     required this.description,
+    required this.unit,
     required this.categories,
     required this.series,
     required this.stages,
     required this.locations,
+    required this.mapPanels,
   });
 
   const WritingVisualData.empty()
-    : title = '',
+    : type = '',
+      title = '',
       description = '',
+      unit = '',
       categories = const [],
       series = const [],
       stages = const [],
-      locations = const [];
+      locations = const [],
+      mapPanels = const [];
 
   factory WritingVisualData.fromMap(Map<String, dynamic> map) {
     return WritingVisualData(
+      type: (map['type'] ?? '').toString().trim(),
       title: (map['title'] ?? '').toString(),
       description: (map['description'] ?? '').toString(),
+      unit: (map['unit'] ?? '').toString(),
       categories: _stringList(map['categories']),
       series: _list(
         map['series'],
       ).map((item) => Map<String, dynamic>.from(item as Map)).toList(),
       stages: _stringList(map['stages']),
       locations: _stringList(map['locations']),
+      mapPanels: _list(map['mapPanels'])
+          .whereType<Map>()
+          .map(
+            (item) => WritingMapPanel.fromMap(Map<String, dynamic>.from(item)),
+          )
+          .where((panel) => panel.features.isNotEmpty)
+          .toList(),
+    );
+  }
+
+  bool get hasRenderableVisual =>
+      mapPanels.isNotEmpty ||
+      series.isNotEmpty ||
+      stages.isNotEmpty ||
+      locations.isNotEmpty;
+}
+
+class WritingMapPanel {
+  final String title;
+  final List<WritingMapFeature> features;
+
+  const WritingMapPanel({required this.title, required this.features});
+
+  factory WritingMapPanel.fromMap(Map<String, dynamic> map) {
+    return WritingMapPanel(
+      title: (map['title'] ?? '').toString().trim(),
+      features: _list(map['features'])
+          .whereType<Map>()
+          .map(
+            (item) =>
+                WritingMapFeature.fromMap(Map<String, dynamic>.from(item)),
+          )
+          .where((feature) => feature.label.isNotEmpty)
+          .toList(),
+    );
+  }
+}
+
+class WritingMapFeature {
+  final String label;
+  final String kind;
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+
+  const WritingMapFeature({
+    required this.label,
+    required this.kind,
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+  });
+
+  factory WritingMapFeature.fromMap(Map<String, dynamic> map) {
+    double percent(dynamic value, double fallback) {
+      final number = value is num
+          ? value.toDouble()
+          : double.tryParse(value?.toString() ?? '');
+      return (number ?? fallback).clamp(0.0, 100.0);
+    }
+
+    return WritingMapFeature(
+      label: (map['label'] ?? '').toString().trim(),
+      kind: (map['kind'] ?? 'area').toString().trim().toLowerCase(),
+      x: percent(map['x'], 10),
+      y: percent(map['y'], 10),
+      width: percent(map['width'], 24).clamp(8.0, 70.0),
+      height: percent(map['height'], 16).clamp(7.0, 55.0),
     );
   }
 }
@@ -3204,9 +3610,13 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final canGoBack = Navigator.of(context).canPop();
+
     return Row(
       children: [
-        const _GradientIcon(icon: Icons.draw_rounded),
+        canGoBack
+            ? _WritingBackButton(onPressed: () => Navigator.pop(context))
+            : const _GradientIcon(icon: Icons.draw_rounded),
         const SizedBox(width: 13),
         const Expanded(
           child: Column(
@@ -3226,7 +3636,7 @@ class _Header extends StatelessWidget {
                 'Practice smarter, write confidently and improve your band',
                 style: TextStyle(
                   color: WColors.muted,
-                  fontSize: 10.5,
+                  fontSize: 11.5,
                   height: 1.35,
                 ),
               ),
@@ -3249,7 +3659,7 @@ class _Header extends StatelessWidget {
                 'AI READY',
                 style: TextStyle(
                   color: WColors.green,
-                  fontSize: 8.5,
+                  fontSize: 12,
                   fontWeight: FontWeight.w900,
                   letterSpacing: .6,
                 ),
@@ -3258,6 +3668,33 @@ class _Header extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _WritingBackButton extends StatelessWidget {
+  const _WritingBackButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 54,
+      height: 54,
+      child: IconButton(
+        tooltip: 'Back to Home',
+        onPressed: onPressed,
+        style: IconButton.styleFrom(
+          foregroundColor: WColors.text,
+          backgroundColor: WColors.surface.withOpacity(.94),
+          side: BorderSide(color: Colors.white.withOpacity(.08)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+        ),
+        icon: const Icon(Icons.arrow_back_rounded),
+      ),
     );
   }
 }
@@ -3337,7 +3774,7 @@ class _StaticBandCard extends StatelessWidget {
                       'BAND',
                       style: TextStyle(
                         color: WColors.muted,
-                        fontSize: 8,
+                        fontSize: 12,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 1,
                       ),
@@ -3366,7 +3803,7 @@ class _StaticBandCard extends StatelessWidget {
                     'WRITING PERFORMANCE',
                     style: TextStyle(
                       color: WColors.cyan,
-                      fontSize: 8,
+                      fontSize: 12,
                       fontWeight: FontWeight.w900,
                       letterSpacing: .7,
                     ),
@@ -3387,7 +3824,7 @@ class _StaticBandCard extends StatelessWidget {
                   'Complete AI-evaluated tasks to track progress across all IELTS writing criteria.',
                   style: TextStyle(
                     color: WColors.secondary,
-                    fontSize: 10.5,
+                    fontSize: 11.5,
                     height: 1.5,
                   ),
                 ),
@@ -3623,7 +4060,7 @@ class _TaskGroup extends StatelessWidget {
                       '${types.length} focused practice formats',
                       style: const TextStyle(
                         color: WColors.muted,
-                        fontSize: 10,
+                        fontSize: 11.5,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -3641,7 +4078,7 @@ class _TaskGroup extends StatelessWidget {
                   meta.badge,
                   style: TextStyle(
                     color: meta.color,
-                    fontSize: 8,
+                    fontSize: 12,
                     fontWeight: FontWeight.w900,
                     letterSpacing: .55,
                   ),
@@ -3811,14 +4248,93 @@ IconData _taskTypeIcon(String type) {
   }
 }
 
-class _WritingTaskCard extends StatelessWidget {
-  final WritingTask task;
-  final VoidCallback onTap;
+class _WritingCycleProgressCard extends StatelessWidget {
+  const _WritingCycleProgressCard({
+    required this.currentNumber,
+    required this.total,
+    required this.cycleNumber,
+  });
 
-  const _WritingTaskCard({required this.task, required this.onTap});
+  final int currentNumber;
+  final int total;
+  final int cycleNumber;
 
   @override
   Widget build(BuildContext context) {
+    final safeTotal = math.max(1, total);
+    final safeCurrent = currentNumber.clamp(1, safeTotal);
+    final progress = (safeCurrent - 1) / safeTotal;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: WColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: WColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Test $safeCurrent of $safeTotal',
+                  style: const TextStyle(
+                    color: WColors.text,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              Text(
+                'Cycle $cycleNumber',
+                style: const TextStyle(
+                  color: WColors.cyan,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: LinearProgressIndicator(
+              value: progress.clamp(0.0, 1.0),
+              minHeight: 6,
+              backgroundColor: WColors.border,
+              valueColor: const AlwaysStoppedAnimation<Color>(WColors.cyan),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Only your next unfinished test is shown. Completing the final test starts a fresh cycle from Test 1.',
+            style: TextStyle(color: WColors.muted, fontSize: 10, height: 1.35),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WritingTaskCard extends StatelessWidget {
+  final WritingTask task;
+  final bool completed;
+  final bool premiumLocked;
+  final VoidCallback onTap;
+
+  const _WritingTaskCard({
+    required this.task,
+    required this.completed,
+    required this.premiumLocked,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = premiumLocked ? WColors.violet : WColors.cyan;
+
     return _TapCard(
       onTap: onTap,
       child: Row(
@@ -3828,31 +4344,86 @@ class _WritingTaskCard extends StatelessWidget {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: WColors.cyan.withOpacity(.12),
+              color: accent.withOpacity(.12),
               borderRadius: BorderRadius.circular(15),
             ),
-            child: const Icon(Icons.edit_note_rounded, color: WColors.cyan),
+            child: Icon(
+              premiumLocked
+                  ? Icons.workspace_premium_rounded
+                  : completed
+                  ? Icons.check_circle_rounded
+                  : Icons.edit_note_rounded,
+              color: accent,
+            ),
           ),
           const SizedBox(width: 13),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  task.title,
-                  style: const TextStyle(
-                    color: WColors.text,
-                    fontWeight: FontWeight.w900,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        task.title,
+                        style: const TextStyle(
+                          color: WColors.text,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: accent.withOpacity(.12),
+                        borderRadius: BorderRadius.circular(99),
+                        border: Border.all(color: accent.withOpacity(.28)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            premiumLocked
+                                ? Icons.workspace_premium_rounded
+                                : completed
+                                ? Icons.check_rounded
+                                : Icons.lock_open_rounded,
+                            color: accent,
+                            size: 12,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            premiumLocked
+                                ? 'PREMIUM'
+                                : completed
+                                ? 'COMPLETED'
+                                : 'FREE',
+                            style: TextStyle(
+                              color: accent,
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: .5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  task.description,
+                  premiumLocked
+                      ? 'Free attempt completed. Premium is required to repeat this test.'
+                      : task.description,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: WColors.muted,
-                    fontSize: 10.5,
+                    fontSize: 11.5,
                     height: 1.4,
                   ),
                 ),
@@ -3960,7 +4531,7 @@ class _ModeTile extends StatelessWidget {
                       subtitle,
                       style: const TextStyle(
                         color: WColors.muted,
-                        fontSize: 11,
+                        fontSize: 12,
                         height: 1.4,
                       ),
                     ),
@@ -4044,7 +4615,7 @@ class _EditorHeader extends StatelessWidget {
                 const Spacer(),
                 Text(
                   autosaveLabel,
-                  style: const TextStyle(color: WColors.muted, fontSize: 9),
+                  style: const TextStyle(color: WColors.muted, fontSize: 12),
                 ),
               ],
             ),
@@ -4105,9 +4676,17 @@ class _TaskPromptCard extends StatelessWidget {
               task.visualData.description,
               style: const TextStyle(
                 color: WColors.secondary,
-                fontSize: 11,
+                fontSize: 12,
                 height: 1.5,
               ),
+            ),
+          ],
+          if (task.taskCategory == 'academic_task_1' &&
+              task.visualData.hasRenderableVisual) ...[
+            const SizedBox(height: 14),
+            _AcademicTaskVisual(
+              taskType: task.taskType,
+              visual: task.visualData,
             ),
           ],
           if (showChecklist) ...[
@@ -4129,7 +4708,7 @@ class _TaskPromptCard extends StatelessWidget {
                         item,
                         style: const TextStyle(
                           color: WColors.secondary,
-                          fontSize: 10.5,
+                          fontSize: 11.5,
                         ),
                       ),
                     ),
@@ -4139,6 +4718,725 @@ class _TaskPromptCard extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _AcademicTaskVisual extends StatelessWidget {
+  const _AcademicTaskVisual({required this.taskType, required this.visual});
+
+  final String taskType;
+  final WritingVisualData visual;
+
+  bool get _isMap =>
+      taskType.trim().toLowerCase() == 'map' ||
+      visual.type.trim().toLowerCase() == 'map';
+
+  bool get _isProcess =>
+      taskType.trim().toLowerCase().contains('process') ||
+      visual.type.trim().toLowerCase() == 'process';
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isMap) {
+      return _WritingMapVisual(visual: visual);
+    }
+
+    if (_isProcess && visual.stages.isNotEmpty) {
+      return _WritingProcessVisual(visual: visual);
+    }
+
+    if (visual.series.isNotEmpty && visual.categories.isNotEmpty) {
+      return _WritingDataVisual(taskType: taskType, visual: visual);
+    }
+
+    if (visual.locations.isNotEmpty) {
+      return _LegacyMapInformation(visual: visual);
+    }
+
+    return const SizedBox.shrink();
+  }
+}
+
+class _WritingMapVisual extends StatelessWidget {
+  const _WritingMapVisual({required this.visual});
+
+  final WritingVisualData visual;
+
+  @override
+  Widget build(BuildContext context) {
+    final panels = visual.mapPanels;
+
+    if (panels.isEmpty) {
+      return _LegacyMapInformation(visual: visual);
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: WColors.background.withOpacity(.58),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: WColors.cyan.withOpacity(.24)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.map_outlined, color: WColors.cyan, size: 19),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  visual.title.isEmpty ? 'Map comparison' : visual.title,
+                  style: const TextStyle(
+                    color: WColors.text,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              const _VisualHintBadge(text: 'PINCH / TAP TO VIEW'),
+            ],
+          ),
+          const SizedBox(height: 10),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final twoColumns =
+                  constraints.maxWidth >= 520 && panels.length >= 2;
+
+              if (twoColumns) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: panels
+                      .take(2)
+                      .map(
+                        (panel) => Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.only(
+                              right: panel == panels.first ? 6 : 0,
+                              left: panel == panels.first ? 0 : 6,
+                            ),
+                            child: _MapPanelCard(panel: panel),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                );
+              }
+
+              return Column(
+                children: panels
+                    .map(
+                      (panel) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _MapPanelCard(panel: panel),
+                      ),
+                    )
+                    .toList(),
+              );
+            },
+          ),
+          const SizedBox(height: 2),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => _WritingVisualFullscreen(
+                      title: visual.title.isEmpty
+                          ? 'IELTS Writing Map'
+                          : visual.title,
+                      child: _WritingMapVisualFullscreen(visual: visual),
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.open_in_full_rounded, size: 16),
+              label: const Text('View full screen'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MapPanelCard extends StatelessWidget {
+  const _MapPanelCard({required this.panel});
+
+  final WritingMapPanel panel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: WColors.surface,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: WColors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+            color: WColors.cyan.withOpacity(.07),
+            child: Text(
+              panel.title.isEmpty ? 'Map' : panel.title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: WColors.text,
+                fontWeight: FontWeight.w900,
+                fontSize: 11.5,
+              ),
+            ),
+          ),
+          AspectRatio(aspectRatio: 1.42, child: _SchematicMap(panel: panel)),
+        ],
+      ),
+    );
+  }
+}
+
+class _SchematicMap extends StatelessWidget {
+  const _SchematicMap({required this.panel});
+
+  final WritingMapPanel panel;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Container(
+          color: WColors.background.withOpacity(.45),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: CustomPaint(painter: const _MapGridPainter()),
+              ),
+              ...panel.features.map((feature) {
+                final left = constraints.maxWidth * feature.x / 100;
+                final top = constraints.maxHeight * feature.y / 100;
+                final width = constraints.maxWidth * feature.width / 100;
+                final height = constraints.maxHeight * feature.height / 100;
+
+                return Positioned(
+                  left: left,
+                  top: top,
+                  width: math.min(
+                    width,
+                    math.max(24.0, constraints.maxWidth - left - 4),
+                  ),
+                  height: math.min(
+                    height,
+                    math.max(20.0, constraints.maxHeight - top - 4),
+                  ),
+                  child: _MapFeatureTile(feature: feature),
+                );
+              }),
+              Positioned(
+                right: 8,
+                bottom: 7,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: WColors.surface.withOpacity(.90),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: WColors.border),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.explore_outlined,
+                        color: WColors.muted,
+                        size: 12,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        'N',
+                        style: TextStyle(
+                          color: WColors.secondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MapFeatureTile extends StatelessWidget {
+  const _MapFeatureTile({required this.feature});
+
+  final WritingMapFeature feature;
+
+  IconData get _icon {
+    switch (feature.kind) {
+      case 'road':
+        return Icons.alt_route_rounded;
+      case 'water':
+      case 'river':
+      case 'lake':
+        return Icons.water_rounded;
+      case 'trees':
+      case 'park':
+      case 'garden':
+        return Icons.park_rounded;
+      case 'parking':
+        return Icons.local_parking_rounded;
+      case 'building':
+        return Icons.apartment_rounded;
+      case 'path':
+        return Icons.route_rounded;
+      case 'playground':
+        return Icons.sports_soccer_rounded;
+      default:
+        return Icons.place_outlined;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: WColors.cyan.withOpacity(.10),
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(color: WColors.cyan.withOpacity(.42), width: 1),
+      ),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(_icon, color: WColors.cyan, size: 15),
+            const SizedBox(height: 2),
+            Text(
+              feature.label,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              style: const TextStyle(
+                color: WColors.text,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                height: 1.05,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MapGridPainter extends CustomPainter {
+  const _MapGridPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final linePaint = Paint()
+      ..color = WColors.border.withOpacity(.35)
+      ..strokeWidth = .8;
+
+    for (var i = 1; i < 5; i++) {
+      final dx = size.width * i / 5;
+      canvas.drawLine(Offset(dx, 0), Offset(dx, size.height), linePaint);
+    }
+
+    for (var i = 1; i < 4; i++) {
+      final dy = size.height * i / 4;
+      canvas.drawLine(Offset(0, dy), Offset(size.width, dy), linePaint);
+    }
+
+    final roadPaint = Paint()
+      ..color = WColors.secondary.withOpacity(.16)
+      ..strokeWidth = 8
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawLine(
+      Offset(size.width * .08, size.height * .78),
+      Offset(size.width * .92, size.height * .78),
+      roadPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _MapGridPainter oldDelegate) => false;
+}
+
+class _LegacyMapInformation extends StatelessWidget {
+  const _LegacyMapInformation({required this.visual});
+
+  final WritingVisualData visual;
+
+  @override
+  Widget build(BuildContext context) {
+    if (visual.locations.isEmpty) return const SizedBox.shrink();
+
+    final groups = <String, List<String>>{};
+
+    for (final raw in visual.locations) {
+      final text = raw.trim();
+      final match = RegExp(
+        r'^\s*((?:19|20)\d{2}|before|after|current|proposed)\s*[:\-–]\s*(.+)$',
+        caseSensitive: false,
+      ).firstMatch(text);
+
+      final key = match == null ? 'Map features' : match.group(1)!.trim();
+      final value = match == null ? text : match.group(2)!.trim();
+      groups.putIfAbsent(key, () => <String>[]).add(value);
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: WColors.background.withOpacity(.55),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: WColors.cyan.withOpacity(.24)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.map_outlined, color: WColors.cyan, size: 18),
+              SizedBox(width: 8),
+              Text(
+                'Map information',
+                style: TextStyle(
+                  color: WColors.text,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 11.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          ...groups.entries.map(
+            (entry) => Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: WColors.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: WColors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    entry.key,
+                    style: const TextStyle(
+                      color: WColors.cyan,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  ...entry.value.map(
+                    (item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '• ',
+                            style: TextStyle(color: WColors.cyan),
+                          ),
+                          Expanded(
+                            child: Text(
+                              item,
+                              style: const TextStyle(
+                                color: WColors.secondary,
+                                fontSize: 12,
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WritingProcessVisual extends StatelessWidget {
+  const _WritingProcessVisual({required this.visual});
+
+  final WritingVisualData visual;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: WColors.background.withOpacity(.55),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: WColors.cyan.withOpacity(.24)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            visual.title.isEmpty ? 'Process diagram' : visual.title,
+            style: const TextStyle(
+              color: WColors.text,
+              fontWeight: FontWeight.w900,
+              fontSize: 11.5,
+            ),
+          ),
+          const SizedBox(height: 10),
+          ...List.generate(visual.stages.length, (index) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: WColors.cyan.withOpacity(.12),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: WColors.cyan.withOpacity(.35)),
+                  ),
+                  child: Text(
+                    '${index + 1}',
+                    style: const TextStyle(
+                      color: WColors.cyan,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 5),
+                    child: Text(
+                      visual.stages[index],
+                      style: const TextStyle(
+                        color: WColors.secondary,
+                        fontSize: 9.8,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+class _WritingDataVisual extends StatelessWidget {
+  const _WritingDataVisual({required this.taskType, required this.visual});
+
+  final String taskType;
+  final WritingVisualData visual;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxColumns = math.min(visual.categories.length, 6);
+    final categories = visual.categories.take(maxColumns).toList();
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: WColors.background.withOpacity(.55),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: WColors.cyan.withOpacity(.24)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.insights_rounded, color: WColors.cyan, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  visual.title.isEmpty ? taskType : visual.title,
+                  style: const TextStyle(
+                    color: WColors.text,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 11.5,
+                  ),
+                ),
+              ),
+              if (visual.unit.isNotEmpty) _VisualHintBadge(text: visual.unit),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              headingRowHeight: 34,
+              dataRowMinHeight: 34,
+              dataRowMaxHeight: 40,
+              columnSpacing: 18,
+              horizontalMargin: 8,
+              columns: [
+                const DataColumn(
+                  label: Text(
+                    'Series',
+                    style: TextStyle(
+                      color: WColors.secondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                ...categories.map(
+                  (category) => DataColumn(
+                    label: Text(
+                      category,
+                      style: const TextStyle(
+                        color: WColors.secondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              rows: visual.series.map((series) {
+                final values = _list(series['values']);
+                return DataRow(
+                  cells: [
+                    DataCell(
+                      Text(
+                        (series['name'] ?? 'Series').toString(),
+                        style: const TextStyle(
+                          color: WColors.text,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    ...List.generate(categories.length, (index) {
+                      final value = index < values.length ? values[index] : '—';
+                      return DataCell(
+                        Text(
+                          value.toString(),
+                          style: const TextStyle(
+                            color: WColors.cyan,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      );
+                    }),
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VisualHintBadge extends StatelessWidget {
+  const _VisualHintBadge({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(
+        color: WColors.cyan.withOpacity(.10),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: WColors.cyan,
+          fontSize: 6.8,
+          fontWeight: FontWeight.w900,
+          letterSpacing: .2,
+        ),
+      ),
+    );
+  }
+}
+
+class _WritingVisualFullscreen extends StatelessWidget {
+  const _WritingVisualFullscreen({required this.title, required this.child});
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: WColors.background,
+      appBar: AppBar(
+        backgroundColor: WColors.background,
+        title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ),
+      body: InteractiveViewer(
+        minScale: .8,
+        maxScale: 4,
+        boundaryMargin: const EdgeInsets.all(80),
+        child: Center(child: child),
+      ),
+    );
+  }
+}
+
+class _WritingMapVisualFullscreen extends StatelessWidget {
+  const _WritingMapVisualFullscreen({required this.visual});
+
+  final WritingVisualData visual;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 900,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: visual.mapPanels
+              .take(2)
+              .map(
+                (panel) => Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 7),
+                    child: _MapPanelCard(panel: panel),
+                  ),
+                ),
+              )
+              .toList(),
+        ),
       ),
     );
   }
@@ -4239,7 +5537,7 @@ class _SuggestionPanel extends StatelessWidget {
               'Keep writing. Suggestions will appear as your answer develops.',
               style: TextStyle(
                 color: WColors.muted,
-                fontSize: 10.5,
+                fontSize: 11.5,
                 height: 1.45,
               ),
             )
@@ -4306,7 +5604,7 @@ class _MobileSuggestionStrip extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: WColors.secondary,
-                fontSize: 10.5,
+                fontSize: 11.5,
                 height: 1.35,
               ),
             ),
@@ -4373,7 +5671,7 @@ class _SubmitBar extends StatelessWidget {
               style: TextStyle(
                 color: met ? WColors.green : WColors.warning,
                 fontWeight: FontWeight.w800,
-                fontSize: 10.5,
+                fontSize: 11.5,
               ),
             ),
           ),
@@ -4548,7 +5846,7 @@ class _CriterionCard extends StatelessWidget {
             style: const TextStyle(
               color: WColors.text,
               fontWeight: FontWeight.w900,
-              fontSize: 11,
+              fontSize: 12,
             ),
           ),
           const SizedBox(height: 7),
@@ -4558,7 +5856,7 @@ class _CriterionCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: WColors.muted,
-              fontSize: 9.5,
+              fontSize: 12,
               height: 1.4,
             ),
           ),
@@ -4592,11 +5890,13 @@ class _ReportSection extends StatelessWidget {
             children: [
               Icon(icon, color: WColors.cyan),
               const SizedBox(width: 9),
-              Text(
-                title,
-                style: const TextStyle(
-                  color: WColors.text,
-                  fontWeight: FontWeight.w900,
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: WColors.text,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
             ],
@@ -4675,7 +5975,7 @@ class _FeedbackTile extends StatelessWidget {
             style: const TextStyle(
               color: WColors.text,
               fontWeight: FontWeight.w800,
-              fontSize: 11,
+              fontSize: 12,
             ),
           ),
           if (body.isNotEmpty) ...[
@@ -4684,7 +5984,7 @@ class _FeedbackTile extends StatelessWidget {
               body,
               style: const TextStyle(
                 color: WColors.secondary,
-                fontSize: 10,
+                fontSize: 11.5,
                 height: 1.45,
               ),
             ),
@@ -4845,7 +6145,7 @@ class _SimpleListCard extends StatelessWidget {
                   subtitle,
                   style: const TextStyle(
                     color: WColors.muted,
-                    fontSize: 11,
+                    fontSize: 12,
                     height: 1.4,
                   ),
                 ),
@@ -4938,7 +6238,7 @@ class _SectionTitle extends StatelessWidget {
         const SizedBox(height: 3),
         Text(
           subtitle,
-          style: const TextStyle(color: WColors.muted, fontSize: 10.5),
+          style: const TextStyle(color: WColors.muted, fontSize: 11.5),
         ),
       ],
     );

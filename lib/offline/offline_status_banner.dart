@@ -45,7 +45,7 @@ class OfflineStatusBanner extends StatelessWidget {
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w800,
-                              fontSize: 11,
+                              fontSize: 12,
                             ),
                           ),
                         ),
@@ -81,7 +81,7 @@ class OfflineAvailabilityChip extends StatelessWidget {
             'Offline available',
             style: TextStyle(
               color: Color(0xFF22C55E),
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
             ),
           ),

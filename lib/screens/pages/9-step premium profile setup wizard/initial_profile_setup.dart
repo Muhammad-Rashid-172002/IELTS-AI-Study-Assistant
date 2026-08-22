@@ -97,8 +97,9 @@ class _InitialProfileSetupScreenState extends State<InitialProfileSetupScreen> {
     'Other': 'Other',
   };
 
-  late final List<String> _countries =
-      _countryLanguageMap.keys.toList(growable: false);
+  late final List<String> _countries = _countryLanguageMap.keys.toList(
+    growable: false,
+  );
 
   final List<String> _languages = const [
     'English',
@@ -540,10 +541,7 @@ class _InitialProfileSetupScreenState extends State<InitialProfileSetupScreen> {
           ClipRRect(
             borderRadius: BorderRadius.circular(30),
             child: TweenAnimationBuilder<double>(
-              tween: Tween<double>(
-                begin: 0,
-                end: (_currentStep + 1) / 9,
-              ),
+              tween: Tween<double>(begin: 0, end: (_currentStep + 1) / 9),
               duration: const Duration(milliseconds: 360),
               curve: Curves.easeOutCubic,
               builder: (context, value, _) {
@@ -629,10 +627,7 @@ class _InitialProfileSetupScreenState extends State<InitialProfileSetupScreen> {
             },
           ),
           const SizedBox(height: 10),
-          _AutoLanguageCard(
-            country: _country,
-            language: _nativeLanguage,
-          ),
+          _AutoLanguageCard(country: _country, language: _nativeLanguage),
           const SizedBox(height: 14),
           _ProfileDropdown(
             label: 'Preferred app language',
@@ -1128,7 +1123,7 @@ class _StepContainer extends StatelessWidget {
                           'PERSONALIZED SETUP',
                           style: TextStyle(
                             color: ProfileColors.cyan,
-                            fontSize: 8,
+                            fontSize: 12,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 1.0,
                           ),
@@ -1318,7 +1313,7 @@ class _SelectionGrid extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: ProfileColors.mutedText,
-                        fontSize: 9.5,
+                        fontSize: 12,
                         fontWeight: FontWeight.w500,
                         height: 1.25,
                       ),
@@ -1513,7 +1508,7 @@ class _IELTSTypeCard extends StatelessWidget {
                           badge!,
                           style: const TextStyle(
                             color: Color(0xFF6EE7B7),
-                            fontSize: 8.5,
+                            fontSize: 12,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -1643,17 +1638,11 @@ class _BandSlider extends StatelessWidget {
             children: [
               Text(
                 '4.0',
-                style: TextStyle(
-                  color: ProfileColors.subtleText,
-                  fontSize: 9.5,
-                ),
+                style: TextStyle(color: ProfileColors.subtleText, fontSize: 12),
               ),
               Text(
                 '9.0',
-                style: TextStyle(
-                  color: ProfileColors.subtleText,
-                  fontSize: 9.5,
-                ),
+                style: TextStyle(color: ProfileColors.subtleText, fontSize: 12),
               ),
             ],
           ),
@@ -1774,10 +1763,7 @@ class _AutoLanguageCard extends StatelessWidget {
   final String country;
   final String language;
 
-  const _AutoLanguageCard({
-    required this.country,
-    required this.language,
-  });
+  const _AutoLanguageCard({required this.country, required this.language});
 
   @override
   Widget build(BuildContext context) {
@@ -1829,7 +1815,7 @@ class _AutoLanguageCard extends StatelessWidget {
                   '$country → $language',
                   style: const TextStyle(
                     color: ProfileColors.secondaryText,
-                    fontSize: 10.5,
+                    fontSize: 11.5,
                     height: 1.35,
                   ),
                 ),
@@ -1978,7 +1964,7 @@ class _SummaryRow extends StatelessWidget {
             label,
             style: const TextStyle(
               color: ProfileColors.mutedText,
-              fontSize: 11,
+              fontSize: 12,
             ),
           ),
         ),
@@ -2173,11 +2159,7 @@ class ProfileColors {
   static const gradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [
-      Color(0xFF2563EB),
-      Color(0xFF06B6D4),
-      Color(0xFF7C3AED),
-    ],
+    colors: [Color(0xFF2563EB), Color(0xFF06B6D4), Color(0xFF7C3AED)],
   );
 }
 

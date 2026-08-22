@@ -5,6 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fyproject/offline/offline_content_service.dart';
 import 'package:flutter/material.dart';
+import 'package:fyproject/resources/components/learner_state_view.dart';
+import 'package:fyproject/resources/components/ielts_result_widgets.dart';
 import 'package:fyproject/screens/pages/Subscription/Subscription_screen.dart';
 
 class _ReadingPremiumAccessService {
@@ -469,7 +471,7 @@ class _PremiumBenefitRow extends StatelessWidget {
               text,
               style: const TextStyle(
                 color: RColors.secondary,
-                fontSize: 10.5,
+                fontSize: 11.5,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -494,7 +496,14 @@ class ReadingScreen extends StatelessWidget {
 
     if (user == null) {
       return const Scaffold(
-        body: Center(child: Text('Please sign in to open Reading.')),
+        backgroundColor: RColors.bg,
+        body: LearnerStateView.empty(
+          eyebrow: 'READING PRACTICE',
+          title: 'Sign in to open Reading',
+          message:
+              'Your reading tests, saved progress and band insights are connected to your learner account.',
+          icon: Icons.auto_stories_rounded,
+        ),
       );
     }
 
@@ -512,6 +521,23 @@ class ReadingScreen extends StatelessWidget {
             child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
               stream: userRef.snapshots(),
               builder: (context, userSnapshot) {
+                if (userSnapshot.hasError) {
+                  return const LearnerStateView.error(
+                    title: 'Reading could not be synced',
+                    message:
+                        'Your completed work is safe. Check your connection and try again.',
+                    icon: Icons.auto_stories_rounded,
+                  );
+                }
+                if (!userSnapshot.hasData) {
+                  return const LearnerStateView.loading(
+                    title: 'Preparing your reading path',
+                    message:
+                        'Loading your recent bands, practice history and recommended focus.',
+                    icon: Icons.auto_stories_rounded,
+                  );
+                }
+
                 final userData = userSnapshot.data?.data() ?? {};
 
                 return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -521,6 +547,23 @@ class ReadingScreen extends StatelessWidget {
                       .limit(5)
                       .snapshots(),
                   builder: (context, resultSnapshot) {
+                    if (resultSnapshot.hasError) {
+                      return const LearnerStateView.error(
+                        title: 'Reading history is unavailable',
+                        message:
+                            'Your tests are still saved. Check your connection and reopen this screen.',
+                        icon: Icons.history_rounded,
+                      );
+                    }
+                    if (!resultSnapshot.hasData) {
+                      return const LearnerStateView.loading(
+                        title: 'Loading your reading history',
+                        message:
+                            'Combining your latest results with today’s recommended practice.',
+                        icon: Icons.history_rounded,
+                      );
+                    }
+
                     final results =
                         resultSnapshot.data?.docs
                             .map(ReadingRecentResult.fromDocument)
@@ -631,9 +674,7 @@ class _ReadingHome extends StatelessWidget {
               crossAxisCount: MediaQuery.sizeOf(context).width >= 720 ? 4 : 2,
               mainAxisSpacing: 12,
               crossAxisSpacing: 12,
-              childAspectRatio: MediaQuery.sizeOf(context).width >= 720
-                  ? 1.05
-                  : 1.12,
+              mainAxisExtent: 166,
             ),
           ),
         ),
@@ -1484,7 +1525,7 @@ class _ReadingTestBrowserScreenState extends State<ReadingTestBrowserScreen>
                   '$_availableCount published readings checked',
                   style: const TextStyle(
                     color: RColors.muted,
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -2223,7 +2264,11 @@ class _ReadingPracticeScreenState extends State<ReadingPracticeScreen> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => ReadingResultScreen(test: widget.test, result: result),
+        builder: (_) => ReadingResultScreen(
+          test: widget.test,
+          result: result,
+          answers: Map<int, String>.from(_answers),
+        ),
       ),
     );
   }
@@ -2233,7 +2278,13 @@ class _ReadingPracticeScreenState extends State<ReadingPracticeScreen> {
     if (_restoringDraft) {
       return const Scaffold(
         backgroundColor: RColors.bg,
-        body: Center(child: CircularProgressIndicator()),
+        body: LearnerStateView.loading(
+          eyebrow: 'RESUMING SECURELY',
+          title: 'Restoring your reading session',
+          message:
+              'Bringing back your passage position, answers and remaining time.',
+          icon: Icons.menu_book_rounded,
+        ),
       );
     }
 
@@ -2399,12 +2450,52 @@ class _ReadingPracticeScreenState extends State<ReadingPracticeScreen> {
 class ReadingResultScreen extends StatelessWidget {
   final ReadingTest test;
   final ReadingTestResult result;
+  final Map<int, String> answers;
 
   const ReadingResultScreen({
     super.key,
     required this.test,
     required this.result,
+    this.answers = const {},
   });
+
+  List<int> get _incorrectIndexes {
+    final indexes = <int>[];
+    for (var index = 0; index < test.questions.length; index++) {
+      final question = test.questions[index];
+      final answer = answers[index] ?? '';
+      final correct = question.acceptedAnswers.any(
+        (accepted) =>
+            _readingReviewNormalize(accepted) ==
+            _readingReviewNormalize(answer),
+      );
+      if (!correct) indexes.add(index);
+    }
+    return indexes;
+  }
+
+  List<String> get _strengths {
+    final entries = <MapEntry<String, int>>[
+      ...result.passageScores.entries,
+      ...result.questionTypeAccuracy.entries,
+    ]..sort((a, b) => b.value.compareTo(a.value));
+    return entries
+        .where((entry) => entry.value >= 75)
+        .take(3)
+        .map((entry) => '${entry.key}: ${entry.value}% accuracy')
+        .toList();
+  }
+
+  List<String> get _improvements => <String>[
+    ...result.weakQuestionTypes.map(
+      (type) =>
+          'Strengthen $type by locating evidence before choosing an answer.',
+    ),
+    if (result.unansweredQuestions > 0)
+      '${result.unansweredQuestions} unanswered question${result.unansweredQuestions == 1 ? '' : 's'} reduced the score.',
+    if (result.readingSpeedWpm < 180)
+      'Build scanning speed while keeping evidence-based accuracy.',
+  ].toSet().take(4).toList();
 
   @override
   Widget build(BuildContext context) {
@@ -2418,53 +2509,126 @@ class ReadingResultScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(18, 16, 18, 30),
               children: [
                 const _ResultHeader(),
-                const SizedBox(height: 20),
-                _ResultHero(result: result),
-                const SizedBox(height: 14),
-                _MetricGrid(result: result),
+                const SizedBox(height: 18),
+                IeltsResultHero(
+                  accent: RColors.cyan,
+                  band: result.estimatedBand,
+                  eyebrow: 'READING ASSESSMENT',
+                  summary: _readingSummary(result.accuracyPercent),
+                  meta: [
+                    IeltsResultMetric(
+                      value: '${result.rawScore}/${result.totalQuestions}',
+                      label: 'Correct answers',
+                      icon: Icons.task_alt_rounded,
+                    ),
+                    IeltsResultMetric(
+                      value: '${result.accuracyPercent}%',
+                      label: 'Accuracy',
+                      icon: Icons.track_changes_rounded,
+                    ),
+                    IeltsResultMetric(
+                      value: '${result.readingSpeedWpm}',
+                      label: 'Words / minute',
+                      icon: Icons.speed_rounded,
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 22),
-                const _SectionTitle(
-                  title: 'Passage Performance',
-                  subtitle: 'Score and time used for every passage',
+                IeltsResultSectionTitle(
+                  title: 'Performance overview',
+                  subtitle: 'The patterns that most influenced this result',
+                  icon: Icons.auto_graph_rounded,
+                  accent: RColors.cyan,
+                ),
+                const SizedBox(height: 12),
+                IeltsInsightCard(
+                  title: 'Strengths',
+                  items: _strengths,
+                  tone: IeltsInsightTone.strength,
+                  emptyMessage:
+                      'Your strongest areas will appear after more completed questions.',
                 ),
                 const SizedBox(height: 10),
+                IeltsInsightCard(
+                  title: 'Areas to improve',
+                  items: _improvements,
+                  tone: IeltsInsightTone.improvement,
+                  emptyMessage:
+                      'No major weakness was detected in this attempt.',
+                ),
+                const SizedBox(height: 22),
+                IeltsResultSectionTitle(
+                  title: 'Passage performance',
+                  subtitle: 'Accuracy and time used for every passage',
+                  icon: Icons.article_outlined,
+                  accent: RColors.cyan,
+                ),
+                const SizedBox(height: 12),
                 ...result.passageScores.entries.map(
-                  (entry) => Padding(
-                    padding: const EdgeInsets.only(bottom: 9),
-                    child: _PerformanceCard(
-                      title: entry.key,
-                      value: entry.value,
-                      subtitle:
-                          '${result.timeSpentPerPassage[entry.key] ?? 0}s spent',
-                    ),
+                  (entry) => IeltsResultProgressRow(
+                    label: entry.key,
+                    value: entry.value,
+                    detail:
+                        '${_formatClock(result.timeSpentPerPassage[entry.key] ?? 0)} spent',
+                    accent: RColors.cyan,
                   ),
                 ),
-                const SizedBox(height: 16),
-                const _SectionTitle(
-                  title: 'Question Type Performance',
-                  subtitle: 'Accuracy across IELTS Reading formats',
+                const SizedBox(height: 13),
+                IeltsResultSectionTitle(
+                  title: 'Question-type performance',
+                  subtitle:
+                      'Accuracy across the IELTS Reading formats in this test',
+                  icon: Icons.category_outlined,
+                  accent: RColors.violet,
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 ...result.questionTypeAccuracy.entries.map(
-                  (entry) => Padding(
-                    padding: const EdgeInsets.only(bottom: 9),
-                    child: _PerformanceCard(
-                      title: entry.key,
-                      value: entry.value,
-                      color: RColors.violet,
-                    ),
+                  (entry) => IeltsResultProgressRow(
+                    label: entry.key,
+                    value: entry.value,
+                    accent: RColors.violet,
                   ),
                 ),
-                const SizedBox(height: 16),
-                _RecommendationCard(result: result),
-                const SizedBox(height: 22),
-                _GradientButton(
-                  title: 'Back to Reading',
-                  icon: Icons.menu_book_rounded,
-                  onPressed: () => Navigator.pushAndRemoveUntil(
+                const SizedBox(height: 13),
+                IeltsInsightCard(
+                  title: 'Recommended next practice',
+                  items: [_readingRecommendation(result)],
+                  tone: IeltsInsightTone.recommendation,
+                ),
+                if (_incorrectIndexes.isNotEmpty) ...[
+                  const SizedBox(height: 22),
+                  IeltsResultSectionTitle(
+                    title: 'Incorrect-answer review',
+                    subtitle:
+                        '${_incorrectIndexes.length} answer${_incorrectIndexes.length == 1 ? '' : 's'} with evidence and explanations',
+                    icon: Icons.fact_check_outlined,
+                    accent: const Color(0xFFFB7185),
+                  ),
+                  const SizedBox(height: 12),
+                  _ReadingAnswerReviewPreview(
+                    count: _incorrectIndexes.length,
+                    onPressed: () => _showAnswerReview(context),
+                  ),
+                ],
+                const SizedBox(height: 24),
+                IeltsResultActions(
+                  primaryLabel: _incorrectIndexes.isEmpty
+                      ? 'Continue Reading'
+                      : 'Review Answers',
+                  primaryIcon: _incorrectIndexes.isEmpty
+                      ? Icons.menu_book_rounded
+                      : Icons.fact_check_outlined,
+                  onPrimary: () => _incorrectIndexes.isEmpty
+                      ? _backToReading(context)
+                      : _showAnswerReview(context),
+                  secondaryLabel: 'Practice Again',
+                  secondaryIcon: Icons.replay_rounded,
+                  accent: RColors.cyan,
+                  onSecondary: () => Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(builder: (_) => const ReadingScreen()),
-                    (route) => route.isFirst,
+                    MaterialPageRoute(
+                      builder: (_) => ReadingPracticeScreen(test: test),
+                    ),
                   ),
                 ),
               ],
@@ -2474,6 +2638,227 @@ class ReadingResultScreen extends StatelessWidget {
       ),
     );
   }
+
+  void _backToReading(BuildContext context) => Navigator.pushAndRemoveUntil(
+    context,
+    MaterialPageRoute(builder: (_) => const ReadingScreen()),
+    (route) => route.isFirst,
+  );
+
+  void _showAnswerReview(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0B1626),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (_) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: .82,
+        maxChildSize: .94,
+        minChildSize: .55,
+        builder: (_, controller) => ListView(
+          controller: controller,
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 28),
+          children: [
+            Center(
+              child: Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'Review incorrect answers',
+              style: TextStyle(
+                color: Color(0xFFF8FAFC),
+                fontSize: 21,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Use the answer evidence to understand why each option succeeds or fails.',
+              style: TextStyle(color: Color(0xFF94A3B8), height: 1.4),
+            ),
+            const SizedBox(height: 16),
+            ..._incorrectIndexes.map((index) {
+              final question = test.questions[index];
+              final response = answers[index]?.trim();
+              return _ReadingReviewItem(
+                number: question.number == 0 ? index + 1 : question.number,
+                prompt: question.prompt,
+                userAnswer: response == null || response.isEmpty
+                    ? 'No answer'
+                    : response,
+                correctAnswer: question.correctAnswer,
+                evidence: question.evidenceText,
+                explanation: question.explanation,
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _readingReviewNormalize(String value) =>
+    value.toLowerCase().trim().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+String _readingSummary(int accuracy) {
+  if (accuracy >= 85)
+    return 'Excellent evidence control and reading accuracy. Refine the remaining question patterns to reach the next band.';
+  if (accuracy >= 70)
+    return 'A solid reading performance. Focused work on weaker formats can make this score more consistent.';
+  return 'This report highlights where evidence location, paraphrase recognition and timing need rebuilding.';
+}
+
+String _readingRecommendation(ReadingTestResult result) {
+  if (result.weakQuestionTypes.isNotEmpty) {
+    return 'Practise ${result.weakQuestionTypes.take(2).join(' and ')} next. Underline the evidence sentence before confirming every answer.';
+  }
+  if (result.unansweredQuestions > 0)
+    return 'Run a timed passage drill with a strict final review window so every question receives an answer.';
+  return 'Continue with a timed full passage and preserve your evidence-first approach while increasing pace.';
+}
+
+class _ReadingAnswerReviewPreview extends StatelessWidget {
+  const _ReadingAnswerReviewPreview({
+    required this.count,
+    required this.onPressed,
+  });
+  final int count;
+  final VoidCallback onPressed;
+  @override
+  Widget build(BuildContext context) => Material(
+    color: const Color(0xFF101C2E),
+    borderRadius: BorderRadius.circular(20),
+    child: InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(20),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              width: 45,
+              height: 45,
+              decoration: BoxDecoration(
+                color: RColors.cyan.withValues(alpha: .11),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.rule_rounded, color: RColors.cyan),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                '$count item${count == 1 ? '' : 's'} to revisit',
+                style: const TextStyle(
+                  color: Color(0xFFF8FAFC),
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            const Icon(Icons.arrow_forward_rounded, color: RColors.cyan),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _ReadingReviewItem extends StatelessWidget {
+  const _ReadingReviewItem({
+    required this.number,
+    required this.prompt,
+    required this.userAnswer,
+    required this.correctAnswer,
+    required this.evidence,
+    required this.explanation,
+  });
+  final int number;
+  final String prompt;
+  final String userAnswer;
+  final String correctAnswer;
+  final String evidence;
+  final String explanation;
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.only(bottom: 12),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: const Color(0xFF101C2E),
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: Colors.white.withValues(alpha: .07)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'QUESTION $number',
+          style: const TextStyle(
+            color: RColors.cyan,
+            fontSize: 10.5,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: 7),
+        Text(
+          prompt,
+          style: const TextStyle(
+            color: Color(0xFFF8FAFC),
+            fontSize: 13.5,
+            height: 1.4,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Your answer: $userAnswer',
+          style: const TextStyle(color: Color(0xFFFB7185), fontSize: 12.5),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Accepted answer: $correctAnswer',
+          style: const TextStyle(
+            color: Color(0xFF34D399),
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        if (evidence.trim().isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text(
+            'Evidence: “$evidence”',
+            style: const TextStyle(
+              color: Color(0xFFCBD5E1),
+              fontSize: 12,
+              height: 1.45,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+        if (explanation.trim().isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            explanation,
+            style: const TextStyle(
+              color: Color(0xFF94A3B8),
+              fontSize: 12,
+              height: 1.45,
+            ),
+          ),
+        ],
+      ],
+    ),
+  );
 }
 
 class ReadingTest {
@@ -3012,7 +3397,7 @@ class _PassageView extends StatelessWidget {
                       'Note: $note',
                       style: const TextStyle(
                         color: RColors.cyan,
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -3091,7 +3476,7 @@ class _QuestionPane extends StatelessWidget {
             question.wordLimit,
             style: const TextStyle(
               color: RColors.cyan,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -3237,7 +3622,7 @@ class _QuestionPromptCard extends StatelessWidget {
                     'Complete the sentence using information from the passage.',
                     style: TextStyle(
                       color: RColors.cyan,
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -3333,7 +3718,7 @@ class _ExamModeNotice extends StatelessWidget {
           Expanded(
             child: Text(
               'Exam mode: dictionary, explanations, synonyms and option elimination are disabled.',
-              style: TextStyle(color: RColors.secondary, fontSize: 10.5),
+              style: TextStyle(color: RColors.secondary, fontSize: 11.5),
             ),
           ),
         ],
@@ -3409,7 +3794,7 @@ class _ReadingProgressSummary extends StatelessWidget {
                   'Answered $answered/$total',
                   style: const TextStyle(
                     color: RColors.secondary,
-                    fontSize: 10.5,
+                    fontSize: 11.5,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -3424,7 +3809,7 @@ class _ReadingProgressSummary extends StatelessWidget {
                 '$markedForReview for review',
                 style: const TextStyle(
                   color: RColors.muted,
-                  fontSize: 10,
+                  fontSize: 11.5,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -3532,7 +3917,7 @@ class _MobileViewButton extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: selected ? Colors.white : RColors.secondary,
-                    fontSize: 10.5,
+                    fontSize: 11.5,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -3691,7 +4076,7 @@ class _PracticeHeader extends StatelessWidget {
                   'Passage $passage/$passageTotal • Question $question/$questionTotal',
                   style: const TextStyle(
                     color: RColors.secondary,
-                    fontSize: 10.5,
+                    fontSize: 11.5,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -3714,7 +4099,7 @@ class _PracticeHeader extends StatelessWidget {
                   _formatClock(seconds),
                   style: const TextStyle(
                     color: RColors.cyan,
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -3781,7 +4166,7 @@ class _BottomBar extends StatelessWidget {
                       color: markedForReview
                           ? const Color(0xFFF59E0B)
                           : RColors.secondary,
-                      fontSize: 10,
+                      fontSize: 11.5,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -3839,9 +4224,13 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final canGoBack = Navigator.of(context).canPop();
+
     return Row(
       children: [
-        const _GradientIcon(icon: Icons.auto_stories_rounded),
+        canGoBack
+            ? _ReadingBackButton(onPressed: () => Navigator.pop(context))
+            : const _GradientIcon(icon: Icons.auto_stories_rounded),
         const SizedBox(width: 14),
         const Expanded(
           child: Column(
@@ -3862,7 +4251,7 @@ class _Header extends StatelessWidget {
                 'Practice smarter. Read faster. Score higher.',
                 style: TextStyle(
                   color: RColors.muted,
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -3885,7 +4274,7 @@ class _Header extends StatelessWidget {
                 'AI READY',
                 style: TextStyle(
                   color: RColors.green,
-                  fontSize: 8.5,
+                  fontSize: 12,
                   fontWeight: FontWeight.w900,
                   letterSpacing: .7,
                 ),
@@ -3894,6 +4283,33 @@ class _Header extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ReadingBackButton extends StatelessWidget {
+  const _ReadingBackButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 54,
+      height: 54,
+      child: IconButton(
+        tooltip: 'Back to Home',
+        onPressed: onPressed,
+        style: IconButton.styleFrom(
+          foregroundColor: RColors.text,
+          backgroundColor: RColors.surface.withOpacity(.94),
+          side: BorderSide(color: Colors.white.withOpacity(.08)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+        ),
+        icon: const Icon(Icons.arrow_back_rounded),
+      ),
     );
   }
 }
@@ -3945,7 +4361,7 @@ class _BandHero extends StatelessWidget {
                 status,
                 style: const TextStyle(
                   color: RColors.cyan,
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -3966,7 +4382,7 @@ class _BandHero extends StatelessWidget {
                     : 'Complete a reading activity to unlock your band analytics.',
                 style: const TextStyle(
                   color: RColors.secondary,
-                  fontSize: 10.5,
+                  fontSize: 11.5,
                   height: 1.45,
                 ),
               ),
@@ -4044,7 +4460,7 @@ class _BandScoreRing extends StatelessWidget {
                   'BAND',
                   style: TextStyle(
                     color: RColors.muted,
-                    fontSize: 8,
+                    fontSize: 12,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 1,
                   ),
@@ -4132,7 +4548,7 @@ class _WeaknessCard extends StatelessWidget {
                           type,
                           style: const TextStyle(
                             color: RColors.orangeLight,
-                            fontSize: 9.5,
+                            fontSize: 12,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -4345,7 +4761,7 @@ class _ModeCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: RColors.muted,
-              fontSize: 9.5,
+              fontSize: 12,
               height: 1.35,
             ),
           ),
@@ -4506,7 +4922,7 @@ class _RecentResultCard extends StatelessWidget {
               const SizedBox(height: 3),
               const Text(
                 'accuracy',
-                style: TextStyle(color: RColors.muted, fontSize: 8.5),
+                style: TextStyle(color: RColors.muted, fontSize: 12),
               ),
             ],
           ),
@@ -4569,12 +4985,16 @@ class _ResultHeader extends StatelessWidget {
       children: [
         _GradientIcon(icon: Icons.analytics_outlined),
         SizedBox(width: 12),
-        Text(
-          'Reading Result',
-          style: TextStyle(
-            color: RColors.text,
-            fontSize: 22,
-            fontWeight: FontWeight.w900,
+        Expanded(
+          child: Text(
+            'Reading Result',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: RColors.text,
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+            ),
           ),
         ),
       ],
@@ -4689,7 +5109,7 @@ class _MetricCard extends StatelessWidget {
           Text(
             label,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: RColors.muted, fontSize: 9),
+            style: const TextStyle(color: RColors.muted, fontSize: 12),
           ),
         ],
       ),
@@ -4739,7 +5159,7 @@ class _PerformanceCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               subtitle!,
-              style: const TextStyle(color: RColors.muted, fontSize: 9.5),
+              style: const TextStyle(color: RColors.muted, fontSize: 12),
             ),
           ],
           const SizedBox(height: 10),
@@ -4893,7 +5313,7 @@ class _InnerHeader extends StatelessWidget {
                 ),
                 Text(
                   subtitle,
-                  style: const TextStyle(color: RColors.muted, fontSize: 10),
+                  style: const TextStyle(color: RColors.muted, fontSize: 11.5),
                 ),
               ],
             ),
@@ -4926,7 +5346,7 @@ class _SectionTitle extends StatelessWidget {
         const SizedBox(height: 3),
         Text(
           subtitle,
-          style: const TextStyle(color: RColors.muted, fontSize: 10.5),
+          style: const TextStyle(color: RColors.muted, fontSize: 11.5),
         ),
       ],
     );
@@ -4963,7 +5383,7 @@ class _EmptyCard extends StatelessWidget {
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: RColors.muted, fontSize: 10.5),
+            style: const TextStyle(color: RColors.muted, fontSize: 11.5),
           ),
         ],
       ),
@@ -5049,7 +5469,7 @@ class _Badge extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(
           color: RColors.cyan,
-          fontSize: 9.5,
+          fontSize: 12,
           fontWeight: FontWeight.w800,
         ),
       ),

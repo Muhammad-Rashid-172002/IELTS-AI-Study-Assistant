@@ -57,8 +57,9 @@ class _MockTestSetupScreenState extends State<MockTestSetupScreen> {
   ) async {
     final tests = _uniquePublishedTests(rawTests)
       ..sort((a, b) {
-        final titleCompare =
-            a.title.toLowerCase().compareTo(b.title.toLowerCase());
+        final titleCompare = a.title.toLowerCase().compareTo(
+          b.title.toLowerCase(),
+        );
         if (titleCompare != 0) return titleCompare;
         return a.id.compareTo(b.id);
       });
@@ -77,22 +78,25 @@ class _MockTestSetupScreenState extends State<MockTestSetupScreen> {
       return tests;
     }
 
-    final userRef =
-        FirebaseFirestore.instance.collection('users').doc(user.uid);
-    final progressRef =
-        userRef.collection('mock_test_cycles').doc(_cyclePoolKey);
+    final userRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid);
+    final progressRef = userRef
+        .collection('mock_test_cycles')
+        .doc(_cyclePoolKey);
 
     try {
-      var snapshot =
-          await progressRef.get().timeout(const Duration(seconds: 10));
+      var snapshot = await progressRef.get().timeout(
+        const Duration(seconds: 10),
+      );
 
       if (!snapshot.exists) {
-        final legacyCompleted =
-            await ContentQueueService().completedIds('mock_test');
+        final legacyCompleted = await ContentQueueService().completedIds(
+          'mock_test',
+        );
 
         final availableIds = tests.map((test) => test.id).toSet();
-        final migrated =
-            legacyCompleted.where(availableIds.contains).toSet();
+        final migrated = legacyCompleted.where(availableIds.contains).toSet();
 
         await progressRef.set({
           'poolKey': _cyclePoolKey,
@@ -102,22 +106,18 @@ class _MockTestSetupScreenState extends State<MockTestSetupScreen> {
           'totalMocksAtLastLoad': tests.length,
           'progressPercent': tests.isEmpty
               ? 0
-              : ((migrated.length / tests.length) * 100)
-                  .round()
-                  .clamp(0, 100),
+              : ((migrated.length / tests.length) * 100).round().clamp(0, 100),
           'cycleCompleted': migrated.length >= tests.length,
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
 
-        snapshot =
-            await progressRef.get().timeout(const Duration(seconds: 10));
+        snapshot = await progressRef.get().timeout(const Duration(seconds: 10));
       }
 
       final data = snapshot.data() ?? const <String, dynamic>{};
       var cycleNumber = _mockAsInt(data['cycleNumber'], fallback: 1);
-      var completedIds =
-          _mockStringList(data['completedMockIds']).toSet();
+      var completedIds = _mockStringList(data['completedMockIds']).toSet();
 
       final availableIds = tests.map((test) => test.id).toSet();
       completedIds = completedIds.intersection(availableIds);
@@ -159,9 +159,7 @@ class _MockTestSetupScreenState extends State<MockTestSetupScreen> {
   Future<List<PublishedMockTest>> _cycleFutureFor(
     List<PublishedMockTest> rawTests,
   ) {
-    final ids = _uniquePublishedTests(rawTests)
-        .map((test) => test.id)
-        .toList()
+    final ids = _uniquePublishedTests(rawTests).map((test) => test.id).toList()
       ..sort();
 
     final signature = ids.join('|');
@@ -214,11 +212,14 @@ class _MockTestSetupScreenState extends State<MockTestSetupScreen> {
         ),
       );
     } catch (error) {
+      debugPrint('Mock test start failed: $error');
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Could not start the mock test: $error'),
+          content: const Text(
+            'The mock test could not start. Check your connection and try again.',
+          ),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -367,7 +368,7 @@ class _MockTestSetupScreenState extends State<MockTestSetupScreen> {
                                 'Cycle $_currentCycle • ${tests.length} mock test${tests.length == 1 ? '' : 's'} remaining',
                                 style: const TextStyle(
                                   color: MockColors.secondary,
-                                  fontSize: 10.5,
+                                  fontSize: 11.5,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
@@ -608,7 +609,7 @@ class _MockTestSetupScreenState extends State<MockTestSetupScreen> {
                   'Persistent timer, autosave, question palette, recovery and full exam result.',
                   style: TextStyle(
                     color: MockColors.secondary,
-                    fontSize: 10.5,
+                    fontSize: 11.5,
                     height: 1.45,
                   ),
                 ),
@@ -647,7 +648,7 @@ class _MockTestSetupScreenState extends State<MockTestSetupScreen> {
                 children: [
                   const Text(
                     'Test Date',
-                    style: TextStyle(color: MockColors.muted, fontSize: 9.5),
+                    style: TextStyle(color: MockColors.muted, fontSize: 12),
                   ),
                   const SizedBox(height: 3),
                   Text(
@@ -719,7 +720,7 @@ class _MockTestSetupScreenState extends State<MockTestSetupScreen> {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: MockColors.muted,
-                        fontSize: 9.5,
+                        fontSize: 12,
                         height: 1.3,
                       ),
                     ),
@@ -876,7 +877,7 @@ class _ModeTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: MockColors.muted,
-                      fontSize: 9.5,
+                      fontSize: 12,
                     ),
                   ),
                 ],
@@ -978,7 +979,7 @@ class _SectionTitle extends StatelessWidget {
         const SizedBox(height: 3),
         Text(
           subtitle,
-          style: const TextStyle(color: MockColors.muted, fontSize: 10),
+          style: const TextStyle(color: MockColors.muted, fontSize: 11.5),
         ),
       ],
     );

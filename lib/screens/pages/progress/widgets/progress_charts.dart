@@ -63,7 +63,7 @@ class _SkillComparisonPainter extends CustomPainter {
 
       textPainter.text = TextSpan(
         text: '$band',
-        style: const TextStyle(color: ProgressColors.muted, fontSize: 9),
+        style: const TextStyle(color: ProgressColors.muted, fontSize: 12),
       );
       textPainter.layout();
       textPainter.paint(canvas, Offset(8, y - textPainter.height / 2));
@@ -110,7 +110,7 @@ class _SkillComparisonPainter extends CustomPainter {
         text: value.toStringAsFixed(1),
         style: const TextStyle(
           color: ProgressColors.text,
-          fontSize: 10,
+          fontSize: 11.5,
           fontWeight: FontWeight.w900,
         ),
       );
@@ -127,7 +127,7 @@ class _SkillComparisonPainter extends CustomPainter {
         text: entry.key.substring(0, 1),
         style: const TextStyle(
           color: ProgressColors.secondary,
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: FontWeight.w800,
         ),
       );
@@ -277,7 +277,7 @@ class ReadinessRing extends StatelessWidget {
               ),
               const Text(
                 'Ready',
-                style: TextStyle(color: ProgressColors.muted, fontSize: 9),
+                style: TextStyle(color: ProgressColors.muted, fontSize: 12),
               ),
             ],
           ),

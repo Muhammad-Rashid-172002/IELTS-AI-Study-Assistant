@@ -113,20 +113,24 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         _products = response.productDetails.toList()
           ..sort((a, b) => _planRank(a.id).compareTo(_planRank(b.id)));
         _loadingProducts = false;
-        _storeError = response.error?.message;
+        _storeError = response.error == null
+            ? null
+            : 'Google Play plans are unavailable right now. Please try again.';
       });
 
       if (response.notFoundIDs.isNotEmpty) {
         _storeError =
-            'Products not active in Play Console: ${response.notFoundIDs.join(', ')}';
+            'Subscription plans are being updated. Please check again shortly.';
       }
 
       await _syncSubscriptionFromBackend(showMessage: false);
     } catch (error) {
+      debugPrint('Subscription product loading failed: $error');
       if (!mounted) return;
       setState(() {
         _loadingProducts = false;
-        _storeError = 'Could not load Google Play subscriptions: $error';
+        _storeError =
+            'Google Play plans are unavailable right now. Please try again.';
       });
     }
   }
@@ -452,7 +456,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         message,
                         style: const TextStyle(
                           color: SubscriptionColors.secondary,
-                          fontSize: 10.5,
+                          fontSize: 11.5,
                           height: 1.42,
                           fontWeight: FontWeight.w500,
                         ),
@@ -623,7 +627,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: SubscriptionColors.muted,
-                          fontSize: 10.5,
+                          fontSize: 11.5,
                           height: 1.45,
                         ),
                       ),
@@ -687,7 +691,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   'Secure billing by Google Play',
                   style: TextStyle(
                     color: SubscriptionColors.muted,
-                    fontSize: 10,
+                    fontSize: 11.5,
                   ),
                 ),
               ],
@@ -798,7 +802,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   '${_premiumPlan.isEmpty ? 'Google Play subscription' : _premiumPlan} • $expiryText',
                   style: const TextStyle(
                     color: SubscriptionColors.secondary,
-                    fontSize: 10.5,
+                    fontSize: 11.5,
                     height: 1.45,
                   ),
                 ),
@@ -810,7 +814,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         : 'Auto-renewal is not enabled',
                     style: const TextStyle(
                       color: SubscriptionColors.green,
-                      fontSize: 9.5,
+                      fontSize: 12,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -885,7 +889,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   'No active subscription products were returned by Google Play.',
               style: const TextStyle(
                 color: SubscriptionColors.secondary,
-                fontSize: 11,
+                fontSize: 12,
                 height: 1.5,
               ),
             ),
@@ -943,7 +947,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               'Google Play handles the payment method and recurring charge. Auto-renewing plans renew at the displayed billing frequency until cancelled. Premium is granted only after the app sends the purchase token to Firebase and Google Play verifies it.',
               style: TextStyle(
                 color: SubscriptionColors.secondary,
-                fontSize: 10.5,
+                fontSize: 11.5,
                 height: 1.5,
               ),
             ),
@@ -1155,7 +1159,7 @@ class _GooglePlayPlanTile extends StatelessWidget {
                       subtitle,
                       style: const TextStyle(
                         color: SubscriptionColors.muted,
-                        fontSize: 9.5,
+                        fontSize: 12,
                         height: 1.35,
                       ),
                     ),
@@ -1179,7 +1183,7 @@ class _GooglePlayPlanTile extends StatelessWidget {
                     'Google Play',
                     style: TextStyle(
                       color: SubscriptionColors.muted,
-                      fontSize: 8.5,
+                      fontSize: 12,
                     ),
                   ),
                 ],
@@ -1236,7 +1240,7 @@ class _BenefitRow extends StatelessWidget {
                   subtitle,
                   style: const TextStyle(
                     color: SubscriptionColors.muted,
-                    fontSize: 9.5,
+                    fontSize: 12,
                   ),
                 ),
               ],
@@ -1307,7 +1311,7 @@ class _SectionCard extends StatelessWidget {
                       subtitle,
                       style: const TextStyle(
                         color: SubscriptionColors.muted,
-                        fontSize: 9.5,
+                        fontSize: 12,
                       ),
                     ),
                   ],
@@ -1347,7 +1351,7 @@ class _FeatureChip extends StatelessWidget {
             label,
             style: const TextStyle(
               color: SubscriptionColors.secondary,
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
           ),

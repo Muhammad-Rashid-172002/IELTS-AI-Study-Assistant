@@ -7,6 +7,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:fyproject/resources/components/learner_state_view.dart';
 import 'package:fyproject/screens/pages/certificate/certificate_screen.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
@@ -212,10 +213,12 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
       // Timer intentionally does NOT start here.
       // It starts only when the user presses Play in Listening.
     } catch (error) {
+      debugPrint('Diagnostic loading failed: $error');
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _loadError = error.toString();
+        _loadError =
+            'The diagnostic could not be prepared. Check your connection and try again.';
       });
     }
   }
@@ -468,6 +471,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
         ),
       );
     } catch (error) {
+      debugPrint('Diagnostic submission failed: $error');
       if (!mounted) return;
 
       setState(() => _submitting = false);
@@ -477,25 +481,46 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
         _startTimer();
       }
 
-      _showMessage('Diagnostic submission failed: $error');
+      _showMessage(
+        'Your diagnostic could not be submitted. Your answers are still here—please try again.',
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
+      return Scaffold(
         backgroundColor: DiagnosticColors.background,
-        body: Center(child: CircularProgressIndicator()),
+        body: Stack(
+          children: [
+            const Positioned.fill(child: _DiagnosticBackground()),
+            const SafeArea(
+              child: LearnerStateView.loading(
+                eyebrow: 'ADAPTIVE DIAGNOSTIC',
+                title: 'Preparing your assessment',
+                message:
+                    'Loading the four-skill test and securing your progress before you begin.',
+                icon: Icons.fact_check_rounded,
+              ),
+            ),
+          ],
+        ),
       );
     }
 
     if (_loadError != null || _test == null) {
       return Scaffold(
         backgroundColor: DiagnosticColors.background,
-        body: _ErrorState(
-          message: _loadError ?? 'No published diagnostic test found.',
-          onRetry: () {
+        body: LearnerStateView.error(
+          eyebrow: 'ASSESSMENT PAUSED',
+          title: _test == null && _loadError == null
+              ? 'No diagnostic is available yet'
+              : 'The diagnostic could not be prepared',
+          message:
+              'Your profile is safe. Check your connection and try loading the assessment again.',
+          icon: Icons.fact_check_outlined,
+          onAction: () {
             setState(() {
               _loading = true;
               _loadError = null;
@@ -590,7 +615,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
                       'Section ${_currentSection + 1} of 4',
                       style: const TextStyle(
                         color: DiagnosticColors.mutedText,
-                        fontSize: 10,
+                        fontSize: 11.5,
                       ),
                     ),
                   ],
@@ -1140,7 +1165,7 @@ class _DiagnosticCertificateCard extends StatelessWidget {
                       : 'Your result is saved. Certificate synchronization will retry automatically.',
                   style: const TextStyle(
                     color: DiagnosticColors.mutedText,
-                    fontSize: 10,
+                    fontSize: 11.5,
                     height: 1.4,
                   ),
                 ),
@@ -1960,7 +1985,7 @@ class _DiagnosticQuestionCard extends StatelessWidget {
               question.instruction,
               style: const TextStyle(
                 color: DiagnosticColors.cyan,
-                fontSize: 10,
+                fontSize: 11.5,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -2044,7 +2069,7 @@ class _ChoiceTile extends StatelessWidget {
                   color: selected
                       ? Colors.white
                       : DiagnosticColors.secondaryText,
-                  fontSize: 10,
+                  fontSize: 11.5,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -2112,7 +2137,7 @@ class _RealAudioPlayerCard extends StatelessWidget {
                 style: const TextStyle(
                   color: DiagnosticColors.cyan,
                   fontWeight: FontWeight.w800,
-                  fontSize: 10,
+                  fontSize: 11.5,
                 ),
               ),
             ],
@@ -2216,7 +2241,7 @@ class _WritingTaskCard extends StatelessWidget {
                 'administrator to regenerate or update this diagnostic test.',
                 style: TextStyle(
                   color: DiagnosticColors.secondaryText,
-                  fontSize: 11,
+                  fontSize: 12,
                   height: 1.45,
                 ),
               ),
@@ -2268,7 +2293,7 @@ class _WritingVisualCard extends StatelessWidget {
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: DiagnosticColors.mutedText,
-                fontSize: 9.5,
+                fontSize: 12,
               ),
             ),
           ],
@@ -2281,7 +2306,7 @@ class _WritingVisualCard extends StatelessWidget {
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: DiagnosticColors.mutedText,
-                fontSize: 9,
+                fontSize: 12,
                 fontStyle: FontStyle.italic,
               ),
             ),
@@ -2393,7 +2418,7 @@ class _WritingCartesianPainter extends CustomPainter {
         Offset(0, y - 7),
         width: left - 5,
         align: TextAlign.right,
-        fontSize: 8.5,
+        fontSize: 12,
         color: DiagnosticColors.mutedText,
       );
     }
@@ -2529,7 +2554,7 @@ class _WritingCartesianPainter extends CustomPainter {
           text: name,
           style: const TextStyle(
             color: DiagnosticColors.secondaryText,
-            fontSize: 8,
+            fontSize: 12,
           ),
         ),
         textDirection: TextDirection.ltr,
@@ -2598,7 +2623,7 @@ class _WritingPiePainter extends CustomPainter {
       Offset(center.dx - radius * .45, center.dy - 8),
       width: radius * .9,
       align: TextAlign.center,
-      fontSize: 10,
+      fontSize: 11.5,
       color: DiagnosticColors.mainText,
     );
 
@@ -2622,7 +2647,7 @@ class _WritingPiePainter extends CustomPainter {
         '(${_formatChartNumber(values[index])}${data.unit})',
         Offset(legendX + 10, legendY),
         width: size.width - legendX - 12,
-        fontSize: 8.5,
+        fontSize: 12,
         color: DiagnosticColors.secondaryText,
       );
 
@@ -2660,7 +2685,7 @@ class _WritingTableVisual extends StatelessWidget {
                   column,
                   style: const TextStyle(
                     color: DiagnosticColors.mainText,
-                    fontSize: 10,
+                    fontSize: 11.5,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -2677,7 +2702,7 @@ class _WritingTableVisual extends StatelessWidget {
                       index < row.length ? row[index] : '',
                       style: const TextStyle(
                         color: DiagnosticColors.secondaryText,
-                        fontSize: 10,
+                        fontSize: 11.5,
                       ),
                     ),
                   ),
@@ -2744,7 +2769,7 @@ class _WritingProcessVisual extends StatelessWidget {
                   data.processSteps[index],
                   style: const TextStyle(
                     color: DiagnosticColors.secondaryText,
-                    fontSize: 10.5,
+                    fontSize: 11.5,
                     height: 1.4,
                   ),
                 ),
@@ -2804,7 +2829,7 @@ class _WritingMapVisual extends StatelessWidget {
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           color: DiagnosticColors.mainText,
-                          fontSize: 8,
+                          fontSize: 12,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -2908,7 +2933,7 @@ class _SpeakingPromptCard extends StatelessWidget {
             style: const TextStyle(
               color: DiagnosticColors.cyan,
               fontWeight: FontWeight.w900,
-              fontSize: 10,
+              fontSize: 11.5,
             ),
           ),
           const SizedBox(height: 9),
@@ -3323,7 +3348,7 @@ class _InfoCard extends StatelessWidget {
             subtitle,
             style: const TextStyle(
               color: DiagnosticColors.mutedText,
-              fontSize: 10,
+              fontSize: 11.5,
             ),
           ),
         ],

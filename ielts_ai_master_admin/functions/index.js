@@ -4392,7 +4392,10 @@ STRICT REQUIREMENTS
 5. The model answer must meet the appropriate word requirement.
 6. Provide a paragraph plan and useful vocabulary.
 7. For Academic Task 1, include complete chart/map/process data in structured
-   JSON so the Flutter app can render a text-based visual description.
+   JSON so the Flutter app can render the actual visual inside the task screen.
+   For Map tasks, always provide exactly two mapPanels (normally before/after
+   or the two years named in the question), with normalized 0-100 positions
+   and sizes for every important feature.
 8. For General Task 1, clearly state the recipient, situation and three bullet
    points.
 9. For Task 2, include a balanced, arguable issue and clear instruction.
@@ -4414,14 +4417,31 @@ Return exactly:
     {"word": "string", "meaning": "string", "example": "string"}
   ],
   "visualData": {
+    "type": "line_chart | bar_chart | pie_chart | table | map | process | mixed_charts",
     "title": "string",
     "description": "string",
+    "unit": "string",
     "categories": ["string"],
     "series": [
       {"name": "string", "values": [1, 2, 3]}
     ],
     "stages": ["string"],
-    "locations": ["string"]
+    "locations": ["string"],
+    "mapPanels": [
+      {
+        "title": "2005",
+        "features": [
+          {
+            "label": "Playground",
+            "kind": "building | park | garden | road | path | water | parking | playground | area",
+            "x": 10,
+            "y": 15,
+            "width": 25,
+            "height": 18
+          }
+        ]
+      }
+    ]
   },
   "band8ModelAnswer": "string",
   "modelAnswerNotes": ["string"],
@@ -4447,6 +4467,12 @@ ACADEMIC TASK 1 RULES
   requires process description.
 - visualData must contain enough exact figures, stages or map changes for a
   student to write a complete answer.
+- visualData.type must match the selected task type.
+- For Map tasks, visualData.mapPanels must contain exactly two panels.
+- Each map panel must contain at least four important features.
+- Map feature x/y/width/height values use percentages from 0 to 100.
+- Keep feature geometry internally consistent between the two panels so a
+  learner can clearly see what was added, removed, moved or replaced.
 `;
   }
 
@@ -4529,9 +4555,18 @@ function normalizeWritingTask(raw, settings) {
 
 function normalizeWritingVisualData(value) {
   const raw = value && typeof value === "object" ? value : {};
+
+  const normalizePercent = (input, fallback) => {
+    const number = Number(input);
+    if (!Number.isFinite(number)) return fallback;
+    return Math.max(0, Math.min(100, number));
+  };
+
   return {
+    type: String(raw.type || "").trim().toLowerCase(),
     title: String(raw.title || "").trim(),
     description: String(raw.description || "").trim(),
+    unit: String(raw.unit || "").trim(),
     categories: cleanStringArray(raw.categories),
     series: Array.isArray(raw.series) ?
       raw.series.map((item) => ({
@@ -4543,6 +4578,27 @@ function normalizeWritingVisualData(value) {
       [],
     stages: cleanStringArray(raw.stages),
     locations: cleanStringArray(raw.locations),
+    mapPanels: Array.isArray(raw.mapPanels) ?
+      raw.mapPanels.slice(0, 2).map((panel) => ({
+        title: String(panel?.title || "").trim(),
+        features: Array.isArray(panel?.features) ?
+          panel.features.map((feature) => ({
+            label: String(feature?.label || "").trim(),
+            kind: String(feature?.kind || "area").trim().toLowerCase(),
+            x: normalizePercent(feature?.x, 10),
+            y: normalizePercent(feature?.y, 10),
+            width: Math.max(8, Math.min(
+                70,
+                normalizePercent(feature?.width, 24),
+            )),
+            height: Math.max(7, Math.min(
+                55,
+                normalizePercent(feature?.height, 16),
+            )),
+          })).filter((feature) => feature.label) :
+          [],
+      })).filter((panel) => panel.features.length > 0) :
+      [],
   };
 }
 
@@ -4584,6 +4640,22 @@ function validateWritingTask(task, job) {
       task.visualData.locations.length === 0) {
     errors.push("Academic Task 1 requires usable visual data.");
     score -= 20;
+  }
+
+  if (job.taskCategory === "academic_task_1" &&
+      String(job.taskType || "").trim().toLowerCase() === "map") {
+    const panels = Array.isArray(task.visualData.mapPanels) ?
+      task.visualData.mapPanels :
+      [];
+
+    if (panels.length !== 2) {
+      errors.push("Map Writing tasks require exactly two map panels.");
+      score -= 25;
+    } else if (panels.some((panel) =>
+      !Array.isArray(panel.features) || panel.features.length < 4)) {
+      errors.push("Each map panel requires at least four labelled features.");
+      score -= 20;
+    }
   }
 
   if (!task.lesson.overview ||
@@ -10337,6 +10409,209 @@ function diagnosticSafeError(error) {
 const CERTIFICATE_VERIFY_BASE_URL =
   "https://ieltsaimaster.com/verify";
 
+const CERTIFICATE_CODE_PATTERN = /^IAM-\d{4}-[A-F0-9]{10}$/;
+const CERTIFICATE_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const CERTIFICATE_RATE_LIMIT_MAX_REQUESTS = 30;
+
+/**
+ * Confirms that a callable request was made by an enabled platform admin.
+ * Custom claims are supported for deployments that use them, while the
+ * admins collection remains the source of truth used by the admin web app.
+ *
+ * @param {import("firebase-functions/v2/https").CallableRequest} request
+ * @return {Promise<{uid: string, email: string}>}
+ */
+async function requirePlatformAdmin(request) {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Admin sign-in is required.");
+  }
+
+  const uid = request.auth.uid;
+  const tokenRole = String(request.auth.token?.role || "").toLowerCase();
+  const claimAllowsAdmin = request.auth.token?.admin === true ||
+    tokenRole === "admin" || tokenRole === "super_admin";
+
+  const adminDoc = await db.collection("admins").doc(uid).get();
+  const admin = adminDoc.data() || {};
+  const storedRole = String(admin.role || "").toLowerCase();
+  const storedAllowsAdmin = admin.isAdmin === true ||
+    storedRole === "admin" || storedRole === "super_admin";
+
+  if (!claimAllowsAdmin && !storedAllowsAdmin) {
+    throw new HttpsError(
+        "permission-denied",
+        "This account does not have administrator permission.",
+    );
+  }
+
+  return {
+    uid,
+    email: String(request.auth.token?.email || admin.email || "").trim(),
+  };
+}
+
+/**
+ * Applies a privacy-preserving per-client rate limit to public certificate
+ * verification. The stored key is a one-way hash and contains no raw IP.
+ *
+ * @param {import("firebase-functions/v2/https").CallableRequest} request
+ * @return {Promise<void>}
+ */
+async function enforceCertificateVerificationRateLimit(request) {
+  const forwarded = String(
+      request.rawRequest?.headers?.["x-forwarded-for"] || "",
+  ).split(",")[0].trim();
+  const address = forwarded || request.rawRequest?.ip || "unknown";
+  const userAgent = String(
+      request.rawRequest?.headers?.["user-agent"] || "unknown",
+  ).slice(0, 160);
+  const clientHash = crypto
+      .createHash("sha256")
+      .update(`${address}|${userAgent}`)
+      .digest("hex");
+  const ref = db.collection("certificate_verification_rate_limits")
+      .doc(clientHash);
+  const now = Date.now();
+
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    const data = snapshot.data() || {};
+    const windowStartedAt = Number(data.windowStartedAt || 0);
+    const inCurrentWindow = now - windowStartedAt <
+      CERTIFICATE_RATE_LIMIT_WINDOW_MS;
+    const requestCount = inCurrentWindow ? Number(data.requestCount || 0) : 0;
+
+    if (requestCount >= CERTIFICATE_RATE_LIMIT_MAX_REQUESTS) {
+      throw new HttpsError(
+          "resource-exhausted",
+          "Too many verification attempts. Please wait and try again.",
+      );
+    }
+
+    transaction.set(ref, {
+      windowStartedAt: inCurrentWindow ? windowStartedAt : now,
+      requestCount: requestCount + 1,
+      expiresAt: new Date(now + CERTIFICATE_RATE_LIMIT_WINDOW_MS * 2),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+  });
+}
+
+exports.verifyCertificate = onCall(
+    {
+      region: "us-central1",
+      timeoutSeconds: 30,
+      memory: "256MiB",
+      cors: true,
+    },
+    async (request) => {
+      await enforceCertificateVerificationRateLimit(request);
+
+      const verificationCode = String(request.data?.verificationCode || "")
+          .trim()
+          .toUpperCase();
+
+      if (!CERTIFICATE_CODE_PATTERN.test(verificationCode)) {
+        throw new HttpsError(
+            "invalid-argument",
+            "Enter a valid certificate verification code.",
+        );
+      }
+
+      const snapshot = await db.collection("certificate_verifications")
+          .doc(verificationCode)
+          .get();
+
+      if (!snapshot.exists) {
+        return {found: false};
+      }
+
+      const certificate = snapshot.data() || {};
+
+      // Deliberately return an allow-listed public projection. Private source
+      // paths, user IDs, email addresses and internal metadata never leave the
+      // trusted server even if older registry documents contain those fields.
+      return {
+        found: true,
+        certificate: {
+          verificationCode,
+          certificateId: String(certificate.certificateId || ""),
+          achievementType: String(certificate.achievementType || ""),
+          certificateType: String(certificate.certificateType || ""),
+          title: String(certificate.title || ""),
+          userName: String(certificate.userName || "IELTS Learner"),
+          issuer: String(certificate.issuer || "IELTS AI Master"),
+          status: String(certificate.status || "invalid"),
+          disclaimer: String(certificate.disclaimer || ""),
+          band: certificateNumber(certificate.band),
+          issuedAt: certificate.issuedAt || null,
+          qrStatus: "matched",
+        },
+      };
+    },
+);
+
+exports.setLearnerAccountStatus = onCall(
+    {
+      region: "us-central1",
+      timeoutSeconds: 30,
+      memory: "256MiB",
+    },
+    async (request) => {
+      const admin = await requirePlatformAdmin(request);
+      const userId = String(request.data?.userId || "").trim();
+      const status = String(request.data?.status || "").trim().toLowerCase();
+      const reason = String(request.data?.reason || "").trim().slice(0, 500);
+
+      if (!userId || !["active", "suspended"].includes(status)) {
+        throw new HttpsError(
+            "invalid-argument",
+            "A learner and a supported account status are required.",
+        );
+      }
+
+      if (userId === admin.uid) {
+        throw new HttpsError(
+            "failed-precondition",
+            "Administrators cannot change their own account status here.",
+        );
+      }
+
+      const userRef = db.collection("users").doc(userId);
+      const userSnapshot = await userRef.get();
+      if (!userSnapshot.exists) {
+        throw new HttpsError("not-found", "The learner account was not found.");
+      }
+
+      const authUser = await getAuth().getUser(userId);
+      await getAuth().updateUser(userId, {disabled: status === "suspended"});
+
+      const auditRef = db.collection("admin_audit_log").doc();
+      const batch = db.batch();
+      batch.set(userRef, {
+        accountStatus: status,
+        isDisabled: status === "suspended",
+        statusReason: reason,
+        statusUpdatedAt: FieldValue.serverTimestamp(),
+        statusUpdatedBy: admin.uid,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+      batch.set(auditRef, {
+        action: status === "suspended" ?
+          "learner.account_suspended" : "learner.account_reactivated",
+        targetUserId: userId,
+        targetEmail: authUser.email || "",
+        adminUserId: admin.uid,
+        adminEmail: admin.email,
+        reason,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      await batch.commit();
+
+      return {success: true, status};
+    },
+);
+
 exports.issueAchievementCertificate = onCall(
     {
       region: "us-central1",
@@ -10697,8 +10972,18 @@ async function createAchievementCertificateIfMissing({
 
         transaction.set(certificateRef, certificate);
         transaction.set(verificationRef, {
-          ...certificate,
-          certificatePath: certificateRef.path,
+          verificationCode,
+          certificateId,
+          achievementType,
+          title: certificate.title,
+          certificateType: certificate.certificateType,
+          userName: certificate.userName,
+          band: certificate.band,
+          issuer: certificate.issuer,
+          status: certificate.status,
+          disclaimer: certificate.disclaimer,
+          issuedAt,
+          updatedAt: issuedAt,
         });
         transaction.set(
             userRef,

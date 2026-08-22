@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:fyproject/resources/components/learner_state_view.dart';
 
 const String kCertificateVerificationBaseUrl =
     'https://ielts-ai-study-assistant.web.app';
@@ -56,11 +57,22 @@ class _CertificatesScreenState extends State<CertificatesScreen> {
                     stream: _watchCertificates(),
                     builder: (context, snapshot) {
                       if (snapshot.hasError) {
-                        return _ErrorState(message: snapshot.error.toString());
+                        return LearnerStateView.error(
+                          title: 'Certificates are temporarily unavailable',
+                          message:
+                              'Your verified achievements are safe. Reconnect and refresh to load them again.',
+                          icon: Icons.workspace_premium_outlined,
+                          onAction: () => setState(() {}),
+                        );
                       }
 
                       if (!snapshot.hasData) {
-                        return const Center(child: CircularProgressIndicator());
+                        return const LearnerStateView.loading(
+                          title: 'Checking your achievements',
+                          message:
+                              'Loading verified milestones and completion records.',
+                          icon: Icons.workspace_premium_rounded,
+                        );
                       }
 
                       final certificates = snapshot.data!;
@@ -210,7 +222,7 @@ class _CertificatesScreenState extends State<CertificatesScreen> {
                   'Verified IELTS AI Master achievements',
                   style: TextStyle(
                     color: CertificateColors.muted,
-                    fontSize: 10.5,
+                    fontSize: 11.5,
                   ),
                 ),
               ],
@@ -245,7 +257,7 @@ class _CertificatesScreenState extends State<CertificatesScreen> {
             'Each certificate includes a unique verification code, QR code and public verification URL.',
             style: TextStyle(
               color: CertificateColors.secondary,
-              fontSize: 11,
+              fontSize: 12,
               height: 1.5,
             ),
           ),
@@ -351,7 +363,7 @@ class _CertificatesScreenState extends State<CertificatesScreen> {
                             color: selected
                                 ? Colors.white
                                 : CertificateColors.secondary,
-                            fontSize: 9.5,
+                            fontSize: 12,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -561,7 +573,7 @@ class _CertificatePreview extends StatelessWidget {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: CertificateColors.gold,
-                            fontSize: 10,
+                            fontSize: 11.5,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 2.4,
                           ),
@@ -572,7 +584,7 @@ class _CertificatePreview extends StatelessWidget {
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             color: CertificateColors.muted,
-                            fontSize: 8.5,
+                            fontSize: 12,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 1.0,
                           ),
@@ -624,7 +636,7 @@ class _CertificatePreview extends StatelessWidget {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: CertificateColors.secondary,
-                            fontSize: 10,
+                            fontSize: 11.5,
                             height: 1.5,
                           ),
                         ),
@@ -846,7 +858,7 @@ class _FormalBandBadge extends StatelessWidget {
             'Estimated Band ${band.toStringAsFixed(1)}',
             style: const TextStyle(
               color: CertificateColors.cyan,
-              fontSize: 9.5,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -940,7 +952,7 @@ class _CredentialField extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: CertificateColors.secondary,
-              fontSize: 8.5,
+              fontSize: 12,
               height: 1.25,
               fontWeight: FontWeight.w800,
             ),
@@ -1405,7 +1417,7 @@ class _CertificateCard extends StatelessWidget {
                     certificate.certificateType,
                     style: const TextStyle(
                       color: CertificateColors.cyan,
-                      fontSize: 10,
+                      fontSize: 11.5,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -1416,7 +1428,7 @@ class _CertificateCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: CertificateColors.muted,
-                      fontSize: 9.5,
+                      fontSize: 12,
                     ),
                   ),
                 ],
@@ -1465,7 +1477,7 @@ class _CopyField extends StatelessWidget {
                   label,
                   style: const TextStyle(
                     color: CertificateColors.muted,
-                    fontSize: 8.5,
+                    fontSize: 12,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -1475,7 +1487,7 @@ class _CopyField extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: CertificateColors.text,
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -1513,7 +1525,7 @@ class _InfoRow extends StatelessWidget {
                   label,
                   style: const TextStyle(
                     color: CertificateColors.muted,
-                    fontSize: 10,
+                    fontSize: 11.5,
                   ),
                 ),
               ),
@@ -1523,7 +1535,7 @@ class _InfoRow extends StatelessWidget {
                   textAlign: TextAlign.end,
                   style: const TextStyle(
                     color: CertificateColors.text,
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -1558,7 +1570,7 @@ class _InfoRow extends StatelessWidget {
 //             label,
 //             style: const TextStyle(
 //               color: CertificateColors.muted,
-//               fontSize: 8.5,
+//               fontSize: 12,
 //             ),
 //           ),
 //           const SizedBox(height: 4),
@@ -1567,7 +1579,7 @@ class _InfoRow extends StatelessWidget {
 //             textAlign: TextAlign.center,
 //             style: const TextStyle(
 //               color: CertificateColors.text,
-//               fontSize: 11,
+//               fontSize: 12,
 //               fontWeight: FontWeight.w900,
 //             ),
 //           ),
@@ -1612,7 +1624,7 @@ class _SectionHeading extends StatelessWidget {
                 subtitle,
                 style: const TextStyle(
                   color: CertificateColors.muted,
-                  fontSize: 9.5,
+                  fontSize: 12,
                 ),
               ),
             ],
@@ -1643,7 +1655,7 @@ class _StatusBadge extends StatelessWidget {
         status.toUpperCase(),
         style: TextStyle(
           color: color,
-          fontSize: 8,
+          fontSize: 12,
           fontWeight: FontWeight.w900,
         ),
       ),
@@ -1679,7 +1691,7 @@ class _InfoChip extends StatelessWidget {
             label,
             style: TextStyle(
               color: color,
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -1720,23 +1732,6 @@ class _EmptyState extends StatelessWidget {
             style: TextStyle(color: CertificateColors.muted, height: 1.5),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  final String message;
-
-  const _ErrorState({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        message,
-        textAlign: TextAlign.center,
-        style: const TextStyle(color: CertificateColors.red),
       ),
     );
   }

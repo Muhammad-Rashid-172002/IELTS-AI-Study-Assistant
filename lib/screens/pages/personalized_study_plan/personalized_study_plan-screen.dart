@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:fyproject/resources/bottom_navigation_bar/botton_navigation.dart';
+import 'package:fyproject/resources/components/learner_state_view.dart';
 
 class PersonalizedStudyPlanScreen extends StatefulWidget {
   final double? currentBand;
@@ -58,6 +59,14 @@ class _PersonalizedStudyPlanScreenState
   @override
   void initState() {
     super.initState();
+    _loadProductionPlanInputs();
+  }
+
+  void _retryLoad() {
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
     _loadProductionPlanInputs();
   }
 
@@ -620,7 +629,9 @@ class _PersonalizedStudyPlanScreenState
 
       if (!mounted) return;
 
-      _showMessage('Study plan could not be saved: $error');
+      _showMessage(
+        'Your study plan could not be saved. Check your connection and try again.',
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -645,24 +656,41 @@ class _PersonalizedStudyPlanScreenState
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
+      return Scaffold(
         backgroundColor: StudyPlanColors.background,
-        body: Center(child: CircularProgressIndicator()),
+        body: Stack(
+          children: [
+            const Positioned.fill(child: _StudyPlanBackground()),
+            const SafeArea(
+              child: LearnerStateView.loading(
+                title: 'Building your adaptive week',
+                message:
+                    'Balancing your target band, recent results and available study time.',
+                icon: Icons.route_rounded,
+              ),
+            ),
+          ],
+        ),
       );
     }
 
     if (_weeklyPlan.isEmpty) {
       return Scaffold(
         backgroundColor: StudyPlanColors.background,
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              _loadError ?? 'Study plan could not be created.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: StudyPlanColors.mutedText),
+        body: Stack(
+          children: [
+            const Positioned.fill(child: _StudyPlanBackground()),
+            SafeArea(
+              child: LearnerStateView.error(
+                title: 'Your plan needs a quick refresh',
+                message: _loadError == 'User is not signed in.'
+                    ? 'Sign in to create and sync a study plan across your devices.'
+                    : 'We could not combine your latest learning data. Your progress is safe—try again when you are ready.',
+                icon: Icons.route_outlined,
+                onAction: _retryLoad,
+              ),
             ),
-          ),
+          ],
         ),
       );
     }
@@ -763,7 +791,7 @@ class _PersonalizedStudyPlanScreenState
                   'Adapted to your target and weak areas',
                   style: TextStyle(
                     color: StudyPlanColors.mutedText,
-                    fontSize: 10.5,
+                    fontSize: 11.5,
                   ),
                 ),
               ],
@@ -780,7 +808,7 @@ class _PersonalizedStudyPlanScreenState
               '${(_completionProgress * 100).round()}%',
               style: const TextStyle(
                 color: StudyPlanColors.cyan,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -838,7 +866,7 @@ class _PersonalizedStudyPlanScreenState
                         'PERSONAL PATH',
                         style: TextStyle(
                           color: StudyPlanColors.mutedText,
-                          fontSize: 8.5,
+                          fontSize: 12,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0.8,
                         ),
@@ -905,7 +933,7 @@ class _PersonalizedStudyPlanScreenState
                       'IELTS exam countdown',
                       style: TextStyle(
                         color: StudyPlanColors.secondaryText,
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -1253,7 +1281,7 @@ class _SelectedDaySummary extends StatelessWidget {
                   '${day.tasks.length} tasks • ${day.totalMinutes} minutes',
                   style: const TextStyle(
                     color: StudyPlanColors.mutedText,
-                    fontSize: 10.5,
+                    fontSize: 11.5,
                   ),
                 ),
               ],
@@ -1336,7 +1364,7 @@ class _StudyTaskCard extends StatelessWidget {
                       task.subtitle,
                       style: const TextStyle(
                         color: StudyPlanColors.mutedText,
-                        fontSize: 10.5,
+                        fontSize: 11.5,
                         height: 1.35,
                       ),
                     ),
@@ -1353,7 +1381,7 @@ class _StudyTaskCard extends StatelessWidget {
                           '${task.durationMinutes} min',
                           style: TextStyle(
                             color: task.accent,
-                            fontSize: 9.5,
+                            fontSize: 12,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -1413,7 +1441,7 @@ class _TaskTypeBadge extends StatelessWidget {
         _label(type),
         style: const TextStyle(
           color: StudyPlanColors.secondaryText,
-          fontSize: 8.5,
+          fontSize: 12,
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -1487,7 +1515,7 @@ class _BandCircle extends StatelessWidget {
           label,
           style: const TextStyle(
             color: StudyPlanColors.mutedText,
-            fontSize: 10,
+            fontSize: 11.5,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -1534,7 +1562,7 @@ class _MiniMetric extends StatelessWidget {
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: StudyPlanColors.mutedText,
-              fontSize: 8.5,
+              fontSize: 12,
             ),
           ),
         ],

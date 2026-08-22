@@ -7,6 +7,7 @@ import 'package:fyproject/offline/offline_content_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:fyproject/screens/content_queue_service.dart';
+import 'package:fyproject/resources/components/learner_state_view.dart';
 
 class VocabularyScreen extends StatefulWidget {
   const VocabularyScreen({super.key});
@@ -81,7 +82,7 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
                           crossAxisCount: 2,
                           mainAxisSpacing: 11,
                           crossAxisSpacing: 11,
-                          childAspectRatio: 1.2,
+                          mainAxisExtent: 140,
                         ),
                   ),
                 ),
@@ -140,17 +141,20 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
                     stream: _repo.watchWords(category: _category),
                     builder: (context, snapshot) {
                       if (snapshot.hasError) {
-                        return const _StateView(
-                          icon: Icons.error_outline_rounded,
-                          title: 'Vocabulary load nahi hui',
-                          subtitle:
-                              'Firestore rules aur collection check karein.',
+                        return LearnerStateView.error(
+                          title: 'Vocabulary could not be refreshed',
+                          message:
+                              'Your saved words and mastery progress are safe. Check your connection and try again.',
+                          icon: Icons.translate_rounded,
+                          onAction: () => setState(() {}),
                         );
                       }
                       if (!snapshot.hasData) {
-                        return const Padding(
-                          padding: EdgeInsets.all(30),
-                          child: Center(child: CircularProgressIndicator()),
+                        return const LearnerStateView.loading(
+                          title: 'Curating your vocabulary',
+                          message:
+                              'Finding the best next words for your band and learning history.',
+                          icon: Icons.translate_rounded,
                         );
                       }
 
@@ -227,7 +231,7 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
                     SizedBox(height: 3),
                     Text(
                       'Build precise vocabulary for every IELTS module',
-                      style: TextStyle(color: VColors.muted, fontSize: 10.5),
+                      style: TextStyle(color: VColors.muted, fontSize: 11.5),
                     ),
                   ],
                 ),
@@ -532,7 +536,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
     return _ToolScaffold(
       title: 'Flashcards',
       child: loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const _VocabularyLoadingView()
           : words.isEmpty
           ? const _StateView(
               icon: Icons.style_outlined,
@@ -664,7 +668,7 @@ class DailyWordsScreen extends StatelessWidget {
         future: VocabularyRepository().loadWords(),
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return const _VocabularyLoadingView();
           }
 
           final all = snapshot.data!;
@@ -853,7 +857,7 @@ class _MultipleChoicePracticeState extends State<_MultipleChoicePractice> {
     return _ToolScaffold(
       title: widget.title,
       child: loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const _VocabularyLoadingView()
           : words.length < 4
           ? const _StateView(
               icon: Icons.quiz_outlined,
@@ -1006,7 +1010,7 @@ class _SpellingQuizScreenState extends State<SpellingQuizScreen> {
     return _ToolScaffold(
       title: 'Listening Spelling Quiz',
       child: loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const _VocabularyLoadingView()
           : words.isEmpty
           ? const _StateView(
               icon: Icons.hearing_outlined,
@@ -1048,7 +1052,7 @@ class _SpellingQuizScreenState extends State<SpellingQuizScreen> {
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           color: VColors.muted,
-                          fontSize: 10.5,
+                          fontSize: 11.5,
                         ),
                       ),
                     ],
@@ -1142,7 +1146,7 @@ class _MatchWordsScreenState extends State<MatchWordsScreen> {
     return _ToolScaffold(
       title: 'Match Words',
       child: loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const _VocabularyLoadingView()
           : words.isEmpty
           ? const _StateView(
               icon: Icons.compare_arrows_rounded,
@@ -1242,7 +1246,7 @@ class WordCollectionScreen extends StatelessWidget {
                   .snapshots(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const _VocabularyLoadingView();
                 }
 
                 final docs = snapshot.data!.docs.where((doc) {
@@ -1853,7 +1857,7 @@ class _ProgressValues extends StatelessWidget {
           const SizedBox(height: 6),
           const Text(
             'Review words at the right time and move them toward mastery.',
-            style: TextStyle(color: VColors.secondary, fontSize: 10.5),
+            style: TextStyle(color: VColors.secondary, fontSize: 11.5),
           ),
           const SizedBox(height: 16),
           Row(
@@ -1905,7 +1909,7 @@ class _ToolCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(tool.icon, color: VColors.cyan, size: 25),
-          const Spacer(),
+          const SizedBox(height: 14),
           Text(
             tool.title,
             style: const TextStyle(
@@ -1918,7 +1922,7 @@ class _ToolCard extends StatelessWidget {
           Text(
             tool.subtitle,
             maxLines: 2,
-            style: const TextStyle(color: VColors.muted, fontSize: 9),
+            style: const TextStyle(color: VColors.muted, fontSize: 12),
           ),
         ],
       ),
@@ -1967,7 +1971,7 @@ class _CategoryCard extends StatelessWidget {
                 style: const TextStyle(
                   color: VColors.text,
                   fontWeight: FontWeight.w900,
-                  fontSize: 11,
+                  fontSize: 12,
                 ),
               ),
             ],
@@ -2024,7 +2028,7 @@ class _WordCard extends StatelessWidget {
                 ),
                 Text(
                   word.pronunciation,
-                  style: const TextStyle(color: VColors.cyan, fontSize: 9.5),
+                  style: const TextStyle(color: VColors.cyan, fontSize: 12),
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -2033,7 +2037,7 @@ class _WordCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: VColors.secondary,
-                    fontSize: 10.5,
+                    fontSize: 11.5,
                     height: 1.4,
                   ),
                 ),
@@ -2184,7 +2188,7 @@ class _MatchTile extends StatelessWidget {
             text,
             style: TextStyle(
               color: matched ? VColors.green : VColors.text,
-              fontSize: 10,
+              fontSize: 11.5,
               height: 1.35,
             ),
           ),
@@ -2290,7 +2294,7 @@ class _SectionLabel extends StatelessWidget {
         const SizedBox(height: 3),
         Text(
           subtitle,
-          style: const TextStyle(color: VColors.muted, fontSize: 10.5),
+          style: const TextStyle(color: VColors.muted, fontSize: 11.5),
         ),
       ],
     );
@@ -2339,6 +2343,21 @@ class _StateView extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _VocabularyLoadingView extends StatelessWidget {
+  const _VocabularyLoadingView();
+
+  @override
+  Widget build(BuildContext context) {
+    return const LearnerStateView.loading(
+      eyebrow: 'BUILDING YOUR SESSION',
+      title: 'Preparing the next words',
+      message:
+          'Using your current set and mastery history to create a focused practice round.',
+      icon: Icons.auto_awesome_rounded,
     );
   }
 }
