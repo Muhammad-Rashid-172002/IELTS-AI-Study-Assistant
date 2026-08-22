@@ -1,0 +1,40 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function adminRecord() {
+      return firestore.get(
+        /databases/(default)/documents/admins/$(request.auth.uid)
+      );
+    }
+
+    function isAdmin() {
+      return signedIn() && (
+        request.auth.token.admin == true ||
+        request.auth.token.role == 'admin' ||
+        adminRecord().data.isAdmin == true ||
+        adminRecord().data.role == 'admin' ||
+        adminRecord().data.role == 'super_admin'
+      );
+    }
+
+    match /speaking_recordings/{userId}/{fileName} {
+      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
+      allow create: if signedIn() &&
+        request.auth.uid == userId &&
+        request.resource.size < 20 * 1024 * 1024 &&
+        request.resource.contentType.matches('audio/.*');
+      allow update, delete: if signedIn() &&
+        (request.auth.uid == userId || isAdmin());
+    }
+
+    match /{contentPath=**} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+  }
+}

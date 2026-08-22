@@ -25,7 +25,7 @@ class AboutAppScreen extends StatelessWidget {
                       const SizedBox(height: 24),
                       _buildFeaturesSection(),
                       const SizedBox(height: 24),
-                      _buildDeveloperSection(),
+                      _buildLearningCommitment(),
                       const SizedBox(height: 24),
                       _buildAppInformation(),
                       const SizedBox(height: 24),
@@ -71,7 +71,7 @@ class AboutAppScreen extends StatelessWidget {
                 SizedBox(height: 2),
                 Text(
                   'Learn more about the app',
-                  style: TextStyle(color: AboutColors.muted, fontSize: 11),
+                  style: TextStyle(color: AboutColors.muted, fontSize: 12),
                 ),
               ],
             ),
@@ -168,7 +168,7 @@ class AboutAppScreen extends StatelessWidget {
                 icon: Icons.verified_rounded,
                 label: 'Version 1.1.2+7',
               ),
-              _HeroBadge(icon: Icons.flutter_dash_rounded, label: 'Flutter'),
+              _HeroBadge(icon: Icons.school_rounded, label: 'Built for IELTS'),
               _HeroBadge(
                 icon: Icons.auto_awesome_rounded,
                 label: 'Powered by AI',
@@ -278,54 +278,36 @@ class AboutAppScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildDeveloperSection() {
+  Widget _buildLearningCommitment() {
     return const _Panel(
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _DeveloperLogo(),
-          SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Developed by',
-                  style: TextStyle(
-                    color: AboutColors.muted,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                SizedBox(height: 5),
-                Text(
-                  'Rashid Apps',
-                  style: TextStyle(
-                    color: AboutColors.text,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                SizedBox(height: 5),
-                Text(
-                  'Software Engineer & Flutter Developer',
-                  style: TextStyle(
-                    color: AboutColors.secondary,
-                    fontSize: 11.5,
-                    height: 1.4,
-                  ),
-                ),
-                SizedBox(height: 10),
-                Text(
-                  'Focused on building modern, reliable and intelligent mobile applications.',
-                  style: TextStyle(
-                    color: AboutColors.muted,
-                    fontSize: 10.8,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
+          _SectionTitle(
+            icon: Icons.verified_user_outlined,
+            title: 'Our Learning Commitment',
+            subtitle: 'Focused, responsible and learner-first preparation',
+          ),
+          SizedBox(height: 17),
+          _CommitmentRow(
+            icon: Icons.fact_check_outlined,
+            title: 'IELTS-focused guidance',
+            message:
+                'Every recommendation is designed around the four assessed IELTS skills.',
+          ),
+          SizedBox(height: 13),
+          _CommitmentRow(
+            icon: Icons.insights_rounded,
+            title: 'Progress you can understand',
+            message:
+                'Clear band insights turn practice history into practical next steps.',
+          ),
+          SizedBox(height: 13),
+          _CommitmentRow(
+            icon: Icons.shield_outlined,
+            title: 'Your work stays yours',
+            message:
+                'Account controls and secure sync keep your learning history in your hands.',
           ),
         ],
       ),
@@ -345,13 +327,16 @@ class AboutAppScreen extends StatelessWidget {
           SizedBox(height: 16),
           _InformationRow(label: 'Version', value: '1.1.2+7'),
           _Divider(),
-          _InformationRow(label: 'Build', value: '1.0.0+7'),
-          _Divider(),
-          _InformationRow(label: 'Platform', value: 'Flutter + Firebase'),
+          _InformationRow(label: 'Learning focus', value: 'Academic & General'),
           _Divider(),
           _InformationRow(
-            label: 'Artificial Intelligence',
-            value: 'Google Gemini',
+            label: 'Core skills',
+            value: 'Listening · Reading · Writing · Speaking',
+          ),
+          _Divider(),
+          _InformationRow(
+            label: 'Personalization',
+            value: 'AI-assisted learning guidance',
           ),
         ],
       ),
@@ -383,7 +368,7 @@ class _HeroBadge extends StatelessWidget {
             label,
             style: const TextStyle(
               color: AboutColors.secondary,
-              fontSize: 9.5,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -496,26 +481,58 @@ class _FeatureCard extends StatelessWidget {
   }
 }
 
-class _DeveloperLogo extends StatelessWidget {
-  const _DeveloperLogo();
+class _CommitmentRow extends StatelessWidget {
+  const _CommitmentRow({
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 58,
-      height: 58,
-      decoration: BoxDecoration(
-        gradient: AboutColors.gradient,
-        borderRadius: BorderRadius.circular(19),
-        boxShadow: [
-          BoxShadow(
-            color: AboutColors.blue.withOpacity(.20),
-            blurRadius: 20,
-            offset: const Offset(0, 9),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: AboutColors.cyan.withOpacity(.09),
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(color: AboutColors.cyan.withOpacity(.14)),
           ),
-        ],
-      ),
-      child: const Icon(Icons.code_rounded, color: Colors.white, size: 28),
+          child: Icon(icon, color: AboutColors.cyan, size: 20),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: AboutColors.text,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                message,
+                style: const TextStyle(
+                  color: AboutColors.muted,
+                  fontSize: 12,
+                  height: 1.45,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

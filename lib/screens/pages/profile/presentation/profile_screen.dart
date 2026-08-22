@@ -9,6 +9,7 @@ import 'package:fyproject/screens/pages/about_app/about_app.dart';
 import 'package:fyproject/screens/pages/certificate/certificate_screen.dart';
 import 'package:fyproject/screens/pages/registration/registration.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:fyproject/resources/components/learner_state_view.dart';
 import '../data/profile_repository.dart';
 import '../models/profile_model.dart';
 import '../widgets/profile_widgets.dart';
@@ -37,7 +38,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await Clipboard.setData(ClipboardData(text: json));
       if (mounted) _message('Your JSON data export was copied.');
     } catch (error) {
-      if (mounted) _message('Data export failed: $error');
+      debugPrint('Profile data export failed: $error');
+      if (mounted) {
+        _message('Your export is unavailable right now. Please try again.');
+      }
     }
   }
 
@@ -50,12 +54,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!confirmed) return;
     try {
       await _repository.signOut();
-      Navigator.push(
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const RegistrationScreen()),
+        (route) => false,
       );
     } catch (error) {
-      if (mounted) _message('Logout failed: $error');
+      debugPrint('Profile logout failed: $error');
+      if (mounted) _message('We could not log you out. Please try again.');
     }
   }
 
@@ -71,7 +77,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       await _repository.deleteAccount();
     } catch (error) {
-      if (mounted) _message('Account deletion failed: $error');
+      debugPrint('Profile deletion failed: $error');
+      if (mounted) {
+        _message(
+          'Your account was not deleted. Please check your connection and try again.',
+        );
+      }
     }
   }
 
@@ -83,32 +94,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }) async {
     return await showDialog<bool>(
           context: context,
-          builder: (context) => AlertDialog(
-            backgroundColor: ProfileColors.surface,
-            title: Text(
-              title,
-              style: const TextStyle(color: ProfileColors.text),
-            ),
-            content: Text(
-              message,
-              style: const TextStyle(
-                color: ProfileColors.secondary,
-                height: 1.5,
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                style: danger
-                    ? FilledButton.styleFrom(backgroundColor: ProfileColors.red)
-                    : null,
-                onPressed: () => Navigator.pop(context, true),
-                child: Text(action),
-              ),
-            ],
+          builder: (context) => _AccountConfirmDialog(
+            title: title,
+            message: message,
+            action: action,
+            danger: danger,
           ),
         ) ??
         false;
@@ -127,16 +117,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
           stream: _repository.watchProfile(),
           builder: (context, snapshot) {
             if (snapshot.hasError) {
-              return Center(
-                child: Text(
-                  snapshot.error.toString(),
-                  style: const TextStyle(color: ProfileColors.red),
-                ),
+              return LearnerStateView.error(
+                title: 'Profile sync is taking a break',
+                message:
+                    'Your account and learning history are safe. Check your connection and try once more.',
+                icon: Icons.person_off_outlined,
+                onAction: () => setState(() {}),
               );
             }
 
             if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
+              return const LearnerStateView.loading(
+                title: 'Preparing your profile',
+                message:
+                    'Bringing together your goals, bands and learning preferences.',
+                icon: Icons.person_rounded,
+              );
             }
 
             final profile = snapshot.data!;
@@ -167,7 +163,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 3),
                 const Text(
                   'Account, learning and privacy settings',
-                  style: TextStyle(color: ProfileColors.muted, fontSize: 10.5),
+                  style: TextStyle(color: ProfileColors.muted, fontSize: 11.5),
                 ),
                 const SizedBox(height: 14),
                 ProfileHeader(
@@ -428,8 +424,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             _message('Password reset email sent.');
                           }
                         } catch (error) {
+                          debugPrint('Password reset request failed: $error');
                           if (mounted) {
-                            _message('Password reset failed: $error');
+                            _message(
+                              'The reset email could not be sent. Please try again.',
+                            );
                           }
                         }
                       },
@@ -785,7 +784,7 @@ class _ProfileBandStatusCard extends StatelessWidget {
                   isComplete ? 'ESTIMATED OVERALL BAND' : 'PROVISIONAL BAND',
                   style: const TextStyle(
                     color: ProfileColors.cyan,
-                    fontSize: 9,
+                    fontSize: 12,
                     fontWeight: FontWeight.w900,
                     letterSpacing: .7,
                   ),
@@ -846,7 +845,7 @@ class _ProfileBandStatusCard extends StatelessWidget {
                   'Target ${targetBand.toStringAsFixed(1)}',
                   style: const TextStyle(
                     color: ProfileColors.orange,
-                    fontSize: 9,
+                    fontSize: 12,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -867,7 +866,7 @@ class _ProfileBandStatusCard extends StatelessWidget {
                       'your full estimated overall band.',
             style: const TextStyle(
               color: ProfileColors.secondary,
-              fontSize: 10.5,
+              fontSize: 11.5,
               height: 1.5,
             ),
           ),
@@ -902,7 +901,7 @@ class _ProfileBandStatusCard extends StatelessWidget {
                               : 'Missing: ${missingSkills.join(', ')}',
                           style: const TextStyle(
                             color: ProfileColors.text,
-                            fontSize: 10.5,
+                            fontSize: 11.5,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
@@ -912,7 +911,7 @@ class _ProfileBandStatusCard extends StatelessWidget {
                           'required for a complete IELTS overall estimate.',
                           style: TextStyle(
                             color: ProfileColors.muted,
-                            fontSize: 9,
+                            fontSize: 12,
                             height: 1.4,
                           ),
                         ),
@@ -1154,7 +1153,7 @@ class _ProfileLoginBenefit extends StatelessWidget {
               text,
               style: const TextStyle(
                 color: ProfileColors.secondary,
-                fontSize: 10.5,
+                fontSize: 11.5,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -1165,6 +1164,104 @@ class _ProfileLoginBenefit extends StatelessWidget {
             size: 17,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AccountConfirmDialog extends StatelessWidget {
+  const _AccountConfirmDialog({
+    required this.title,
+    required this.message,
+    required this.action,
+    required this.danger,
+  });
+
+  final String title;
+  final String message;
+  final String action;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = danger ? ProfileColors.red : ProfileColors.cyan;
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 22),
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(maxWidth: 420),
+        padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+        decoration: BoxDecoration(
+          color: ProfileColors.surface,
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: accent.withOpacity(.24)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(.34),
+              blurRadius: 38,
+              offset: const Offset(0, 18),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: accent.withOpacity(.12),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(
+                danger ? Icons.delete_outline_rounded : Icons.logout_rounded,
+                color: accent,
+                size: 25,
+              ),
+            ),
+            const SizedBox(height: 17),
+            Text(
+              title,
+              style: const TextStyle(
+                color: ProfileColors.text,
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -.3,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: const TextStyle(
+                color: ProfileColors.secondary,
+                fontSize: 13,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 22),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Keep account'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(backgroundColor: accent),
+                    onPressed: () => Navigator.pop(context, true),
+                    child: Text(action),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -1,3 +1,4 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme_controller.dart';
@@ -11,10 +12,7 @@ import 'qr_scanner_dialog.dart';
 enum VerificationState { idle, loading, verified, invalid, error }
 
 class VerificationScreen extends StatefulWidget {
-  const VerificationScreen({
-    super.key,
-    required this.themeController,
-  });
+  const VerificationScreen({super.key, required this.themeController});
 
   final ThemeController themeController;
 
@@ -85,6 +83,14 @@ class _VerificationScreenState extends State<VerificationScreen>
       return;
     }
 
+    if (!RegExp(r'^IAM-\d{4}-[A-F0-9]{10}$').hasMatch(code)) {
+      setState(() {
+        _state = VerificationState.error;
+        _message = 'Enter a code in the format IAM-2026-1A2B3C4D5E.';
+      });
+      return;
+    }
+
     FocusScope.of(context).unfocus();
     setState(() {
       _state = VerificationState.loading;
@@ -116,6 +122,14 @@ class _VerificationScreenState extends State<VerificationScreen>
       setState(() {
         _state = VerificationState.verified;
         _certificate = certificate;
+      });
+    } on FirebaseFunctionsException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _state = VerificationState.error;
+        _message = error.code == 'resource-exhausted'
+            ? 'Too many verification attempts. Please wait a few minutes and try again.'
+            : 'Certificate verification could not be completed. Please try again.';
       });
     } catch (_) {
       if (!mounted) return;
@@ -335,24 +349,24 @@ class _VerificationScreenState extends State<VerificationScreen>
       ),
       child: switch (_state) {
         VerificationState.verified when _certificate != null => Column(
-            key: const ValueKey('verified'),
-            children: [
-              VerificationSuccessCard(certificate: _certificate!),
-              const SizedBox(height: 14),
-              _reportActions(_certificate!),
-              const SizedBox(height: 14),
-              VerificationNotice(text: _certificate!.disclaimer),
-              const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _reset,
-                  icon: const Icon(Icons.search_rounded),
-                  label: const Text('Verify Another Certificate'),
-                ),
+          key: const ValueKey('verified'),
+          children: [
+            VerificationSuccessCard(certificate: _certificate!),
+            const SizedBox(height: 14),
+            _reportActions(_certificate!),
+            const SizedBox(height: 14),
+            VerificationNotice(text: _certificate!.disclaimer),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _reset,
+                icon: const Icon(Icons.search_rounded),
+                label: const Text('Verify Another Certificate'),
               ),
-            ],
-          ),
+            ),
+          ],
+        ),
         _ => _searchCard(),
       },
     );
@@ -397,7 +411,8 @@ class _VerificationScreenState extends State<VerificationScreen>
   Widget _searchCard() {
     final palette = PortalPalette(context);
     final isLoading = _state == VerificationState.loading;
-    final hasError = _state == VerificationState.invalid ||
+    final hasError =
+        _state == VerificationState.invalid ||
         _state == VerificationState.error;
 
     return Container(
@@ -449,10 +464,7 @@ class _VerificationScreenState extends State<VerificationScreen>
           ),
           if (hasError) ...[
             const SizedBox(height: 13),
-            _InvalidMessage(
-              message: _message,
-              controller: _pulseController,
-            ),
+            _InvalidMessage(message: _message, controller: _pulseController),
           ],
           const SizedBox(height: 14),
           SizedBox(
@@ -534,10 +546,7 @@ class _VerificationScreenState extends State<VerificationScreen>
 }
 
 class _InvalidMessage extends StatelessWidget {
-  const _InvalidMessage({
-    required this.message,
-    required this.controller,
-  });
+  const _InvalidMessage({required this.message, required this.controller});
 
   final String message;
   final AnimationController controller;
@@ -547,26 +556,19 @@ class _InvalidMessage extends StatelessWidget {
     final palette = PortalPalette(context);
     return AnimatedBuilder(
       animation: controller,
-      builder: (_, child) => Transform.scale(
-        scale: 1 + controller.value * .006,
-        child: child,
-      ),
+      builder: (_, child) =>
+          Transform.scale(scale: 1 + controller.value * .006, child: child),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(13),
         decoration: BoxDecoration(
           color: VerificationColors.red.withOpacity(.08),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: VerificationColors.red.withOpacity(.35),
-          ),
+          border: Border.all(color: VerificationColors.red.withOpacity(.35)),
         ),
         child: Row(
           children: [
-            const Icon(
-              Icons.cancel_rounded,
-              color: VerificationColors.red,
-            ),
+            const Icon(Icons.cancel_rounded, color: VerificationColors.red),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -648,12 +650,8 @@ class _PageBackground extends StatelessWidget {
           center: const Alignment(.72, -.88),
           radius: 1.18,
           colors: [
-            VerificationColors.blue.withOpacity(
-              palette.dark ? .16 : .09,
-            ),
-            VerificationColors.violet.withOpacity(
-              palette.dark ? .07 : .035,
-            ),
+            VerificationColors.blue.withOpacity(palette.dark ? .16 : .09),
+            VerificationColors.violet.withOpacity(palette.dark ? .07 : .035),
             palette.background,
           ],
         ),

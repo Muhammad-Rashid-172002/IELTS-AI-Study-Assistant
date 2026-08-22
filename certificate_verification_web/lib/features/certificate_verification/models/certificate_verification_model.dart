@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class CertificateVerificationModel {
   final String verificationCode;
   final String certificateId;
@@ -31,24 +29,17 @@ class CertificateVerificationModel {
 
   bool get isValid => status.toLowerCase() == 'valid';
 
-  factory CertificateVerificationModel.fromDocument(
-    DocumentSnapshot<Map<String, dynamic>> document,
-  ) {
-    final data = document.data() ?? const <String, dynamic>{};
-
+  factory CertificateVerificationModel.fromMap(
+    Map<String, dynamic> data, {
+    String? fallbackCode,
+  }) {
     return CertificateVerificationModel(
       verificationCode: _string(
         data['verificationCode'],
-        fallback: document.id,
+        fallback: fallbackCode ?? 'Unavailable',
       ),
-      certificateId: _string(
-        data['certificateId'],
-        fallback: 'Unavailable',
-      ),
-      certificatePath: _string(
-        data['certificatePath'],
-        fallback: '',
-      ),
+      certificateId: _string(data['certificateId'], fallback: 'Unavailable'),
+      certificatePath: _string(data['certificatePath'], fallback: ''),
       achievementType: _string(
         data['achievementType'],
         fallback: 'course_completion',
@@ -57,35 +48,15 @@ class CertificateVerificationModel {
         data['certificateType'],
         fallback: 'Course Completion',
       ),
-      title: _string(
-        data['title'],
-        fallback: 'IELTS AI Master Achievement',
-      ),
-      userName: _string(
-        data['userName'],
-        fallback: 'IELTS Learner',
-      ),
-      issuer: _string(
-        data['issuer'],
-        fallback: 'IELTS AI Master',
-      ),
-      status: _string(
-        data['status'],
-        fallback: 'valid',
-      ),
-      disclaimer: _string(
-        data['disclaimer'],
-        fallback: defaultDisclaimer,
-      ),
+      title: _string(data['title'], fallback: 'IELTS AI Master Achievement'),
+      userName: _string(data['userName'], fallback: 'IELTS Learner'),
+      issuer: _string(data['issuer'], fallback: 'IELTS AI Master'),
+      status: _string(data['status'], fallback: 'valid'),
+      disclaimer: _string(data['disclaimer'], fallback: defaultDisclaimer),
       band: _double(
-        data['band'] ??
-            data['overallBand'] ??
-            data['estimatedBand'],
+        data['band'] ?? data['overallBand'] ?? data['estimatedBand'],
       ),
-      issuedAt: _date(
-        data['issuedAt'] ??
-            data['createdAt'],
-      ),
+      issuedAt: _date(data['issuedAt'] ?? data['createdAt']),
     );
   }
 
@@ -95,10 +66,7 @@ class CertificateVerificationModel {
       'within IELTS AI Master.\n\n'
       'This is NOT an official IELTS score or an official IELTS certificate.';
 
-  static String _string(
-    dynamic value, {
-    required String fallback,
-  }) {
+  static String _string(dynamic value, {required String fallback}) {
     final text = value?.toString().trim() ?? '';
     return text.isEmpty ? fallback : text;
   }
@@ -109,9 +77,17 @@ class CertificateVerificationModel {
   }
 
   static DateTime? _date(dynamic value) {
-    if (value is Timestamp) return value.toDate();
     if (value is DateTime) return value;
     if (value is String) return DateTime.tryParse(value);
+    if (value is Map) {
+      final seconds = value['_seconds'] ?? value['seconds'];
+      if (seconds is num) {
+        return DateTime.fromMillisecondsSinceEpoch(
+          seconds.toInt() * 1000,
+          isUtc: true,
+        ).toLocal();
+      }
+    }
     return null;
   }
 }

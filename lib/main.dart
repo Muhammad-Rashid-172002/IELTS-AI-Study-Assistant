@@ -10,6 +10,7 @@ import 'config/keys.dart';
 import 'controller/feedback_controller/feedback_controller.dart';
 import 'firebase_options.dart';
 import 'offline/offline_content_service.dart';
+import 'resources/app_theme/theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,10 +31,10 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return GetMaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'IELTS Master',
-      theme: ThemeData(
-        //colorScheme: .fromSeed(seedColor: Colors.deepPurple),
-      ),
+      title: 'IELTS AI Master',
+      theme: AppTheme.dark,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.dark,
       getPages: AppRoutes.appRoutes(),
     );
   }

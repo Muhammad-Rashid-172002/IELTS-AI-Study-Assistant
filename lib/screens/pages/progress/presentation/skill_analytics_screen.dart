@@ -258,7 +258,7 @@ class _Metric extends StatelessWidget {
           Text(
             label,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: ProgressColors.muted, fontSize: 8.5),
+            style: const TextStyle(color: ProgressColors.muted, fontSize: 12),
           ),
         ],
       ),
@@ -345,7 +345,7 @@ class _ProgressRow extends StatelessWidget {
                   label,
                   style: const TextStyle(
                     color: ProgressColors.secondary,
-                    fontSize: 11,
+                    fontSize: 12,
                   ),
                 ),
               ),
@@ -406,7 +406,7 @@ class _SingleValueSection extends StatelessWidget {
                   subtitle,
                   style: const TextStyle(
                     color: ProgressColors.muted,
-                    fontSize: 10,
+                    fontSize: 11.5,
                     height: 1.4,
                   ),
                 ),
@@ -468,7 +468,7 @@ class _SpeakingCriteriaGrid extends StatelessWidget {
                   entry.key,
                   style: const TextStyle(
                     color: ProgressColors.muted,
-                    fontSize: 8.5,
+                    fontSize: 12,
                   ),
                 ),
               ],

@@ -280,7 +280,7 @@ class _HomeDashboardView extends StatelessWidget {
     } else if (type.contains('speaking')) {
       _push(context, const SpeakingPractice());
     } else {
-      _showMessage(context, '${task.title} ka screen configure nahi hai.');
+      _showMessage(context, '${task.title} is not available yet.');
     }
   }
 
@@ -383,7 +383,7 @@ class _HomeDashboardView extends StatelessWidget {
                               if (firstPending == null) {
                                 _showMessage(
                                   context,
-                                  'Aaj ke tamam tasks complete ho chuke hain.',
+                                  'You have completed every task for today.',
                                 );
                               } else {
                                 _openTask(context, firstPending);
@@ -835,7 +835,7 @@ class _Header extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: _C.muted,
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -990,7 +990,7 @@ class _ReadinessCard extends StatelessWidget {
                                 'Complete $missingText for a full overall band.',
                       style: const TextStyle(
                         color: _C.secondary,
-                        fontSize: 10.5,
+                        fontSize: 11.5,
                         height: 1.45,
                       ),
                     ),
@@ -1043,14 +1043,14 @@ class _ReadinessCard extends StatelessWidget {
             children: [
               const Text(
                 'Weekly progress',
-                style: TextStyle(color: _C.muted, fontSize: 10.5),
+                style: TextStyle(color: _C.muted, fontSize: 11.5),
               ),
               const Spacer(),
               Text(
                 '${model.weeklyProgressPercent}%',
                 style: const TextStyle(
                   color: _C.text,
-                  fontSize: 10.5,
+                  fontSize: 11.5,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -1139,7 +1139,7 @@ class _HomeMissingSkillsNotice extends StatelessWidget {
                   description,
                   style: const TextStyle(
                     color: _C.secondary,
-                    fontSize: 9.5,
+                    fontSize: 12,
                     height: 1.45,
                   ),
                 ),
@@ -1168,7 +1168,7 @@ class _HomeMissingSkillsNotice extends StatelessWidget {
                               skill,
                               style: const TextStyle(
                                 color: _C.secondary,
-                                fontSize: 8.5,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
@@ -1289,7 +1289,7 @@ class _TodayPlan extends StatelessWidget {
                             '$totalMinutes minutes total',
                             style: const TextStyle(
                               color: _C.muted,
-                              fontSize: 10.5,
+                              fontSize: 11.5,
                             ),
                           ),
                         ],
@@ -1373,7 +1373,7 @@ class _TodayPlan extends StatelessWidget {
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(
                                               color: _C.muted,
-                                              fontSize: 9,
+                                              fontSize: 12,
                                             ),
                                           ),
                                         ],
@@ -1385,7 +1385,7 @@ class _TodayPlan extends StatelessWidget {
                                     '${task.durationMinutes} min',
                                     style: const TextStyle(
                                       color: _C.muted,
-                                      fontSize: 9.5,
+                                      fontSize: 12,
                                     ),
                                   ),
                                   const SizedBox(width: 8),
@@ -1463,7 +1463,7 @@ class _EmptyTodayPlan extends StatelessWidget {
           Text(
             'Activate a personalized study plan or add today to your available study days.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: _C.muted, fontSize: 10.5, height: 1.45),
+            style: TextStyle(color: _C.muted, fontSize: 11.5, height: 1.45),
           ),
         ],
       ),
@@ -1590,7 +1590,7 @@ class _SkillCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: _C.muted,
-                  fontSize: 9,
+                  fontSize: 12,
                   height: 1.25,
                 ),
               ),
@@ -1610,10 +1610,7 @@ class _SkillCard extends StatelessWidget {
                   ),
                   child: const Text(
                     'Practice',
-                    style: TextStyle(
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
                   ),
                 ),
               ),
@@ -1685,7 +1682,7 @@ class _QuickActions extends StatelessWidget {
         crossAxisCount: 2,
         mainAxisSpacing: 11,
         crossAxisSpacing: 11,
-        childAspectRatio: 1.35,
+        mainAxisExtent: 88,
       ),
       itemBuilder: (context, index) {
         final action = actions[index];
@@ -1721,7 +1718,7 @@ class _QuickActions extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: _C.text,
-                            fontSize: 10.5,
+                            fontSize: 11.5,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -1732,7 +1729,7 @@ class _QuickActions extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: _C.muted,
-                            fontSize: 8.5,
+                            fontSize: 12,
                             height: 1.25,
                           ),
                         ),
@@ -1878,7 +1875,7 @@ class _AIInsight extends StatelessWidget {
                               : 'View basic coaching insight',
                           style: const TextStyle(
                             color: _C.cyan,
-                            fontSize: 10,
+                            fontSize: 11.5,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -1926,28 +1923,30 @@ class _AICoachInsightSheet extends StatelessWidget {
         ? math.max(0.0, model.targetBand - model.currentBand)
         : model.targetBand;
 
-    final pendingTasks =
-        model.todayTasks.where((task) => !task.completed).toList();
-    final completedTasks =
-        model.todayTasks.where((task) => task.completed).length;
+    final pendingTasks = model.todayTasks
+        .where((task) => !task.completed)
+        .toList();
+    final completedTasks = model.todayTasks
+        .where((task) => task.completed)
+        .length;
 
     final priorityText = model.completedSkillCount == 0
         ? 'Complete your first skill assessment so your coach can establish a real performance baseline.'
         : model.completedSkillCount < 4
-            ? 'Complete ${model.missingSkills.join(' and ')} next. Your overall band is still provisional until all four skills have real results.'
-            : '${model.weakestSkill} is currently your lowest-performing skill. Prioritize its targeted practice before adding extra volume elsewhere.';
+        ? 'Complete ${model.missingSkills.join(' and ')} next. Your overall band is still provisional until all four skills have real results.'
+        : '${model.weakestSkill} is currently your lowest-performing skill. Prioritize its targeted practice before adding extra volume elsewhere.';
 
     final basicPriorityText = model.completedSkillCount == 0
         ? 'Start with one IELTS skill assessment to establish your learning baseline.'
         : model.completedSkillCount < 4
-            ? 'Complete your remaining IELTS skill assessments to improve the accuracy of your overall estimate.'
-            : 'Focus your next practice session on ${model.weakestSkill}, your current lowest-scoring skill.';
+        ? 'Complete your remaining IELTS skill assessments to improve the accuracy of your overall estimate.'
+        : 'Focus your next practice session on ${model.weakestSkill}, your current lowest-scoring skill.';
 
     final nextAction = pendingTasks.isNotEmpty
         ? 'Next planned task: ${pendingTasks.first.title} (${pendingTasks.first.durationMinutes} min).'
         : model.completedSkillCount > 0
-            ? 'Open ${model.weakestSkill} practice and complete one focused session.'
-            : 'Complete one Listening, Reading, Writing or Speaking assessment.';
+        ? 'Open ${model.weakestSkill} practice and complete one focused session.'
+        : 'Complete one Listening, Reading, Writing or Speaking assessment.';
 
     return DraggableScrollableSheet(
       initialChildSize: .88,
@@ -1958,11 +1957,9 @@ class _AICoachInsightSheet extends StatelessWidget {
         return Container(
           decoration: BoxDecoration(
             color: _C.bg,
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(30)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
             border: Border.all(
-              color: (model.isPremium ? _C.orange : _C.cyan)
-                  .withOpacity(.18),
+              color: (model.isPremium ? _C.orange : _C.cyan).withOpacity(.18),
             ),
             boxShadow: const [
               BoxShadow(
@@ -2014,10 +2011,11 @@ class _AICoachInsightSheet extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(19),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: (model.isPremium
-                                              ? _C.orange
-                                              : _C.cyan)
-                                          .withOpacity(.18),
+                                      color:
+                                          (model.isPremium
+                                                  ? _C.orange
+                                                  : _C.cyan)
+                                              .withOpacity(.18),
                                       blurRadius: 22,
                                     ),
                                   ],
@@ -2053,14 +2051,12 @@ class _AICoachInsightSheet extends StatelessWidget {
                                           : 'A basic coaching snapshot built from your current IELTS results and study progress.',
                                       style: const TextStyle(
                                         color: _C.secondary,
-                                        fontSize: 10.5,
+                                        fontSize: 11.5,
                                         height: 1.45,
                                       ),
                                     ),
                                     const SizedBox(height: 8),
-                                    _CoachTierBadge(
-                                      premium: model.isPremium,
-                                    ),
+                                    _CoachTierBadge(premium: model.isPremium),
                                   ],
                                 ),
                               ),
@@ -2152,13 +2148,10 @@ class _AICoachInsightSheet extends StatelessWidget {
                                 Navigator.of(context).pop();
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
-                                    builder: (_) =>
-                                        const SubscriptionScreen(),
+                                    builder: (_) => const SubscriptionScreen(),
                                     settings: const RouteSettings(
                                       name: '/premium',
-                                      arguments: {
-                                        'source': 'ai_coach_insight',
-                                      },
+                                      arguments: {'source': 'ai_coach_insight'},
                                     ),
                                   ),
                                 );
@@ -2170,10 +2163,7 @@ class _AICoachInsightSheet extends StatelessWidget {
                               title: 'Recommended Next Step',
                             ),
                             const SizedBox(height: 10),
-                            _CoachTextCard(
-                              text: nextAction,
-                              accent: _C.green,
-                            ),
+                            _CoachTextCard(text: nextAction, accent: _C.green),
                           ] else ...[
                             // PREMIUM / ADVANCED EXPERIENCE
                             const _CoachSectionTitle(
@@ -2218,8 +2208,7 @@ class _AICoachInsightSheet extends StatelessWidget {
                                 Expanded(
                                   child: _CoachMetricCard(
                                     label: 'Target',
-                                    value:
-                                        model.targetBand.toStringAsFixed(1),
+                                    value: model.targetBand.toStringAsFixed(1),
                                     accent: _C.violet,
                                   ),
                                 ),
@@ -2284,20 +2273,15 @@ class _AICoachInsightSheet extends StatelessWidget {
                               child: Column(
                                 children: [
                                   _CoachDetailRow(
-                                    icon:
-                                        Icons.check_circle_outline_rounded,
+                                    icon: Icons.check_circle_outline_rounded,
                                     label: 'Tasks completed',
                                     value:
                                         '$completedTasks/${model.todayTasks.length}',
                                     color: _C.green,
                                   ),
                                   const Padding(
-                                    padding:
-                                        EdgeInsets.symmetric(vertical: 10),
-                                    child: Divider(
-                                      height: 1,
-                                      color: _C.border,
-                                    ),
+                                    padding: EdgeInsets.symmetric(vertical: 10),
+                                    child: Divider(height: 1, color: _C.border),
                                   ),
                                   _CoachDetailRow(
                                     icon: Icons.timer_outlined,
@@ -2306,16 +2290,11 @@ class _AICoachInsightSheet extends StatelessWidget {
                                     color: _C.cyan,
                                   ),
                                   const Padding(
-                                    padding:
-                                        EdgeInsets.symmetric(vertical: 10),
-                                    child: Divider(
-                                      height: 1,
-                                      color: _C.border,
-                                    ),
+                                    padding: EdgeInsets.symmetric(vertical: 10),
+                                    child: Divider(height: 1, color: _C.border),
                                   ),
                                   _CoachDetailRow(
-                                    icon:
-                                        Icons.local_fire_department_rounded,
+                                    icon: Icons.local_fire_department_rounded,
                                     label: 'Current streak',
                                     value: '${model.currentStreak} days',
                                     color: _C.orange,
@@ -2329,10 +2308,7 @@ class _AICoachInsightSheet extends StatelessWidget {
                               title: 'Personalized Next Step',
                             ),
                             const SizedBox(height: 10),
-                            _CoachTextCard(
-                              text: nextAction,
-                              accent: _C.green,
-                            ),
+                            _CoachTextCard(text: nextAction, accent: _C.green),
                           ],
 
                           const SizedBox(height: 20),
@@ -2352,10 +2328,9 @@ class _AICoachInsightSheet extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(17),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: (model.isPremium
-                                            ? _C.orange
-                                            : _C.cyan)
-                                        .withOpacity(.16),
+                                    color:
+                                        (model.isPremium ? _C.orange : _C.cyan)
+                                            .withOpacity(.16),
                                     blurRadius: 22,
                                     offset: const Offset(0, 8),
                                   ),
@@ -2371,8 +2346,7 @@ class _AICoachInsightSheet extends StatelessWidget {
                                     borderRadius: BorderRadius.circular(17),
                                   ),
                                 ),
-                                icon:
-                                    const Icon(Icons.play_arrow_rounded),
+                                icon: const Icon(Icons.play_arrow_rounded),
                                 label: Text(
                                   model.completedSkillCount == 0
                                       ? 'Start Skill Assessment'
@@ -2393,7 +2367,7 @@ class _AICoachInsightSheet extends StatelessWidget {
                               textAlign: TextAlign.center,
                               style: const TextStyle(
                                 color: _C.muted,
-                                fontSize: 9,
+                                fontSize: 12,
                                 height: 1.4,
                               ),
                             ),
@@ -2462,26 +2436,11 @@ class _PremiumCoachLockedCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const premiumFeatures = [
-      (
-        Icons.analytics_rounded,
-        'Advanced skill-by-skill performance analysis',
-      ),
-      (
-        Icons.compare_arrows_rounded,
-        'Current vs target band-gap analysis',
-      ),
-      (
-        Icons.trending_up_rounded,
-        'Strongest and weakest skill identification',
-      ),
-      (
-        Icons.calendar_month_rounded,
-        'Study execution and activity analysis',
-      ),
-      (
-        Icons.route_rounded,
-        'More detailed personalized next-step coaching',
-      ),
+      (Icons.analytics_rounded, 'Advanced skill-by-skill performance analysis'),
+      (Icons.compare_arrows_rounded, 'Current vs target band-gap analysis'),
+      (Icons.trending_up_rounded, 'Strongest and weakest skill identification'),
+      (Icons.calendar_month_rounded, 'Study execution and activity analysis'),
+      (Icons.route_rounded, 'More detailed personalized next-step coaching'),
     ];
 
     return Container(
@@ -2517,10 +2476,7 @@ class _PremiumCoachLockedCard extends StatelessWidget {
                 height: 44,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [
-                      Color(0xFFF59E0B),
-                      Color(0xFFF97316),
-                    ],
+                    colors: [Color(0xFFF59E0B), Color(0xFFF97316)],
                   ),
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -2548,18 +2504,14 @@ class _PremiumCoachLockedCard extends StatelessWidget {
                       'Premium turns your basic snapshot into a deeper coaching report.',
                       style: TextStyle(
                         color: _C.secondary,
-                        fontSize: 9.5,
+                        fontSize: 12,
                         height: 1.4,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(
-                Icons.lock_rounded,
-                color: _C.orange,
-                size: 19,
-              ),
+              const Icon(Icons.lock_rounded, color: _C.orange, size: 19),
             ],
           ),
           const SizedBox(height: 14),
@@ -2576,11 +2528,7 @@ class _PremiumCoachLockedCard extends StatelessWidget {
                       color: _C.orange.withOpacity(.09),
                       borderRadius: BorderRadius.circular(9),
                     ),
-                    child: Icon(
-                      feature.$1,
-                      color: _C.orange,
-                      size: 16,
-                    ),
+                    child: Icon(feature.$1, color: _C.orange, size: 16),
                   ),
                   const SizedBox(width: 9),
                   Expanded(
@@ -2607,10 +2555,7 @@ class _PremiumCoachLockedCard extends StatelessWidget {
             height: 48,
             child: ElevatedButton.icon(
               onPressed: onUpgrade,
-              icon: const Icon(
-                Icons.workspace_premium_rounded,
-                size: 19,
-              ),
+              icon: const Icon(Icons.workspace_premium_rounded, size: 19),
               label: const Text(
                 'Upgrade to Premium',
                 style: TextStyle(fontWeight: FontWeight.w900),
@@ -2707,7 +2652,7 @@ class _CoachHeroSummary extends StatelessWidget {
                       : '$completedSkills/4 skills measured • Target Band ${targetBand.toStringAsFixed(1)}',
                   style: const TextStyle(
                     color: _C.secondary,
-                    fontSize: 10,
+                    fontSize: 11.5,
                     height: 1.45,
                   ),
                 ),
@@ -2760,7 +2705,7 @@ class _CoachSkillGrid extends StatelessWidget {
                             skill.name,
                             style: const TextStyle(
                               color: _C.muted,
-                              fontSize: 8.5,
+                              fontSize: 12,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -2845,7 +2790,7 @@ class _CoachPriorityCard extends StatelessWidget {
                   description,
                   style: const TextStyle(
                     color: _C.secondary,
-                    fontSize: 10,
+                    fontSize: 11.5,
                     height: 1.5,
                   ),
                 ),
@@ -2889,7 +2834,7 @@ class _CoachMetricCard extends StatelessWidget {
             label,
             style: const TextStyle(
               color: _C.muted,
-              fontSize: 8.5,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -2923,7 +2868,7 @@ class _CoachDetailRow extends StatelessWidget {
             label,
             style: const TextStyle(
               color: _C.secondary,
-              fontSize: 10,
+              fontSize: 11.5,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -2934,7 +2879,7 @@ class _CoachDetailRow extends StatelessWidget {
             textAlign: TextAlign.right,
             style: const TextStyle(
               color: _C.text,
-              fontSize: 10,
+              fontSize: 11.5,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -3161,7 +3106,7 @@ class _Streak extends StatelessWidget {
                     labels[index],
                     style: const TextStyle(
                       color: _C.muted,
-                      fontSize: 9.5,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -3201,7 +3146,7 @@ class _Title extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 subtitle,
-                style: const TextStyle(color: _C.muted, fontSize: 10.5),
+                style: const TextStyle(color: _C.muted, fontSize: 11.5),
               ),
             ],
           ),
@@ -3518,19 +3463,21 @@ bool _isHomePremiumUser(Map<String, dynamic> data) {
     return true;
   }
 
-  final status = (data['subscriptionStatus'] ??
-          data['premiumStatus'] ??
-          data['subscriptionRequestStatus'] ??
-          '')
-      .toString()
-      .trim()
-      .toLowerCase();
+  final status =
+      (data['subscriptionStatus'] ??
+              data['premiumStatus'] ??
+              data['subscriptionRequestStatus'] ??
+              '')
+          .toString()
+          .trim()
+          .toLowerCase();
 
   if (status == 'active' || status == 'approved' || status == 'premium') {
     return true;
   }
 
-  final expiryValue = data['premiumUntil'] ??
+  final expiryValue =
+      data['premiumUntil'] ??
       data['premiumExpiry'] ??
       data['subscriptionExpiresAt'] ??
       data['subscriptionEnd'];

@@ -25,7 +25,7 @@ class SplashService {
     try {
       final User? user = _auth.currentUser;
 
-      Timer(const Duration(seconds: 2), () {
+      Timer(const Duration(milliseconds: 1400), () {
         if (user != null) {
           Get.offAllNamed(RoutesName.home);
         } else {
@@ -33,12 +33,13 @@ class SplashService {
         }
       });
     } catch (e) {
+      debugPrint('Splash authentication check failed: $e');
       Get.snackbar(
-        "Error",
-        "Authentication check failed: $e",
+        'Connection check paused',
+        'We could not confirm your session. Continue to get started.',
         snackPosition: SnackPosition.BOTTOM,
       );
-      Timer(const Duration(seconds: 4), () {
+      Timer(const Duration(milliseconds: 1600), () {
         Get.offNamed(RoutesName.onboarding);
       });
     }

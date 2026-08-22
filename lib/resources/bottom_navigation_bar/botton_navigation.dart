@@ -48,31 +48,185 @@ class _IELTSMainNavigationState extends State<IELTSMainNavigation> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: MainNavColors.background,
-      extendBody: true,
-      body: IndexedStack(
-        index: _currentIndex.clamp(0, _screens.length - 1),
-        children: _screens,
-      ),
-      floatingActionButton: _AICoachFloatingButton(
-        onTap: () {
-          Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const AiCoachScreen()));
-        },
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: _PremiumBottomNavigation(
-        currentIndex: _currentIndex,
-        items: _items,
-        onTap: (index) {
-          if (index < 0 || index >= _screens.length) return;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final useNavigationRail = constraints.maxWidth >= 900;
+        final content = IndexedStack(
+          index: _currentIndex.clamp(0, _screens.length - 1),
+          children: _screens,
+        );
 
-          setState(() {
-            _currentIndex = index;
-          });
-        },
+        if (useNavigationRail) {
+          return Scaffold(
+            backgroundColor: MainNavColors.background,
+            body: SafeArea(
+              child: Row(
+                children: [
+                  _PremiumNavigationRail(
+                    currentIndex: _currentIndex,
+                    items: _items,
+                    onTap: _selectDestination,
+                    onCoachTap: () => _openCoach(context),
+                  ),
+                  VerticalDivider(
+                    width: 1,
+                    color: Colors.white.withOpacity(.06),
+                  ),
+                  Expanded(child: content),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return Scaffold(
+          backgroundColor: MainNavColors.background,
+          extendBody: true,
+          body: content,
+          floatingActionButton: _AICoachFloatingButton(
+            onTap: () => _openCoach(context),
+          ),
+          floatingActionButtonLocation:
+              FloatingActionButtonLocation.centerDocked,
+          bottomNavigationBar: _PremiumBottomNavigation(
+            currentIndex: _currentIndex,
+            items: _items,
+            onTap: _selectDestination,
+          ),
+        );
+      },
+    );
+  }
+
+  void _selectDestination(int index) {
+    if (index < 0 || index >= _screens.length) return;
+    setState(() => _currentIndex = index);
+  }
+
+  void _openCoach(BuildContext context) {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const AiCoachScreen()));
+  }
+}
+
+class _PremiumNavigationRail extends StatelessWidget {
+  final int currentIndex;
+  final List<_NavigationItemData> items;
+  final ValueChanged<int> onTap;
+  final VoidCallback onCoachTap;
+
+  const _PremiumNavigationRail({
+    required this.currentIndex,
+    required this.items,
+    required this.onTap,
+    required this.onCoachTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 116,
+      padding: const EdgeInsets.fromLTRB(12, 18, 12, 16),
+      decoration: BoxDecoration(
+        color: MainNavColors.surface.withOpacity(.72),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            MainNavColors.surface.withOpacity(.95),
+            MainNavColors.background.withOpacity(.98),
+          ],
+        ),
+      ),
+      child: Column(
+        children: [
+          Semantics(
+            label: 'IELTS AI Master',
+            image: true,
+            child: Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                gradient: MainNavColors.gradient,
+                borderRadius: BorderRadius.circular(17),
+                boxShadow: [
+                  BoxShadow(
+                    color: MainNavColors.cyan.withOpacity(.18),
+                    blurRadius: 22,
+                    offset: const Offset(0, 9),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.auto_stories_rounded,
+                color: Colors.white,
+                size: 26,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'IELTS AI',
+            style: TextStyle(
+              color: MainNavColors.mainText,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              letterSpacing: .3,
+            ),
+          ),
+          const SizedBox(height: 26),
+          for (var index = 0; index < items.length; index++) ...[
+            _NavigationItem(
+              data: items[index],
+              selected: currentIndex == index,
+              onTap: () => onTap(index),
+            ),
+            const SizedBox(height: 8),
+          ],
+          const Spacer(),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onCoachTap,
+              borderRadius: BorderRadius.circular(22),
+              child: Ink(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  gradient: MainNavColors.gradient,
+                  borderRadius: BorderRadius.circular(22),
+                  boxShadow: [
+                    BoxShadow(
+                      color: MainNavColors.cyan.withOpacity(.20),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: const Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.psychology_alt_rounded,
+                      color: Colors.white,
+                      size: 26,
+                    ),
+                    SizedBox(height: 5),
+                    Text(
+                      'AI Coach',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -204,7 +358,7 @@ class _NavigationItem extends StatelessWidget {
                   color: selected
                       ? MainNavColors.mainText
                       : MainNavColors.mutedText,
-                  fontSize: 9.5,
+                  fontSize: 12,
                   fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                 ),
               ),
@@ -414,7 +568,7 @@ class _CoachQuickActions extends StatelessWidget {
             action,
             style: const TextStyle(
               color: MainNavColors.secondaryText,
-              fontSize: 10,
+              fontSize: 11.5,
               fontWeight: FontWeight.w600,
             ),
           ),

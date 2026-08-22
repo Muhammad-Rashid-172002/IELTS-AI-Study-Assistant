@@ -123,12 +123,16 @@ class StatePanel extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   const StatePanel({
     super.key,
     required this.icon,
     required this.title,
     required this.subtitle,
+    this.actionLabel,
+    this.onAction,
   });
 
   @override
@@ -158,7 +162,90 @@ class StatePanel extends StatelessWidget {
             textAlign: TextAlign.center,
             style: const TextStyle(color: MockColors.muted, height: 1.45),
           ),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(height: 19),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onAction,
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: Text(actionLabel!),
+              ),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+class MockLoadingPanel extends StatelessWidget {
+  const MockLoadingPanel({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    this.eyebrow = 'PREPARING YOUR EXAM',
+  });
+
+  final String eyebrow;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(maxWidth: 430),
+        margin: const EdgeInsets.all(22),
+        padding: const EdgeInsets.fromLTRB(25, 26, 25, 25),
+        decoration: heroDecoration(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 62,
+              height: 62,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: MockColors.cyan.withOpacity(.10),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: MockColors.cyan.withOpacity(.22)),
+              ),
+              child: const CircularProgressIndicator(strokeWidth: 2.5),
+            ),
+            const SizedBox(height: 17),
+            Text(
+              eyebrow,
+              style: const TextStyle(
+                color: MockColors.cyan,
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.3,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: MockColors.text,
+                fontSize: 19,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: MockColors.secondary,
+                fontSize: 13,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

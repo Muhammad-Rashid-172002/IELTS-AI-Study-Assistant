@@ -59,7 +59,7 @@ class _ProgressDashboardScreenState extends State<ProgressDashboardScreen> {
                   stream: _repository.watchOverview(period: _period),
                   builder: (context, snapshot) {
                     if (snapshot.hasError) {
-                      return _ErrorState(error: snapshot.error.toString());
+                      return _ErrorState(onRetry: () => setState(() {}));
                     }
 
                     if (!snapshot.hasData) {
@@ -152,7 +152,7 @@ class _ProgressDashboardScreenState extends State<ProgressDashboardScreen> {
                   'Your IELTS performance and readiness',
                   style: TextStyle(
                     color: ProgressColors.muted,
-                    fontSize: 10.5,
+                    fontSize: 11.5,
                     height: 1.35,
                   ),
                 ),
@@ -318,7 +318,7 @@ class _ProgressDashboardScreenState extends State<ProgressDashboardScreen> {
                                 color: selected
                                     ? Colors.white
                                     : ProgressColors.secondary,
-                                fontSize: 9.5,
+                                fontSize: 12,
                                 fontWeight: selected
                                     ? FontWeight.w900
                                     : FontWeight.w700,
@@ -378,7 +378,7 @@ class _ProgressDashboardScreenState extends State<ProgressDashboardScreen> {
                           : 'Current Provisional Band',
                       style: const TextStyle(
                         color: ProgressColors.secondary,
-                        fontSize: 10.5,
+                        fontSize: 11.5,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -418,7 +418,7 @@ class _ProgressDashboardScreenState extends State<ProgressDashboardScreen> {
                       'Target ${overview.targetBand.toStringAsFixed(1)}',
                       style: const TextStyle(
                         color: ProgressColors.orange,
-                        fontSize: 9,
+                        fontSize: 12,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -440,7 +440,7 @@ class _ProgressDashboardScreenState extends State<ProgressDashboardScreen> {
                           'for your full overall band.',
                 style: const TextStyle(
                   color: ProgressColors.muted,
-                  fontSize: 10.5,
+                  fontSize: 11.5,
                   height: 1.45,
                 ),
               ),
@@ -456,7 +456,7 @@ class _ProgressDashboardScreenState extends State<ProgressDashboardScreen> {
                   'Provisional readiness',
                   style: TextStyle(
                     color: ProgressColors.muted,
-                    fontSize: 8.5,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -577,7 +577,7 @@ class _ProgressDashboardScreenState extends State<ProgressDashboardScreen> {
           const SizedBox(height: 4),
           const Text(
             'Listening • Reading • Writing • Speaking',
-            style: TextStyle(color: ProgressColors.muted, fontSize: 9.5),
+            style: TextStyle(color: ProgressColors.muted, fontSize: 12),
           ),
           const SizedBox(height: 12),
           SkillComparisonChart(
@@ -702,7 +702,7 @@ class _ProgressDashboardScreenState extends State<ProgressDashboardScreen> {
                       report.$2,
                       style: const TextStyle(
                         color: ProgressColors.muted,
-                        fontSize: 9.5,
+                        fontSize: 12,
                       ),
                     ),
                     trailing: const Icon(
@@ -838,7 +838,7 @@ class _MissingSkillsNotice extends StatelessWidget {
                   description,
                   style: const TextStyle(
                     color: ProgressColors.secondary,
-                    fontSize: 9.5,
+                    fontSize: 12,
                     height: 1.45,
                   ),
                 ),
@@ -872,7 +872,7 @@ class _MissingSkillsNotice extends StatelessWidget {
                                   skill,
                                   style: const TextStyle(
                                     color: ProgressColors.secondary,
-                                    fontSize: 8.5,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w800,
                                   ),
                                 ),
@@ -1124,7 +1124,7 @@ class _LoginBenefit extends StatelessWidget {
               text,
               style: const TextStyle(
                 color: ProgressColors.secondary,
-                fontSize: 10.5,
+                fontSize: 11.5,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -1183,7 +1183,7 @@ class _OverviewMetric extends StatelessWidget {
                   label,
                   style: const TextStyle(
                     color: ProgressColors.muted,
-                    fontSize: 8.5,
+                    fontSize: 12,
                   ),
                 ),
               ],
@@ -1244,7 +1244,7 @@ class _SkillCard extends StatelessWidget {
                       color: attempted
                           ? ProgressColors.muted
                           : ProgressColors.orange,
-                      fontSize: 9,
+                      fontSize: 12,
                       fontWeight: attempted ? FontWeight.w400 : FontWeight.w700,
                     ),
                   ),
@@ -1283,7 +1283,7 @@ class _SkillCard extends StatelessWidget {
                           color: positive
                               ? ProgressColors.green
                               : ProgressColors.red,
-                          fontSize: 9,
+                          fontSize: 12,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -1294,7 +1294,7 @@ class _SkillCard extends StatelessWidget {
                     'Required',
                     style: TextStyle(
                       color: ProgressColors.orange,
-                      fontSize: 8.5,
+                      fontSize: 12,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -1340,7 +1340,7 @@ class _SectionTitle extends StatelessWidget {
           const SizedBox(height: 3),
           Text(
             subtitle,
-            style: const TextStyle(color: ProgressColors.muted, fontSize: 9.5),
+            style: const TextStyle(color: ProgressColors.muted, fontSize: 12),
           ),
         ],
       ),
@@ -1369,9 +1369,9 @@ class _ProgressBackground extends StatelessWidget {
 }
 
 class _ErrorState extends StatelessWidget {
-  final String error;
+  final VoidCallback onRetry;
 
-  const _ErrorState({required this.error});
+  const _ErrorState({required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -1400,10 +1400,16 @@ class _ErrorState extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 7),
-            Text(
-              error,
+            const Text(
+              'Your progress is safe. Check your connection and refresh to sync the latest activity.',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: ProgressColors.muted, height: 1.4),
+              style: TextStyle(color: ProgressColors.muted, height: 1.4),
+            ),
+            const SizedBox(height: 17),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Refresh progress'),
             ),
           ],
         ),

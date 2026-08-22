@@ -68,7 +68,12 @@ class _MockTestResultScreenState extends State<MockTestResultScreen> {
             future: _repository.loadFinalResult(widget.attemptId),
             builder: (context, resultSnapshot) {
               if (!resultSnapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
+                return const MockLoadingPanel(
+                  eyebrow: 'BUILDING YOUR REPORT',
+                  title: 'Preparing your band profile',
+                  subtitle:
+                      'Combining skill scores, strengths and the most useful next practice.',
+                );
               }
 
               final result = resultSnapshot.data;
@@ -190,7 +195,7 @@ class _ResultContent extends StatelessWidget {
         children: [
           const Text(
             'Overall Estimated Band',
-            style: TextStyle(color: MockColors.muted, fontSize: 10),
+            style: TextStyle(color: MockColors.muted, fontSize: 11.5),
           ),
           const SizedBox(height: 7),
           Text(
@@ -251,7 +256,7 @@ class _ResultContent extends StatelessWidget {
                         '${_duration(skill.timeSpentSeconds)}',
                         style: const TextStyle(
                           color: MockColors.muted,
-                          fontSize: 9.5,
+                          fontSize: 12,
                         ),
                       ),
                     ],
@@ -488,7 +493,7 @@ class _BulletList extends StatelessWidget {
                   item,
                   style: const TextStyle(
                     color: MockColors.secondary,
-                    fontSize: 10,
+                    fontSize: 11.5,
                     height: 1.4,
                   ),
                 ),

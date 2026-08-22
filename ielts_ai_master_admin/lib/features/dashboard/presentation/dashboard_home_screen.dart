@@ -54,11 +54,28 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
     'vocabulary_words',
   ];
 
-  static const List<String> _allCollections = [
+  static const List<String> _rootCollections = [
     ..._contentCollections,
     'generation_jobs',
     'users',
     'subscription_requests',
+    'diagnostic_tests',
+    'mock_tests',
+  ];
+
+  static const List<String> _learnerCollectionGroups = [
+    'listening_results',
+    'reading_results',
+    'writing_results',
+    'speaking_results',
+    'mock_attempts',
+    'diagnostic_results',
+    'certificates',
+  ];
+
+  static const List<String> _allCollections = [
+    ..._rootCollections,
+    ..._learnerCollectionGroups,
   ];
 
   @override
@@ -76,7 +93,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
   }
 
   void _listenToDashboardData() {
-    for (final collection in _allCollections) {
+    for (final collection in _rootCollections) {
       final subscription = _firestore
           .collection(collection)
           .snapshots()
@@ -102,6 +119,33 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
             },
           );
 
+      _subscriptions.add(subscription);
+    }
+
+    for (final collection in _learnerCollectionGroups) {
+      final subscription = _firestore
+          .collectionGroup(collection)
+          .limit(1000)
+          .snapshots()
+          .listen(
+            (snapshot) {
+              if (!mounted) return;
+              setState(() {
+                _collections[collection] = snapshot.docs;
+                _loading = !_allCollections.every(_collections.containsKey);
+                _error = null;
+              });
+            },
+            onError: (Object error) {
+              if (!mounted) return;
+              setState(() {
+                _collections.putIfAbsent(collection, () => []);
+                _loading = !_allCollections.every(_collections.containsKey);
+                _error =
+                    'Some learner activity could not be loaded. Check Firestore rules and indexes.';
+              });
+            },
+          );
       _subscriptions.add(subscription);
     }
   }
@@ -195,6 +239,100 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
     return jobs.take(6).toList();
   }
 
+  DateTime? _dateFrom(Map<String, dynamic> data, List<String> candidateFields) {
+    for (final field in candidateFields) {
+      final value = data[field];
+      if (value is Timestamp) return value.toDate();
+      if (value is DateTime) return value;
+      if (value is String) {
+        final parsed = DateTime.tryParse(value);
+        if (parsed != null) return parsed;
+      }
+    }
+    return null;
+  }
+
+  int _usersActiveWithin(Duration duration) {
+    final threshold = DateTime.now().subtract(duration);
+    return _docs('users').where((doc) {
+      final data = doc.data();
+      final status = (data['accountStatus'] ?? 'active')
+          .toString()
+          .toLowerCase();
+      if (data['isDisabled'] == true || status == 'suspended') return false;
+      final lastActive = _dateFrom(data, const [
+        'lastActive',
+        'lastSeen',
+        'lastLoginAt',
+        'updatedAt',
+      ]);
+      return lastActive != null && !lastActive.isBefore(threshold);
+    }).length;
+  }
+
+  int get _newRegistrations {
+    final threshold = DateTime.now().subtract(const Duration(days: 30));
+    return _docs('users').where((doc) {
+      final created = _dateFrom(doc.data(), const [
+        'createdAt',
+        'registrationDate',
+      ]);
+      return created != null && !created.isBefore(threshold);
+    }).length;
+  }
+
+  int _ieltsTrackCount(bool generalTraining) {
+    return _docs('users').where((doc) {
+      final data = doc.data();
+      final type =
+          (data['ieltsType'] ??
+                  data['selectedIeltsType'] ??
+                  data['testType'] ??
+                  'Academic')
+              .toString()
+              .toLowerCase();
+      return generalTraining
+          ? type.contains('general')
+          : !type.contains('general');
+    }).length;
+  }
+
+  double get _averageEstimatedBand {
+    final bands = _docs('users')
+        .map((doc) {
+          final data = doc.data();
+          final value =
+              data['currentBand'] ??
+              data['estimatedBand'] ??
+              data['overallBand'];
+          return value is num
+              ? value.toDouble()
+              : double.tryParse(value?.toString() ?? '');
+        })
+        .whereType<double>()
+        .where((band) => band > 0 && band <= 9)
+        .toList();
+    if (bands.isEmpty) return 0;
+    return bands.reduce((a, b) => a + b) / bands.length;
+  }
+
+  int get _completedDiagnostics => _docs('diagnostic_results').where((doc) {
+    final status = (doc.data()['status'] ?? 'completed')
+        .toString()
+        .toLowerCase();
+    return status == 'completed' || status == 'evaluated';
+  }).length;
+
+  int get _completedMocks => _docs('mock_attempts').where((doc) {
+    final status = (doc.data()['status'] ?? '').toString().toLowerCase();
+    return const {
+      'completed',
+      'evaluated',
+      'ready',
+      'submitted',
+    }.contains(status);
+  }).length;
+
   @override
   Widget build(BuildContext context) {
     final errorMessage = _error;
@@ -219,6 +357,14 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
                   _buildHero(),
                   const SizedBox(height: 18),
                   _buildPrimaryMetrics(),
+                  const SizedBox(height: 22),
+                  const _SectionHeading(
+                    title: 'Learner Intelligence',
+                    subtitle:
+                        'Live engagement, track mix and assessment outcomes',
+                  ),
+                  const SizedBox(height: 12),
+                  _buildLearnerIntelligence(),
                   const SizedBox(height: 22),
                   const _SectionHeading(
                     title: 'Content Inventory',
@@ -539,6 +685,131 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
               ),
             );
           }).toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildLearnerIntelligence() {
+    final averageBand = _averageEstimatedBand;
+    final metrics = [
+      _MetricData(
+        title: 'Daily Active',
+        value: '${_usersActiveWithin(const Duration(days: 1))}',
+        subtitle: 'Active in the last 24 hours',
+        icon: Icons.today_rounded,
+        color: AdminColors.success,
+      ),
+      _MetricData(
+        title: 'Weekly Active',
+        value: '${_usersActiveWithin(const Duration(days: 7))}',
+        subtitle: 'Active in the last 7 days',
+        icon: Icons.date_range_rounded,
+        color: AdminColors.cyan,
+      ),
+      _MetricData(
+        title: 'Monthly Active',
+        value: '${_usersActiveWithin(const Duration(days: 30))}',
+        subtitle: 'Active in the last 30 days',
+        icon: Icons.calendar_month_rounded,
+        color: AdminColors.primary,
+      ),
+      _MetricData(
+        title: 'New Registrations',
+        value: '$_newRegistrations',
+        subtitle: 'Joined in the last 30 days',
+        icon: Icons.person_add_alt_1_rounded,
+        color: AdminColors.violet,
+      ),
+      _MetricData(
+        title: 'Academic',
+        value: '${_ieltsTrackCount(false)}',
+        subtitle: 'Academic-track learners',
+        icon: Icons.school_outlined,
+        color: const Color(0xFF38BDF8),
+      ),
+      _MetricData(
+        title: 'General Training',
+        value: '${_ieltsTrackCount(true)}',
+        subtitle: 'General Training learners',
+        icon: Icons.work_outline_rounded,
+        color: const Color(0xFFF59E0B),
+      ),
+      _MetricData(
+        title: 'Average Band',
+        value: averageBand == 0 ? '—' : averageBand.toStringAsFixed(1),
+        subtitle: 'Across stored estimates',
+        icon: Icons.insights_rounded,
+        color: AdminColors.warning,
+      ),
+      _MetricData(
+        title: 'Diagnostics',
+        value: '$_completedDiagnostics',
+        subtitle: 'Completed assessments',
+        icon: Icons.health_and_safety_outlined,
+        color: AdminColors.success,
+      ),
+      _MetricData(
+        title: 'Mock Tests',
+        value: '$_completedMocks',
+        subtitle: 'Submitted or evaluated',
+        icon: Icons.fact_check_outlined,
+        color: AdminColors.violet,
+      ),
+      _MetricData(
+        title: 'Writing Evaluations',
+        value: '${_docs('writing_results').length}',
+        subtitle: 'AI reports completed',
+        icon: Icons.edit_note_rounded,
+        color: const Color(0xFFA78BFA),
+      ),
+      _MetricData(
+        title: 'Speaking Evaluations',
+        value: '${_docs('speaking_results').length}',
+        subtitle: 'AI reports completed',
+        icon: Icons.mic_rounded,
+        color: const Color(0xFFF97316),
+      ),
+      _MetricData(
+        title: 'Skill Attempts',
+        value:
+            '${_docs('listening_results').length + _docs('reading_results').length}',
+        subtitle: 'Listening and reading attempts',
+        icon: Icons.stacked_bar_chart_rounded,
+        color: AdminColors.cyan,
+      ),
+      _MetricData(
+        title: 'Certificates',
+        value: '${_docs('certificates').length}',
+        subtitle: 'Credentials issued',
+        icon: Icons.workspace_premium_outlined,
+        color: const Color(0xFFEAB308),
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 1180
+            ? 5
+            : constraints.maxWidth >= 800
+            ? 3
+            : constraints.maxWidth >= 520
+            ? 2
+            : 1;
+        const spacing = 12.0;
+        final width =
+            (constraints.maxWidth - spacing * (columns - 1)) / columns;
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: metrics
+              .map(
+                (metric) => SizedBox(
+                  width: width,
+                  child: _MetricCard(data: metric),
+                ),
+              )
+              .toList(),
         );
       },
     );

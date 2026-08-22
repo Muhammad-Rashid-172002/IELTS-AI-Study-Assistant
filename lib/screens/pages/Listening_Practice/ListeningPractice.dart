@@ -9,6 +9,8 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:fyproject/screens/pages/Subscription/Subscription_screen.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:fyproject/resources/components/learner_state_view.dart';
+import 'package:fyproject/resources/components/ielts_result_widgets.dart';
 
 class ListeningScreen extends StatelessWidget {
   const ListeningScreen({super.key});
@@ -39,9 +41,20 @@ class ListeningScreen extends StatelessWidget {
             child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
               stream: userRef.snapshots(),
               builder: (context, userSnapshot) {
+                if (userSnapshot.hasError) {
+                  return const LearnerStateView.error(
+                    title: 'Listening could not be synced',
+                    message:
+                        'Your completed sessions are safe. Check your connection and reopen this screen.',
+                    icon: Icons.headphones_rounded,
+                  );
+                }
                 if (!userSnapshot.hasData) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: LColors.cyan),
+                  return const LearnerStateView.loading(
+                    title: 'Tuning your listening path',
+                    message:
+                        'Loading your recent bands, practice history and next recommended session.',
+                    icon: Icons.headphones_rounded,
                   );
                 }
 
@@ -168,7 +181,7 @@ class _ListeningHome extends StatelessWidget {
               crossAxisCount: 2,
               mainAxisSpacing: 11,
               crossAxisSpacing: 11,
-              childAspectRatio: 1.18,
+              mainAxisExtent: 160,
             ),
           ),
         ),
@@ -869,7 +882,7 @@ class _ListeningTestBrowserScreenState extends State<ListeningTestBrowserScreen>
                 'Your test will start automatically',
                 style: TextStyle(
                   color: LColors.muted,
-                  fontSize: 10.5,
+                  fontSize: 11.5,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -936,7 +949,7 @@ class _ListeningTestBrowserScreenState extends State<ListeningTestBrowserScreen>
                 const SizedBox(height: 8),
                 Text(
                   '$_availableCount activities were checked.',
-                  style: const TextStyle(color: LColors.muted, fontSize: 10),
+                  style: const TextStyle(color: LColors.muted, fontSize: 11.5),
                 ),
               ],
               const SizedBox(height: 22),
@@ -962,7 +975,7 @@ class _ListeningTestBrowserScreenState extends State<ListeningTestBrowserScreen>
                           'Today: $_dailyUsed/1 used • This activity resets daily',
                           style: const TextStyle(
                             color: LColors.secondary,
-                            fontSize: 10.5,
+                            fontSize: 11.5,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -1554,8 +1567,11 @@ class _FullListeningPracticeScreenState
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            ListeningResultScreen(test: combinedTest, result: result),
+        builder: (_) => ListeningResultScreen(
+          test: combinedTest,
+          result: result,
+          answers: Map<int, String>.from(_answers),
+        ),
       ),
     );
   }
@@ -1769,7 +1785,7 @@ class _FullSectionBanner extends StatelessWidget {
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: LColors.muted, fontSize: 9.5),
+                  style: const TextStyle(color: LColors.muted, fontSize: 12),
                 ),
               ],
             ),
@@ -1778,7 +1794,7 @@ class _FullSectionBanner extends StatelessWidget {
             '$questionNumber/$totalQuestions',
             style: const TextStyle(
               color: LColors.cyan,
-              fontSize: 10,
+              fontSize: 11.5,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -2139,8 +2155,11 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            ListeningResultScreen(test: widget.test, result: result),
+        builder: (_) => ListeningResultScreen(
+          test: widget.test,
+          result: result,
+          answers: Map<int, String>.from(_answers),
+        ),
       ),
     );
   }
@@ -2267,12 +2286,45 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen> {
 class ListeningResultScreen extends StatelessWidget {
   final ListeningTest test;
   final ListeningTestResult result;
+  final Map<int, String> answers;
 
   const ListeningResultScreen({
     super.key,
     required this.test,
     required this.result,
+    this.answers = const {},
   });
+
+  List<String> get _strengths {
+    final entries = <MapEntry<String, int>>[
+      ...result.sectionAccuracy.entries,
+      ...result.questionTypeAccuracy.entries,
+    ]..sort((a, b) => b.value.compareTo(a.value));
+    return entries
+        .where((entry) => entry.value >= 75)
+        .take(3)
+        .map((entry) => '${entry.key}: ${entry.value}% accuracy')
+        .toList();
+  }
+
+  List<String> get _improvements {
+    final items = <String>[
+      ...result.weakQuestionTypes.map(
+        (type) => 'Build consistency in $type questions.',
+      ),
+      if (result.spellingMistakes.isNotEmpty)
+        '${result.spellingMistakes.length} spelling detail${result.spellingMistakes.length == 1 ? '' : 's'} affected the score.',
+      if (result.missedKeywords.isNotEmpty)
+        'Track key words and paraphrases before the recording moves on.',
+    ];
+    return items.toSet().take(4).toList();
+  }
+
+  List<int> get _incorrectIndexes => result.correctByQuestion.entries
+      .where((entry) => !entry.value)
+      .map((entry) => entry.key)
+      .where((index) => index >= 0 && index < test.questions.length)
+      .toList();
 
   @override
   Widget build(BuildContext context) {
@@ -2286,42 +2338,105 @@ class ListeningResultScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(18, 16, 18, 30),
               children: [
                 const _ResultHeader(),
-                const SizedBox(height: 20),
-                _ResultHero(result: result),
-                const SizedBox(height: 16),
-                _ResultMetrics(result: result),
-                const SizedBox(height: 20),
-                const _SectionTitle(
-                  title: 'Accuracy by Section',
-                  subtitle: 'Performance across listening sections',
-                ),
-                const SizedBox(height: 10),
-                ...result.sectionAccuracy.entries.map(
-                  (entry) => Padding(
-                    padding: const EdgeInsets.only(bottom: 9),
-                    child: _AccuracyCard(title: entry.key, value: entry.value),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                const _SectionTitle(
-                  title: 'Accuracy by Question Type',
-                  subtitle: 'Question types requiring more practice',
-                ),
-                const SizedBox(height: 10),
-                ...result.questionTypeAccuracy.entries.map(
-                  (entry) => Padding(
-                    padding: const EdgeInsets.only(bottom: 9),
-                    child: _AccuracyCard(
-                      title: entry.key,
-                      value: entry.value,
-                      color: LColors.violet,
+                const SizedBox(height: 18),
+                IeltsResultHero(
+                  accent: LColors.cyan,
+                  band: result.estimatedBand,
+                  eyebrow: 'LISTENING ASSESSMENT',
+                  summary: _listeningSummary(result.accuracyPercent),
+                  meta: [
+                    IeltsResultMetric(
+                      value: '${result.rawScore}/${result.totalQuestions}',
+                      label: 'Correct answers',
+                      icon: Icons.task_alt_rounded,
                     ),
+                    IeltsResultMetric(
+                      value: '${result.accuracyPercent}%',
+                      label: 'Accuracy',
+                      icon: Icons.track_changes_rounded,
+                    ),
+                    IeltsResultMetric(
+                      value: _formatClock(result.durationUsedSeconds),
+                      label: 'Time used',
+                      icon: Icons.timer_outlined,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 22),
+                IeltsResultSectionTitle(
+                  title: 'Performance overview',
+                  subtitle: 'The patterns that most influenced this result',
+                  icon: Icons.auto_graph_rounded,
+                  accent: LColors.cyan,
+                ),
+                const SizedBox(height: 12),
+                IeltsInsightCard(
+                  title: 'Strengths',
+                  items: _strengths,
+                  tone: IeltsInsightTone.strength,
+                  emptyMessage:
+                      'Your strongest areas will appear after more completed questions.',
+                ),
+                const SizedBox(height: 10),
+                IeltsInsightCard(
+                  title: 'Areas to improve',
+                  items: _improvements,
+                  tone: IeltsInsightTone.improvement,
+                  emptyMessage:
+                      'No major weakness was detected in this attempt.',
+                ),
+                const SizedBox(height: 22),
+                IeltsResultSectionTitle(
+                  title: 'Section performance',
+                  subtitle: 'Accuracy across each part of the recording',
+                  icon: Icons.graphic_eq_rounded,
+                  accent: LColors.cyan,
+                ),
+                const SizedBox(height: 12),
+                ...result.sectionAccuracy.entries.map(
+                  (entry) => IeltsResultProgressRow(
+                    label: entry.key,
+                    value: entry.value,
+                    accent: LColors.cyan,
                   ),
                 ),
-                const SizedBox(height: 14),
-                _AnalysisCard(result: result),
-                const SizedBox(height: 16),
-                _RecommendationCard(result: result),
+                const SizedBox(height: 13),
+                IeltsResultSectionTitle(
+                  title: 'Question-type performance',
+                  subtitle: 'See exactly which IELTS formats need attention',
+                  icon: Icons.category_outlined,
+                  accent: LColors.violet,
+                ),
+                const SizedBox(height: 12),
+                ...result.questionTypeAccuracy.entries.map(
+                  (entry) => IeltsResultProgressRow(
+                    label: entry.key,
+                    value: entry.value,
+                    accent: LColors.violet,
+                  ),
+                ),
+                const SizedBox(height: 13),
+                IeltsInsightCard(
+                  title: 'Recommended next practice',
+                  items: [_listeningRecommendation(result)],
+                  tone: IeltsInsightTone.recommendation,
+                ),
+                if (_incorrectIndexes.isNotEmpty) ...[
+                  const SizedBox(height: 22),
+                  IeltsResultSectionTitle(
+                    title: 'Mistakes & answer review',
+                    subtitle:
+                        '${_incorrectIndexes.length} answer${_incorrectIndexes.length == 1 ? '' : 's'} ready to review with explanations',
+                    icon: Icons.fact_check_outlined,
+                    accent: const Color(0xFFFB7185),
+                  ),
+                  const SizedBox(height: 12),
+                  _AnswerReviewPreview(
+                    count: _incorrectIndexes.length,
+                    accent: LColors.cyan,
+                    onPressed: () => _showAnswerReview(context),
+                  ),
+                ],
                 if (test.transcript.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   _TranscriptCard(
@@ -2330,15 +2445,21 @@ class ListeningResultScreen extends StatelessWidget {
                     result: result,
                   ),
                 ],
-                const SizedBox(height: 22),
-                _GradientButton(
-                  title: 'Back to Listening',
-                  icon: Icons.headphones_rounded,
-                  onPressed: () => Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ListeningScreen()),
-                    (route) => route.isFirst,
-                  ),
+                const SizedBox(height: 24),
+                IeltsResultActions(
+                  primaryLabel: _incorrectIndexes.isEmpty
+                      ? 'Explore More Practice'
+                      : 'Review Answers',
+                  primaryIcon: _incorrectIndexes.isEmpty
+                      ? Icons.headphones_rounded
+                      : Icons.fact_check_outlined,
+                  onPrimary: () => _incorrectIndexes.isEmpty
+                      ? _backToListening(context)
+                      : _showAnswerReview(context),
+                  secondaryLabel: 'Back to Listening',
+                  secondaryIcon: Icons.headphones_rounded,
+                  accent: LColors.cyan,
+                  onSecondary: () => _backToListening(context),
                 ),
               ],
             ),
@@ -2347,6 +2468,214 @@ class ListeningResultScreen extends StatelessWidget {
       ),
     );
   }
+
+  void _backToListening(BuildContext context) => Navigator.pushAndRemoveUntil(
+    context,
+    MaterialPageRoute(builder: (_) => const ListeningScreen()),
+    (route) => route.isFirst,
+  );
+
+  void _showAnswerReview(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0B1626),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (sheetContext) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: .82,
+        maxChildSize: .94,
+        minChildSize: .55,
+        builder: (_, controller) => ListView(
+          controller: controller,
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 28),
+          children: [
+            Center(
+              child: Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'Review incorrect answers',
+              style: TextStyle(
+                color: Color(0xFFF8FAFC),
+                fontSize: 21,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Compare your response with the accepted answer and explanation.',
+              style: TextStyle(color: Color(0xFF94A3B8), height: 1.4),
+            ),
+            const SizedBox(height: 16),
+            ..._incorrectIndexes.map((index) {
+              final question = test.questions[index];
+              final response = answers[index]?.trim();
+              return _AnswerReviewItem(
+                number: question.number == 0 ? index + 1 : question.number,
+                prompt: question.prompt,
+                userAnswer: response == null || response.isEmpty
+                    ? 'No answer'
+                    : response,
+                correctAnswer: question.correctAnswer,
+                explanation: question.explanation,
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _listeningSummary(int accuracy) {
+  if (accuracy >= 85)
+    return 'Excellent control across detail, meaning and pace. Refine the few remaining patterns to move higher.';
+  if (accuracy >= 70)
+    return 'A strong attempt with clear foundations. Target the weaker formats to make your score more reliable.';
+  return 'This report pinpoints the listening patterns to rebuild before your next timed attempt.';
+}
+
+String _listeningRecommendation(ListeningTestResult result) {
+  if (result.weakQuestionTypes.isNotEmpty) {
+    return 'Practise ${result.weakQuestionTypes.take(2).join(' and ')} next, then complete one timed section and review every distractor.';
+  }
+  if (result.spellingMistakes.isNotEmpty) {
+    return 'Complete a spelling-and-dictation drill, then repeat a timed section while checking word endings and plurals.';
+  }
+  return 'Continue with a timed listening set and focus on predicting answer type before each recording segment.';
+}
+
+class _AnswerReviewPreview extends StatelessWidget {
+  const _AnswerReviewPreview({
+    required this.count,
+    required this.accent,
+    required this.onPressed,
+  });
+  final int count;
+  final Color accent;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: const Color(0xFF101C2E),
+    borderRadius: BorderRadius.circular(20),
+    child: InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(20),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              width: 45,
+              height: 45,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: .11),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(Icons.rule_rounded, color: accent),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                '$count item${count == 1 ? '' : 's'} to revisit',
+                style: const TextStyle(
+                  color: Color(0xFFF8FAFC),
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            Icon(Icons.arrow_forward_rounded, color: accent),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _AnswerReviewItem extends StatelessWidget {
+  const _AnswerReviewItem({
+    required this.number,
+    required this.prompt,
+    required this.userAnswer,
+    required this.correctAnswer,
+    required this.explanation,
+  });
+  final int number;
+  final String prompt;
+  final String userAnswer;
+  final String correctAnswer;
+  final String explanation;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.only(bottom: 12),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: const Color(0xFF101C2E),
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: Colors.white.withValues(alpha: .07)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'QUESTION $number',
+          style: const TextStyle(
+            color: LColors.cyan,
+            fontSize: 10.5,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: 7),
+        Text(
+          prompt,
+          style: const TextStyle(
+            color: Color(0xFFF8FAFC),
+            fontSize: 13.5,
+            height: 1.4,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Your answer: $userAnswer',
+          style: const TextStyle(color: Color(0xFFFB7185), fontSize: 12.5),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Accepted answer: $correctAnswer',
+          style: const TextStyle(
+            color: Color(0xFF34D399),
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        if (explanation.trim().isNotEmpty) ...[
+          const SizedBox(height: 9),
+          Text(
+            explanation,
+            style: const TextStyle(
+              color: Color(0xFF94A3B8),
+              fontSize: 12,
+              height: 1.45,
+            ),
+          ),
+        ],
+      ],
+    ),
+  );
 }
 
 class ListeningRecentResult {
@@ -2706,28 +3035,32 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final canGoBack = Navigator.of(context).canPop();
+
     return Row(
       children: [
-        Container(
-          width: 54,
-          height: 54,
-          decoration: BoxDecoration(
-            gradient: LColors.gradient,
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [
-              BoxShadow(
-                color: LColors.cyan.withOpacity(.22),
-                blurRadius: 24,
-                offset: const Offset(0, 10),
+        canGoBack
+            ? _DashboardBackButton(onPressed: () => Navigator.pop(context))
+            : Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  gradient: LColors.gradient,
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: LColors.cyan.withOpacity(.22),
+                      blurRadius: 24,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.headphones_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
               ),
-            ],
-          ),
-          child: const Icon(
-            Icons.headphones_rounded,
-            color: Colors.white,
-            size: 28,
-          ),
-        ),
         const SizedBox(width: 14),
         const Expanded(
           child: Column(
@@ -2756,6 +3089,33 @@ class _Header extends StatelessWidget {
         ),
         _Badge(text: 'AI READY'),
       ],
+    );
+  }
+}
+
+class _DashboardBackButton extends StatelessWidget {
+  const _DashboardBackButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 54,
+      height: 54,
+      child: IconButton(
+        tooltip: 'Back to Home',
+        onPressed: onPressed,
+        style: IconButton.styleFrom(
+          foregroundColor: LColors.text,
+          backgroundColor: LColors.surface.withOpacity(.92),
+          side: BorderSide(color: Colors.white.withOpacity(.08)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+        ),
+        icon: const Icon(Icons.arrow_back_rounded),
+      ),
     );
   }
 }
@@ -2816,7 +3176,7 @@ class _BandCard extends StatelessWidget {
                           'BAND',
                           style: TextStyle(
                             color: LColors.muted,
-                            fontSize: 8.5,
+                            fontSize: 12,
                             letterSpacing: 1.4,
                             fontWeight: FontWeight.w800,
                           ),
@@ -2844,7 +3204,7 @@ class _BandCard extends StatelessWidget {
                       label,
                       style: const TextStyle(
                         color: LColors.secondary,
-                        fontSize: 11,
+                        fontSize: 12,
                         height: 1.5,
                       ),
                     ),
@@ -2874,7 +3234,7 @@ class _BandCard extends StatelessWidget {
                             'Updates after every test',
                             style: TextStyle(
                               color: LColors.secondary,
-                              fontSize: 9.5,
+                              fontSize: 12,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -3694,7 +4054,7 @@ class _PracticeHeader extends StatelessWidget {
                       'Question ${current + 1} of $total',
                       style: const TextStyle(
                         color: LColors.muted,
-                        fontSize: 10,
+                        fontSize: 11.5,
                       ),
                     ),
                   ],
@@ -3722,7 +4082,7 @@ class _PracticeHeader extends StatelessWidget {
                       _formatClock(seconds),
                       style: const TextStyle(
                         color: Color(0xFFFFC28A),
-                        fontSize: 10,
+                        fontSize: 11.5,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -3813,7 +4173,7 @@ class _AudioOfflineStatus extends StatelessWidget {
               label,
               style: TextStyle(
                 color: color,
-                fontSize: 10.5,
+                fontSize: 11.5,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -3907,7 +4267,7 @@ class _AudioPlayerCard extends StatelessWidget {
                       : 'Practice mode • replay available',
                   style: TextStyle(
                     color: error != null ? Colors.redAccent : LColors.text,
-                    fontSize: 10.5,
+                    fontSize: 11.5,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -4014,7 +4374,7 @@ class _QuestionNav extends StatelessWidget {
                             : done
                             ? LColors.green
                             : LColors.secondary,
-                        fontSize: 10,
+                        fontSize: 11.5,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -4068,7 +4428,7 @@ class _QuestionCard extends StatelessWidget {
                 'Section ${question.section}',
                 style: const TextStyle(
                   color: LColors.muted,
-                  fontSize: 9.5,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -4164,7 +4524,7 @@ class _QuestionCard extends StatelessWidget {
                 hintText: 'Type the answer exactly as you hear it',
                 hintStyle: const TextStyle(
                   color: LColors.muted,
-                  fontSize: 10.5,
+                  fontSize: 11.5,
                 ),
                 prefixIcon: const Icon(
                   Icons.edit_note_rounded,
@@ -4304,7 +4664,7 @@ class _ResultHero extends StatelessWidget {
             'ESTIMATED BAND',
             style: TextStyle(
               color: LColors.muted,
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -4382,7 +4742,7 @@ class _Metric extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(color: LColors.muted, fontSize: 8.5),
+            style: const TextStyle(color: LColors.muted, fontSize: 12),
           ),
         ],
       ),
@@ -4467,7 +4827,7 @@ class _AnalysisCard extends StatelessWidget {
                 : 'Spelling mistakes: ${result.spellingMistakes.join(', ')}',
             style: const TextStyle(
               color: LColors.secondary,
-              fontSize: 10.5,
+              fontSize: 11.5,
               height: 1.5,
             ),
           ),
@@ -4478,7 +4838,7 @@ class _AnalysisCard extends StatelessWidget {
                 : 'Missed keywords: ${result.missedKeywords.join(', ')}',
             style: const TextStyle(
               color: LColors.secondary,
-              fontSize: 10.5,
+              fontSize: 11.5,
               height: 1.5,
             ),
           ),
@@ -4534,7 +4894,7 @@ class _RecommendationCard extends StatelessWidget {
                       item,
                       style: const TextStyle(
                         color: LColors.secondary,
-                        fontSize: 10.5,
+                        fontSize: 11.5,
                       ),
                     ),
                   ),
@@ -4580,7 +4940,7 @@ class _TranscriptCard extends StatelessWidget {
           transcript,
           style: const TextStyle(
             color: LColors.secondary,
-            fontSize: 11,
+            fontSize: 12,
             height: 1.6,
           ),
         ),
@@ -4602,7 +4962,7 @@ class _TranscriptCard extends StatelessWidget {
               'Q${q.number}: ${q.correctAnswer}\n${q.explanation}',
               style: const TextStyle(
                 color: LColors.secondary,
-                fontSize: 10,
+                fontSize: 11.5,
                 height: 1.45,
               ),
             ),
@@ -4635,7 +4995,7 @@ class _SectionTitle extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           subtitle,
-          style: const TextStyle(color: LColors.muted, fontSize: 10.5),
+          style: const TextStyle(color: LColors.muted, fontSize: 11.5),
         ),
       ],
     );
@@ -4673,7 +5033,7 @@ class _InnerHeader extends StatelessWidget {
                 ),
                 Text(
                   subtitle,
-                  style: const TextStyle(color: LColors.muted, fontSize: 10),
+                  style: const TextStyle(color: LColors.muted, fontSize: 11.5),
                 ),
               ],
             ),
@@ -4743,7 +5103,7 @@ class _Badge extends StatelessWidget {
         text,
         style: const TextStyle(
           color: LColors.cyan,
-          fontSize: 9.5,
+          fontSize: 12,
           fontWeight: FontWeight.w800,
         ),
       ),
@@ -4832,7 +5192,7 @@ class _EmptyCard extends StatelessWidget {
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: LColors.muted, fontSize: 10.5),
+            style: const TextStyle(color: LColors.muted, fontSize: 11.5),
           ),
         ],
       ),
@@ -4877,7 +5237,7 @@ class _MessageScreen extends StatelessWidget {
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: LColors.muted,
-                fontSize: 11,
+                fontSize: 12,
                 height: 1.5,
               ),
             ),

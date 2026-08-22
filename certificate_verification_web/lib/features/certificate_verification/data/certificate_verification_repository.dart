@@ -1,30 +1,31 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 import '../models/certificate_verification_model.dart';
 
 class CertificateVerificationRepository {
-  CertificateVerificationRepository({
-    FirebaseFirestore? firestore,
-  }) : _firestore = firestore ?? FirebaseFirestore.instance;
+  CertificateVerificationRepository({FirebaseFunctions? functions})
+    : _functions =
+          functions ?? FirebaseFunctions.instanceFor(region: 'us-central1');
 
-  final FirebaseFirestore _firestore;
+  final FirebaseFunctions _functions;
 
-  Future<CertificateVerificationModel?> verify(
-    String verificationCode,
-  ) async {
+  Future<CertificateVerificationModel?> verify(String verificationCode) async {
     final normalized = verificationCode.trim().toUpperCase();
 
     if (normalized.isEmpty) {
       throw ArgumentError('Verification code is required.');
     }
 
-    final document = await _firestore
-        .collection('certificate_verifications')
-        .doc(normalized)
-        .get();
+    final result = await _functions.httpsCallable('verifyCertificate').call({
+      'verificationCode': normalized,
+    });
+    final payload = Map<String, dynamic>.from(result.data as Map);
+    if (payload['found'] != true || payload['certificate'] is! Map) {
+      return null;
+    }
 
-    if (!document.exists) return null;
-
-    return CertificateVerificationModel.fromDocument(document);
+    return CertificateVerificationModel.fromMap(
+      Map<String, dynamic>.from(payload['certificate'] as Map),
+    );
   }
 }

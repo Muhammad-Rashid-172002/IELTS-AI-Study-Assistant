@@ -1,0 +1,178 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function owns(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function adminRecord() {
+      return get(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return signedIn() && (
+        request.auth.token.admin == true ||
+        request.auth.token.role == 'admin' ||
+        request.auth.token.role == 'super_admin' ||
+        adminRecord().data.isAdmin == true ||
+        adminRecord().data.role == 'admin' ||
+        adminRecord().data.role == 'super_admin'
+      );
+    }
+
+    function published() {
+      return resource.data.status == 'published' ||
+        resource.data.isPublished == true;
+    }
+
+    function safeNewLearner() {
+      return !request.resource.data.keys().hasAny([
+        'isAdmin', 'admin', 'isPremium', 'premium',
+        'subscriptionStatus', 'isDisabled',
+        'statusReason', 'statusUpdatedAt', 'statusUpdatedBy',
+        'certificateCount', 'lastCertificateIssuedAt'
+      ]) &&
+      (!('role' in request.resource.data) ||
+        request.resource.data.role in ['student', 'learner']) &&
+      (!('accountStatus' in request.resource.data) ||
+        request.resource.data.accountStatus == 'active');
+    }
+
+    function changesProtectedLearnerFields() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'role', 'isAdmin', 'admin', 'isPremium', 'premium',
+        'subscriptionStatus', 'accountStatus', 'isDisabled',
+        'statusReason', 'statusUpdatedAt', 'statusUpdatedBy',
+        'certificateCount', 'lastCertificateIssuedAt'
+      ]);
+    }
+
+    match /admins/{adminId} {
+      allow get: if owns(adminId) || isAdmin();
+      allow list, create, update, delete: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if owns(userId) || isAdmin();
+      allow create: if owns(userId) && safeNewLearner();
+      allow update: if isAdmin() ||
+        (owns(userId) && !changesProtectedLearnerFields());
+      allow delete: if false;
+
+      match /certificates/{certificateId} {
+        allow read: if owns(userId) || isAdmin();
+        allow write: if false;
+      }
+
+      match /{learnerCollection}/{documentId} {
+        allow read, create, update, delete: if
+          learnerCollection != 'certificates' &&
+          (owns(userId) || isAdmin());
+      }
+    }
+
+    match /listening_tests/{testId} {
+      allow read: if signedIn() && (published() || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /reading_tests/{testId} {
+      allow read: if signedIn() && (published() || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /writing_tasks/{taskId} {
+      allow read: if signedIn() && (published() || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /speaking_tests/{testId} {
+      allow read: if signedIn() && (published() || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /vocabulary_words/{wordId} {
+      allow read: if signedIn() && (published() || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /diagnostic_tests/{testId} {
+      allow read: if signedIn() && (published() || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /mock_tests/{testId} {
+      allow read: if signedIn() && (published() || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /mock_test_bank/{questionId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /writing_submissions/{submissionId} {
+      allow create: if signedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == 'queued';
+      allow read: if signedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    match /speaking_submissions/{submissionId} {
+      allow create: if signedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == 'queued';
+      allow read: if signedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    match /subscription_requests/{requestId} {
+      allow create: if signedIn() &&
+        request.resource.data.userId == request.auth.uid;
+      allow read: if signedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    match /generation_jobs/{jobId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /diagnostic_generation_jobs/{jobId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /mock_evaluation_jobs/{jobId} {
+      allow create: if signedIn() &&
+        request.resource.data.userId == request.auth.uid;
+      allow read: if signedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    match /certificate_verifications/{verificationCode} {
+      allow read, write: if isAdmin();
+    }
+
+    match /certificate_verification_rate_limits/{clientHash} {
+      allow read, write: if false;
+    }
+
+    match /admin_audit_log/{eventId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -173,7 +173,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
               'MASTER',
               style: TextStyle(
                 color: Color(0xFF67E8F9),
-                fontSize: 9,
+                fontSize: 12,
                 height: 1,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 2,
@@ -203,7 +203,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                 'AI Powered',
                 style: TextStyle(
                   color: Color(0xFFBAE6FD),
-                  fontSize: 10.5,
+                  fontSize: 11.5,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -329,7 +329,7 @@ class _AdvancedPreviewCard extends StatelessWidget {
                           'AI-powered progress toward Band 7.0',
                           style: TextStyle(
                             color: Color(0xFF94A3B8),
-                            fontSize: 10.5,
+                            fontSize: 11.5,
                           ),
                         ),
                         SizedBox(height: 10),
@@ -402,7 +402,7 @@ class _AdvancedPreviewCard extends StatelessWidget {
                     'Personal AI Coach',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -467,7 +467,7 @@ class _BandRing extends StatelessWidget {
               'Ready',
               style: TextStyle(
                 color: Color(0xFF67E8F9),
-                fontSize: 8,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -637,7 +637,7 @@ class _FeatureItem extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
             color: Color(0xFFF8FAFC),
-            fontSize: 10.5,
+            fontSize: 11.5,
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -649,7 +649,7 @@ class _FeatureItem extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
             color: Color(0xFF64748B),
-            fontSize: 8.5,
+            fontSize: 12,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -738,7 +738,7 @@ class _GradientActionButton extends StatelessWidget {
                         subtitle,
                         style: const TextStyle(
                           color: Color(0xFFDDEAFE),
-                          fontSize: 10.5,
+                          fontSize: 11.5,
                         ),
                       ),
                     ],
@@ -814,7 +814,7 @@ class _OutlineActionButton extends StatelessWidget {
                       subtitle,
                       style: const TextStyle(
                         color: Color(0xFF94A3B8),
-                        fontSize: 10.5,
+                        fontSize: 11.5,
                       ),
                     ),
                   ],
@@ -884,7 +884,7 @@ class _TrustFooter extends StatelessWidget {
           textAlign: TextAlign.center,
           style: const TextStyle(
             color: Color(0xFF475569),
-            fontSize: 9.5,
+            fontSize: 12,
             height: 1.4,
           ),
         ),

@@ -133,11 +133,13 @@ class _MockTestRunnerScreenState extends State<MockTestRunnerScreen> {
 
       _timerController.start();
     } catch (error) {
+      debugPrint('Mock question loading failed: $error');
       if (!mounted) return;
 
       setState(() {
         _questions = const [];
-        _loadError = error.toString().replaceFirst('Bad state: ', '');
+        _loadError =
+            'This section could not be prepared. Check your connection and try again.';
         _loading = false;
       });
     }
@@ -286,59 +288,56 @@ class _MockTestRunnerScreenState extends State<MockTestRunnerScreen> {
 
     final firestore = FirebaseFirestore.instance;
     final userRef = firestore.collection('users').doc(user.uid);
-    final cycleRef =
-        userRef.collection('mock_test_cycles').doc('all_published_mocks');
+    final cycleRef = userRef
+        .collection('mock_test_cycles')
+        .doc('all_published_mocks');
 
     try {
-      await firestore.runTransaction((transaction) async {
-        final snapshot = await transaction.get(cycleRef);
-        final data = snapshot.data() ?? const <String, dynamic>{};
+      await firestore
+          .runTransaction((transaction) async {
+            final snapshot = await transaction.get(cycleRef);
+            final data = snapshot.data() ?? const <String, dynamic>{};
 
-        final storedCycle = _runnerInt(
-          data['cycleNumber'],
-          fallback: widget.config.cycleNumber,
-        );
+            final storedCycle = _runnerInt(
+              data['cycleNumber'],
+              fallback: widget.config.cycleNumber,
+            );
 
-        if (storedCycle != widget.config.cycleNumber) return;
+            if (storedCycle != widget.config.cycleNumber) return;
 
-        final completedIds =
-            _runnerStrings(data['completedMockIds']).toSet();
-        completedIds.add(mockId);
+            final completedIds = _runnerStrings(
+              data['completedMockIds'],
+            ).toSet();
+            completedIds.add(mockId);
 
-        final total = math.max(1, widget.config.cycleTotalTests);
-        final completedCount = math.min(completedIds.length, total);
-        final progressPercent =
-            ((completedCount / total) * 100).round().clamp(0, 100);
+            final total = math.max(1, widget.config.cycleTotalTests);
+            final completedCount = math.min(completedIds.length, total);
+            final progressPercent = ((completedCount / total) * 100)
+                .round()
+                .clamp(0, 100);
 
-        transaction.set(
-          cycleRef,
-          {
-            'poolKey': 'all_published_mocks',
-            'cycleNumber': widget.config.cycleNumber,
-            'completedMockIds': completedIds.toList(),
-            'completedCount': completedCount,
-            'totalMocksAtLastLoad': total,
-            'progressPercent': progressPercent,
-            'lastCompletedMockId': mockId,
-            'lastCompletedMockTitle': widget.config.mockTitle,
-            'cycleCompleted': completedCount >= total,
-            'lastCompletedAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        );
+            transaction.set(cycleRef, {
+              'poolKey': 'all_published_mocks',
+              'cycleNumber': widget.config.cycleNumber,
+              'completedMockIds': completedIds.toList(),
+              'completedCount': completedCount,
+              'totalMocksAtLastLoad': total,
+              'progressPercent': progressPercent,
+              'lastCompletedMockId': mockId,
+              'lastCompletedMockTitle': widget.config.mockTitle,
+              'cycleCompleted': completedCount >= total,
+              'lastCompletedAt': FieldValue.serverTimestamp(),
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
 
-        transaction.set(
-          userRef,
-          {
-            'lastMockCycle': widget.config.cycleNumber,
-            'lastMockTestId': mockId,
-            'lastMockTestAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        );
-      }).timeout(const Duration(seconds: 15));
+            transaction.set(userRef, {
+              'lastMockCycle': widget.config.cycleNumber,
+              'lastMockTestId': mockId,
+              'lastMockTestAt': FieldValue.serverTimestamp(),
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+          })
+          .timeout(const Duration(seconds: 15));
     } catch (error, stackTrace) {
       debugPrint('Mock cycle completion update failed: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -392,9 +391,16 @@ class _MockTestRunnerScreenState extends State<MockTestRunnerScreen> {
         backgroundColor: MockColors.background,
         body: SafeArea(
           child: _loading
-              ? const Center(child: CircularProgressIndicator())
+              ? MockLoadingPanel(
+                  title: 'Loading ${_currentSkill.label}',
+                  subtitle:
+                      'Restoring your timer, questions and latest saved answers.',
+                )
               : _questions.isEmpty
-              ? _EmptyQuestionBank(message: _loadError)
+              ? _EmptyQuestionBank(
+                  message: _loadError,
+                  onRetry: () => _loadSkill(_currentSkill),
+                )
               : LayoutBuilder(
                   builder: (context, constraints) {
                     final desktop = constraints.maxWidth >= 980;
@@ -459,10 +465,7 @@ class _MockTestRunnerScreenState extends State<MockTestRunnerScreen> {
                 const SizedBox(height: 2),
                 Text(
                   'Question ${_questionIndex + 1} of ${_questions.length}',
-                  style: const TextStyle(
-                    color: MockColors.muted,
-                    fontSize: 9.5,
-                  ),
+                  style: const TextStyle(color: MockColors.muted, fontSize: 12),
                 ),
               ],
             ),
@@ -480,7 +483,7 @@ class _MockTestRunnerScreenState extends State<MockTestRunnerScreen> {
                   SizedBox(width: 6),
                   Text(
                     'Saving',
-                    style: TextStyle(color: MockColors.muted, fontSize: 9),
+                    style: TextStyle(color: MockColors.muted, fontSize: 12),
                   ),
                 ],
               ),
@@ -883,7 +886,7 @@ class _LegendItem extends StatelessWidget {
         const SizedBox(width: 7),
         Text(
           label,
-          style: const TextStyle(color: MockColors.muted, fontSize: 9.5),
+          style: const TextStyle(color: MockColors.muted, fontSize: 12),
         ),
       ],
     );
@@ -892,18 +895,21 @@ class _LegendItem extends StatelessWidget {
 
 class _EmptyQuestionBank extends StatelessWidget {
   final String? message;
+  final VoidCallback onRetry;
 
-  const _EmptyQuestionBank({this.message});
+  const _EmptyQuestionBank({this.message, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
     return Center(
       child: StatePanel(
         icon: Icons.inventory_2_outlined,
-        title: 'Mock question bank is incomplete',
+        title: 'This section is not ready yet',
         subtitle:
             message ??
-            'Generate and publish questions from Admin → Mock Tests → Question Bank.',
+            'A complete exam section is not available right now. Please try again shortly.',
+        actionLabel: 'Try again',
+        onAction: onRetry,
       ),
     );
   }

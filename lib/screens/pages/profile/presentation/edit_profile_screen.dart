@@ -229,7 +229,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         message,
                         style: TextStyle(
                           color: ProfileColors.text.withOpacity(.68),
-                          fontSize: 10.5,
+                          fontSize: 11.5,
                           height: 1.45,
                         ),
                       ),
@@ -564,12 +564,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       fillColor: ProfileColors.background.withOpacity(.42),
       labelStyle: TextStyle(
         color: ProfileColors.text.withOpacity(.72),
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: FontWeight.w700,
       ),
       hintStyle: TextStyle(
         color: ProfileColors.text.withOpacity(.35),
-        fontSize: 10.5,
+        fontSize: 11.5,
       ),
       prefixIconColor: ProfileColors.primary,
       border: OutlineInputBorder(
@@ -634,7 +634,7 @@ class _ProfessionalHeader extends StatelessWidget {
                 SizedBox(height: 3),
                 Text(
                   'Personalize your IELTS learning experience',
-                  style: TextStyle(color: Colors.white54, fontSize: 9.5),
+                  style: TextStyle(color: Colors.white54, fontSize: 12),
                 ),
               ],
             ),
@@ -872,7 +872,7 @@ class _HeroMetric extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: ProfileColors.text,
-              fontSize: 10.5,
+              fontSize: 11.5,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -1039,7 +1039,7 @@ class _ExamDateCard extends StatelessWidget {
                       formattedDate,
                       style: TextStyle(
                         color: ProfileColors.text.withOpacity(.60),
-                        fontSize: 10,
+                        fontSize: 11.5,
                       ),
                     ),
                     if (daysUntilExam != null) ...[

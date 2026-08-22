@@ -29,15 +29,13 @@ class AdminAuthGate extends StatelessWidget {
           future: service.isCurrentUserAdmin(),
           builder: (context, adminSnapshot) {
             if (adminSnapshot.connectionState == ConnectionState.waiting) {
-              return const LoadingView(
-                message: 'Checking admin permission...',
-              );
+              return const LoadingView(message: 'Checking admin permission...');
             }
 
             if (adminSnapshot.data != true) {
               return ErrorView(
                 message:
-                    'Access denied. Firestore users/{uid} mein role: admin ya isAdmin: true add karein.',
+                    'Access denied. This account is not registered as a platform administrator.',
                 onRetry: service.signOut,
               );
             }
