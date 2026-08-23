@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "ielts-ai-study-assistant"
-  }
+  },
+  "targets": {
+    "ielts-ai-study-assistant": {
+      "hosting": {
+        "admin": [
+          "ielts-ai-study-assistant"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

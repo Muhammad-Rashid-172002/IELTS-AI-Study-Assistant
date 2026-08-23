@@ -7,6 +7,9 @@
       "hosting": {
         "verification": [
           "ielts-certificate-verification"
+        ],
+        "admin": [
+          "ielts-ai-study-assistant"
         ]
       }
     }
