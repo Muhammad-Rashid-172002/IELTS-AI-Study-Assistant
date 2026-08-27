@@ -803,6 +803,7 @@ class _Header extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 13),
+        //
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
