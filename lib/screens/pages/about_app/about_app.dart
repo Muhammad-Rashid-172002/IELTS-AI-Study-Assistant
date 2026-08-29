@@ -418,10 +418,7 @@ class _SectionTitle extends StatelessWidget {
               const SizedBox(height: 3),
               Text(
                 subtitle,
-                style: const TextStyle(
-                  color: AboutColors.muted,
-                  fontSize: 10.3,
-                ),
+                style: const TextStyle(color: AboutColors.muted, fontSize: 12),
               ),
             ],
           ),

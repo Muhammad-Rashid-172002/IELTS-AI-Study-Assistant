@@ -50,7 +50,7 @@ class ProgressReportScreen extends StatelessWidget {
                   children: [
                     Expanded(
                       child: _ReportMetric(
-                        label: 'Overall Band',
+                        label: 'Estimated Overall Band',
                         value: hasCompleteResult
                             ? calculatedResult.toStringAsFixed(1)
                             : '—',
@@ -112,12 +112,12 @@ class ProgressReportScreen extends StatelessWidget {
           const SizedBox(height: 12),
 
           _ReportSection(
-            title: 'Overall Band Calculation',
+            title: 'Estimated Overall Band Calculation',
             icon: Icons.calculate_outlined,
             children: [
               if (hasCompleteResult) ...[
                 _ReportLine(
-                  label: 'Calculated overall band',
+                  label: 'Calculated estimated overall band',
                   value: calculatedResult.toStringAsFixed(1),
                 ),
                 const _ReportBullet(

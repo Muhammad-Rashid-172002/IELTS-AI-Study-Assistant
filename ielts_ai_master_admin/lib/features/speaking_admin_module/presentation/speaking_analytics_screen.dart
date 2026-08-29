@@ -32,26 +32,15 @@ class SpeakingAnalyticsScreen extends StatelessWidget {
           final averageBand = _average(
             reports.map((report) => _double(report['overallBand'])),
           );
-          final fluency = _criterionAverage(
-            reports,
-            'fluencyAndCoherence',
-          );
-          final lexical = _criterionAverage(
-            reports,
-            'lexicalResource',
-          );
+          final fluency = _criterionAverage(reports, 'fluencyAndCoherence');
+          final lexical = _criterionAverage(reports, 'lexicalResource');
           final grammar = _criterionAverage(
             reports,
             'grammaticalRangeAndAccuracy',
           );
-          final pronunciation = _criterionAverage(
-            reports,
-            'pronunciation',
-          );
+          final pronunciation = _criterionAverage(reports, 'pronunciation');
           final averageSpeed = _average(
-            reports.map(
-              (report) => _double(report['speakingSpeedWpm']),
-            ),
+            reports.map((report) => _double(report['speakingSpeedWpm'])),
           );
 
           return ListView(
@@ -62,17 +51,16 @@ class SpeakingAnalyticsScreen extends StatelessWidget {
                   final columns = constraints.maxWidth >= 1000
                       ? 6
                       : constraints.maxWidth >= 620
-                          ? 3
-                          : 2;
+                      ? 3
+                      : 2;
                   const spacing = 11.0;
                   final width =
-                      (constraints.maxWidth -
-                              spacing * (columns - 1)) /
-                          columns;
+                      (constraints.maxWidth - spacing * (columns - 1)) /
+                      columns;
 
                   final items = [
                     ('Attempts', docs.length.toDouble(), ''),
-                    ('Overall Band', averageBand, ''),
+                    ('Estimated Overall Band', averageBand, ''),
                     ('Fluency', fluency, ''),
                     ('Vocabulary', lexical, ''),
                     ('Grammar', grammar, ''),
@@ -145,10 +133,7 @@ class _MetricCard extends StatelessWidget {
   final String title;
   final String value;
 
-  const _MetricCard({
-    required this.title,
-    required this.value,
-  });
+  const _MetricCard({required this.title, required this.value});
 
   @override
   Widget build(BuildContext context) {

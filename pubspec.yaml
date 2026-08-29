@@ -36,7 +36,6 @@ dependencies:
   cupertino_icons: ^1.0.8
   google_fonts: ^8.0.2
   # get: ^4.7.3
-  flutter_gemini: ^3.0.0
   image_picker: ^1.2.1
   firebase_core: ^4.2.1
   firebase_auth: ^6.1.2
@@ -66,6 +65,7 @@ dependencies:
   connectivity_plus: ^6.1.4
   dio: ^5.8.0+1
   in_app_purchase: ^3.3.0
+  package_info_plus: ^10.1.0
 
 dev_dependencies:
   flutter_test:

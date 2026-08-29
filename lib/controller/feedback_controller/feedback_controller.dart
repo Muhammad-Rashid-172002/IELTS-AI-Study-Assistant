@@ -25,14 +25,14 @@ class IELTSController extends GetxController {
     try {
       final prompt =
           """
-You are an IELTS examiner. Evaluate this IELTS Writing $taskType response.
+You are an independent IELTS writing practice evaluator. Evaluate this IELTS-style Writing $taskType response.
 
 Give:
-- Band score
-- Task Achievement
-- Coherence & Cohesion
+- Estimated practice band
+- Task Achievement for Task 1 or Task Response for Task 2
+- Coherence and Cohesion
 - Lexical Resource
-- Grammar
+- Grammatical Range and Accuracy
 - सुधार (improvement suggestions)
 
 Text:
@@ -55,14 +55,14 @@ $text
     try {
       final prompt =
           """
-You are an IELTS Speaking examiner.
+You are an independent IELTS speaking practice evaluator.
 
 Evaluate this response:
-- Fluency & Coherence
-- Vocabulary
-- Grammar
-- Pronunciation (assume)
-- Band score
+- Fluency and Coherence
+- Lexical Resource
+- Grammatical Range and Accuracy
+- Pronunciation (estimated from available evidence)
+- Estimated practice band
 - Suggestions
 
 Speech:

@@ -1,25 +1,26 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:ielts_ai_master_admin/features/content_qa/data/content_qa_service.dart';
 
 import '../domain/vocabulary_admin_word.dart';
 
 class VocabularyAdminRepository {
-  VocabularyAdminRepository({
-    FirebaseFirestore? firestore,
-    FirebaseAuth? auth,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
+  VocabularyAdminRepository({FirebaseFirestore? firestore, FirebaseAuth? auth})
+    : _firestore = firestore ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
+  final ContentQaService _qa = ContentQaService();
 
   Stream<List<VocabularyAdminWord>> watchWords({
     String status = 'all',
     String category = 'all',
     String band = 'all',
   }) {
-    Query<Map<String, dynamic>> query =
-        _firestore.collection('vocabulary_words');
+    Query<Map<String, dynamic>> query = _firestore.collection(
+      'vocabulary_words',
+    );
 
     if (status != 'all') {
       query = query.where('status', isEqualTo: status);
@@ -32,8 +33,9 @@ class VocabularyAdminRepository {
     }
 
     return query.snapshots().map((snapshot) {
-      final words =
-          snapshot.docs.map(VocabularyAdminWord.fromDocument).toList();
+      final words = snapshot.docs
+          .map(VocabularyAdminWord.fromDocument)
+          .toList();
 
       words.sort((a, b) {
         final aDate = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
@@ -51,8 +53,7 @@ class VocabularyAdminRepository {
         .doc(id)
         .snapshots()
         .map(
-          (doc) =>
-              doc.exists ? VocabularyAdminWord.fromDocument(doc) : null,
+          (doc) => doc.exists ? VocabularyAdminWord.fromDocument(doc) : null,
         );
   }
 
@@ -80,7 +81,8 @@ class VocabularyAdminRepository {
       'requestedCount': count,
       'generatedCount': 0,
       'failedCount': 0,
-      'publishImmediately': publishImmediately,
+      // Phase 2 requires every generated item to pass QA before publishing.
+      'publishImmediately': false,
       'status': 'queued',
       'createdBy': user.uid,
       'createdAt': FieldValue.serverTimestamp(),
@@ -97,10 +99,9 @@ class VocabularyAdminRepository {
     await ref.set({
       ...data,
       'wordId': ref.id,
-      'normalizedWord':
-          (data['word'] ?? '').toString().trim().toLowerCase(),
-      'status': data['status'] ?? 'draft',
-      'isPublished': data['status'] == 'published',
+      'normalizedWord': (data['word'] ?? '').toString().trim().toLowerCase(),
+      'status': 'draft',
+      'isPublished': false,
       'createdBy': user.uid,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
@@ -118,10 +119,17 @@ class VocabularyAdminRepository {
     required String id,
     required Map<String, dynamic> data,
   }) {
+    final editable = Map<String, dynamic>.from(data)
+      ..remove('status')
+      ..remove('isPublished')
+      ..remove('publishedAt')
+      ..remove('publishedBy')
+      ..remove('validationStatus')
+      ..remove('approvedAt')
+      ..remove('approvedBy');
     return _firestore.collection('vocabulary_words').doc(id).set({
-      ...data,
-      'normalizedWord':
-          (data['word'] ?? '').toString().trim().toLowerCase(),
+      ...editable,
+      'normalizedWord': (data['word'] ?? '').toString().trim().toLowerCase(),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
@@ -129,19 +137,18 @@ class VocabularyAdminRepository {
   Future<void> updateStatus({
     required String id,
     required String status,
-  }) {
-    return _firestore.collection('vocabulary_words').doc(id).set({
-      'status': status,
-      'isPublished': status == 'published',
-      'publishedAt':
-          status == 'published' ? FieldValue.serverTimestamp() : null,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+  }) async {
+    await _qa.changeStatus(
+      documentPath: 'vocabulary_words/$id',
+      status: status,
+    );
   }
 
   Future<String> duplicateWord(String id) async {
-    final source =
-        await _firestore.collection('vocabulary_words').doc(id).get();
+    final source = await _firestore
+        .collection('vocabulary_words')
+        .doc(id)
+        .get();
 
     if (!source.exists) throw StateError('Vocabulary word not found.');
 
@@ -151,8 +158,7 @@ class VocabularyAdminRepository {
       ..remove('wordId')
       ..remove('publishedAt')
       ..['word'] = '${data['word'] ?? 'Word'} Copy'
-      ..['normalizedWord'] =
-          '${data['word'] ?? 'word'} copy'.toLowerCase()
+      ..['normalizedWord'] = '${data['word'] ?? 'word'} copy'.toLowerCase()
       ..['status'] = 'draft'
       ..['isPublished'] = false
       ..['savedCount'] = 0
@@ -172,36 +178,12 @@ class VocabularyAdminRepository {
     return _firestore.collection('vocabulary_words').doc(id).delete();
   }
 
-  Future<void> bulkUpdateStatus(
-    Iterable<String> ids,
-    String status,
-  ) async {
-    final chunks = <List<String>>[];
-    final all = ids.toList();
-
-    for (var index = 0; index < all.length; index += 400) {
-      chunks.add(all.sublist(index, (index + 400).clamp(0, all.length)));
-    }
-
-    for (final chunk in chunks) {
-      final batch = _firestore.batch();
-
-      for (final id in chunk) {
-        final ref = _firestore.collection('vocabulary_words').doc(id);
-        batch.set(
-          ref,
-          {
-            'status': status,
-            'isPublished': status == 'published',
-            'publishedAt':
-                status == 'published' ? FieldValue.serverTimestamp() : null,
-            'updatedAt': FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        );
-      }
-
-      await batch.commit();
+  Future<void> bulkUpdateStatus(Iterable<String> ids, String status) async {
+    for (final id in ids) {
+      await _qa.changeStatus(
+        documentPath: 'vocabulary_words/$id',
+        status: status,
+      );
     }
   }
 

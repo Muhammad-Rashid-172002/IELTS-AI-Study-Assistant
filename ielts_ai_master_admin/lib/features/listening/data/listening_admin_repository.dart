@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:ielts_ai_master_admin/features/content_qa/data/content_qa_service.dart';
 
 import '../domain/listening_admin_test.dart';
 
@@ -8,6 +8,7 @@ class ListeningAdminRepository {
     : _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _firestore;
+  final ContentQaService _qa = ContentQaService();
 
   Stream<List<ListeningAdminTest>> watchTests({String status = 'all'}) {
     Query<Map<String, dynamic>> query = _firestore.collection(
@@ -39,23 +40,7 @@ class ListeningAdminRepository {
     required String id,
     required String status,
   }) async {
-    final adminUid = FirebaseAuth.instance.currentUser?.uid;
-
-    final data = <String, dynamic>{
-      'status': status,
-      'isPublished': status == 'published',
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-
-    if (status == 'published') {
-      data['publishedAt'] = FieldValue.serverTimestamp();
-      data['publishedBy'] = adminUid;
-    } else {
-      data['publishedAt'] = FieldValue.delete();
-      data['publishedBy'] = FieldValue.delete();
-    }
-
-    await _firestore.collection('listening_tests').doc(id).update(data);
+    await _qa.changeStatus(documentPath: 'listening_tests/$id', status: status);
   }
 
   Future<void> deleteTest(String id) {

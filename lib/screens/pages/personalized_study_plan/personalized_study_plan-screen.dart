@@ -613,7 +613,6 @@ class _PersonalizedStudyPlanScreenState
         'weeklyTaskCount': _totalTaskCount,
         'weeklyCompletedTaskCount': _completedCount,
         'profileCompleted': true,
-        'diagnosticCompleted': true,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
@@ -1069,7 +1068,7 @@ class _PersonalizedStudyPlanScreenState
                       '$completed/${day.tasks.length} done',
                       style: const TextStyle(
                         color: StudyPlanColors.mutedText,
-                        fontSize: 8.8,
+                        fontSize: 12,
                       ),
                     ),
                   ],
@@ -1605,7 +1604,7 @@ class _OverviewItem extends StatelessWidget {
             label,
             style: const TextStyle(
               color: StudyPlanColors.mutedText,
-              fontSize: 8.8,
+              fontSize: 12,
             ),
           ),
         ],

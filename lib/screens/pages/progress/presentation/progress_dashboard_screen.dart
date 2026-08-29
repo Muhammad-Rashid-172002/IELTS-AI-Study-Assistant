@@ -755,7 +755,7 @@ class _CompletionBadge extends StatelessWidget {
         complete ? 'ALL SKILLS COMPLETE' : '$completed OF $total COMPLETE',
         style: TextStyle(
           color: complete ? ProgressColors.green : ProgressColors.violet,
-          fontSize: 7.5,
+          fontSize: 12,
           fontWeight: FontWeight.w900,
           letterSpacing: .45,
         ),

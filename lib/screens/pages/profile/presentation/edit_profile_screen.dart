@@ -659,7 +659,7 @@ class _ProfessionalHeader extends StatelessWidget {
                   'PROFILE',
                   style: TextStyle(
                     color: ProfileColors.primary,
-                    fontSize: 7.5,
+                    fontSize: 12,
                     fontWeight: FontWeight.w900,
                     letterSpacing: .7,
                   ),
@@ -753,7 +753,7 @@ class _ProfileHeroCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: ProfileColors.text.withOpacity(.56),
-                        fontSize: 9.8,
+                        fontSize: 12,
                       ),
                     ),
                   ],
@@ -830,7 +830,7 @@ class _TargetBandCircle extends StatelessWidget {
             'TARGET',
             style: TextStyle(
               color: ProfileColors.text.withOpacity(.42),
-              fontSize: 6.2,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
               letterSpacing: .5,
             ),
@@ -883,7 +883,7 @@ class _HeroMetric extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: ProfileColors.text.withOpacity(.40),
-              fontSize: 7.5,
+              fontSize: 12,
             ),
           ),
         ],
@@ -935,7 +935,7 @@ class _SectionHeader extends StatelessWidget {
                 subtitle,
                 style: TextStyle(
                   color: ProfileColors.text.withOpacity(.42),
-                  fontSize: 8.8,
+                  fontSize: 12,
                   height: 1.35,
                 ),
               ),
@@ -1050,7 +1050,7 @@ class _ExamDateCard extends StatelessWidget {
                             : '$daysUntilExam days remaining',
                         style: const TextStyle(
                           color: ProfileColors.primary,
-                          fontSize: 8.8,
+                          fontSize: 12,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -1107,7 +1107,7 @@ class _BandPill extends StatelessWidget {
         label,
         style: const TextStyle(
           color: ProfileColors.primary,
-          fontSize: 7.2,
+          fontSize: 12,
           fontWeight: FontWeight.w800,
         ),
       ),
@@ -1139,7 +1139,7 @@ class _PrivacyNotice extends StatelessWidget {
               'Your profile information is used to personalize your IELTS targets, study recommendations and exam planning.',
               style: TextStyle(
                 color: ProfileColors.text.withOpacity(.52),
-                fontSize: 8.8,
+                fontSize: 12,
                 height: 1.45,
               ),
             ),

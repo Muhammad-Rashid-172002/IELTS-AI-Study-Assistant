@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fyproject/offline/offline_content_service.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:fyproject/config/platform_links.dart';
 import 'package:fyproject/resources/components/learner_state_view.dart';
 import 'package:fyproject/resources/components/ielts_result_widgets.dart';
 import 'package:fyproject/screens/pages/Subscription/Subscription_screen.dart';
@@ -1064,7 +1065,7 @@ class _SpeakingTestBrowserScreenState extends State<SpeakingTestBrowserScreen> {
               icon: Icons.error_outline_rounded,
               title: 'Unable to load speaking tests',
               message:
-                  'Your recordings and feedback are safe. Check your connection and try once more.',
+                  'Check your connection and try once more. Existing recordings are reused when still available.',
               onAction: _load,
             )
           else if (_tests.isEmpty)
@@ -1502,6 +1503,16 @@ class _SpeakingSessionScreenState extends State<SpeakingSessionScreen>
                         onReplay: _playRecording,
                         onSubmit: _submitRecording,
                       ),
+                      const SizedBox(height: 10),
+                      const Text(
+                        PlatformLinks.audioProcessingNotice,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: SColors.muted,
+                          fontSize: 12,
+                          height: 1.4,
+                        ),
+                      ),
                       if (!widget.examMode &&
                           widget.test.modelAudioUrl.isNotEmpty) ...[
                         const SizedBox(height: 14),
@@ -1566,7 +1577,7 @@ class SpeakingEvaluationWaitingScreen extends StatelessWidget {
                   icon: Icons.cloud_off_rounded,
                   title: 'Report connection interrupted',
                   subtitle:
-                      'Your recording is safe. Check your connection and reopen this report in a moment.',
+                      'Check your connection and reopen this report in a moment.',
                   action: () => Navigator.pop(context),
                 );
               }
@@ -1611,7 +1622,7 @@ class SpeakingEvaluationWaitingScreen extends StatelessWidget {
                   icon: Icons.error_outline_rounded,
                   title: 'Speaking evaluation failed',
                   subtitle:
-                      'We could not complete this speaking report. Your recording is safe—please try the evaluation again.',
+                      'We could not complete this speaking report. Please try the evaluation again.',
                   action: () => Navigator.pop(context),
                 );
               }
@@ -1644,9 +1655,9 @@ class SpeakingReportScreen extends StatelessWidget {
   const SpeakingReportScreen({super.key, required this.report, this.test});
 
   List<(String, SpeakingCriterion)> get _criteria => [
-    ('Fluency & Coherence', report.fluencyAndCoherence),
+    ('Fluency and Coherence', report.fluencyAndCoherence),
     ('Lexical Resource', report.lexicalResource),
-    ('Grammatical Range & Accuracy', report.grammaticalRangeAndAccuracy),
+    ('Grammatical Range and Accuracy', report.grammaticalRangeAndAccuracy),
     ('Pronunciation', report.pronunciation),
   ];
 
@@ -2570,7 +2581,7 @@ class _SpeakingPlanCard extends StatelessWidget {
                           : 'FREE SPEAKING PLAN',
                       style: TextStyle(
                         color: accent,
-                        fontSize: 8.8,
+                        fontSize: 12,
                         letterSpacing: .8,
                         fontWeight: FontWeight.w900,
                       ),
@@ -2597,7 +2608,7 @@ class _SpeakingPlanCard extends StatelessWidget {
                           : 'AI Speaking Partner and Full Speaking Test require Premium.',
                       style: const TextStyle(
                         color: SColors.secondary,
-                        fontSize: 9.8,
+                        fontSize: 12,
                         height: 1.35,
                       ),
                     ),
@@ -2767,7 +2778,7 @@ class _ModeCard extends StatelessWidget {
                   badgeText,
                   style: TextStyle(
                     color: badgeColor,
-                    fontSize: 6.7,
+                    fontSize: 12,
                     fontWeight: FontWeight.w900,
                     letterSpacing: .2,
                   ),
@@ -2794,7 +2805,7 @@ class _ModeCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: SColors.muted,
-              fontSize: 8.9,
+              fontSize: 12,
               height: 1.25,
             ),
           ),
@@ -3393,7 +3404,7 @@ class _RecentSpeakingResults extends StatelessWidget {
                 icon: Icons.cloud_off_rounded,
                 title: 'Speaking history could not be synced',
                 subtitle:
-                    'Your recordings and evaluations are safe. Check your connection and reopen this screen.',
+                    'Check your connection and reopen this screen to load your recordings and evaluations.',
               );
             }
             if (!snapshot.hasData) {
@@ -3613,9 +3624,9 @@ class _CriteriaGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = [
-      ('Fluency & Coherence', report.fluencyAndCoherence),
+      ('Fluency and Coherence', report.fluencyAndCoherence),
       ('Lexical Resource', report.lexicalResource),
-      ('Grammar', report.grammaticalRangeAndAccuracy),
+      ('Grammatical Range and Accuracy', report.grammaticalRangeAndAccuracy),
       ('Pronunciation', report.pronunciation),
     ];
 
@@ -4087,7 +4098,7 @@ class _Badge extends StatelessWidget {
         text,
         style: const TextStyle(
           color: SColors.cyan,
-          fontSize: 9.3,
+          fontSize: 12,
           fontWeight: FontWeight.w800,
         ),
       ),

@@ -58,19 +58,28 @@ class VerificationTheme {
       colorScheme: scheme,
       scaffoldBackgroundColor: background,
       fontFamily: 'Inter',
-      textTheme: ThemeData(brightness: brightness).textTheme.apply(
-            bodyColor: text,
-            displayColor: text,
-          ),
+      textTheme: ThemeData(brightness: brightness).textTheme
+          .copyWith(
+            bodyLarge: TextStyle(fontSize: 16, height: 1.5, color: text),
+            bodyMedium: TextStyle(fontSize: 14, height: 1.5, color: text),
+            bodySmall: TextStyle(fontSize: 12, height: 1.4, color: text),
+            labelLarge: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: text,
+            ),
+            labelMedium: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: text,
+            ),
+          )
+          .apply(bodyColor: text, displayColor: text),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: surface,
-        hintStyle: TextStyle(
-          color: text.withOpacity(.48),
-        ),
-        labelStyle: TextStyle(
-          color: text.withOpacity(.70),
-        ),
+        hintStyle: TextStyle(color: text.withOpacity(.48)),
+        labelStyle: TextStyle(color: text.withOpacity(.70)),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
           borderSide: BorderSide(color: border),
@@ -117,25 +126,22 @@ class VerificationTheme {
 
 class PortalPalette {
   PortalPalette(BuildContext context)
-      : dark = Theme.of(context).brightness == Brightness.dark;
+    : dark = Theme.of(context).brightness == Brightness.dark;
 
   final bool dark;
 
   Color get background => dark
       ? VerificationColors.darkBackground
       : VerificationColors.lightBackground;
-  Color get surface => dark
-      ? VerificationColors.darkSurface
-      : VerificationColors.lightSurface;
+  Color get surface =>
+      dark ? VerificationColors.darkSurface : VerificationColors.lightSurface;
   Color get surfaceSoft => dark
       ? VerificationColors.darkSurfaceSoft
       : VerificationColors.lightSurfaceSoft;
-  Color get border => dark
-      ? VerificationColors.darkBorder
-      : VerificationColors.lightBorder;
-  Color get text => dark
-      ? VerificationColors.textDark
-      : VerificationColors.textLight;
+  Color get border =>
+      dark ? VerificationColors.darkBorder : VerificationColors.lightBorder;
+  Color get text =>
+      dark ? VerificationColors.textDark : VerificationColors.textLight;
   Color get secondary => text.withOpacity(.72);
   Color get muted => text.withOpacity(.52);
 }

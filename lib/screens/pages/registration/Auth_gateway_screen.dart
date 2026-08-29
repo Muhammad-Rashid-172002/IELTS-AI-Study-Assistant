@@ -5,9 +5,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:fyproject/config/platform_links.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:fyproject/resources/bottom_navigation_bar/botton_navigation.dart';
 import 'package:fyproject/screens/pages/9-step%20premium%20profile%20setup%20wizard/initial_profile_setup.dart';
+import 'package:fyproject/screens/startup/canonical_startup_gate.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 enum AuthMode { createAccount, signIn }
 
@@ -261,6 +263,10 @@ class _CreateAccountFormState extends State<CreateAccountForm> {
         'phoneVerified': false,
         'termsAccepted': true,
         'termsAcceptedAt': FieldValue.serverTimestamp(),
+        'termsAcceptedVersion': PlatformLinks.termsVersion,
+        'privacyPolicyAcceptedVersion': PlatformLinks.privacyPolicyVersion,
+        'policyConsentSchemaVersion': 1,
+        'aiProcessingAcknowledgedAt': FieldValue.serverTimestamp(),
         'profileCompleted': false,
         'diagnosticCompleted': false,
         'ieltsType': null,
@@ -310,6 +316,14 @@ class _CreateAccountFormState extends State<CreateAccountForm> {
   Future<void> _continueWithGoogle() async {
     if (_isLoading || _isGoogleLoading) return;
 
+    if (!_acceptedTerms) {
+      _showMessage(
+        'Please review and accept the Terms and Privacy Policy first.',
+        isError: true,
+      );
+      return;
+    }
+
     FocusScope.of(context).unfocus();
     setState(() => _isGoogleLoading = true);
 
@@ -323,10 +337,10 @@ class _CreateAccountFormState extends State<CreateAccountForm> {
         );
       }
 
-      await _upsertGoogleUser(
-        user,
-        isNewUser: credential.additionalUserInfo?.isNewUser == true,
-      );
+      await _upsertGoogleUser(user);
+      if (credential.additionalUserInfo?.isNewUser == true) {
+        await _recordCurrentPolicyAcceptance(user.uid);
+      }
       await _recordLoginEvent(user: user, method: 'google');
 
       if (!mounted) return;
@@ -377,7 +391,7 @@ class _CreateAccountFormState extends State<CreateAccountForm> {
               eyebrow: 'NEW LEARNER',
               title: 'Build your IELTS profile',
               description:
-                  'A few secure details now unlock your adaptive study path.',
+                  'A few account details now unlock your adaptive study path.',
               child: Column(
                 children: [
                   const _SecurityBanner(),
@@ -631,10 +645,7 @@ class _SignInFormState extends State<SignInForm> {
       }
 
       _localFailedAttempts = 0;
-      await _upsertGoogleUser(
-        user,
-        isNewUser: credential.additionalUserInfo?.isNewUser == true,
-      );
+      await _upsertGoogleUser(user);
       await _recordSession(user, 'google');
 
       if (!mounted) return;
@@ -953,7 +964,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
       eyebrow: 'ONE SECURE STEP',
       title: 'Verify your email',
       description: widget.initialEmailSent
-          ? 'Open the secure link we sent to finish setting up your account.'
+          ? 'Open the verification link we sent to finish setting up your account.'
           : 'Your account is ready. Request a new verification email to continue.',
       icon: Icons.mark_email_read_rounded,
       child: Column(
@@ -1028,7 +1039,7 @@ Future<UserCredential> _signInWithGoogle() async {
   return FirebaseAuth.instance.signInWithCredential(credential);
 }
 
-Future<void> _upsertGoogleUser(User user, {required bool isNewUser}) async {
+Future<void> _upsertGoogleUser(User user) async {
   final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
   final existing = await userRef.get();
 
@@ -1044,7 +1055,7 @@ Future<void> _upsertGoogleUser(User user, {required bool isNewUser}) async {
     'lastLoginAt': FieldValue.serverTimestamp(),
   };
 
-  if (!existing.exists || isNewUser) {
+  if (!existing.exists) {
     data.addAll({
       'profileCompleted': false,
       'diagnosticCompleted': false,
@@ -1096,8 +1107,6 @@ Future<void> _routeAuthenticatedUser(BuildContext context, User user) async {
   final accountStatus = (data['accountStatus'] ?? 'active')
       .toString()
       .toLowerCase();
-  final profileCompleted = data['profileCompleted'] == true;
-
   if (accountStatus == 'disabled' ||
       accountStatus == 'blocked' ||
       accountStatus == 'suspended') {
@@ -1118,11 +1127,7 @@ Future<void> _routeAuthenticatedUser(BuildContext context, User user) async {
   if (!context.mounted) return;
 
   Navigator.of(context).pushAndRemoveUntil(
-    MaterialPageRoute(
-      builder: (_) => profileCompleted
-          ? const IELTSMainNavigation()
-          : const InitialProfileSetupScreen(),
-    ),
+    MaterialPageRoute(builder: (_) => const CanonicalStartupGate()),
     (_) => false,
   );
 }
@@ -1285,9 +1290,9 @@ class _OptionalPhoneVerificationScreenState
           const SizedBox(height: 14),
           const _AuthNoticeCard(
             icon: Icons.privacy_tip_outlined,
-            title: 'Private by design',
+            title: 'How your phone number is used',
             message:
-                'Your number is used only for security and account recovery.',
+                'Your number may be used for account security and recovery. Review the Privacy Policy for details.',
             accent: AuthColors.success,
           ),
           const SizedBox(height: 20),
@@ -1499,7 +1504,7 @@ class _AuthStoryPanel extends StatelessWidget {
             spacing: 22,
             runSpacing: 12,
             children: [
-              _AuthTrustItem(Icons.lock_outline_rounded, 'Secure sign-in'),
+              _AuthTrustItem(Icons.lock_outline_rounded, 'Account sign-in'),
               _AuthTrustItem(Icons.cloud_done_outlined, 'Cloud synced'),
               _AuthTrustItem(Icons.psychology_alt_outlined, 'AI guided'),
             ],
@@ -2129,7 +2134,7 @@ class _SecurityBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Secure account access',
+                  'Account access',
                   style: TextStyle(
                     color: AuthColors.mainText,
                     fontSize: 11.5,
@@ -2138,7 +2143,7 @@ class _SecurityBanner extends StatelessWidget {
                 ),
                 SizedBox(height: 3),
                 Text(
-                  'Encrypted sign-in, verified email and protected cloud progress.',
+                  'Email verification and cloud-synced learning progress.',
                   style: TextStyle(
                     color: AuthColors.mutedText,
                     fontSize: 11.5,
@@ -2352,36 +2357,51 @@ class _TermsCheckbox extends StatelessWidget {
             checkColor: AuthColors.background,
             side: const BorderSide(color: AuthColors.mutedText),
           ),
-          const Expanded(
+          Expanded(
             child: Padding(
-              padding: EdgeInsets.only(top: 10),
-              child: Text.rich(
-                TextSpan(
-                  text: 'I agree to the ',
-                  children: [
-                    TextSpan(
-                      text: 'Terms of Service',
-                      style: TextStyle(
-                        color: AuthColors.cyan,
-                        fontWeight: FontWeight.w800,
-                      ),
+              padding: const EdgeInsets.only(top: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'I agree to the current:',
+                    style: TextStyle(
+                      color: AuthColors.mutedText,
+                      fontSize: 13,
+                      height: 1.4,
                     ),
-                    TextSpan(text: ' and '),
-                    TextSpan(
-                      text: 'Privacy Policy',
-                      style: TextStyle(
-                        color: AuthColors.cyan,
-                        fontWeight: FontWeight.w800,
+                  ),
+                  Wrap(
+                    spacing: 4,
+                    children: [
+                      TextButton(
+                        onPressed: () => _openLegalLink(
+                          context,
+                          PlatformLinks.termsOfService,
+                          'Terms of Service',
+                        ),
+                        child: const Text('Terms of Service'),
                       ),
+                      TextButton(
+                        onPressed: () => _openLegalLink(
+                          context,
+                          PlatformLinks.privacyPolicy,
+                          'Privacy Policy',
+                        ),
+                        child: const Text('Privacy Policy'),
+                      ),
+                    ],
+                  ),
+                  const Text(
+                    '${PlatformLinks.aiProcessingNotice} '
+                    '${PlatformLinks.audioProcessingNotice}',
+                    style: TextStyle(
+                      color: AuthColors.mutedText,
+                      fontSize: 12,
+                      height: 1.45,
                     ),
-                    TextSpan(text: '.'),
-                  ],
-                ),
-                style: TextStyle(
-                  color: AuthColors.mutedText,
-                  fontSize: 11.5,
-                  height: 1.4,
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -2389,6 +2409,31 @@ class _TermsCheckbox extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> _openLegalLink(
+  BuildContext context,
+  String address,
+  String label,
+) async {
+  final uri = Uri.parse(address);
+  if (await launchUrl(uri, mode: LaunchMode.externalApplication)) return;
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(SnackBar(content: Text('$label could not be opened.')));
+}
+
+Future<void> _recordCurrentPolicyAcceptance(String userId) {
+  return FirebaseFirestore.instance.collection('users').doc(userId).set({
+    'termsAccepted': true,
+    'termsAcceptedAt': FieldValue.serverTimestamp(),
+    'termsAcceptedVersion': PlatformLinks.termsVersion,
+    'privacyPolicyAcceptedVersion': PlatformLinks.privacyPolicyVersion,
+    'policyConsentSchemaVersion': 1,
+    'aiProcessingAcknowledgedAt': FieldValue.serverTimestamp(),
+    'updatedAt': FieldValue.serverTimestamp(),
+  }, SetOptions(merge: true));
 }
 
 class _PrimaryAuthButton extends StatelessWidget {
@@ -2959,7 +3004,7 @@ class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
                             ),
                             SizedBox(height: 4),
                             Text(
-                              'We’ll send a secure recovery link to your inbox.',
+                              'We’ll send a password-recovery link to your inbox.',
                               style: TextStyle(
                                 color: AuthColors.mutedText,
                                 fontSize: 12,

@@ -5,6 +5,33 @@ const {getStorage, getDownloadURL} =
   require("firebase-admin/storage");
 const {getAuth} = require("firebase-admin/auth");
 const nodemailer = require("nodemailer");
+const {
+  calculateServerStreak,
+  hasPlatformAdminAccess,
+  isServerAttestedCompleteAssessment,
+  mockSkillIsComplete,
+  roundDiagnosticOverallBand,
+} = require("./phase1_security");
+const {
+  CONTENT_SCHEMA_VERSION,
+  CREDENTIAL_SCHEMA_VERSION,
+  OBJECTIVE_CONVERSION_VERSION,
+  SCORING_VERSION,
+  canTransitionQaState,
+  canonicalVerificationUrl,
+  certificateTypeEligible,
+  convertObjectiveScore,
+  normalizeIeltsTrack,
+  resolveCredentialStatus,
+  roundIeltsOverallBand,
+  speakingScoring,
+  writingScoring,
+} = require("./phase2_contracts");
+const {
+  deletionSubjectHash,
+  mobileReleaseDecision,
+  ownedSpeakingAudioPath,
+} = require("./phase3_security");
 
 const {setGlobalOptions} =
   require("firebase-functions/v2/options");
@@ -18,7 +45,7 @@ const {onCall, HttpsError} =
 const {onSchedule} =
   require("firebase-functions/v2/scheduler");
 
-const {defineSecret} =
+const {defineSecret, defineString} =
   require("firebase-functions/params");
 
 const logger =
@@ -37,9 +64,46 @@ initializeApp();
 const db = getFirestore();
 const storage = getStorage();
 const bucket = storage.bucket();
-const ttsClient = new textToSpeech.TextToSpeechClient();
+let ttsClient;
+
+function getTtsClient() {
+  ttsClient ??= new textToSpeech.TextToSpeechClient();
+  return ttsClient;
+}
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 const smtpAppPassword = defineSecret("SMTP_APP_PASSWORD");
+const certificateVerificationOrigin = defineString(
+    "CERTIFICATE_VERIFICATION_ORIGIN",
+    {default: "https://ieltsaimaster.com/verify"},
+);
+const minimumAndroidBuildNumber = defineString(
+    "MINIMUM_ANDROID_BUILD_NUMBER",
+    {default: "0"},
+);
+const minimumIosBuildNumber = defineString(
+    "MINIMUM_IOS_BUILD_NUMBER",
+    {default: "0"},
+);
+const mobileVersionEnforcement = defineString(
+    "MOBILE_VERSION_ENFORCEMENT",
+    {default: "false"},
+);
+const minimumSupportedAppVersion = defineString(
+    "MINIMUM_SUPPORTED_APP_VERSION",
+    {default: ""},
+);
+const mobileUpdateMessage = defineString(
+    "MOBILE_UPDATE_MESSAGE",
+    {default: "A newer version is required to continue securely."},
+);
+const androidStoreUrl = defineString(
+    "ANDROID_STORE_URL",
+    {default: "https://play.google.com/store/apps/details?id=com.rashidapps.ieltsaimaster"},
+);
+const iosStoreUrl = defineString(
+    "IOS_STORE_URL",
+    {default: ""},
+);
 
 const GOOGLE_PLAY_PACKAGE_NAME = "com.rashidapps.ieltsaimaster";
 const GOOGLE_PLAY_PRODUCT_IDS = new Set([
@@ -498,6 +562,7 @@ exports.verifyGooglePlaySubscription = onCall(
         );
       }
 
+      await assertAccountDeletionNotInProgress(request.auth.uid);
       const productId = String(request.data?.productId || "").trim();
       const purchaseToken =
         String(request.data?.purchaseToken || "").trim();
@@ -602,6 +667,7 @@ exports.syncGooglePlaySubscription = onCall(
         );
       }
 
+      await assertAccountDeletionNotInProgress(request.auth.uid);
       const result = await syncGooglePlayEntitlementForUser(request.auth.uid);
 
       return {
@@ -1901,7 +1967,7 @@ async function generateListeningAudio({
       },
     };
 
-    const [response] = await ttsClient.synthesizeSpeech(request);
+    const [response] = await getTtsClient().synthesizeSpeech(request);
 
     if (!response.audioContent) {
       throw new Error(
@@ -4115,6 +4181,10 @@ exports.processWritingEvaluationJob = onDocumentCreated(
       const submissionRef = snapshot.ref;
 
       if (submission.status !== "queued") return;
+      if (await accountDeletionLockExists(submission.userId)) {
+        await submissionRef.delete();
+        return;
+      }
 
       const answer = String(submission.answer || "").trim();
       const taskQuestion = String(submission.taskQuestion || "").trim();
@@ -4169,8 +4239,16 @@ exports.processWritingEvaluationJob = onDocumentCreated(
             durationUsedSeconds:
               clampNumber(submission.durationUsedSeconds, 0, 7200, 0),
             overallBand: evaluation.report.overallBand,
+            estimatedBand: evaluation.report.estimatedOverallBand,
+            modelProvidedOverallBand:
+              evaluation.report.modelProvidedOverallBand,
+            scoringVersion: evaluation.report.scoringVersion,
+            taskKind: evaluation.report.taskKind,
+            taskCriterionName: evaluation.report.taskCriterionName,
             taskAchievementBand:
               evaluation.report.taskAchievement.band,
+            taskResponseBand:
+              evaluation.report.taskResponse.band,
             coherenceBand:
               evaluation.report.coherenceAndCohesion.band,
             lexicalBand:
@@ -4843,13 +4921,27 @@ function normalizeWritingReport(raw, settings) {
     strengths: cleanStringArray(value?.strengths),
     improvements: cleanStringArray(value?.improvements),
   });
+  const scoring = writingScoring(raw, settings.category);
+  const taskSource = scoring.taskKind === "task_1" ?
+    raw.taskAchievement ?? raw.taskResponse :
+    raw.taskResponse ?? raw.taskAchievement;
+  const taskCriterion = normalizeCriterion(taskSource);
+  taskCriterion.band = scoring.criteria.task;
 
   return {
-    overallBand: normalizeBand(raw.overallBand),
+    overallBand: scoring.estimatedOverallBand,
+    estimatedOverallBand: scoring.estimatedOverallBand,
+    modelProvidedOverallBand: scoring.modelProvidedOverallBand,
+    scoringVersion: scoring.scoringVersion,
+    taskKind: scoring.taskKind,
+    taskCriterionName: scoring.taskCriterionName,
     summary: String(raw.summary || "").trim(),
     wordCount: countWords(settings.answer),
     minimumWordsMet: countWords(settings.answer) >= settings.minimumWords,
-    taskAchievement: normalizeCriterion(raw.taskAchievement),
+    // Keep both aliases readable while writing the task-appropriate canonical
+    // criterion prospectively.
+    taskAchievement: taskCriterion,
+    taskResponse: taskCriterion,
     coherenceAndCohesion:
       normalizeCriterion(raw.coherenceAndCohesion),
     lexicalResource: normalizeCriterion(raw.lexicalResource),
@@ -5114,15 +5206,23 @@ exports.processSpeakingEvaluationJob = onDocumentCreated(
 
       const submission = snapshot.data();
       if (submission.status !== "queued") return;
+      if (await accountDeletionLockExists(submission.userId)) {
+        await snapshot.ref.delete();
+        return;
+      }
 
       const submissionId = event.params.submissionId;
       const submissionRef = snapshot.ref;
-      const storagePath = String(submission.audioStoragePath || "").trim();
+      const storagePath = ownedSpeakingAudioPath({
+        userId: submission.userId,
+        submissionId,
+        storagePath: submission.audioStoragePath,
+      });
 
       if (!storagePath) {
         await submissionRef.update({
           status: "failed",
-          errorMessage: "Audio storage path is required.",
+          errorMessage: "The speaking recording does not belong to this submission.",
           completedAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         });
@@ -5187,6 +5287,10 @@ exports.processSpeakingEvaluationJob = onDocumentCreated(
             mode: submission.mode || "part_1",
             part: clampNumber(submission.part, 0, 3, 0),
             overallBand: evaluation.report.overallBand,
+            estimatedBand: evaluation.report.estimatedOverallBand,
+            modelProvidedOverallBand:
+              evaluation.report.modelProvidedOverallBand,
+            scoringVersion: evaluation.report.scoringVersion,
             fluencyBand: evaluation.report.fluencyAndCoherence.band,
             lexicalBand: evaluation.report.lexicalResource.band,
             grammarBand:
@@ -5744,7 +5848,7 @@ async function generateSpeakingModelAudio({testId, text, accent}) {
   };
 
   const [response] = await retryOperation(
-      () => ttsClient.synthesizeSpeech(request),
+      () => getTtsClient().synthesizeSpeech(request),
       {
         attempts: MAX_API_RETRIES,
         operationName: "Speaking model audio synthesis",
@@ -5951,16 +6055,34 @@ function normalizeSpeakingReport(raw) {
     strengths: cleanStringArray(value?.strengths),
     improvements: cleanStringArray(value?.improvements),
   });
+  const scoring = speakingScoring(raw);
 
   return {
-    overallBand: normalizeBand(raw.overallBand),
+    overallBand: scoring.estimatedOverallBand,
+    estimatedOverallBand: scoring.estimatedOverallBand,
+    modelProvidedOverallBand: scoring.modelProvidedOverallBand,
+    scoringVersion: scoring.scoringVersion,
     summary: String(raw.summary || "").trim(),
     transcript: String(raw.transcript || "").trim(),
-    fluencyAndCoherence: criterion(raw.fluencyAndCoherence),
-    lexicalResource: criterion(raw.lexicalResource),
+    fluencyAndCoherence: {
+      ...criterion(raw.fluencyAndCoherence ?? raw.fluencyCoherence),
+      band: scoring.criteria.fluencyAndCoherence,
+    },
+    lexicalResource: {
+      ...criterion(raw.lexicalResource ?? raw.lexicalBand),
+      band: scoring.criteria.lexicalResource,
+    },
     grammaticalRangeAndAccuracy:
-      criterion(raw.grammaticalRangeAndAccuracy),
-    pronunciation: criterion(raw.pronunciation),
+      {
+        ...criterion(
+            raw.grammaticalRangeAndAccuracy ?? raw.grammarAccuracy,
+        ),
+        band: scoring.criteria.grammaticalRangeAndAccuracy,
+      },
+    pronunciation: {
+      ...criterion(raw.pronunciation ?? raw.pronunciationBand),
+      band: scoring.criteria.pronunciation,
+    },
     speakingSpeedWpm:
       clampNumber(raw.speakingSpeedWpm, 0, 300, 0),
     pauseCount: clampNumber(raw.pauseCount, 0, 200, 0),
@@ -7201,11 +7323,6 @@ exports.processMockEvaluationJob = onDocumentCreated(
         updatedAt: FieldValue.serverTimestamp(),
       });
 
-      await attemptRef.set({
-        status: "evaluating",
-        updatedAt: FieldValue.serverTimestamp(),
-      }, {merge: true});
-
       try {
         const attemptSnapshot = await attemptRef.get();
         if (!attemptSnapshot.exists) {
@@ -7213,6 +7330,19 @@ exports.processMockEvaluationJob = onDocumentCreated(
         }
 
         const attempt = attemptSnapshot.data();
+        if (String(attempt.status || "") !== "submitted") {
+          await jobRef.update({
+            status: "failed",
+            errorMessage: "Mock attempt is not ready for evaluation.",
+            completedAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+          return;
+        }
+        await attemptRef.set({
+          status: "evaluating",
+          updatedAt: FieldValue.serverTimestamp(),
+        }, {merge: true});
         const config = attempt.config || {};
         const track = String(config.track || "academic");
         const targetBand = Number(config.targetBand || 7);
@@ -7269,6 +7399,7 @@ exports.processMockEvaluationJob = onDocumentCreated(
           } else {
             const subjective = await evaluateSubjectiveMockSkill({
               ai,
+              userId,
               skill,
               answers: skillAnswers,
               timeSpentSeconds,
@@ -7289,11 +7420,29 @@ exports.processMockEvaluationJob = onDocumentCreated(
           }
         }
 
-        const bands = Object.values(skillResults)
-            .map((result) => Number(result.band || 0))
-            .filter((band) => band > 0);
+        const requiredSkills = configuredSkills.filter(
+            (skill) => MOCK_SKILLS.has(skill),
+        );
+        const completedSkills = requiredSkills.filter((skill) => {
+          const skillAnswers = answers.filter(
+              (answer) => String(answer.skill) === skill,
+          );
+          return mockSkillIsComplete({
+            skill,
+            answers: skillAnswers,
+            attempt,
+            result: skillResults[skill],
+          });
+        });
+        const missingSkills = requiredSkills.filter(
+            (skill) => !completedSkills.includes(skill),
+        );
+        const isComplete = missingSkills.length === 0;
+        const bands = isComplete ? requiredSkills.map(
+            (skill) => Number(skillResults[skill]?.band || 0),
+        ) : [];
 
-        const overallBand = bands.length > 0 ?
+        const overallBand = isComplete && bands.length > 0 ?
           roundMockBand(
               bands.reduce((sum, band) => sum + band, 0) / bands.length,
           ) :
@@ -7324,19 +7473,29 @@ exports.processMockEvaluationJob = onDocumentCreated(
           suggestedNextMockDate:
             TimestampFromDateSafe(suggestedNextMockDate),
           sevenDayPlan,
+          requiredSkills,
+          completedSkills,
+          missingSkills,
+          isComplete,
+          serverAttested: true,
+          attestationVersion: 1,
+          scoringVersion: SCORING_VERSION,
           evaluatedAt: FieldValue.serverTimestamp(),
         };
 
         await attemptRef.set({
-          status: "completed",
+          status: isComplete ? "completed" : "incomplete",
           result,
           completedAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         }, {merge: true});
 
         await jobRef.update({
-          status: "completed",
+          status: isComplete ? "completed" : "incomplete",
           overallBand,
+          completedSkills,
+          missingSkills,
+          scoringVersion: result.scoringVersion,
           completedAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         });
@@ -7427,12 +7586,29 @@ async function evaluateObjectiveMockSkill({
       0;
   }
 
-  return {
-    band: skill === "listening" ?
-      listeningRawToBand(rawScore) :
-      readingRawToBand(rawScore),
+  const conversion = totalMarks > 0 ? convertObjectiveScore({
+    skill,
+    track,
     rawScore,
-    totalMarks,
+    maximumScore: totalMarks,
+  }) : {
+    estimatedBand: 0,
+    rawScore: 0,
+    maximumScore: 0,
+    normalizedRawScore: 0,
+    ieltsTrack: normalizeIeltsTrack(track),
+    conversionTableVersion: OBJECTIVE_CONVERSION_VERSION,
+  };
+
+  return {
+    band: conversion.estimatedBand,
+    estimatedBand: conversion.estimatedBand,
+    rawScore: conversion.rawScore,
+    totalMarks: conversion.maximumScore,
+    maximumScore: conversion.maximumScore,
+    normalizedRawScore: conversion.normalizedRawScore,
+    ieltsTrack: conversion.ieltsTrack,
+    conversionTableVersion: conversion.conversionTableVersion,
     accuracy,
     timeSpentSeconds,
     criteria: {},
@@ -7461,13 +7637,20 @@ function mockAnswerIsCorrect(value, correctAnswers) {
 
 async function evaluateSubjectiveMockSkill({
   ai,
+  userId,
   skill,
   answers,
   timeSpentSeconds,
   targetBand,
 }) {
   const answerText = answers.map((answer, index) => {
-    return `Response ${index + 1}: ${String(answer.value || "").trim()}`;
+    const value = answer.value;
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      return `Response ${index + 1}: ${String(
+          value.questionText || "Audio response",
+      ).trim()}`;
+    }
+    return `Response ${index + 1}: ${String(value || "").trim()}`;
   }).join("\n\n");
 
   if (!answerText.trim()) {
@@ -7482,19 +7665,16 @@ async function evaluateSubjectiveMockSkill({
     };
   }
 
-  const criteria = skill === "writing" ?
-    [
-      "taskAchievement",
-      "coherenceAndCohesion",
-      "lexicalResource",
-      "grammaticalRangeAndAccuracy",
-    ] :
-    [
-      "fluencyAndCoherence",
-      "lexicalResource",
-      "grammaticalRangeAndAccuracy",
-      "pronunciation",
-    ];
+  const criteriaTemplate = skill === "writing" ? `
+    "taskAchievement": 6.5,
+    "taskResponse": 6.5,
+    "coherenceAndCohesion": 6.5,
+    "lexicalResource": 6.5,
+    "grammaticalRangeAndAccuracy": 6.5` : `
+    "fluencyAndCoherence": 6.5,
+    "lexicalResource": 6.5,
+    "grammaticalRangeAndAccuracy": 6.5,
+    "pronunciation": 6.5`;
 
   const prompt = `
 Evaluate the following IELTS ${skill} mock responses.
@@ -7507,11 +7687,7 @@ ${answerText}
 Return JSON only:
 {
   "band": 6.5,
-  "criteria": {
-    "${criteria[0]}": 6.5,
-    "${criteria[1]}": 6.5,
-    "${criteria[2]}": 6.5,
-    "${criteria[3]}": 6.5
+  "criteria": {${criteriaTemplate}
   },
   "strengths": ["string"],
   "weaknesses": ["string"]
@@ -7523,8 +7699,11 @@ conservatively and explain the limitation internally through a lower-confidence
 criterion score.
 `;
 
+  const contents = skill === "speaking" ?
+    await buildMockSpeakingContents({userId, answers, prompt}) : prompt;
+
   const response = await callGeminiWithRetry(ai, {
-    contents: prompt,
+    contents,
     config: {
       temperature: 0.2,
       maxOutputTokens: 2500,
@@ -7539,15 +7718,45 @@ criterion score.
           .trim(),
   );
 
-  const criteriaResult = {};
-  for (const key of criteria) {
-    criteriaResult[key] = roundMockBand(
-        Number(parsed.criteria?.[key] || 0),
-    );
+  let criteriaResult;
+  let estimatedBand;
+  if (skill === "writing") {
+    const taskOne = writingScoring({
+      ...parsed.criteria,
+      overallBand: parsed.band,
+    }, "task_1");
+    const taskTwo = writingScoring({
+      ...parsed.criteria,
+      overallBand: parsed.band,
+    }, "task_2");
+    criteriaResult = {
+      taskAchievement: taskOne.criteria.task,
+      taskResponse: taskTwo.criteria.task,
+      coherenceAndCohesion: taskOne.criteria.coherenceAndCohesion,
+      lexicalResource: taskOne.criteria.lexicalResource,
+      grammaticalRangeAndAccuracy:
+        taskOne.criteria.grammaticalRangeAndAccuracy,
+    };
+    estimatedBand = taskOne.estimatedOverallBand > 0 &&
+        taskTwo.estimatedOverallBand > 0 ?
+      roundIeltsOverallBand(
+          (taskOne.estimatedOverallBand +
+            taskTwo.estimatedOverallBand * 2) / 3,
+      ) : 0;
+  } else {
+    const scoring = speakingScoring({
+      ...parsed.criteria,
+      overallBand: parsed.band,
+    });
+    criteriaResult = scoring.criteria;
+    estimatedBand = scoring.estimatedOverallBand;
   }
 
   return {
-    band: roundMockBand(Number(parsed.band || 0)),
+    band: estimatedBand,
+    estimatedBand,
+    modelProvidedOverallBand: roundMockBand(Number(parsed.band || 0)),
+    scoringVersion: SCORING_VERSION,
     rawScore: 0,
     totalMarks: answers.length,
     accuracy: 0,
@@ -7559,32 +7768,55 @@ criterion score.
   };
 }
 
-function listeningRawToBand(score) {
-  if (score >= 39) return 9;
-  if (score >= 37) return 8.5;
-  if (score >= 35) return 8;
-  if (score >= 32) return 7.5;
-  if (score >= 30) return 7;
-  if (score >= 26) return 6.5;
-  if (score >= 23) return 6;
-  if (score >= 18) return 5.5;
-  if (score >= 16) return 5;
-  if (score >= 13) return 4.5;
-  return score > 0 ? 4 : 0;
-}
+async function buildMockSpeakingContents({userId, answers, prompt}) {
+  const parts = [{text: prompt}];
+  let totalBytes = 0;
 
-function readingRawToBand(score) {
-  if (score >= 39) return 9;
-  if (score >= 37) return 8.5;
-  if (score >= 35) return 8;
-  if (score >= 33) return 7.5;
-  if (score >= 30) return 7;
-  if (score >= 27) return 6.5;
-  if (score >= 23) return 6;
-  if (score >= 19) return 5.5;
-  if (score >= 15) return 5;
-  if (score >= 13) return 4.5;
-  return score > 0 ? 4 : 0;
+  for (const answer of answers) {
+    const value = answer.value && typeof answer.value === "object" ?
+      answer.value : {};
+    const path = String(value.audioStoragePath || "").trim();
+    const expectedPrefix = `speaking_recordings/${userId}/`;
+    if (!path.startsWith(expectedPrefix)) {
+      throw new HttpsError(
+          "failed-precondition",
+          "Speaking recording ownership could not be verified.",
+      );
+    }
+    const file = bucket.file(path);
+    const [metadata] = await file.getMetadata();
+    const size = Number(metadata.size || 0);
+    const mimeType = String(metadata.contentType || value.audioMimeType || "");
+    if (!mimeType.startsWith("audio/") || size <= 0 ||
+        size > 20 * 1024 * 1024) {
+      throw new HttpsError(
+          "failed-precondition",
+          "Speaking recording is missing or invalid.",
+      );
+    }
+    totalBytes += size;
+    if (totalBytes > 45 * 1024 * 1024) {
+      throw new HttpsError(
+          "invalid-argument",
+          "Combined speaking recordings are too large.",
+      );
+    }
+    const [buffer] = await file.download();
+    parts.push({
+      inlineData: {
+        mimeType,
+        data: buffer.toString("base64"),
+      },
+    });
+  }
+
+  if (parts.length < 2) {
+    throw new HttpsError(
+        "failed-precondition",
+        "Speaking recordings are required.",
+    );
+  }
+  return parts;
 }
 
 function roundMockBand(value) {
@@ -7683,6 +7915,7 @@ exports.askAiCoach = onCall(
       }
 
       const uid = request.auth.uid;
+      await assertAccountDeletionNotInProgress(uid);
       const message = String(request.data?.message || "").trim();
       const responseInstruction = String(
           request.data?.responseInstruction || "",
@@ -7804,6 +8037,7 @@ exports.refreshAiCoachProfile = onCall(
         );
       }
 
+      await assertAccountDeletionNotInProgress(request.auth.uid);
       try {
         const profile = await buildAiCoachProfile(
             request.auth.uid,
@@ -8442,6 +8676,7 @@ exports.evaluateDiagnosticWriting = onCall(
       }
 
       const uid = request.auth.uid;
+      await assertAccountDeletionNotInProgress(uid);
       const testId =
         String(request.data?.testId || "").trim();
       const ieltsType =
@@ -8545,6 +8780,10 @@ exports.evaluateDiagnosticWriting = onCall(
           normalizeDiagnosticWritingEvaluation(
               result.parsed,
               wordCount,
+              storedWriting.taskType ||
+                storedWriting.type ||
+                storedWriting.category ||
+                "task_1",
           );
 
         const evaluationRef = userRef
@@ -8600,10 +8839,12 @@ exports.evaluateDiagnosticSpeaking = onCall(
       }
 
       const uid = request.auth.uid;
+      await assertAccountDeletionNotInProgress(uid);
       const testId =
         String(request.data?.testId || "").trim();
-      const audioUrl =
-        String(request.data?.audioUrl || "").trim();
+      const audioReference = String(
+          request.data?.audioStoragePath || request.data?.audioUrl || "",
+      ).trim();
       const prompts =
         normalizeDiagnosticSpeakingPrompts(request.data?.prompts);
 
@@ -8614,7 +8855,7 @@ exports.evaluateDiagnosticSpeaking = onCall(
         );
       }
 
-      if (!audioUrl) {
+      if (!audioReference) {
         throw new HttpsError(
             "invalid-argument",
             "Speaking recording URL is required.",
@@ -8628,7 +8869,11 @@ exports.evaluateDiagnosticSpeaking = onCall(
         );
       }
 
-      assertAllowedDiagnosticAudioUrl(audioUrl);
+      const audioStoragePath = resolveDiagnosticAudioStoragePath({
+        reference: audioReference,
+        uid,
+        testId,
+      });
 
       const userRef = db.collection("users").doc(uid);
       const testRef =
@@ -8653,7 +8898,7 @@ exports.evaluateDiagnosticSpeaking = onCall(
       }
 
       try {
-        const audio = await downloadDiagnosticAudio(audioUrl);
+        const audio = await downloadDiagnosticAudio(audioStoragePath);
 
         const prompt =
           buildDiagnosticSpeakingEvaluationPrompt(prompts);
@@ -8687,7 +8932,7 @@ exports.evaluateDiagnosticSpeaking = onCall(
           evaluationId: evaluationRef.id,
           testId,
           prompts,
-          audioUrl,
+          audioStoragePath,
           audioMimeType: audio.mimeType,
           audioBytes: audio.byteLength,
           ...evaluation,
@@ -8950,38 +9195,23 @@ function parseDiagnosticJson(value) {
 function normalizeDiagnosticWritingEvaluation(
     data,
     wordCount,
+    taskType,
 ) {
-  const taskResponse =
-    normalizeBand(data.taskResponse || data.taskAchievement);
-  const coherenceCohesion =
-    normalizeBand(data.coherenceCohesion);
-  const lexicalResource =
-    normalizeBand(data.lexicalResource);
-  const grammarAccuracy =
-    normalizeBand(
-        data.grammarAccuracy ||
-        data.grammaticalRangeAndAccuracy,
-    );
-
-  const calculatedOverall = normalizeBand(
-      (
-        taskResponse +
-        coherenceCohesion +
-        lexicalResource +
-        grammarAccuracy
-      ) / 4,
-  );
-
-  const returnedOverall = normalizeBand(data.overallBand);
-  const overallBand = returnedOverall > 0 ?
-    normalizeBand(
-        (returnedOverall + calculatedOverall) / 2,
-    ) :
-    calculatedOverall;
+  const scoring = writingScoring(data, taskType);
+  const taskResponse = scoring.criteria.task;
+  const coherenceCohesion = scoring.criteria.coherenceAndCohesion;
+  const lexicalResource = scoring.criteria.lexicalResource;
+  const grammarAccuracy = scoring.criteria.grammaticalRangeAndAccuracy;
 
   return {
-    overallBand,
+    overallBand: scoring.estimatedOverallBand,
+    estimatedOverallBand: scoring.estimatedOverallBand,
+    modelProvidedOverallBand: scoring.modelProvidedOverallBand,
+    scoringVersion: scoring.scoringVersion,
+    taskKind: scoring.taskKind,
+    taskCriterionName: scoring.taskCriterionName,
     taskResponse,
+    taskAchievement: taskResponse,
     coherenceCohesion,
     lexicalResource,
     grammarAccuracy,
@@ -9009,36 +9239,17 @@ function normalizeDiagnosticWritingEvaluation(
 }
 
 function normalizeDiagnosticSpeakingEvaluation(data) {
-  const fluencyCoherence =
-    normalizeBand(data.fluencyCoherence);
-  const lexicalResource =
-    normalizeBand(data.lexicalResource);
-  const grammarAccuracy =
-    normalizeBand(
-        data.grammarAccuracy ||
-        data.grammaticalRangeAndAccuracy,
-    );
-  const pronunciation =
-    normalizeBand(data.pronunciation);
-
-  const calculatedOverall = normalizeBand(
-      (
-        fluencyCoherence +
-        lexicalResource +
-        grammarAccuracy +
-        pronunciation
-      ) / 4,
-  );
-
-  const returnedOverall = normalizeBand(data.overallBand);
-  const overallBand = returnedOverall > 0 ?
-    normalizeBand(
-        (returnedOverall + calculatedOverall) / 2,
-    ) :
-    calculatedOverall;
+  const scoring = speakingScoring(data);
+  const fluencyCoherence = scoring.criteria.fluencyAndCoherence;
+  const lexicalResource = scoring.criteria.lexicalResource;
+  const grammarAccuracy = scoring.criteria.grammaticalRangeAndAccuracy;
+  const pronunciation = scoring.criteria.pronunciation;
 
   return {
-    overallBand,
+    overallBand: scoring.estimatedOverallBand,
+    estimatedOverallBand: scoring.estimatedOverallBand,
+    modelProvidedOverallBand: scoring.modelProvidedOverallBand,
+    scoringVersion: scoring.scoringVersion,
     fluencyCoherence,
     lexicalResource,
     grammarAccuracy,
@@ -9173,11 +9384,22 @@ function limitDiagnosticText(value, maximumLength) {
       .slice(0, maximumLength);
 }
 
-function assertAllowedDiagnosticAudioUrl(audioUrl) {
+function resolveDiagnosticAudioStoragePath({reference, uid, testId}) {
+  if (!reference.startsWith("https://")) {
+    const expected = `diagnostic_speaking/${uid}/${testId}/`;
+    if (!reference.startsWith(expected)) {
+      throw new HttpsError(
+          "permission-denied",
+          "Speaking recording ownership could not be verified.",
+      );
+    }
+    return reference;
+  }
+
   let parsed;
 
   try {
-    parsed = new URL(audioUrl);
+    parsed = new URL(reference);
   } catch (error) {
     throw new HttpsError(
         "invalid-argument",
@@ -9204,23 +9426,33 @@ function assertAllowedDiagnosticAudioUrl(audioUrl) {
         "Speaking audio must be stored in Firebase Storage.",
     );
   }
-}
 
-async function downloadDiagnosticAudio(audioUrl) {
-  const response = await fetch(audioUrl, {
-    method: "GET",
-    redirect: "follow",
-    signal: AbortSignal.timeout(45000),
-  });
-
-  if (!response.ok) {
-    throw new Error(
-        `Unable to download speaking audio: HTTP ${response.status}.`,
-    );
+  let path = "";
+  const firebaseMatch = parsed.pathname.match(/^\/v0\/b\/([^/]+)\/o\/(.+)$/);
+  if (firebaseMatch) {
+    if (decodeURIComponent(firebaseMatch[1]) !== bucket.name) {
+      throw new HttpsError("permission-denied", "Storage bucket mismatch.");
+    }
+    path = decodeURIComponent(firebaseMatch[2]);
+  } else {
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    if (segments[0] === bucket.name) path = segments.slice(1).join("/");
   }
 
-  const contentLength =
-    Number(response.headers.get("content-length") || 0);
+  const expected = `diagnostic_speaking/${uid}/${testId}/`;
+  if (!path.startsWith(expected)) {
+    throw new HttpsError(
+        "permission-denied",
+        "Speaking recording ownership could not be verified.",
+    );
+  }
+  return path;
+}
+
+async function downloadDiagnosticAudio(storagePath) {
+  const file = bucket.file(storagePath);
+  const [metadata] = await file.getMetadata();
+  const contentLength = Number(metadata.size || 0);
 
   if (contentLength > DIAGNOSTIC_MAX_AUDIO_BYTES) {
     throw new HttpsError(
@@ -9229,13 +9461,13 @@ async function downloadDiagnosticAudio(audioUrl) {
     );
   }
 
-  const arrayBuffer = await response.arrayBuffer();
+  const [buffer] = await file.download();
 
-  if (arrayBuffer.byteLength === 0) {
+  if (buffer.byteLength === 0) {
     throw new Error("Speaking recording is empty.");
   }
 
-  if (arrayBuffer.byteLength > DIAGNOSTIC_MAX_AUDIO_BYTES) {
+  if (buffer.byteLength > DIAGNOSTIC_MAX_AUDIO_BYTES) {
     throw new HttpsError(
         "invalid-argument",
         "Speaking recording is larger than 20 MB.",
@@ -9243,7 +9475,7 @@ async function downloadDiagnosticAudio(audioUrl) {
   }
 
   const contentType =
-    String(response.headers.get("content-type") || "")
+    String(metadata.contentType || "")
         .split(";")[0]
         .trim()
         .toLowerCase();
@@ -9269,8 +9501,8 @@ async function downloadDiagnosticAudio(audioUrl) {
   }
 
   return {
-    base64Data: Buffer.from(arrayBuffer).toString("base64"),
-    byteLength: arrayBuffer.byteLength,
+    base64Data: buffer.toString("base64"),
+    byteLength: buffer.byteLength,
     mimeType: normalizeDiagnosticAudioMimeType(contentType),
   };
 }
@@ -9327,6 +9559,397 @@ function diagnosticHttpsError(error, fallbackMessage) {
   );
 }
 
+exports.finalizeDiagnosticResult = onCall(
+    {
+      region: "us-central1",
+      timeoutSeconds: 60,
+      memory: "256MiB",
+    },
+    async (request) => {
+      if (!request.auth) {
+        throw new HttpsError("unauthenticated", "Sign-in is required.");
+      }
+
+      await assertAppCheckReady(request, "diagnostic_finalize");
+      await enforceCallableRateLimit({
+        uid: request.auth.uid,
+        scope: "diagnostic_finalize",
+        maximum: 12,
+        windowMs: 60 * 60 * 1000,
+      });
+
+      const uid = request.auth.uid;
+      const testId = String(request.data?.testId || "").trim();
+      const writingEvaluationId = String(
+          request.data?.writingEvaluationId || "",
+      ).trim();
+      const speakingEvaluationId = String(
+          request.data?.speakingEvaluationId || "",
+      ).trim();
+      const listeningAnswers = diagnosticAnswerMap(
+          request.data?.listeningAnswers,
+      );
+      const readingAnswers = diagnosticAnswerMap(
+          request.data?.readingAnswers,
+      );
+      const durationUsedSeconds = diagnosticClamp(
+          request.data?.durationUsedSeconds,
+          0,
+          8 * 60 * 60,
+          0,
+      );
+
+      if (!testId || !writingEvaluationId || !speakingEvaluationId) {
+        throw new HttpsError(
+            "invalid-argument",
+            "Test and both AI evaluation IDs are required.",
+        );
+      }
+
+      const userRef = db.collection("users").doc(uid);
+      const testRef = db.collection("diagnostic_tests").doc(testId);
+      const writingRef = userRef
+          .collection("diagnostic_writing_evaluations")
+          .doc(writingEvaluationId);
+      const speakingRef = userRef
+          .collection("diagnostic_speaking_evaluations")
+          .doc(speakingEvaluationId);
+
+      const [userSnapshot, testSnapshot, writingSnapshot, speakingSnapshot] =
+        await Promise.all([
+          userRef.get(),
+          testRef.get(),
+          writingRef.get(),
+          speakingRef.get(),
+        ]);
+
+      if (!userSnapshot.exists) {
+        throw new HttpsError("not-found", "Learner profile was not found.");
+      }
+      if (!testSnapshot.exists ||
+          String(testSnapshot.data()?.status || "") !== "published") {
+        throw new HttpsError(
+            "failed-precondition",
+            "The diagnostic test is not published.",
+        );
+      }
+      if (!writingSnapshot.exists || !speakingSnapshot.exists) {
+        throw new HttpsError(
+            "failed-precondition",
+            "Both server AI evaluations must be completed first.",
+        );
+      }
+
+      const writing = writingSnapshot.data() || {};
+      const speaking = speakingSnapshot.data() || {};
+      if (String(writing.testId || "") !== testId ||
+          String(speaking.testId || "") !== testId) {
+        throw new HttpsError(
+            "failed-precondition",
+            "AI evaluations do not belong to this diagnostic test.",
+        );
+      }
+
+      const test = testSnapshot.data() || {};
+      const listeningQuestions = Array.isArray(test.listening?.questions) ?
+        test.listening.questions : [];
+      const readingQuestions = Array.isArray(test.reading?.questions) ?
+        test.reading.questions : [];
+
+      if (listeningQuestions.length === 0 || readingQuestions.length === 0) {
+        throw new HttpsError(
+            "failed-precondition",
+            "Published diagnostic answer keys are incomplete.",
+        );
+      }
+
+      const listeningScore = scoreDiagnosticObjective(
+          listeningQuestions,
+          listeningAnswers,
+      );
+      const readingScore = scoreDiagnosticObjective(
+          readingQuestions,
+          readingAnswers,
+      );
+      const ieltsTrack = normalizeIeltsTrack(
+          test.ieltsType || userSnapshot.data()?.ieltsType,
+      );
+      const listeningConversion = convertObjectiveScore({
+        skill: "listening",
+        track: ieltsTrack,
+        rawScore: listeningScore.correct,
+        maximumScore: listeningScore.total,
+      });
+      const readingConversion = convertObjectiveScore({
+        skill: "reading",
+        track: ieltsTrack,
+        rawScore: readingScore.correct,
+        maximumScore: readingScore.total,
+      });
+      const skillBands = {
+        listening: listeningConversion.estimatedBand,
+        reading: readingConversion.estimatedBand,
+        writing: normalizeBand(writing.overallBand),
+        speaking: normalizeBand(speaking.overallBand),
+      };
+
+      if (skillBands.writing <= 0 || skillBands.speaking <= 0) {
+        throw new HttpsError(
+            "failed-precondition",
+            "AI evaluation bands are incomplete.",
+        );
+      }
+
+      const overallBand = roundDiagnosticOverallBand(
+          Object.values(skillBands).reduce((sum, band) => sum + band, 0) / 4,
+      );
+      const user = userSnapshot.data() || {};
+      const targetBand = normalizeBand(user.targetBand || 7);
+      const resultHash = crypto.createHash("sha256")
+          .update(`${testId}|${writingEvaluationId}|${speakingEvaluationId}`)
+          .digest("hex")
+          .slice(0, 24);
+      const resultId = `diagnostic_${resultHash}`;
+      const resultRef = userRef.collection("diagnostic_results").doc(resultId);
+      const completedSkills = ["listening", "reading", "writing", "speaking"];
+      const serverResult = {
+        resultId,
+        testId,
+        ieltsType: String(test.ieltsType || user.ieltsType || "Academic"),
+        ieltsTrack,
+        targetBand,
+        overallBand,
+        estimatedBand: overallBand,
+        skillBands,
+        completedSkills,
+        isComplete: true,
+        status: "completed",
+        scoringVersion: SCORING_VERSION,
+        conversionTableVersion:
+          listeningConversion.conversionTableVersion,
+        serverAttested: true,
+        attestationVersion: 1,
+        objectiveScores: {
+          listening: listeningConversion,
+          reading: readingConversion,
+        },
+        writingEvaluationId,
+        speakingEvaluationId,
+        writingEvaluation: publicDiagnosticWritingEvaluation(writing),
+        speakingEvaluation: publicDiagnosticSpeakingEvaluation(speaking),
+        speakingAudioStoragePath: String(
+            speaking.audioStoragePath || speaking.audioUrl || "",
+        ),
+        durationUsedSeconds,
+        completedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+
+      const batch = db.batch();
+      batch.set(resultRef, serverResult, {merge: true});
+      batch.set(userRef, {
+        diagnosticCompleted: true,
+        diagnosticCompletedAt: FieldValue.serverTimestamp(),
+        currentBand: overallBand,
+        estimatedBand: overallBand,
+        overallBand,
+        skillBands,
+        ieltsType: serverResult.ieltsType,
+        studyPlanRequired: true,
+        activeStudyPlan: false,
+        trustedAssessmentSource: resultRef.path,
+        scoringVersion: serverResult.scoringVersion,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+      await batch.commit();
+
+      logger.info("Diagnostic result finalized.", {
+        uid,
+        testId,
+        resultId,
+        scoringVersion: serverResult.scoringVersion,
+      });
+
+      return {
+        success: true,
+        resultId,
+        overallBand,
+        skillBands,
+        objectiveScores: serverResult.objectiveScores,
+        completedSkills,
+        scoringVersion: serverResult.scoringVersion,
+      };
+    },
+);
+
+function diagnosticAnswerMap(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const entries = Object.entries(value).slice(0, 100);
+  return Object.fromEntries(entries.map(([key, answer]) => [
+    String(key).slice(0, 100),
+    Array.isArray(answer) ? answer.slice(0, 20) : answer,
+  ]));
+}
+
+function scoreDiagnosticObjective(questions, answers) {
+  let correct = 0;
+  for (const question of questions) {
+    const id = String(question?.id || "");
+    const accepted = Array.isArray(question?.acceptedAnswers) ?
+      question.acceptedAnswers.map(normalizeDiagnosticAnswer) : [];
+    const answer = answers[id];
+    const actual = Array.isArray(answer) ?
+      answer.map(normalizeDiagnosticAnswer).sort().join("|") :
+      normalizeDiagnosticAnswer(answer);
+    const matches = Array.isArray(answer) ?
+      accepted.sort().join("|") === actual : accepted.includes(actual);
+    if (actual && matches) correct++;
+  }
+  return {correct, total: questions.length};
+}
+
+function normalizeDiagnosticAnswer(value) {
+  return String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function publicDiagnosticWritingEvaluation(data) {
+  return {
+    overallBand: normalizeBand(data.overallBand),
+    estimatedOverallBand: normalizeBand(
+        data.estimatedOverallBand || data.overallBand,
+    ),
+    modelProvidedOverallBand: normalizeBand(
+        data.modelProvidedOverallBand,
+    ),
+    scoringVersion: String(data.scoringVersion || "legacy_unversioned"),
+    taskKind: String(data.taskKind || "task_2"),
+    taskCriterionName: String(
+        data.taskCriterionName || "Task Response",
+    ),
+    taskResponse: normalizeBand(data.taskResponse || data.taskAchievement),
+    taskAchievement: normalizeBand(data.taskAchievement || data.taskResponse),
+    coherenceCohesion: normalizeBand(data.coherenceCohesion),
+    lexicalResource: normalizeBand(data.lexicalResource),
+    grammarAccuracy: normalizeBand(
+        data.grammarAccuracy || data.grammaticalRangeAndAccuracy,
+    ),
+    summary: String(data.summary || "").slice(0, 5000),
+    improvements: Array.isArray(data.improvements) ?
+      data.improvements.map(String).slice(0, 12) : [],
+  };
+}
+
+function publicDiagnosticSpeakingEvaluation(data) {
+  return {
+    overallBand: normalizeBand(data.overallBand),
+    estimatedOverallBand: normalizeBand(
+        data.estimatedOverallBand || data.overallBand,
+    ),
+    modelProvidedOverallBand: normalizeBand(
+        data.modelProvidedOverallBand,
+    ),
+    scoringVersion: String(data.scoringVersion || "legacy_unversioned"),
+    fluencyCoherence: normalizeBand(data.fluencyCoherence),
+    lexicalResource: normalizeBand(data.lexicalResource),
+    grammarAccuracy: normalizeBand(
+        data.grammarAccuracy || data.grammaticalRangeAndAccuracy,
+    ),
+    pronunciation: normalizeBand(data.pronunciation),
+    transcript: String(data.transcript || "").slice(0, 15000),
+    summary: String(data.summary || "").slice(0, 5000),
+    improvements: Array.isArray(data.improvements) ?
+      data.improvements.map(String).slice(0, 12) : [],
+  };
+}
+
+exports.legacyAiAssist = onCall(
+    {
+      region: "us-central1",
+      secrets: [geminiApiKey],
+      timeoutSeconds: 120,
+      memory: "512MiB",
+    },
+    async (request) => {
+      if (!request.auth) {
+        throw new HttpsError("unauthenticated", "Sign-in is required.");
+      }
+
+      await assertAppCheckReady(request, "legacy_ai_assist");
+      await enforceCallableRateLimit({
+        uid: request.auth.uid,
+        scope: "legacy_ai_assist",
+        maximum: 40,
+        windowMs: 60 * 60 * 1000,
+      });
+
+      const allowedPurposes = new Set([
+        "coach_text",
+        "coach_json",
+        "question_generation",
+        "writing_visual_analysis",
+      ]);
+      const purpose = String(request.data?.purpose || "").trim();
+      const prompt = String(request.data?.prompt || "").trim();
+      const imageBase64 = String(request.data?.imageBase64 || "").trim();
+      const imageMimeType = String(
+          request.data?.imageMimeType || "image/jpeg",
+      ).trim().toLowerCase();
+
+      if (!allowedPurposes.has(purpose) || !prompt || prompt.length > 30000) {
+        throw new HttpsError(
+            "invalid-argument",
+            "A supported AI purpose and prompt are required.",
+        );
+      }
+      if (imageBase64.length > 11 * 1024 * 1024 ||
+          (imageBase64 && !["image/jpeg", "image/png", "image/webp"]
+              .includes(imageMimeType))) {
+        throw new HttpsError(
+            "invalid-argument",
+            "The image is too large or uses an unsupported format.",
+        );
+      }
+
+      const user = await db.collection("users").doc(request.auth.uid).get();
+      const userData = user.data() || {};
+      if (String(userData.accountStatus || "active").toLowerCase() ===
+          "suspended" || userData.isDisabled === true) {
+        throw new HttpsError(
+            "permission-denied",
+            "This learner account is suspended.",
+        );
+      }
+
+      const {GoogleGenAI} = await import("@google/genai");
+      const ai = new GoogleGenAI({apiKey: geminiApiKey.value()});
+      const contents = imageBase64 ? [
+        {text: prompt},
+        {inlineData: {mimeType: imageMimeType, data: imageBase64}},
+      ] : prompt;
+      const result = await callGeminiWithRetry(ai, {
+        contents,
+        config: {
+          temperature: purpose === "coach_text" ? 0.45 : 0.2,
+          maxOutputTokens: 6000,
+          ...(purpose === "coach_json" ||
+              purpose === "question_generation" ||
+              purpose === "writing_visual_analysis" ?
+            {responseMimeType: "application/json"} : {}),
+        },
+      });
+      const text = String(result.response.text || "").trim();
+      if (!text) throw new HttpsError("internal", "AI returned no response.");
+
+      logger.info("Legacy AI request completed.", {
+        uid: request.auth.uid,
+        purpose,
+        hasImage: Boolean(imageBase64),
+        model: result.model,
+      });
+      return {text, model: result.model};
+    },
+);
+
 // ============================================================================
 // DIAGNOSTIC AI GENERATION MODULE
 // ============================================================================
@@ -9338,12 +9961,14 @@ exports.createDiagnosticGenerationJob = onCall(
       memory: "256MiB",
     },
     async (request) => {
-      if (!request.auth) {
-        throw new HttpsError(
-            "unauthenticated",
-            "Administrator must be signed in.",
-        );
-      }
+      const admin = await requirePlatformAdmin(request);
+      await assertAppCheckReady(request, "diagnostic_generation");
+      await enforceCallableRateLimit({
+        uid: admin.uid,
+        scope: "diagnostic_generation",
+        maximum: 10,
+        windowMs: 60 * 60 * 1000,
+      });
 
       const data = normalizeDiagnosticGenerationRequest(
           request.data || {},
@@ -9366,14 +9991,14 @@ exports.createDiagnosticGenerationJob = onCall(
         generationStep: "Queued for AI generation",
         generationError: "",
         generatedBy: "gemini",
-        createdBy: request.auth.uid,
+        createdBy: admin.uid,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });
       batch.set(jobRef, {
         ...data,
         testId: testRef.id,
-        requestedBy: request.auth.uid,
+        requestedBy: admin.uid,
         status: "queued",
         progress: 0,
         currentStep: "Queued",
@@ -9399,12 +10024,14 @@ exports.retryDiagnosticGenerationJob = onCall(
       memory: "256MiB",
     },
     async (request) => {
-      if (!request.auth) {
-        throw new HttpsError(
-            "unauthenticated",
-            "Administrator must be signed in.",
-        );
-      }
+      const admin = await requirePlatformAdmin(request);
+      await assertAppCheckReady(request, "diagnostic_generation_retry");
+      await enforceCallableRateLimit({
+        uid: admin.uid,
+        scope: "diagnostic_generation_retry",
+        maximum: 20,
+        windowMs: 60 * 60 * 1000,
+      });
 
       const jobId = String(request.data?.jobId || "").trim();
       if (!jobId) {
@@ -9450,7 +10077,7 @@ exports.retryDiagnosticGenerationJob = onCall(
         error: "",
         attempt: Number(oldJob.attempt || 1) + 1,
         retriedFrom: jobId,
-        requestedBy: request.auth.uid,
+        requestedBy: admin.uid,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
         completedAt: FieldValue.delete(),
@@ -9774,7 +10401,7 @@ async function synthesizeDiagnosticListeningAudio({
 
   for (let index = 0; index < chunks.length; index++) {
     const [response] = await retryOperation(
-        () => ttsClient.synthesizeSpeech({
+        () => getTtsClient().synthesizeSpeech({
           input: {text: chunks[index]},
           voice: {
             languageCode: "en-GB",
@@ -10403,15 +11030,683 @@ function diagnosticSafeError(error) {
 }
 
 // ============================================================================
-// CERTIFICATE MODULE
+// CONTENT QA MODULE
 // ============================================================================
 
-const CERTIFICATE_VERIFY_BASE_URL =
-  "https://ieltsaimaster.com/verify";
+const CONTENT_QA_COLLECTIONS = new Set([
+  "listening_tests",
+  "reading_tests",
+  "writing_tasks",
+  "speaking_tests",
+  "vocabulary_words",
+  "diagnostic_tests",
+  "mock_tests",
+]);
+
+function contentQaReference(documentPath) {
+  const path = String(documentPath || "").trim().replace(/^\/+|\/+$/g, "");
+  const segments = path.split("/");
+  const topLevel = segments.length === 2 &&
+    CONTENT_QA_COLLECTIONS.has(segments[0]);
+  const nestedMockQuestion = segments.length === 4 &&
+    segments[0] === "mock_test_bank" &&
+    ["listening", "reading", "writing", "speaking"]
+        .includes(segments[2]);
+  if (!topLevel && !nestedMockQuestion) {
+    throw new HttpsError(
+        "invalid-argument",
+        "This content path is not supported by the QA workflow.",
+    );
+  }
+  return {path, ref: db.doc(path)};
+}
+
+function contentQaState(data) {
+  const status = String(data.status || "").trim().toLowerCase();
+  if (["ready", "generated", "completed"].includes(status)) return "draft";
+  if (status) return status;
+  return data.isPublished === true ? "published" : "draft";
+}
+
+function contentQaValidation(data) {
+  const errors = [];
+  const contentText = String(
+      data.title ??
+      data.name ??
+      data.word ??
+      data.prompt ??
+      data.questionText ??
+      data.taskQuestion ??
+      "",
+  ).trim();
+  if (!contentText) errors.push("Content title or prompt is missing.");
+
+  const generated = Boolean(
+      data.generatedBy || data.generatedModel || data.generationJobId,
+  );
+  const rawSourceType = String(
+      data.sourceType || (generated ? "ai_generated" : ""),
+  ).trim().toLowerCase();
+  const sourceTypeAliases = {
+    ai: "ai_generated",
+    gemini: "ai_generated",
+    generated: "ai_generated",
+    manual: "admin_authored",
+    original: "admin_authored",
+  };
+  const sourceType = sourceTypeAliases[rawSourceType] || rawSourceType;
+  const sourceReference = String(
+      data.sourceReference || data.generationJobId || data.createdBy || "",
+  ).trim();
+  const supportedSourceTypes = new Set([
+    "ai_generated",
+    "admin_authored",
+    "licensed",
+    "public_domain",
+  ]);
+  if (!sourceType) {
+    errors.push("Source type is missing.");
+  } else if (!supportedSourceTypes.has(sourceType)) {
+    errors.push("Source type is not supported by the QA workflow.");
+  }
+  if (!sourceReference) errors.push("Source reference is missing.");
+
+  return {
+    passed: errors.length === 0,
+    errors,
+    sourceType,
+    sourceReference,
+    generated,
+  };
+}
+
+exports.transitionContentQaState = onCall(
+    {
+      region: "us-central1",
+      timeoutSeconds: 60,
+      memory: "256MiB",
+    },
+    async (request) => {
+      const admin = await requirePlatformAdmin(request);
+      await assertAppCheckReady(request, "content_qa_transition");
+      await enforceCallableRateLimit({
+        uid: admin.uid,
+        scope: "content_qa_transition",
+        maximum: 120,
+        windowMs: 60 * 60 * 1000,
+      });
+
+      const {path, ref} = contentQaReference(request.data?.documentPath);
+      const target = String(request.data?.targetState || "")
+          .trim()
+          .toLowerCase();
+      const requestedCopyrightStatus = String(
+          request.data?.copyrightStatus || "",
+      ).trim().toLowerCase();
+      const requestedSourceType = String(
+          request.data?.sourceType || "",
+      ).trim().toLowerCase();
+      const requestedSourceReference = String(
+          request.data?.sourceReference || "",
+      ).trim();
+      const auditRef = db.collection("content_qa_audit").doc();
+
+      return db.runTransaction(async (transaction) => {
+        const snapshot = await transaction.get(ref);
+        if (!snapshot.exists) {
+          throw new HttpsError("not-found", "Content was not found.");
+        }
+        const data = snapshot.data() || {};
+        const current = contentQaState(data);
+        if (!canTransitionQaState(current, target)) {
+          throw new HttpsError(
+              "failed-precondition",
+              `Content cannot move from ${current} to ${target}.`,
+          );
+        }
+
+        const validation = contentQaValidation({
+          ...data,
+          sourceType: requestedSourceType || data.sourceType,
+          sourceReference: requestedSourceReference || data.sourceReference,
+        });
+        const now = FieldValue.serverTimestamp();
+        const update = {
+          schemaVersion: CONTENT_SCHEMA_VERSION,
+          contentSchemaVersion: CONTENT_SCHEMA_VERSION,
+          updatedAt: now,
+        };
+
+        if (target === "validation_passed") {
+          update.validationStatus = validation.passed ? "passed" : "failed";
+          update.validationReport = {
+            passed: validation.passed,
+            errors: validation.errors,
+            validatorVersion: "content_qa_v2",
+          };
+          update.validatedBy = admin.uid;
+          update.validatedAt = now;
+          update.sourceType = validation.sourceType;
+          update.sourceReference = validation.sourceReference;
+          if (validation.generated) {
+            update.generatedBy = String(data.generatedBy || "ai");
+            update.generatedAt = data.generatedAt || data.createdAt || now;
+            update.generatedModel = String(
+                data.generatedModel || data.model || "unknown",
+            );
+          }
+          if (!validation.passed) {
+            transaction.set(ref, update, {merge: true});
+            transaction.set(auditRef, {
+              action: "content.validation_failed",
+              documentPath: path,
+              fromState: current,
+              toState: current,
+              errors: validation.errors,
+              adminUserId: admin.uid,
+              createdAt: now,
+            });
+            return {
+              success: false,
+              state: current,
+              validationStatus: "failed",
+              errors: validation.errors,
+            };
+          }
+        }
+
+        if (target === "approved") {
+          if (String(data.validationStatus || "") !== "passed") {
+            throw new HttpsError(
+                "failed-precondition",
+                "Content must pass validation before approval.",
+            );
+          }
+          const sourceType = String(data.sourceType || "");
+          const copyrightStatus = requestedCopyrightStatus ||
+            (sourceType === "ai_generated" ? "ai_generated_reviewed" : "");
+          const allowedCopyrightBySource = {
+            ai_generated: "ai_generated_reviewed",
+            admin_authored: "original_content_reviewed",
+            licensed: "licensed_use_verified",
+            public_domain: "public_domain_verified",
+          };
+          if (!copyrightStatus ||
+              allowedCopyrightBySource[sourceType] !== copyrightStatus) {
+            throw new HttpsError(
+                "failed-precondition",
+                "The rights-review status does not match the content source.",
+            );
+          }
+          update.reviewedBy = admin.uid;
+          update.reviewedAt = now;
+          update.approvedBy = admin.uid;
+          update.approvedAt = now;
+          update.copyrightStatus = copyrightStatus;
+        }
+
+        if (target === "published") {
+          const required = [
+            data.sourceType,
+            data.sourceReference,
+            data.copyrightStatus,
+            data.reviewedBy,
+            data.approvedBy,
+          ].every((value) => String(value || "").trim());
+          if (String(data.validationStatus || "") !== "passed" || !required) {
+            throw new HttpsError(
+                "failed-precondition",
+                "Approved content is missing required QA or provenance metadata.",
+            );
+          }
+          update.isPublished = true;
+          update.publishedBy = admin.uid;
+          update.publishedAt = now;
+        } else {
+          update.isPublished = false;
+          if (target === "draft" || target === "archived") {
+            update.publishedAt = null;
+          }
+        }
+
+        update.status = target;
+        transaction.set(ref, update, {merge: true});
+        transaction.set(auditRef, {
+          action: `content.${target}`,
+          documentPath: path,
+          fromState: current,
+          toState: target,
+          adminUserId: admin.uid,
+          adminEmail: admin.email,
+          createdAt: now,
+        });
+        return {success: true, state: target, validationStatus: "passed"};
+      });
+    },
+);
+
+exports.getContentQaDashboard = onCall(
+    {
+      region: "us-central1",
+      timeoutSeconds: 60,
+      memory: "512MiB",
+    },
+    async (request) => {
+      await requirePlatformAdmin(request);
+      await assertAppCheckReady(request, "content_qa_dashboard");
+      const counts = {
+        awaitingReview: 0,
+        validationFailed: 0,
+        approved: 0,
+        published: 0,
+        missingProvenance: 0,
+        legacyContent: 0,
+        failedGenerationJobs: 0,
+        certificateAuditReports: 0,
+      };
+      const items = [];
+      for (const collection of CONTENT_QA_COLLECTIONS) {
+        const snapshot = await db.collection(collection).limit(250).get();
+        for (const doc of snapshot.docs) {
+          const data = doc.data() || {};
+          const state = contentQaState(data);
+          const validationStatus = String(data.validationStatus || "");
+          if (state === "draft" || state === "validation_passed") {
+            counts.awaitingReview++;
+          }
+          if (validationStatus === "failed") counts.validationFailed++;
+          if (state === "approved") counts.approved++;
+          if (state === "published") counts.published++;
+          if (!data.sourceType || !data.sourceReference) {
+            counts.missingProvenance++;
+          }
+          if (!data.schemaVersion && state === "published") {
+            counts.legacyContent++;
+          }
+          if (items.length < 100 && state !== "published") {
+            items.push({
+              documentPath: `${collection}/${doc.id}`,
+              title: String(data.title || data.name || data.word || doc.id),
+              state,
+              validationStatus,
+              sourceType: String(data.sourceType || ""),
+              missingProvenance: !data.sourceType || !data.sourceReference,
+              legacy: !data.schemaVersion,
+            });
+          }
+        }
+      }
+      for (const skill of ["listening", "reading", "writing", "speaking"]) {
+        const snapshot = await db.collectionGroup(skill).limit(250).get();
+        for (const doc of snapshot.docs) {
+          if (!doc.ref.path.startsWith("mock_test_bank/")) continue;
+          const data = doc.data() || {};
+          const state = contentQaState(data);
+          const validationStatus = String(data.validationStatus || "");
+          if (state === "draft" || state === "validation_passed") {
+            counts.awaitingReview++;
+          }
+          if (validationStatus === "failed") counts.validationFailed++;
+          if (state === "approved") counts.approved++;
+          if (state === "published") counts.published++;
+          if (!data.sourceType || !data.sourceReference) {
+            counts.missingProvenance++;
+          }
+          if (!data.schemaVersion && state === "published") {
+            counts.legacyContent++;
+          }
+          if (items.length < 100 && state !== "published") {
+            items.push({
+              documentPath: doc.ref.path,
+              title: String(data.title || data.prompt || doc.id),
+              state,
+              validationStatus,
+              sourceType: String(data.sourceType || ""),
+              missingProvenance: !data.sourceType || !data.sourceReference,
+              legacy: !data.schemaVersion,
+            });
+          }
+        }
+      }
+      const [failedJobs, failedDiagnosticJobs, certificateAudits] =
+        await Promise.all([
+        db.collection("generation_jobs")
+            .where("status", "==", "failed").limit(250).get(),
+        db.collection("diagnostic_generation_jobs")
+            .where("status", "==", "failed").limit(250).get(),
+        db.collection("certificate_integrity_audits").limit(250).get(),
+      ]);
+      counts.failedGenerationJobs = failedJobs.size + failedDiagnosticJobs.size;
+      counts.certificateAuditReports = certificateAudits.size;
+      return {success: true, counts, items};
+    },
+);
+
+// ============================================================================
+// MOBILE RELEASE POLICY + ACCOUNT DELETION
+// ============================================================================
+
+exports.getMobileReleasePolicy = onCall(
+    {
+      region: "us-central1",
+      timeoutSeconds: 30,
+      memory: "256MiB",
+      cors: true,
+    },
+    async (request) => {
+      const platform = String(request.data?.platform || "")
+          .trim()
+          .toLowerCase();
+      const buildNumber = Number(request.data?.buildNumber || 0);
+      const enforcementEnabled = String(
+          mobileVersionEnforcement.value() || "false",
+      ).toLowerCase() === "true";
+      const decision = mobileReleaseDecision({
+        platform,
+        buildNumber,
+        minimumAndroidBuild: minimumAndroidBuildNumber.value(),
+        minimumIosBuild: minimumIosBuildNumber.value(),
+        enforcementEnabled,
+      });
+      if (!decision.supportedPlatform) {
+        throw new HttpsError(
+            "invalid-argument",
+            "A supported mobile platform is required.",
+        );
+      }
+      return {
+        enforcementEnabled,
+        updateRequired: decision.updateRequired,
+        minimumBuildNumber: decision.minimumBuildNumber,
+        minimumVersion: String(minimumSupportedAppVersion.value() || ""),
+        message: String(mobileUpdateMessage.value() || "").slice(0, 500),
+        storeUrl: platform === "android" ?
+          String(androidStoreUrl.value() || "") :
+          String(iosStoreUrl.value() || ""),
+        policyVersion: "mobile_release_v1_2026_08",
+      };
+    },
+);
+
+const ACCOUNT_DELETION_CONFIRMATION = "DELETE";
+const ACCOUNT_DELETION_RECENT_AUTH_SECONDS = 10 * 60;
+const ACCOUNT_DELETION_LOCK_RETENTION_MS = 24 * 60 * 60 * 1000;
+const ACCOUNT_DELETION_AUDIT_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+const ACCOUNT_DELETION_QUERY_BATCH_SIZE = 100;
+const LEARNER_RATE_LIMIT_SCOPES = [
+  "diagnostic_finalize",
+  "legacy_ai_assist",
+  "study_activity",
+];
+const TOP_LEVEL_LEARNER_DATA = [
+  {collection: "writing_submissions", fields: ["userId", "uid"]},
+  {collection: "speaking_submissions", fields: ["userId", "uid"]},
+  {collection: "mock_evaluation_jobs", fields: ["userId", "uid"]},
+  {collection: "subscription_requests", fields: ["userId", "uid"]},
+  {collection: "subscription_audit_logs", fields: ["userId", "uid"]},
+];
+
+async function accountDeletionLockExists(uid) {
+  const lock = await db.collection("account_deletion_locks").doc(uid).get();
+  return lock.exists;
+}
+
+async function assertAccountDeletionNotInProgress(uid) {
+  if (await accountDeletionLockExists(uid)) {
+    throw new HttpsError(
+        "permission-denied",
+        "This account is being deleted and cannot create new data.",
+    );
+  }
+}
+
+async function deleteQueryRecursively(query) {
+  let deleted = 0;
+  while (true) {
+    const snapshot = await query.limit(ACCOUNT_DELETION_QUERY_BATCH_SIZE).get();
+    if (snapshot.empty) return deleted;
+    for (const document of snapshot.docs) {
+      await db.recursiveDelete(document.ref);
+      deleted++;
+    }
+  }
+}
+
+async function deleteTopLevelLearnerData(uid) {
+  let deleted = 0;
+  for (const target of TOP_LEVEL_LEARNER_DATA) {
+    for (const field of target.fields) {
+      deleted += await deleteQueryRecursively(
+          db.collection(target.collection).where(field, "==", uid),
+      );
+    }
+  }
+  return deleted;
+}
+
+async function deleteCertificateRegistryData(verificationCodes) {
+  let deleted = 0;
+  for (const code of verificationCodes) {
+    const registryRef = db.collection("certificate_verifications").doc(code);
+    const registry = await registryRef.get();
+    if (registry.exists) {
+      await registryRef.delete();
+      deleted++;
+    }
+    deleted += await deleteQueryRecursively(
+        db.collection("certificate_status_audit")
+            .where("verificationCode", "==", code),
+    );
+  }
+  return deleted;
+}
+
+async function deleteLearnerRateLimits(uid) {
+  for (const scope of LEARNER_RATE_LIMIT_SCOPES) {
+    const id = crypto.createHash("sha256")
+        .update(`${scope}|${uid}`)
+        .digest("hex");
+    await db.collection("callable_rate_limits").doc(id).delete();
+  }
+}
+
+async function deleteLearnerStorage(uid) {
+  const prefixes = [
+    `profile_images/${uid}.`,
+    `speaking_recordings/${uid}/`,
+    `diagnostic_speaking/${uid}/`,
+  ];
+  let deleted = 0;
+  for (const prefix of prefixes) {
+    const [files] = await bucket.getFiles({prefix});
+    for (const file of files) {
+      await file.delete({ignoreNotFound: true});
+      deleted++;
+    }
+  }
+  return deleted;
+}
+
+exports.deleteLearnerAccount = onCall(
+    {
+      region: "us-central1",
+      timeoutSeconds: 540,
+      memory: "1GiB",
+    },
+    async (request) => {
+      if (!request.auth) {
+        throw new HttpsError(
+            "unauthenticated",
+            "Sign-in is required to delete an account.",
+        );
+      }
+      if (String(request.data?.confirmation || "") !==
+          ACCOUNT_DELETION_CONFIRMATION) {
+        throw new HttpsError(
+            "invalid-argument",
+            "Explicit account-deletion confirmation is required.",
+        );
+      }
+      const authTime = Number(request.auth.token?.auth_time || 0);
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      if (!authTime ||
+          nowSeconds - authTime > ACCOUNT_DELETION_RECENT_AUTH_SECONDS) {
+        throw new HttpsError(
+            "failed-precondition",
+            "Sign in again before permanently deleting this account.",
+        );
+      }
+
+      const uid = request.auth.uid;
+      const lockRef = db.collection("account_deletion_locks").doc(uid);
+      const userRef = db.collection("users").doc(uid);
+      const auditRef = db.collection("account_deletion_audit").doc();
+      const subjectHash = deletionSubjectHash(uid);
+      await lockRef.set({
+        status: "in_progress",
+        requestedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+
+      try {
+        await getAuth().updateUser(uid, {disabled: true});
+        await getAuth().revokeRefreshTokens(uid);
+
+        const certificateSnapshot = await userRef
+            .collection("certificates")
+            .get();
+        const verificationCodes = [...new Set(
+          certificateSnapshot.docs
+              .map((document) => String(
+                  document.data().verificationCode || "",
+              ).trim().toUpperCase())
+              .filter(Boolean),
+        )];
+
+        let deletedDocuments = await deleteTopLevelLearnerData(uid);
+        deletedDocuments += await deleteCertificateRegistryData(
+            verificationCodes,
+        );
+        await deleteLearnerRateLimits(uid);
+        const deletedStorageObjects = await deleteLearnerStorage(uid);
+        await db.recursiveDelete(userRef);
+        deletedDocuments += await deleteTopLevelLearnerData(uid);
+
+        await getAuth().deleteUser(uid);
+        const completedAt = FieldValue.serverTimestamp();
+        await auditRef.set({
+          subjectHash,
+          status: "completed",
+          deletedDocuments,
+          deletedStorageObjects,
+          deletedCertificateRegistryRecords: verificationCodes.length,
+          createdAt: completedAt,
+          expiresAt: new Date(
+              Date.now() + ACCOUNT_DELETION_AUDIT_RETENTION_MS,
+          ),
+        });
+        await lockRef.set({
+          status: "completed",
+          completedAt,
+          updatedAt: completedAt,
+          expiresAt: new Date(
+              Date.now() + ACCOUNT_DELETION_LOCK_RETENTION_MS,
+          ),
+        }, {merge: true});
+
+        return {
+          success: true,
+          deletionVersion: "server_account_deletion_v1_2026_08",
+        };
+      } catch (error) {
+        await lockRef.set({
+          status: "failed",
+          errorCode: "account_deletion_incomplete",
+          updatedAt: FieldValue.serverTimestamp(),
+        }, {merge: true});
+        logger.error("Server-side account deletion failed.", {
+          subjectHash,
+          error: safeErrorMessage(error),
+        });
+        throw new HttpsError(
+            "internal",
+            "Account deletion could not be completed. Retry after signing in again.",
+        );
+      }
+    },
+);
+
+// ============================================================================
+// CERTIFICATE MODULE
+// ============================================================================
 
 const CERTIFICATE_CODE_PATTERN = /^IAM-\d{4}-[A-F0-9]{10}$/;
 const CERTIFICATE_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const CERTIFICATE_RATE_LIMIT_MAX_REQUESTS = 30;
+
+/**
+ * Keeps callable endpoints ready for App Check enforcement without making a
+ * console-side rollout a breaking mobile release. Set REQUIRE_APP_CHECK=true
+ * after production App Check registration and token monitoring are complete.
+ *
+ * @param {import("firebase-functions/v2/https").CallableRequest} request
+ * @param {string} operation
+ * @return {Promise<void>}
+ */
+async function assertAppCheckReady(request, operation) {
+  if (request.app) return;
+
+  logger.warn("Callable request is missing App Check attestation.", {
+    operation,
+    authenticated: Boolean(request.auth),
+  });
+
+  if (String(process.env.REQUIRE_APP_CHECK || "").toLowerCase() === "true") {
+    throw new HttpsError(
+        "failed-precondition",
+        "App verification is required. Update the app and try again.",
+    );
+  }
+}
+
+/**
+ * Server-owned fixed-window rate limiter for privileged/authenticated calls.
+ * No prompts, answer text, email address, IP address or audio URL is logged.
+ *
+ * @param {{uid:string, scope:string, maximum:number, windowMs:number}} options
+ * @return {Promise<void>}
+ */
+async function enforceCallableRateLimit({uid, scope, maximum, windowMs}) {
+  await assertAccountDeletionNotInProgress(uid);
+  const id = crypto.createHash("sha256")
+      .update(`${scope}|${uid}`)
+      .digest("hex");
+  const ref = db.collection("callable_rate_limits").doc(id);
+  const now = Date.now();
+
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    const data = snapshot.data() || {};
+    const start = Number(data.windowStartedAt || 0);
+    const active = now - start < windowMs;
+    const count = active ? Number(data.requestCount || 0) : 0;
+
+    if (count >= maximum) {
+      throw new HttpsError(
+          "resource-exhausted",
+          "Request limit reached. Please wait and try again.",
+      );
+    }
+
+    transaction.set(ref, {
+      scope,
+      windowStartedAt: active ? start : now,
+      requestCount: count + 1,
+      expiresAt: new Date(now + windowMs * 2),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+  });
+}
 
 /**
  * Confirms that a callable request was made by an enabled platform admin.
@@ -10427,17 +11722,9 @@ async function requirePlatformAdmin(request) {
   }
 
   const uid = request.auth.uid;
-  const tokenRole = String(request.auth.token?.role || "").toLowerCase();
-  const claimAllowsAdmin = request.auth.token?.admin === true ||
-    tokenRole === "admin" || tokenRole === "super_admin";
-
   const adminDoc = await db.collection("admins").doc(uid).get();
   const admin = adminDoc.data() || {};
-  const storedRole = String(admin.role || "").toLowerCase();
-  const storedAllowsAdmin = admin.isAdmin === true ||
-    storedRole === "admin" || storedRole === "super_admin";
-
-  if (!claimAllowsAdmin && !storedAllowsAdmin) {
+  if (!hasPlatformAdminAccess(request.auth.token || {}, admin)) {
     throw new HttpsError(
         "permission-denied",
         "This account does not have administrator permission.",
@@ -10527,6 +11814,7 @@ exports.verifyCertificate = onCall(
       }
 
       const certificate = snapshot.data() || {};
+      const status = resolveCredentialStatus(certificate.status);
 
       // Deliberately return an allow-listed public projection. Private source
       // paths, user IDs, email addresses and internal metadata never leave the
@@ -10538,16 +11826,110 @@ exports.verifyCertificate = onCall(
           certificateId: String(certificate.certificateId || ""),
           achievementType: String(certificate.achievementType || ""),
           certificateType: String(certificate.certificateType || ""),
+          credentialType: String(
+              certificate.credentialType || "legacy_certificate",
+          ),
+          credentialSchemaVersion: Number(
+              certificate.credentialSchemaVersion || 0,
+          ),
           title: String(certificate.title || ""),
           userName: String(certificate.userName || "IELTS Learner"),
           issuer: String(certificate.issuer || "IELTS AI Master"),
-          status: String(certificate.status || "invalid"),
+          status,
           disclaimer: String(certificate.disclaimer || ""),
           band: certificateNumber(certificate.band),
+          estimatedPracticeBand: certificateNumber(
+              certificate.estimatedPracticeBand || certificate.band,
+          ),
+          skillEstimatedPracticeBands:
+            certificateSkillBands(certificate.skillEstimatedPracticeBands),
+          scoringVersion: String(
+              certificate.scoringVersion || "legacy_unversioned",
+          ),
+          assessmentDate: certificate.assessmentDate || null,
           issuedAt: certificate.issuedAt || null,
+          revokedAt: certificate.revokedAt || null,
+          revocationReason: status === "revoked" ?
+            String(certificate.revocationReason || "") : "",
           qrStatus: "matched",
         },
       };
+    },
+);
+
+exports.updateCertificateStatus = onCall(
+    {
+      region: "us-central1",
+      timeoutSeconds: 60,
+      memory: "256MiB",
+    },
+    async (request) => {
+      const admin = await requirePlatformAdmin(request);
+      await assertAppCheckReady(request, "certificate_status_update");
+      const verificationCode = String(request.data?.verificationCode || "")
+          .trim()
+          .toUpperCase();
+      const status = resolveCredentialStatus(request.data?.status);
+      const reason = String(request.data?.reason || "").trim().slice(0, 500);
+      if (!CERTIFICATE_CODE_PATTERN.test(verificationCode) ||
+          !["valid", "revoked"].includes(status)) {
+        throw new HttpsError(
+            "invalid-argument",
+            "A valid credential code and lifecycle status are required.",
+        );
+      }
+      if (status === "revoked" && reason.length < 5) {
+        throw new HttpsError(
+            "invalid-argument",
+            "A clear revocation reason is required.",
+        );
+      }
+
+      const registryRef = db.collection("certificate_verifications")
+          .doc(verificationCode);
+      const registrySnapshot = await registryRef.get();
+      if (!registrySnapshot.exists) {
+        throw new HttpsError("not-found", "Credential was not found.");
+      }
+      const registry = registrySnapshot.data() || {};
+      let certificatePath = String(registry.certificatePath || "").trim();
+      if (!certificatePath) {
+        const matches = await db.collectionGroup("certificates")
+            .where("verificationCode", "==", verificationCode)
+            .limit(1)
+            .get();
+        certificatePath = matches.empty ? "" : matches.docs[0].ref.path;
+      }
+      const auditRef = db.collection("certificate_status_audit").doc();
+      const now = FieldValue.serverTimestamp();
+      const previousStatus = resolveCredentialStatus(registry.status);
+      const update = {
+        status,
+        statusUpdatedAt: now,
+        statusUpdatedBy: admin.uid,
+        revokedAt: status === "revoked" ? now : null,
+        revokedBy: status === "revoked" ? admin.uid : null,
+        revocationReason: status === "revoked" ? reason : "",
+        updatedAt: now,
+      };
+      const batch = db.batch();
+      batch.set(registryRef, update, {merge: true});
+      if (certificatePath) {
+        batch.set(db.doc(certificatePath), update, {merge: true});
+      }
+      batch.set(auditRef, {
+        verificationCode,
+        certificateId: String(registry.certificateId || ""),
+        certificatePath,
+        fromStatus: previousStatus,
+        toStatus: status,
+        changedBy: admin.uid,
+        changedByEmail: admin.email,
+        reason: status === "revoked" ? reason : "Credential reinstated",
+        createdAt: now,
+      });
+      await batch.commit();
+      return {success: true, verificationCode, status};
     },
 );
 
@@ -10612,6 +11994,171 @@ exports.setLearnerAccountStatus = onCall(
     },
 );
 
+exports.reviewSubscriptionRequest = onCall(
+    {
+      region: "us-central1",
+      timeoutSeconds: 30,
+      memory: "256MiB",
+    },
+    async (request) => {
+      const admin = await requirePlatformAdmin(request);
+      await assertAppCheckReady(request, "subscription_review");
+      await enforceCallableRateLimit({
+        uid: admin.uid,
+        scope: "subscription_review",
+        maximum: 120,
+        windowMs: 60 * 60 * 1000,
+      });
+
+      const requestId = String(request.data?.requestId || "").trim();
+      const action = String(request.data?.action || "").trim().toLowerCase();
+      const reason = String(request.data?.reason || "").trim().slice(0, 500);
+
+      if (!requestId || !["approve", "reject"].includes(action)) {
+        throw new HttpsError(
+            "invalid-argument",
+            "A request ID and approve/reject action are required.",
+        );
+      }
+      if (action === "reject" && reason.length < 5) {
+        throw new HttpsError(
+            "invalid-argument",
+            "A clear rejection reason is required.",
+        );
+      }
+
+      const subscriptionRef = db.collection("subscription_requests")
+          .doc(requestId);
+      const auditRef = db.collection("subscription_audit_logs").doc();
+
+      const outcome = await db.runTransaction(async (transaction) => {
+        const subscriptionSnapshot = await transaction.get(subscriptionRef);
+        if (!subscriptionSnapshot.exists) {
+          throw new HttpsError(
+              "not-found",
+              "Subscription request was not found.",
+          );
+        }
+
+        const subscription = subscriptionSnapshot.data() || {};
+        const status = String(subscription.status || "pending").toLowerCase();
+        if (status !== "pending") {
+          throw new HttpsError(
+              "failed-precondition",
+              `This request has already been ${status}.`,
+          );
+        }
+
+        const userId = String(subscription.userId || "").trim();
+        if (!userId) {
+          throw new HttpsError(
+              "failed-precondition",
+              "Subscription request has no learner ID.",
+          );
+        }
+        const userRef = db.collection("users").doc(userId);
+        const userSnapshot = await transaction.get(userRef);
+        if (!userSnapshot.exists) {
+          throw new HttpsError("not-found", "Learner account was not found.");
+        }
+
+        const commonRequestUpdate = {
+          status: action === "approve" ? "approved" : "rejected",
+          reviewedAt: FieldValue.serverTimestamp(),
+          reviewedBy: admin.uid,
+          reviewedByEmail: admin.email,
+          updatedAt: FieldValue.serverTimestamp(),
+        };
+        const commonAudit = {
+          auditId: auditRef.id,
+          action: action === "approve" ? "approved" : "rejected",
+          requestId,
+          userId,
+          planId: String(subscription.planId || ""),
+          performedBy: admin.uid,
+          performedByEmail: admin.email,
+          createdAt: FieldValue.serverTimestamp(),
+        };
+
+        if (action === "reject") {
+          transaction.set(subscriptionRef, {
+            ...commonRequestUpdate,
+            rejectionReason: reason,
+          }, {merge: true});
+          transaction.set(userRef, {
+            subscriptionRequestStatus: "rejected",
+            subscriptionRejectionReason: reason,
+            subscriptionUpdatedAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          }, {merge: true});
+          transaction.set(auditRef, {...commonAudit, reason});
+          return {status: "rejected", userId};
+        }
+
+        const durationDays = Math.min(
+            3660,
+            Math.max(1, Number(subscription.durationDays || 30)),
+        );
+        const currentUser = userSnapshot.data() || {};
+        const currentExpiry = currentUser.subscriptionExpiresAt?.toDate?.();
+        const now = new Date();
+        const effectiveStart = currentExpiry instanceof Date &&
+            currentExpiry > now ? currentExpiry : now;
+        const expiry = new Date(
+            effectiveStart.getTime() + durationDays * 24 * 60 * 60 * 1000,
+        );
+        const planId = String(subscription.planId || "");
+        const planTitle = String(subscription.planTitle || "Premium Plan");
+
+        transaction.set(subscriptionRef, {
+          ...commonRequestUpdate,
+          approvedAt: FieldValue.serverTimestamp(),
+          subscriptionStartsAt: effectiveStart,
+          subscriptionExpiresAt: expiry,
+        }, {merge: true});
+        transaction.set(userRef, {
+          subscription: {
+            status: "active",
+            planId,
+            planTitle,
+            amount: Number(subscription.amount || 0),
+            currency: String(subscription.currency || "PKR"),
+            startedAt: effectiveStart,
+            expiresAt: expiry,
+            requestId,
+            approvedAt: FieldValue.serverTimestamp(),
+          },
+          subscriptionStatus: "active",
+          subscriptionPlan: planId,
+          subscriptionPlanTitle: planTitle,
+          subscriptionStartAt: effectiveStart,
+          subscriptionExpiresAt: expiry,
+          subscriptionRequestStatus: "approved",
+          subscriptionRequestId: requestId,
+          isPremium: true,
+          premium: true,
+          premiumPlan: planId,
+          premiumStart: effectiveStart,
+          premiumExpiresAt: expiry,
+          subscriptionUpdatedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, {merge: true});
+        transaction.set(auditRef, {
+          ...commonAudit,
+          amount: Number(subscription.amount || 0),
+          durationDays,
+        });
+        return {
+          status: "approved",
+          userId,
+          subscriptionExpiresAt: expiry.toISOString(),
+        };
+      });
+
+      return {success: true, requestId, ...outcome};
+    },
+);
+
 exports.issueAchievementCertificate = onCall(
     {
       region: "us-central1",
@@ -10627,6 +12174,7 @@ exports.issueAchievementCertificate = onCall(
       }
 
       const uid = request.auth.uid;
+      await assertAccountDeletionNotInProgress(uid);
       const achievementType = String(
           request.data?.achievementType || "",
       ).trim();
@@ -10656,6 +12204,84 @@ exports.issueAchievementCertificate = onCall(
     },
 );
 
+exports.recordStudyActivity = onCall(
+    {
+      region: "us-central1",
+      timeoutSeconds: 30,
+      memory: "256MiB",
+    },
+    async (request) => {
+      if (!request.auth) {
+        throw new HttpsError("unauthenticated", "Sign-in is required.");
+      }
+      await assertAppCheckReady(request, "study_activity");
+      await enforceCallableRateLimit({
+        uid: request.auth.uid,
+        scope: "study_activity",
+        maximum: 30,
+        windowMs: 60 * 60 * 1000,
+      });
+
+      const uid = request.auth.uid;
+      const userRef = db.collection("users").doc(uid);
+      const now = new Date();
+      const today = now.toISOString().slice(0, 10);
+      const yesterdayDate = new Date(now);
+      yesterdayDate.setUTCDate(yesterdayDate.getUTCDate() - 1);
+      const yesterday = yesterdayDate.toISOString().slice(0, 10);
+
+      const result = await db.runTransaction(async (transaction) => {
+        const snapshot = await transaction.get(userRef);
+        if (!snapshot.exists) {
+          throw new HttpsError("not-found", "Learner profile was not found.");
+        }
+        const user = snapshot.data() || {};
+        if (user.isDisabled === true ||
+            ["blocked", "disabled", "suspended"].includes(
+                String(user.accountStatus || "active").toLowerCase(),
+            )) {
+          throw new HttpsError(
+              "permission-denied",
+              "This learner account is suspended.",
+          );
+        }
+
+        const streak = calculateServerStreak({
+          lastActiveDate: String(user.serverLastActiveDate || ""),
+          today,
+          yesterday,
+          currentStreak: user.serverStreak,
+          longestStreak: user.serverLongestStreak,
+        });
+        if (!streak.changed) return streak;
+
+        transaction.set(userRef, {
+          serverStreak: streak.current,
+          serverLongestStreak: streak.longest,
+          serverLastActiveDate: today,
+          serverLastActiveAt: FieldValue.serverTimestamp(),
+          serverStreakVersion: 1,
+          // Continue populating legacy display fields during migration.
+          currentStreak: streak.current,
+          streak: streak.current,
+          longestStreak: streak.longest,
+          lastActiveDate: today,
+          activityDates: FieldValue.arrayUnion(today),
+          lastDashboardVisitAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, {merge: true});
+        return streak;
+      });
+
+      return {
+        success: true,
+        changed: result.changed,
+        currentStreak: result.current,
+        longestStreak: result.longest,
+      };
+    },
+);
+
 exports.syncAchievementCertificates = onCall(
     {
       region: "us-central1",
@@ -10671,16 +12297,14 @@ exports.syncAchievementCertificates = onCall(
       }
 
       const uid = request.auth.uid;
+      await assertAccountDeletionNotInProgress(uid);
       const userRef = db.collection("users").doc(uid);
       const userDoc = await userRef.get();
       const user = userDoc.data() || {};
       const issued = [];
-
-      const currentBand = certificateNumber(
-          user.currentBand ??
-          user.estimatedBand ??
-          user.overallBand,
-      );
+      const trustedAssessment = await findLatestTrustedAssessment(userRef);
+      const currentBand = trustedAssessment ?
+        certificateNumber(trustedAssessment.band) : 0;
       const targetBand = resolveCertificateTargetBand(user);
 
       if (currentBand > 0 &&
@@ -10695,34 +12319,33 @@ exports.syncAchievementCertificates = onCall(
               achievementType: "target_band",
               sourceId,
               payload: {
-                title:
-                  `Target Band ${targetBand.toFixed(1)} Achievement`,
-                certificateType: "Target Band Achievement",
-                band: currentBand,
-                sourceCollection: "users",
+                title: "Practice Goal Completion",
+                certificateType: "Practice Completion Certificate",
+                credentialType: "practice_completion",
+                band: 0,
+                sourceCollection: trustedAssessment.collection,
+                sourceAssessmentId: trustedAssessment.id,
               },
             }),
         );
       }
 
-      const streak = Math.max(
-          certificateNumber(user.currentStreak),
-          certificateNumber(user.streak),
-      );
-
+      const serverStreak = user.serverStreakVersion === 1 ?
+        certificateNumber(user.serverStreak) : 0;
       for (const milestone of [7, 30, 100]) {
-        if (streak < milestone) continue;
-
+        if (serverStreak < milestone) continue;
         issued.push(
             await createAchievementCertificateIfMissing({
               uid,
               achievementType: "study_streak",
-              sourceId: `streak_${milestone}`,
+              sourceId: `server_streak_${milestone}_v1`,
               payload: {
                 title: `${milestone}-Day Study Streak`,
-                certificateType: "Study Streak Achievement",
+                certificateType: "Practice Completion Certificate",
+                credentialType: "practice_completion",
                 band: 0,
                 sourceCollection: "users",
+                sourceAssessmentId: `server_streak_${milestone}_v1`,
               },
             }),
         );
@@ -10763,14 +12386,18 @@ async function buildVerifiedCertificatePayload({
 
     const data = result.snapshot.data() || {};
 
+    if (!isServerAttestedCompleteAssessment(data)) {
+      throw new HttpsError(
+          "failed-precondition",
+          "Diagnostic completion is not server-attested.",
+      );
+    }
+
     return {
-      title: "IELTS Diagnostic Assessment Completion",
-      certificateType: "Diagnostic Completion",
-      band: certificateNumber(
-          data.overallBand ??
-          data.estimatedBand ??
-          data.currentBand,
-      ),
+      title: "Diagnostic Practice Completion",
+      certificateType: "Practice Completion Certificate",
+      credentialType: "practice_completion",
+      band: 0,
       sourceCollection: result.collection,
     };
   }
@@ -10799,30 +12426,29 @@ async function buildVerifiedCertificatePayload({
         {};
     const status = String(data.status || "").toLowerCase();
 
-    const completionStatuses = new Set([
-      "completed",
-      "evaluated",
-      "ready",
-      "submitted",
-    ]);
-
-    if (!completionStatuses.has(status) &&
-        Object.keys(nestedResult).length === 0) {
+    if (status !== "completed" ||
+        !isServerAttestedCompleteAssessment(nestedResult)) {
       throw new HttpsError(
           "failed-precondition",
-          "Full mock evaluation is not complete.",
+          "Full mock evaluation is not complete and server-attested.",
       );
     }
 
     return {
-      title: "Full IELTS Mock Test Completion",
-      certificateType: "Mock Test Completion",
+      title: "Four-Skill Mock Assessment Report",
+      certificateType: "Mock Assessment Report",
+      credentialType: "mock_assessment_report",
       band: certificateNumber(
           nestedResult.overallBand ??
           nestedResult.estimatedBand ??
           data.overallBand ??
           data.estimatedBand,
       ),
+      skillBands: nestedResult.skills || nestedResult.skillBands || {},
+      scoringVersion: String(
+          nestedResult.scoringVersion || "legacy_unversioned",
+      ),
+      assessmentDate: nestedResult.evaluatedAt || data.completedAt || null,
       sourceCollection: result.collection,
     };
   }
@@ -10831,6 +12457,33 @@ async function buildVerifiedCertificatePayload({
       "invalid-argument",
       `Unsupported achievement type: ${achievementType}`,
   );
+}
+
+async function findLatestTrustedAssessment(userRef) {
+  const sources = [
+    {collection: "diagnostic_results", nested: false},
+    {collection: "diagnosticResults", nested: false},
+    {collection: "mock_attempts", nested: true},
+    {collection: "mockAttempts", nested: true},
+  ];
+  let best = null;
+
+  for (const source of sources) {
+    const snapshot = await userRef.collection(source.collection).limit(50).get();
+    for (const doc of snapshot.docs) {
+      const root = doc.data() || {};
+      const data = source.nested && root.result &&
+          typeof root.result === "object" ? root.result : root;
+      if (source.nested && String(root.status || "") !== "completed") continue;
+      if (!isServerAttestedCompleteAssessment(data)) continue;
+      const band = certificateNumber(data.overallBand ?? data.estimatedBand);
+      if (!best || band > best.band) {
+        best = {id: doc.id, collection: source.collection, band};
+      }
+    }
+  }
+
+  return best;
 }
 
 async function findCertificateSourceDocument({
@@ -10930,9 +12583,34 @@ async function createAchievementCertificateIfMissing({
         }
 
         const user = userDoc.data() || {};
-        const verificationUrl =
-          `${CERTIFICATE_VERIFY_BASE_URL}/${verificationCode}`;
+        const verificationUrl = canonicalVerificationUrl({
+          code: verificationCode,
+          origin: certificateVerificationOrigin.value(),
+        });
         const issuedAt = FieldValue.serverTimestamp();
+        const credentialType = String(
+            payload.credentialType || "practice_completion",
+        );
+        const isAssessmentReport = credentialType ===
+          "mock_assessment_report";
+        const publicSkillBands = isAssessmentReport ?
+          certificateSkillBands(payload.skillBands) : {};
+        const practiceBand = certificateNumber(payload.band);
+        if (!certificateTypeEligible({
+          credentialType,
+          hasBand: practiceBand > 0,
+          completeSkills: Object.keys(publicSkillBands),
+        })) {
+          throw new HttpsError(
+              "failed-precondition",
+              "This result is not eligible for the requested credential type.",
+          );
+        }
+        const disclaimer =
+          "Practice credential only — not an official IELTS result or " +
+          "Test Report Form (TRF). IELTS AI Master is an independent " +
+          "preparation platform and is not endorsed by or affiliated with " +
+          "IELTS, the British Council, IDP or Cambridge.";
 
         const certificate = {
           certificateId,
@@ -10941,6 +12619,14 @@ async function createAchievementCertificateIfMissing({
           sourceCollection: String(
               payload.sourceCollection || "",
           ),
+          sourceAssessmentId: String(
+              payload.sourceAssessmentId || sourceId,
+          ),
+          serverAttested: true,
+          attestationVersion: 1,
+          schemaVersion: CREDENTIAL_SCHEMA_VERSION,
+          credentialSchemaVersion: CREDENTIAL_SCHEMA_VERSION,
+          credentialType,
           title: String(payload.title || "").trim(),
           certificateType: String(
               payload.certificateType || "Course Completion",
@@ -10955,18 +12641,26 @@ async function createAchievementCertificateIfMissing({
           userEmail: String(
               user.email || "",
           ).trim(),
-          band: certificateNumber(payload.band),
+          // Keep the legacy band alias readable, but only assessment reports
+          // carry a prospective practice band.
+          band: isAssessmentReport ? practiceBand : 0,
+          estimatedPracticeBand:
+            isAssessmentReport ? practiceBand : 0,
+          skillEstimatedPracticeBands: publicSkillBands,
+          scoringVersion: isAssessmentReport ?
+            String(payload.scoringVersion || "legacy_unversioned") : "",
+          assessmentDate: isAssessmentReport ?
+            payload.assessmentDate || null : null,
           verificationCode,
           verificationUrl,
           issuer: "IELTS AI Master",
           status: "valid",
-          disclaimer:
-            "Certificate of Course Completion\n\n" +
-            "This certificate confirms completion of training and " +
-            "assessments within IELTS AI Master.\n\n" +
-            "This is NOT an official IELTS score or an official " +
-            "IELTS certificate.",
+          disclaimer,
           issuedAt,
+          issuedBy: "server:certificate_service",
+          revokedAt: null,
+          revokedBy: null,
+          revocationReason: "",
           updatedAt: issuedAt,
         };
 
@@ -10975,16 +12669,45 @@ async function createAchievementCertificateIfMissing({
           verificationCode,
           certificateId,
           achievementType,
+          sourceCollection: certificate.sourceCollection,
+          sourceAssessmentId: certificate.sourceAssessmentId,
+          serverAttested: true,
+          attestationVersion: 1,
+          schemaVersion: CREDENTIAL_SCHEMA_VERSION,
+          credentialSchemaVersion: CREDENTIAL_SCHEMA_VERSION,
+          credentialType,
+          certificatePath: certificateRef.path,
           title: certificate.title,
           certificateType: certificate.certificateType,
           userName: certificate.userName,
           band: certificate.band,
+          estimatedPracticeBand: certificate.estimatedPracticeBand,
+          skillEstimatedPracticeBands: publicSkillBands,
+          scoringVersion: certificate.scoringVersion,
+          assessmentDate: certificate.assessmentDate,
           issuer: certificate.issuer,
           status: certificate.status,
           disclaimer: certificate.disclaimer,
           issuedAt,
+          issuedBy: certificate.issuedBy,
+          revokedAt: null,
+          revokedBy: null,
+          revocationReason: "",
           updatedAt: issuedAt,
         });
+        transaction.set(
+            db.collection("certificate_status_audit")
+                .doc(`${verificationCode}_issued`),
+            {
+              verificationCode,
+              certificateId,
+              fromStatus: "unknown",
+              toStatus: "valid",
+              changedBy: "server:certificate_service",
+              reason: "Credential issued",
+              createdAt: issuedAt,
+            },
+        );
         transaction.set(
             userRef,
             {
@@ -11021,6 +12744,59 @@ async function createAchievementCertificateIfMissing({
   );
 }
 
+exports.auditLegacyCertificateIntegrity = onCall(
+    {
+      region: "us-central1",
+      timeoutSeconds: 120,
+      memory: "512MiB",
+    },
+    async (request) => {
+      const admin = await requirePlatformAdmin(request);
+      await assertAppCheckReady(request, "certificate_legacy_audit");
+      await enforceCallableRateLimit({
+        uid: admin.uid,
+        scope: "certificate_legacy_audit",
+        maximum: 4,
+        windowMs: 60 * 60 * 1000,
+      });
+
+      const registry = await db.collection("certificate_verifications").get();
+      const counts = {
+        total: 0,
+        serverAttested: 0,
+        legacyUnattested: 0,
+        missingSourceMetadata: 0,
+      };
+      const sampleLegacyCodes = [];
+
+      for (const doc of registry.docs) {
+        const data = doc.data() || {};
+        counts.total++;
+        if (data.serverAttested === true) {
+          counts.serverAttested++;
+        } else {
+          counts.legacyUnattested++;
+          if (sampleLegacyCodes.length < 50) sampleLegacyCodes.push(doc.id);
+        }
+        if (!data.sourceCollection && !data.sourceAssessmentId) {
+          counts.missingSourceMetadata++;
+        }
+      }
+
+      const reportRef = db.collection("certificate_integrity_audits").doc();
+      await reportRef.set({
+        auditId: reportRef.id,
+        ...counts,
+        sampleLegacyCodes,
+        mode: "read_only_no_invalidation",
+        performedBy: admin.uid,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+
+      return {success: true, auditId: reportRef.id, ...counts};
+    },
+);
+
 function generateCertificateVerificationCode() {
   const year = new Date().getUTCFullYear();
   const random = crypto
@@ -11043,6 +12819,20 @@ function resolveCertificateTargetBand(user) {
       user.targetBand ??
       0,
   );
+}
+
+function certificateSkillBands(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const result = {};
+  for (const skill of ["listening", "reading", "writing", "speaking"]) {
+    const source = value[skill];
+    const band = certificateNumber(
+        source && typeof source === "object" ?
+          source.estimatedBand ?? source.band ?? source.overallBand : source,
+    );
+    if (band > 0 && band <= 9) result[skill] = band;
+  }
+  return result;
 }
 
 function certificateNumber(value) {

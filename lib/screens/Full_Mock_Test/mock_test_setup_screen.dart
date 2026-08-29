@@ -946,7 +946,7 @@ class _OptionCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: MockColors.muted,
-                fontSize: 9.2,
+                fontSize: 12,
                 height: 1.3,
               ),
             ),

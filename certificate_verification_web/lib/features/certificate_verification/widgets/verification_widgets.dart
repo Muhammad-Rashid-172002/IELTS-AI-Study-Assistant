@@ -18,9 +18,7 @@ BoxDecoration portalPanel(
     boxShadow: elevated
         ? [
             BoxShadow(
-              color: Colors.black.withOpacity(
-                palette.dark ? .22 : .08,
-              ),
+              color: Colors.black.withOpacity(palette.dark ? .22 : .08),
               blurRadius: 32,
               offset: const Offset(0, 16),
             ),
@@ -71,10 +69,10 @@ class VerificationBrand extends StatelessWidget {
               ),
             ),
             const Text(
-              'Certificate Verification',
+              'Platform Credential Verification',
               style: TextStyle(
                 color: VerificationColors.cyan,
-                fontSize: 10,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -86,16 +84,17 @@ class VerificationBrand extends StatelessWidget {
 }
 
 class VerificationSuccessCard extends StatelessWidget {
-  const VerificationSuccessCard({
-    super.key,
-    required this.certificate,
-  });
+  const VerificationSuccessCard({super.key, required this.certificate});
 
   final CertificateVerificationModel certificate;
 
   @override
   Widget build(BuildContext context) {
     final palette = PortalPalette(context);
+    final valid = certificate.isValid;
+    final statusColor = valid
+        ? VerificationColors.green
+        : VerificationColors.red;
     return Container(
       padding: const EdgeInsets.all(1.2),
       decoration: BoxDecoration(
@@ -121,10 +120,8 @@ class VerificationSuccessCard extends StatelessWidget {
               tween: Tween(begin: .45, end: 1),
               duration: const Duration(milliseconds: 650),
               curve: Curves.elasticOut,
-              builder: (_, value, child) => Transform.scale(
-                scale: value,
-                child: child,
-              ),
+              builder: (_, value, child) =>
+                  Transform.scale(scale: value, child: child),
               child: Container(
                 width: 94,
                 height: 94,
@@ -134,7 +131,7 @@ class VerificationSuccessCard extends StatelessWidget {
                   gradient: VerificationColors.premiumGradient,
                   boxShadow: [
                     BoxShadow(
-                      color: VerificationColors.green.withOpacity(.18),
+                      color: statusColor.withOpacity(.18),
                       blurRadius: 28,
                       offset: const Offset(0, 12),
                     ),
@@ -145,20 +142,24 @@ class VerificationSuccessCard extends StatelessWidget {
                     shape: BoxShape.circle,
                     color: palette.surface,
                   ),
-                  child: const Icon(
-                    Icons.verified_rounded,
-                    color: VerificationColors.green,
+                  child: Icon(
+                    valid ? Icons.verified_rounded : Icons.gpp_bad_rounded,
+                    color: statusColor,
                     size: 49,
                   ),
                 ),
               ),
             ),
             const SizedBox(height: 18),
-            const Text(
-              'CERTIFICATE VERIFIED',
+            Text(
+              valid
+                  ? 'CREDENTIAL VERIFIED'
+                  : certificate.status == 'revoked'
+                  ? 'CREDENTIAL REVOKED'
+                  : 'STATUS NOT VERIFIED',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: VerificationColors.green,
+                color: statusColor,
                 fontSize: 13,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 1.7,
@@ -200,7 +201,7 @@ class VerificationSuccessCard extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  'Estimated Band ${certificate.band.toStringAsFixed(1)}',
+                  'Estimated Practice Band: ${certificate.band.toStringAsFixed(1)}',
                   style: const TextStyle(
                     color: VerificationColors.cyan,
                     fontWeight: FontWeight.w900,
@@ -272,10 +273,7 @@ class VerificationDetailRow extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  style: TextStyle(
-                    color: palette.muted,
-                    fontSize: 10.5,
-                  ),
+                  style: TextStyle(color: palette.muted, fontSize: 12),
                 ),
               ),
               const SizedBox(width: 16),
@@ -289,7 +287,7 @@ class VerificationDetailRow extends StatelessWidget {
                         textAlign: TextAlign.end,
                         style: TextStyle(
                           color: palette.text,
-                          fontSize: 11.5,
+                          fontSize: 13,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -299,9 +297,7 @@ class VerificationDetailRow extends StatelessWidget {
                       IconButton(
                         tooltip: 'Copy',
                         onPressed: () async {
-                          await Clipboard.setData(
-                            ClipboardData(text: value),
-                          );
+                          await Clipboard.setData(ClipboardData(text: value));
                           if (!context.mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
@@ -329,10 +325,7 @@ class VerificationDetailRow extends StatelessWidget {
 }
 
 class VerificationNotice extends StatelessWidget {
-  const VerificationNotice({
-    super.key,
-    required this.text,
-  });
+  const VerificationNotice({super.key, required this.text});
 
   final String text;
 
@@ -359,7 +352,7 @@ class VerificationNotice extends StatelessWidget {
               style: TextStyle(
                 color: palette.secondary,
                 height: 1.55,
-                fontSize: 11.5,
+                fontSize: 12,
               ),
             ),
           ),

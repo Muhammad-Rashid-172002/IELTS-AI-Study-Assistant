@@ -174,6 +174,11 @@ class _VerificationScreenState extends State<VerificationScreen>
                       child: Column(
                         children: [
                           _topBar(desktop),
+                          const SizedBox(height: 14),
+                          const VerificationNotice(
+                            text:
+                                'Practice credential only — not an official IELTS result or Test Report Form (TRF). This registry contains IELTS AI Master app-issued records only.',
+                          ),
                           SizedBox(height: desktop ? 50 : 30),
                           if (desktop)
                             Row(
@@ -227,8 +232,8 @@ class _VerificationScreenState extends State<VerificationScreen>
                 ),
                 SizedBox(width: 7),
                 Text(
-                  'Secure public verification',
-                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
+                  'Read-only platform verification',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                 ),
               ],
             ),
@@ -280,10 +285,10 @@ class _VerificationScreenState extends State<VerificationScreen>
                 ),
               ),
               child: const Text(
-                'OFFICIAL APP RECORD',
+                'VERIFIED PLATFORM RECORD',
                 style: TextStyle(
                   color: VerificationColors.cyan,
-                  fontSize: 9,
+                  fontSize: 12,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 1.2,
                 ),
@@ -302,7 +307,7 @@ class _VerificationScreenState extends State<VerificationScreen>
             ),
             const SizedBox(height: 15),
             Text(
-              'Search by verification code or scan the QR code printed on the certificate. The result is checked directly against the secure public registry.',
+              'Search by verification code or scan the QR code printed on the credential. The result is checked directly against the read-only platform registry.',
               style: TextStyle(
                 color: palette.secondary,
                 fontSize: 13,
@@ -367,6 +372,27 @@ class _VerificationScreenState extends State<VerificationScreen>
             ),
           ],
         ),
+        VerificationState.invalid when _certificate != null => Column(
+          key: const ValueKey('credential-status'),
+          children: [
+            VerificationSuccessCard(certificate: _certificate!),
+            const SizedBox(height: 14),
+            VerificationNotice(
+              text: _certificate!.status == 'revoked'
+                  ? 'This platform credential was revoked. ${_certificate!.revocationReason}'
+                  : 'This record exists, but its lifecycle status is unknown and it is not treated as valid.',
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _reset,
+                icon: const Icon(Icons.search_rounded),
+                label: const Text('Check Another Credential'),
+              ),
+            ),
+          ],
+        ),
         _ => _searchCard(),
       },
     );
@@ -423,7 +449,7 @@ class _VerificationScreenState extends State<VerificationScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Certificate Verification',
+            'Platform Credential Verification',
             style: TextStyle(
               color: palette.text,
               fontSize: 23,
@@ -433,7 +459,7 @@ class _VerificationScreenState extends State<VerificationScreen>
           const SizedBox(height: 7),
           Text(
             'Use the exact code or scan the certificate QR code.',
-            style: TextStyle(color: palette.muted, fontSize: 11),
+            style: TextStyle(color: palette.muted, fontSize: 13),
           ),
           const SizedBox(height: 19),
           TextField(
@@ -500,7 +526,7 @@ class _VerificationScreenState extends State<VerificationScreen>
                   'This service verifies IELTS AI Master completion and achievement certificates only. It does not verify official IELTS examination results.',
                   style: TextStyle(
                     color: palette.muted,
-                    fontSize: 10,
+                    fontSize: 12,
                     height: 1.45,
                   ),
                 ),
@@ -528,14 +554,14 @@ class _VerificationScreenState extends State<VerificationScreen>
           Expanded(
             child: Text(
               'IELTS AI Master • Certificate Verification Service',
-              style: TextStyle(color: palette.muted, fontSize: 9.5),
+              style: TextStyle(color: palette.muted, fontSize: 12),
             ),
           ),
           const Text(
-            'Secure • Read-only',
+            'Platform registry • Read-only',
             style: TextStyle(
               color: VerificationColors.green,
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -575,7 +601,7 @@ class _InvalidMessage extends StatelessWidget {
                 message,
                 style: TextStyle(
                   color: palette.secondary,
-                  fontSize: 10.5,
+                  fontSize: 12,
                   height: 1.4,
                 ),
               ),
@@ -625,7 +651,7 @@ class _HeroFeature extends StatelessWidget {
                 subtitle,
                 style: TextStyle(
                   color: palette.muted,
-                  fontSize: 10.5,
+                  fontSize: 12,
                   height: 1.4,
                 ),
               ),

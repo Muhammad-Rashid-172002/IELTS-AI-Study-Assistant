@@ -12,28 +12,85 @@ service firebase.storage {
       );
     }
 
+    function adminRecordExists() {
+      return signedIn() && firestore.exists(
+        /databases/(default)/documents/admins/$(request.auth.uid)
+      );
+    }
+
     function isAdmin() {
       return signedIn() && (
-        request.auth.token.admin == true ||
-        request.auth.token.role == 'admin' ||
-        adminRecord().data.isAdmin == true ||
-        adminRecord().data.role == 'admin' ||
-        adminRecord().data.role == 'super_admin'
+        ('admin' in request.auth.token && request.auth.token.admin == true) ||
+        ('role' in request.auth.token &&
+          request.auth.token.role in ['admin', 'super_admin']) ||
+        storedAdminPermission()
       );
+    }
+
+    function storedAdminPermission() {
+      return adminRecordExists() ? (
+        ('isAdmin' in adminRecord().data &&
+          adminRecord().data.isAdmin == true) ||
+        ('role' in adminRecord().data &&
+          adminRecord().data.role in ['admin', 'super_admin'])
+      ) : false;
+    }
+
+    function accountActive(userId) {
+      return !firestore.exists(
+        /databases/(default)/documents/account_deletion_locks/$(userId)
+      );
+    }
+
+    match /profile_images/{fileName} {
+      allow read: if signedIn() &&
+        (fileName == request.auth.uid + '.jpg' || isAdmin());
+      allow create, update: if signedIn() &&
+        fileName == request.auth.uid + '.jpg' &&
+        accountActive(request.auth.uid) &&
+        request.resource.size < 5 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+      allow delete: if signedIn() &&
+        (fileName == request.auth.uid + '.jpg' || isAdmin());
     }
 
     match /speaking_recordings/{userId}/{fileName} {
       allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
       allow create: if signedIn() &&
         request.auth.uid == userId &&
+        accountActive(userId) &&
         request.resource.size < 20 * 1024 * 1024 &&
         request.resource.contentType.matches('audio/.*');
-      allow update, delete: if signedIn() &&
+      allow update: if isAdmin() || (signedIn() &&
+        request.auth.uid == userId &&
+        accountActive(userId) &&
+        request.resource.size < 20 * 1024 * 1024 &&
+        request.resource.contentType.matches('audio/.*'));
+      allow delete: if signedIn() &&
         (request.auth.uid == userId || isAdmin());
     }
 
-    match /{contentPath=**} {
-      allow read: if signedIn();
+    match /diagnostic_speaking/{userId}/{testId}/{fileName} {
+      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
+      allow create: if signedIn() &&
+        request.auth.uid == userId &&
+        accountActive(userId) &&
+        request.resource.size < 20 * 1024 * 1024 &&
+        request.resource.contentType.matches('audio/.*');
+      allow update: if isAdmin() || (signedIn() &&
+        request.auth.uid == userId &&
+        accountActive(userId) &&
+        request.resource.size < 20 * 1024 * 1024 &&
+        request.resource.contentType.matches('audio/.*'));
+      allow delete: if signedIn() &&
+        (request.auth.uid == userId || isAdmin());
+    }
+
+    match /{contentRoot}/{contentPath=**} {
+      allow read: if signedIn() &&
+        contentRoot != 'profile_images' &&
+        contentRoot != 'speaking_recordings' &&
+        contentRoot != 'diagnostic_speaking';
       allow write: if isAdmin();
     }
   }

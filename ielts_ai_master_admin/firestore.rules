@@ -7,27 +7,47 @@ service cloud.firestore {
     }
 
     function owns(userId) {
-      return signedIn() && request.auth.uid == userId;
+      return signedIn() && request.auth.uid == userId &&
+        !exists(/databases/$(database)/documents/account_deletion_locks/$(userId));
+    }
+
+    function activeLearner() {
+      return signedIn() &&
+        !exists(/databases/$(database)/documents/account_deletion_locks/$(request.auth.uid));
     }
 
     function adminRecord() {
       return get(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
+    function adminRecordExists() {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
     function isAdmin() {
       return signedIn() && (
-        request.auth.token.admin == true ||
-        request.auth.token.role == 'admin' ||
-        request.auth.token.role == 'super_admin' ||
-        adminRecord().data.isAdmin == true ||
-        adminRecord().data.role == 'admin' ||
-        adminRecord().data.role == 'super_admin'
+        ('admin' in request.auth.token && request.auth.token.admin == true) ||
+        ('role' in request.auth.token &&
+          request.auth.token.role in ['admin', 'super_admin']) ||
+        storedAdminPermission()
       );
     }
 
+    function storedAdminPermission() {
+      return adminRecordExists() ? (
+        ('isAdmin' in adminRecord().data &&
+          adminRecord().data.isAdmin == true) ||
+        ('role' in adminRecord().data &&
+          adminRecord().data.role in ['admin', 'super_admin'])
+      ) : false;
+    }
+
     function published() {
-      return resource.data.status == 'published' ||
-        resource.data.isPublished == true;
+      return ('status' in resource.data &&
+          resource.data.status == 'published') ||
+        ('isPublished' in resource.data &&
+          resource.data.isPublished == true);
     }
 
     function safeNewLearner() {
@@ -40,7 +60,15 @@ service cloud.firestore {
       (!('role' in request.resource.data) ||
         request.resource.data.role in ['student', 'learner']) &&
       (!('accountStatus' in request.resource.data) ||
-        request.resource.data.accountStatus == 'active');
+        request.resource.data.accountStatus == 'active') &&
+      (!('diagnosticCompleted' in request.resource.data) ||
+        request.resource.data.diagnosticCompleted == false) &&
+      (!('currentBand' in request.resource.data) ||
+        request.resource.data.currentBand == null) &&
+      (!('estimatedBand' in request.resource.data) ||
+        request.resource.data.estimatedBand == null) &&
+      (!('overallBand' in request.resource.data) ||
+        request.resource.data.overallBand == null);
     }
 
     function changesProtectedLearnerFields() {
@@ -48,8 +76,61 @@ service cloud.firestore {
         'role', 'isAdmin', 'admin', 'isPremium', 'premium',
         'subscriptionStatus', 'accountStatus', 'isDisabled',
         'statusReason', 'statusUpdatedAt', 'statusUpdatedBy',
-        'certificateCount', 'lastCertificateIssuedAt'
+        'certificateCount', 'lastCertificateIssuedAt',
+        'diagnosticCompleted', 'diagnosticCompletedAt',
+        'currentBand', 'estimatedBand', 'overallBand', 'skillBands',
+        'trustedAssessmentSource', 'scoringVersion', 'studyPlanRequired',
+        'serverStreak', 'serverLongestStreak', 'serverLastActiveDate',
+        'serverLastActiveAt', 'serverStreakVersion'
       ]);
+    }
+
+    function safeAdminContentCreate() {
+      return isAdmin() &&
+        request.resource.data.get('status', 'draft') != 'published' &&
+        request.resource.data.get('isPublished', false) != true;
+    }
+
+    function changesQaControlledFields() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'status', 'isPublished', 'publishedAt', 'publishedBy',
+        'validationStatus', 'validationReport', 'validatedAt', 'validatedBy',
+        'reviewedAt', 'reviewedBy', 'approvedAt', 'approvedBy',
+        'sourceType', 'sourceReference', 'copyrightStatus',
+        'schemaVersion', 'contentSchemaVersion'
+      ]);
+    }
+
+    function editableQaDraft() {
+      return resource.data.get('status', 'draft') == 'draft' &&
+        resource.data.get('isPublished', false) == false &&
+        request.resource.data.get('status', 'draft') == 'draft' &&
+        request.resource.data.get('isPublished', false) == false;
+    }
+
+    function safeMockAttemptCreate(userId) {
+      return owns(userId) &&
+        request.resource.data.userId == userId &&
+        request.resource.data.status == 'in_progress' &&
+        !request.resource.data.keys().hasAny([
+          'result', 'overallBand', 'serverAttested', 'attestationVersion',
+          'completedSkills', 'scoringVersion', 'completedAt'
+        ]);
+    }
+
+    function safeMockAttemptUpdate(userId) {
+      return owns(userId) &&
+        (!('userId' in resource.data) ||
+          request.resource.data.userId == resource.data.userId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'currentSkill', 'currentQuestionIndex', 'remainingSeconds',
+          'skillTimeSpent', 'lastCheckpointAt', 'updatedAt', 'status',
+          'autoSubmitted', 'submittedAt'
+        ]) &&
+        (!request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['status']) ||
+          (resource.data.status == 'in_progress' &&
+            request.resource.data.status == 'submitted'));
     }
 
     match /admins/{adminId} {
@@ -60,8 +141,8 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if owns(userId) || isAdmin();
       allow create: if owns(userId) && safeNewLearner();
-      allow update: if isAdmin() ||
-        (owns(userId) && !changesProtectedLearnerFields());
+      allow update: if owns(userId) ?
+        !changesProtectedLearnerFields() : isAdmin();
       allow delete: if false;
 
       match /certificates/{certificateId} {
@@ -69,77 +150,174 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      match /diagnostic_results/{resultId} {
+        allow read: if owns(userId) || isAdmin();
+        allow write: if false;
+      }
+
+      match /diagnosticResults/{resultId} {
+        allow read: if owns(userId) || isAdmin();
+        allow write: if false;
+      }
+
+      match /diagnostic_writing_evaluations/{evaluationId} {
+        allow read: if owns(userId) || isAdmin();
+        allow write: if false;
+      }
+
+      match /diagnostic_speaking_evaluations/{evaluationId} {
+        allow read: if owns(userId) || isAdmin();
+        allow write: if false;
+      }
+
+      match /mock_attempts/{attemptId} {
+        allow read: if owns(userId) || isAdmin();
+        allow create: if isAdmin() || safeMockAttemptCreate(userId);
+        allow update: if isAdmin() || safeMockAttemptUpdate(userId);
+        allow delete: if false;
+
+        match /answers/{answerId} {
+          allow read: if owns(userId) || isAdmin();
+          allow create: if owns(userId) &&
+            request.resource.data.get('attemptId', '') == attemptId &&
+            request.resource.data.get('questionId', '') is string &&
+            request.resource.data.get('skill', '') in [
+              'listening', 'reading', 'writing', 'speaking'
+            ] &&
+            get(/databases/$(database)/documents/users/$(userId)/mock_attempts/$(attemptId)).data.get('status', '') == 'in_progress';
+          allow update: if owns(userId) &&
+            request.resource.data.get('attemptId', '') ==
+              resource.data.get('attemptId', '') &&
+            request.resource.data.get('questionId', '') ==
+              resource.data.get('questionId', '') &&
+            request.resource.data.get('skill', '') ==
+              resource.data.get('skill', '') &&
+            get(/databases/$(database)/documents/users/$(userId)/mock_attempts/$(attemptId)).data.get('status', '') == 'in_progress';
+          allow delete: if owns(userId) || isAdmin();
+        }
+      }
+
       match /{learnerCollection}/{documentId} {
         allow read, create, update, delete: if
-          learnerCollection != 'certificates' &&
+          !(learnerCollection in [
+            'certificates',
+            'diagnostic_results',
+            'diagnosticResults',
+            'diagnostic_writing_evaluations',
+            'diagnostic_speaking_evaluations',
+            'mock_attempts'
+          ]) &&
           (owns(userId) || isAdmin());
       }
     }
 
     match /listening_tests/{testId} {
       allow read: if signedIn() && (published() || isAdmin());
-      allow write: if isAdmin();
+      allow create: if safeAdminContentCreate();
+      allow update: if isAdmin() && editableQaDraft() &&
+        !changesQaControlledFields();
+      allow delete: if isAdmin();
     }
 
     match /reading_tests/{testId} {
       allow read: if signedIn() && (published() || isAdmin());
-      allow write: if isAdmin();
+      allow create: if safeAdminContentCreate();
+      allow update: if isAdmin() && editableQaDraft() &&
+        !changesQaControlledFields();
+      allow delete: if isAdmin();
     }
 
     match /writing_tasks/{taskId} {
       allow read: if signedIn() && (published() || isAdmin());
-      allow write: if isAdmin();
+      allow create: if safeAdminContentCreate();
+      allow update: if isAdmin() && editableQaDraft() &&
+        !changesQaControlledFields();
+      allow delete: if isAdmin();
     }
 
     match /speaking_tests/{testId} {
       allow read: if signedIn() && (published() || isAdmin());
-      allow write: if isAdmin();
+      allow create: if safeAdminContentCreate();
+      allow update: if isAdmin() && editableQaDraft() &&
+        !changesQaControlledFields();
+      allow delete: if isAdmin();
     }
 
     match /vocabulary_words/{wordId} {
       allow read: if signedIn() && (published() || isAdmin());
-      allow write: if isAdmin();
+      allow create: if safeAdminContentCreate();
+      allow update: if isAdmin() && editableQaDraft() &&
+        !changesQaControlledFields();
+      allow delete: if isAdmin();
     }
 
     match /diagnostic_tests/{testId} {
       allow read: if signedIn() && (published() || isAdmin());
-      allow write: if isAdmin();
+      allow create: if safeAdminContentCreate();
+      allow update: if isAdmin() && editableQaDraft() &&
+        !changesQaControlledFields();
+      allow delete: if isAdmin();
     }
 
     match /mock_tests/{testId} {
       allow read: if signedIn() && (published() || isAdmin());
-      allow write: if isAdmin();
+      allow create: if safeAdminContentCreate();
+      allow update: if isAdmin() && editableQaDraft() &&
+        !changesQaControlledFields();
+      allow delete: if isAdmin();
     }
 
     match /mock_test_bank/{questionId} {
-      allow read: if signedIn();
-      allow write: if isAdmin();
+      allow read: if isAdmin();
+      allow create: if safeAdminContentCreate();
+      allow update: if isAdmin() && editableQaDraft() &&
+        !changesQaControlledFields();
+      allow delete: if isAdmin();
+
+      match /{skill}/{nestedQuestionId} {
+        allow read: if signedIn() && (published() || isAdmin());
+        allow create: if safeAdminContentCreate();
+        allow update: if isAdmin() && editableQaDraft() &&
+          !changesQaControlledFields();
+        allow delete: if isAdmin();
+      }
     }
 
     match /writing_submissions/{submissionId} {
-      allow create: if signedIn() &&
+      allow create: if activeLearner() &&
         request.resource.data.userId == request.auth.uid &&
-        request.resource.data.status == 'queued';
+        request.resource.data.status == 'queued' &&
+        !request.resource.data.keys().hasAny([
+          'report', 'result', 'overallBand', 'estimatedBand',
+          'serverAttested', 'scoringVersion', 'completedAt', 'startedAt'
+        ]);
       allow read: if signedIn() &&
         (resource.data.userId == request.auth.uid || isAdmin());
       allow update, delete: if isAdmin();
     }
 
     match /speaking_submissions/{submissionId} {
-      allow create: if signedIn() &&
+      allow create: if activeLearner() &&
         request.resource.data.userId == request.auth.uid &&
-        request.resource.data.status == 'queued';
+        request.resource.data.submissionId == submissionId &&
+        request.resource.data.audioStoragePath ==
+          'speaking_recordings/' + request.auth.uid + '/' + submissionId + '.m4a' &&
+        request.resource.data.status == 'queued' &&
+        !request.resource.data.keys().hasAny([
+          'report', 'result', 'overallBand', 'estimatedBand',
+          'serverAttested', 'scoringVersion', 'completedAt', 'startedAt'
+        ]);
       allow read: if signedIn() &&
         (resource.data.userId == request.auth.uid || isAdmin());
       allow update, delete: if isAdmin();
     }
 
     match /subscription_requests/{requestId} {
-      allow create: if signedIn() &&
+      allow create: if activeLearner() &&
         request.resource.data.userId == request.auth.uid;
       allow read: if signedIn() &&
         (resource.data.userId == request.auth.uid || isAdmin());
-      allow update, delete: if isAdmin();
+      allow update, delete: if false;
     }
 
     match /generation_jobs/{jobId} {
@@ -151,19 +329,53 @@ service cloud.firestore {
     }
 
     match /mock_evaluation_jobs/{jobId} {
-      allow create: if signedIn() &&
-        request.resource.data.userId == request.auth.uid;
+      allow create: if activeLearner() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == 'queued' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)/mock_attempts/$(request.resource.data.attemptId)).data.status == 'submitted';
       allow read: if signedIn() &&
         (resource.data.userId == request.auth.uid || isAdmin());
       allow update, delete: if isAdmin();
     }
 
     match /certificate_verifications/{verificationCode} {
-      allow read, write: if isAdmin();
+      allow read, write: if false;
+    }
+
+    match /account_deletion_locks/{userId} {
+      allow read, write: if false;
+    }
+
+    match /account_deletion_audit/{auditId} {
+      allow read, write: if false;
     }
 
     match /certificate_verification_rate_limits/{clientHash} {
       allow read, write: if false;
+    }
+
+    match /callable_rate_limits/{rateLimitId} {
+      allow read, write: if false;
+    }
+
+    match /subscription_audit_logs/{eventId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /certificate_integrity_audits/{auditId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /content_qa_audit/{auditId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /certificate_status_audit/{auditId} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
     match /admin_audit_log/{eventId} {

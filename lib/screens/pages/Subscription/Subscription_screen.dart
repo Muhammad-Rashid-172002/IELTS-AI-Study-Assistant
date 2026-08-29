@@ -1146,7 +1146,7 @@ class _GooglePlayPlanTile extends StatelessWidget {
                               badge,
                               style: const TextStyle(
                                 color: SubscriptionColors.violet,
-                                fontSize: 7.5,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w900,
                               ),
                             ),

@@ -4,6 +4,7 @@ import 'package:fyproject/screens/pages/Learn/LearnScreen.dart';
 import 'package:fyproject/screens/pages/home/home.dart';
 import 'package:fyproject/screens/pages/profile/presentation/profile_screen.dart';
 import 'package:fyproject/screens/pages/progress/presentation/progress_dashboard_screen.dart';
+import 'package:fyproject/resources/routes/routes_names.dart';
 
 class IELTSMainNavigation extends StatefulWidget {
   const IELTSMainNavigation({super.key});
@@ -12,8 +13,10 @@ class IELTSMainNavigation extends StatefulWidget {
   State<IELTSMainNavigation> createState() => _IELTSMainNavigationState();
 }
 
-class _IELTSMainNavigationState extends State<IELTSMainNavigation> {
+class _IELTSMainNavigationState extends State<IELTSMainNavigation>
+    with WidgetsBindingObserver {
   int _currentIndex = 0;
+  bool _resumeCheckQueued = false;
 
   final List<Widget> _screens = [
     const HomeDashboard(),
@@ -45,6 +48,30 @@ class _IELTSMainNavigationState extends State<IELTSMainNavigation> {
       activeIcon: Icons.person_rounded,
     ),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || _resumeCheckQueued) return;
+    _resumeCheckQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(RoutesName.startup, (_) => false);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -528,7 +555,7 @@ class _CoachWelcomeCard extends StatelessWidget {
                   'Ask about your study plan, mistakes, writing, speaking or target band.',
                   style: TextStyle(
                     color: MainNavColors.secondaryText,
-                    fontSize: 10.8,
+                    fontSize: 12,
                     height: 1.45,
                   ),
                 ),

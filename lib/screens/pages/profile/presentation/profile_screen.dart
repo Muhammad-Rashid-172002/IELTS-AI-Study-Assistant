@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:fyproject/screens/pages/registration/Auth_gateway_screen.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +11,7 @@ import 'package:fyproject/screens/pages/certificate/certificate_screen.dart';
 import 'package:fyproject/screens/pages/registration/registration.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:fyproject/resources/components/learner_state_view.dart';
+import 'package:fyproject/config/platform_links.dart';
 import '../data/profile_repository.dart';
 import '../models/profile_model.dart';
 import '../widgets/profile_widgets.dart';
@@ -76,11 +78,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       await _repository.deleteAccount();
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const RegistrationScreen()),
+        (route) => false,
+      );
     } catch (error) {
       debugPrint('Profile deletion failed: $error');
       if (mounted) {
+        final needsSignIn = error is FirebaseFunctionsException &&
+            error.code == 'failed-precondition';
         _message(
-          'Your account was not deleted. Please check your connection and try again.',
+          needsSignIn
+              ? 'For security, sign out and sign in again before deleting your account.'
+              : 'Your account was not deleted. Please check your connection and try again.',
         );
       }
     }
@@ -492,7 +504,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _openPrivacyPolicy() async {
-    final Uri url = Uri.parse('https://ielts-ai-privacy.vercel.app/');
+    final Uri url = Uri.parse(PlatformLinks.privacyPolicy);
 
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
@@ -813,7 +825,7 @@ class _ProfileBandStatusCard extends StatelessWidget {
                     color: isComplete
                         ? ProfileColors.green
                         : ProfileColors.violet,
-                    fontSize: 7.5,
+                    fontSize: 12,
                     fontWeight: FontWeight.w900,
                   ),
                 ),

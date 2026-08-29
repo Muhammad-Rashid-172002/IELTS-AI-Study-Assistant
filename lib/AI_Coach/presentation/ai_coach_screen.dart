@@ -229,7 +229,7 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
                         ),
                         SizedBox(height: 5),
                         Text(
-                          'Personalized from your real IELTS performance',
+                          'Personalized from your IELTS-style practice performance',
                           style: TextStyle(
                             color: CoachColors.secondary,
                             fontSize: 11.5,
@@ -1469,7 +1469,7 @@ class _OnlineBadge extends StatelessWidget {
             'ONLINE',
             style: TextStyle(
               color: CoachColors.green,
-              fontSize: 7,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
               letterSpacing: .5,
             ),
@@ -1509,7 +1509,7 @@ class _BandBadge extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(color: CoachColors.muted, fontSize: 7.5),
+            style: const TextStyle(color: CoachColors.muted, fontSize: 12),
           ),
         ],
       ),
@@ -1557,7 +1557,7 @@ class _MiniMetric extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(color: CoachColors.muted, fontSize: 7.8),
+            style: const TextStyle(color: CoachColors.muted, fontSize: 12),
           ),
         ],
       ),

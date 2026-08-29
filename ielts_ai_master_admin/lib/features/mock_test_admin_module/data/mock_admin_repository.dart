@@ -1,25 +1,24 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:ielts_ai_master_admin/features/content_qa/data/content_qa_service.dart';
 
 import '../domain/mock_admin_models.dart';
 
 class MockAdminRepository {
-  MockAdminRepository({
-    FirebaseFirestore? firestore,
-    FirebaseAuth? auth,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
+  MockAdminRepository({FirebaseFirestore? firestore, FirebaseAuth? auth})
+    : _firestore = firestore ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
+  final ContentQaService _qa = ContentQaService();
 
   Stream<List<MockAdminTest>> watchTests({
     String status = 'all',
     String track = 'all',
     String mode = 'all',
   }) {
-    Query<Map<String, dynamic>> query =
-        _firestore.collection('mock_tests');
+    Query<Map<String, dynamic>> query = _firestore.collection('mock_tests');
 
     if (status != 'all') {
       query = query.where('status', isEqualTo: status);
@@ -32,8 +31,7 @@ class MockAdminRepository {
     }
 
     return query.snapshots().map((snapshot) {
-      final tests =
-          snapshot.docs.map(MockAdminTest.fromDocument).toList();
+      final tests = snapshot.docs.map(MockAdminTest.fromDocument).toList();
 
       tests.sort((a, b) {
         final aDate = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
@@ -50,9 +48,7 @@ class MockAdminRepository {
         .collection('mock_tests')
         .doc(id)
         .snapshots()
-        .map(
-          (doc) => doc.exists ? MockAdminTest.fromDocument(doc) : null,
-        );
+        .map((doc) => doc.exists ? MockAdminTest.fromDocument(doc) : null);
   }
 
   Future<String> createMockTest({
@@ -110,8 +106,7 @@ class MockAdminRepository {
       'failedBySkill': zeroBySkill,
       'jobStatusBySkill': {
         for (final skill in skills)
-          skill.value:
-              autoGenerateQuestionBank ? 'queued' : 'not_started',
+          skill.value: autoGenerateQuestionBank ? 'queued' : 'not_started',
       },
       'totalRequired': totalRequired,
       'totalGenerated': 0,
@@ -180,8 +175,7 @@ class MockAdminRepository {
           .get();
 
       final matching = questionSnapshot.docs.where((doc) {
-        return (doc.data()['difficulty'] ?? '').toString() ==
-            mock.difficulty;
+        return (doc.data()['difficulty'] ?? '').toString() == mock.difficulty;
       }).toList();
 
       if (matching.length < mock.requiredFor(skill)) {
@@ -190,34 +184,16 @@ class MockAdminRepository {
           'Required ${mock.requiredFor(skill)}, found ${matching.length}.',
         );
       }
-
-      for (var start = 0; start < matching.length; start += 400) {
-        final end = (start + 400).clamp(0, matching.length);
-        final batch = _firestore.batch();
-
-        for (final doc in matching.sublist(start, end)) {
-          batch.set(
-            doc.reference,
-            {
-              'status': 'published',
-              'isPublished': true,
-              'publishedAt': FieldValue.serverTimestamp(),
-              'updatedAt': FieldValue.serverTimestamp(),
-            },
-            SetOptions(merge: true),
-          );
-        }
-
-        await batch.commit();
+      final unpublished = matching.where(
+        (doc) => (doc.data()['status'] ?? '').toString() != 'published',
+      );
+      if (unpublished.isNotEmpty) {
+        throw StateError(
+          '${skill.label} questions must complete Content QA before the mock can be published.',
+        );
       }
     }
-
-    await mockRef.set({
-      'status': 'published',
-      'isPublished': true,
-      'publishedAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    await _qa.changeStatus(documentPath: 'mock_tests/$id', status: 'published');
   }
 
   Future<void> archiveMockTest(String id) async {
@@ -235,38 +211,18 @@ class MockAdminRepository {
           .where('mockTestId', isEqualTo: id)
           .get();
 
-      for (var start = 0; start < questions.docs.length; start += 400) {
-        final end = (start + 400).clamp(0, questions.docs.length);
-        final batch = _firestore.batch();
-
-        for (final doc in questions.docs.sublist(start, end)) {
-          batch.set(
-            doc.reference,
-            {
-              'status': 'archived',
-              'isPublished': false,
-              'updatedAt': FieldValue.serverTimestamp(),
-            },
-            SetOptions(merge: true),
-          );
-        }
-        await batch.commit();
+      for (final doc in questions.docs) {
+        await _qa.changeStatus(
+          documentPath: doc.reference.path,
+          status: 'archived',
+        );
       }
     }
-
-    await mockRef.set({
-      'status': 'archived',
-      'isPublished': false,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    await _qa.changeStatus(documentPath: 'mock_tests/$id', status: 'archived');
   }
 
-  Future<void> restoreReadyMockTest(String id) {
-    return _firestore.collection('mock_tests').doc(id).set({
-      'status': 'ready',
-      'isPublished': false,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+  Future<void> restoreReadyMockTest(String id) async {
+    await _qa.changeStatus(documentPath: 'mock_tests/$id', status: 'draft');
   }
 
   Future<void> retryIncompleteSkills(MockAdminTest mock) async {
@@ -293,10 +249,7 @@ class MockAdminRepository {
     }, SetOptions(merge: true));
   }
 
-  Future<void> updateFeatured({
-    required String id,
-    required bool featured,
-  }) {
+  Future<void> updateFeatured({required String id, required bool featured}) {
     return _firestore.collection('mock_tests').doc(id).set({
       'isFeatured': featured,
       'updatedAt': FieldValue.serverTimestamp(),
@@ -367,11 +320,8 @@ class MockAdminRepository {
     return query.snapshots().map((snapshot) {
       final questions = snapshot.docs
           .map(
-            (doc) => MockAdminQuestion.fromDocument(
-              doc,
-              track: track,
-              skill: skill,
-            ),
+            (doc) =>
+                MockAdminQuestion.fromDocument(doc, track: track, skill: skill),
           )
           .toList();
 
@@ -380,9 +330,7 @@ class MockAdminRepository {
     });
   }
 
-  Future<String> createQuestion({
-    required MockAdminQuestion question,
-  }) async {
+  Future<String> createQuestion({required MockAdminQuestion question}) async {
     final ref = _firestore
         .collection('mock_test_bank')
         .doc(question.track.value)
@@ -399,18 +347,16 @@ class MockAdminRepository {
     return ref.id;
   }
 
-  Future<void> updateQuestion({
-    required MockAdminQuestion question,
-  }) {
+  Future<void> updateQuestion({required MockAdminQuestion question}) {
     return _firestore
         .collection('mock_test_bank')
         .doc(question.track.value)
         .collection(question.skill.value)
         .doc(question.id)
         .set({
-      ...question.toFirestore(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+          ...question.toFirestore(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
   }
 
   Future<void> deleteQuestion({
@@ -445,7 +391,7 @@ class MockAdminRepository {
       'difficulty': difficulty,
       'questionType': questionType,
       'requestedCount': count,
-      'publishImmediately': publishImmediately,
+      'publishImmediately': false,
       'mockTestId': mockTestId,
       'generatedCount': 0,
       'failedCount': 0,
@@ -461,19 +407,11 @@ class MockAdminRepository {
     required MockAdminSkill skill,
     required String id,
     required String status,
-  }) {
-    return _firestore
-        .collection('mock_test_bank')
-        .doc(track.value)
-        .collection(skill.value)
-        .doc(id)
-        .set({
-      'status': status,
-      'isPublished': status == 'published',
-      'publishedAt':
-          status == 'published' ? FieldValue.serverTimestamp() : null,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+  }) async {
+    await _qa.changeStatus(
+      documentPath: 'mock_test_bank/${track.value}/${skill.value}/$id',
+      status: status,
+    );
   }
 
   Future<void> bulkUpdateQuestionStatus({
@@ -482,34 +420,11 @@ class MockAdminRepository {
     required Iterable<String> ids,
     required String status,
   }) async {
-    final all = ids.toList();
-
-    for (var start = 0; start < all.length; start += 400) {
-      final end = (start + 400).clamp(0, all.length);
-      final batch = _firestore.batch();
-
-      for (final id in all.sublist(start, end)) {
-        final ref = _firestore
-            .collection('mock_test_bank')
-            .doc(track.value)
-            .collection(skill.value)
-            .doc(id);
-
-        batch.set(
-          ref,
-          {
-            'status': status,
-            'isPublished': status == 'published',
-            'publishedAt': status == 'published'
-                ? FieldValue.serverTimestamp()
-                : null,
-            'updatedAt': FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        );
-      }
-
-      await batch.commit();
+    for (final id in ids) {
+      await _qa.changeStatus(
+        documentPath: 'mock_test_bank/${track.value}/${skill.value}/$id',
+        status: status,
+      );
     }
   }
 

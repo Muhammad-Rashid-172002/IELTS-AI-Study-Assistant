@@ -1,6 +1,6 @@
 import 'package:fyproject/resources/routes/routes_names.dart';
 import 'package:fyproject/screens/Onboarding_Screen/Onboarding_screen.dart';
-import 'package:fyproject/screens/pages/home/home.dart';
+import 'package:fyproject/screens/startup/canonical_startup_gate.dart';
 import 'package:fyproject/screens/pages/profile/presentation/profile_screen.dart';
 
 import 'package:fyproject/screens/pages/progress/presentation/progress_dashboard_screen.dart';
@@ -24,8 +24,14 @@ class AppRoutes {
       transitionDuration: const Duration(milliseconds: 250),
     ),
     GetPage(
+      name: RoutesName.startup,
+      page: () => const CanonicalStartupGate(),
+      transition: Transition.fadeIn,
+      transitionDuration: const Duration(milliseconds: 250),
+    ),
+    GetPage(
       name: RoutesName.home,
-      page: () => const HomeDashboard(),
+      page: () => const CanonicalStartupGate(),
       transition: Transition.leftToRightWithFade,
       transitionDuration: const Duration(milliseconds: 250),
     ),

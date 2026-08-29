@@ -1887,7 +1887,7 @@ class _ProgressValues extends StatelessWidget {
           ),
           Text(
             label,
-            style: const TextStyle(color: VColors.muted, fontSize: 8.8),
+            style: const TextStyle(color: VColors.muted, fontSize: 12),
           ),
         ],
       ),
@@ -2426,7 +2426,7 @@ class _Badge extends StatelessWidget {
         text,
         style: const TextStyle(
           color: VColors.cyan,
-          fontSize: 8.7,
+          fontSize: 12,
           fontWeight: FontWeight.w800,
         ),
       ),
@@ -2450,7 +2450,7 @@ class _Tag extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: const TextStyle(color: VColors.muted, fontSize: 8.7),
+        style: const TextStyle(color: VColors.muted, fontSize: 12),
       ),
     );
   }

@@ -21,7 +21,7 @@ class _MockTestResultScreenState extends State<MockTestResultScreen> {
   bool _certificateIssued = false;
 
   Future<void> _ensureCertificate(MockFinalResult result) async {
-    if (_certificateRequestStarted) return;
+    if (_certificateRequestStarted || !result.certificateEligible) return;
     _certificateRequestStarted = true;
 
     try {
@@ -88,9 +88,11 @@ class _MockTestResultScreenState extends State<MockTestResultScreen> {
                 );
               }
 
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                _ensureCertificate(result);
-              });
+              if (result.certificateEligible) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _ensureCertificate(result);
+                });
+              }
 
               return _ResultContent(
                 result: result,
@@ -162,13 +164,19 @@ class _ResultContent extends StatelessWidget {
         ListView(
           padding: const EdgeInsets.fromLTRB(18, 14, 18, 36),
           children: [
+            if (!result.isComplete) ...[
+              _incompleteNotice(),
+              const SizedBox(height: 14),
+            ],
             _resultHero(),
             const SizedBox(height: 14),
             _skillBands(),
             const SizedBox(height: 14),
             _strengthWeakness(),
-            const SizedBox(height: 14),
-            _targetGap(),
+            if (result.isComplete) ...[
+              const SizedBox(height: 14),
+              _targetGap(),
+            ],
             const SizedBox(height: 14),
             _certificateCard(context),
             const SizedBox(height: 14),
@@ -199,7 +207,7 @@ class _ResultContent extends StatelessWidget {
           ),
           const SizedBox(height: 7),
           Text(
-            result.overallBand.toStringAsFixed(1),
+            result.isComplete ? result.overallBand.toStringAsFixed(1) : '—',
             style: const TextStyle(
               color: MockColors.cyan,
               fontSize: 52,
@@ -208,14 +216,31 @@ class _ResultContent extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Target ${result.targetBand.toStringAsFixed(1)} • '
-            'Gap ${result.targetGap.toStringAsFixed(1)}',
+            result.isComplete
+                ? 'Target ${result.targetBand.toStringAsFixed(1)} • '
+                      'Gap ${result.targetGap.toStringAsFixed(1)}'
+                : 'Complete every required skill to receive an overall band.',
             style: const TextStyle(
               color: MockColors.secondary,
               fontWeight: FontWeight.w800,
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _incompleteNotice() {
+    final missing = result.missingSkills.isEmpty
+        ? 'one or more required skills'
+        : result.missingSkills.join(', ');
+    return _ResultSection(
+      title: 'Incomplete assessment',
+      icon: Icons.info_outline_rounded,
+      child: Text(
+        'This attempt remains available for review, but $missing were not '
+        'completed. It is not eligible for an overall band or certificate.',
+        style: const TextStyle(color: MockColors.secondary, height: 1.45),
       ),
     );
   }
@@ -338,7 +363,9 @@ class _ResultContent extends StatelessWidget {
 
   Widget _certificateCard(BuildContext context) {
     return _ResultSection(
-      title: certificateIssued
+      title: !result.certificateEligible
+          ? 'Certificate not eligible'
+          : certificateIssued
           ? 'Certificate Earned'
           : 'Certificate Processing',
       icon: Icons.workspace_premium_rounded,
@@ -346,7 +373,9 @@ class _ResultContent extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            certificateIssued
+            !result.certificateEligible
+                ? 'Only a server-verified four-skill Full Mock Test can issue a certificate.'
+                : certificateIssued
                 ? 'You completed a Full IELTS Mock Test. Your verified certificate is available in Profile → Certificates.'
                 : 'Your result is complete. Certificate synchronization will retry automatically from Home.',
             style: const TextStyle(color: MockColors.secondary, height: 1.45),

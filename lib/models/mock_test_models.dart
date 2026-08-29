@@ -367,6 +367,21 @@ class MockFinalResult {
   final List<String> weaknesses;
   final DateTime suggestedNextMockDate;
   final List<Map<String, dynamic>> sevenDayPlan;
+  final bool isComplete;
+  final bool serverAttested;
+  final List<String> completedSkills;
+  final List<String> missingSkills;
+  final String scoringVersion;
+
+  bool get certificateEligible =>
+      isComplete &&
+      serverAttested &&
+      const {
+        'listening',
+        'reading',
+        'writing',
+        'speaking',
+      }.every(completedSkills.contains);
 
   const MockFinalResult({
     required this.attemptId,
@@ -378,5 +393,10 @@ class MockFinalResult {
     required this.weaknesses,
     required this.suggestedNextMockDate,
     required this.sevenDayPlan,
+    this.isComplete = false,
+    this.serverAttested = false,
+    this.completedSkills = const [],
+    this.missingSkills = const [],
+    this.scoringVersion = 'legacy_unattested',
   });
 }

@@ -3,6 +3,8 @@
   "description": "Cloud Functions for Firebase",
   "scripts": {
     "lint": "eslint .",
+    "test": "node --test test/phase1_security.test.js test/phase2_contracts.test.js test/phase3_security.test.js",
+    "test:rules": "firebase --config ../firebase.json emulators:exec --only firestore,storage \"node --test --test-concurrency=1 test/rules.test.js test/callables.test.js\"",
     "serve": "firebase emulators:start --only functions",
     "shell": "firebase functions:shell",
     "start": "npm run shell",
@@ -21,6 +23,7 @@
     "nodemailer": "^9.0.5"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.0",
     "eslint": "^8.15.0",
     "eslint-config-google": "^0.14.0"
   },

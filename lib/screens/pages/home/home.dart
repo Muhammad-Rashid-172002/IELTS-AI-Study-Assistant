@@ -40,7 +40,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
     if (!_activityRecorded) {
       _activityRecorded = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _recordDailyActivity(userRef);
+        _recordDailyActivity();
       });
     }
 
@@ -117,37 +117,11 @@ class _HomeDashboardState extends State<HomeDashboard> {
     }
   }
 
-  Future<void> _recordDailyActivity(
-    DocumentReference<Map<String, dynamic>> userRef,
-  ) async {
+  Future<void> _recordDailyActivity() async {
     try {
-      await FirebaseFirestore.instance.runTransaction((transaction) async {
-        final snapshot = await transaction.get(userRef);
-        final data = snapshot.data() ?? <String, dynamic>{};
-
-        final now = DateTime.now();
-        final today = _dateKey(now);
-        final yesterday = _dateKey(now.subtract(const Duration(days: 1)));
-        final lastActive = (data['lastActiveDate'] ?? '').toString();
-
-        if (lastActive == today) return;
-
-        final oldStreak = _asInt(data['currentStreak'] ?? data['streak']);
-        final newStreak = lastActive == yesterday ? oldStreak + 1 : 1;
-        final oldLongest = _asInt(data['longestStreak']);
-        final oldXp = _asInt(data['xpPoints'] ?? data['xp']);
-
-        transaction.set(userRef, {
-          'lastActiveDate': today,
-          'currentStreak': newStreak,
-          'streak': newStreak,
-          'longestStreak': math.max(oldLongest, newStreak),
-          'xpPoints': oldXp + 10,
-          'activityDates': FieldValue.arrayUnion([today]),
-          'lastDashboardVisitAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      });
+      await FirebaseFunctions.instanceFor(
+        region: 'us-central1',
+      ).httpsCallable('recordStudyActivity').call();
     } catch (_) {
       // Dashboard must remain usable even if activity tracking fails.
     }
@@ -953,7 +927,7 @@ class _ReadinessCard extends StatelessWidget {
                           hasCompleteOverallBand ? 'READY' : 'PROVISIONAL',
                           style: TextStyle(
                             color: hasCompleteOverallBand ? _C.green : _C.cyan,
-                            fontSize: 7.2,
+                            fontSize: 12,
                             fontWeight: FontWeight.w900,
                             letterSpacing: .35,
                           ),
@@ -1006,8 +980,8 @@ class _ReadinessCard extends StatelessWidget {
               Expanded(
                 child: _Metric(
                   label: hasCompleteOverallBand
-                      ? 'Overall Band'
-                      : 'Provisional Band',
+                      ? 'Estimated Overall Band'
+                      : 'Provisional Estimated Band',
                   value: hasAnyResult
                       ? model.currentBand.toStringAsFixed(1)
                       : '—',
@@ -1236,7 +1210,7 @@ class _Metric extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: _C.muted, fontSize: 8.4),
+            style: const TextStyle(color: _C.muted, fontSize: 12),
           ),
         ],
       ),
@@ -1556,7 +1530,7 @@ class _SkillCard extends StatelessWidget {
                         color: skill.weeklyTrend >= 0
                             ? _C.green
                             : Colors.redAccent,
-                        fontSize: 8.2,
+                        fontSize: 12,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -1848,7 +1822,7 @@ class _AIInsight extends StatelessWidget {
                             isPremium ? 'PREMIUM' : 'BASIC',
                             style: TextStyle(
                               color: isPremium ? _C.orange : _C.green,
-                              fontSize: 7.5,
+                              fontSize: 12,
                               fontWeight: FontWeight.w900,
                               letterSpacing: .7,
                             ),
@@ -2418,7 +2392,7 @@ class _CoachTierBadge extends StatelessWidget {
             premium ? 'PREMIUM • ADVANCED' : 'FREE • BASIC',
             style: TextStyle(
               color: color,
-              fontSize: 7.8,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
               letterSpacing: .6,
             ),
@@ -2539,7 +2513,7 @@ class _PremiumCoachLockedCard extends StatelessWidget {
                         feature.$2,
                         style: const TextStyle(
                           color: _C.secondary,
-                          fontSize: 9.7,
+                          fontSize: 12,
                           height: 1.35,
                           fontWeight: FontWeight.w600,
                         ),
@@ -2919,7 +2893,7 @@ class _CoachTextCard extends StatelessWidget {
               text,
               style: const TextStyle(
                 color: _C.secondary,
-                fontSize: 10.8,
+                fontSize: 12,
                 height: 1.55,
               ),
             ),

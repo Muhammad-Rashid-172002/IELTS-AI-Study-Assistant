@@ -1,24 +1,23 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:ielts_ai_master_admin/features/content_qa/data/content_qa_service.dart';
 
 import '../domain/speaking_admin_test.dart';
 
 class SpeakingAdminRepository {
-  SpeakingAdminRepository({
-    FirebaseFirestore? firestore,
-    FirebaseAuth? auth,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
+  SpeakingAdminRepository({FirebaseFirestore? firestore, FirebaseAuth? auth})
+    : _firestore = firestore ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
+  final ContentQaService _qa = ContentQaService();
 
   Stream<List<SpeakingAdminTest>> watchTests({
     String status = 'all',
     String mode = 'all',
   }) {
-    Query<Map<String, dynamic>> query =
-        _firestore.collection('speaking_tests');
+    Query<Map<String, dynamic>> query = _firestore.collection('speaking_tests');
 
     if (status != 'all') {
       query = query.where('status', isEqualTo: status);
@@ -29,8 +28,7 @@ class SpeakingAdminRepository {
     }
 
     return query.snapshots().map((snapshot) {
-      final tests =
-          snapshot.docs.map(SpeakingAdminTest.fromDocument).toList();
+      final tests = snapshot.docs.map(SpeakingAdminTest.fromDocument).toList();
 
       tests.sort((a, b) {
         final aDate = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
@@ -47,10 +45,7 @@ class SpeakingAdminRepository {
         .collection('speaking_tests')
         .doc(id)
         .snapshots()
-        .map(
-          (doc) =>
-              doc.exists ? SpeakingAdminTest.fromDocument(doc) : null,
-        );
+        .map((doc) => doc.exists ? SpeakingAdminTest.fromDocument(doc) : null);
   }
 
   Future<void> createSpeakingJob({
@@ -85,20 +80,11 @@ class SpeakingAdminRepository {
   Future<void> updateStatus({
     required String id,
     required String status,
-  }) {
-    return _firestore.collection('speaking_tests').doc(id).set({
-      'status': status,
-      'isPublished': status == 'published',
-      'publishedAt':
-          status == 'published' ? FieldValue.serverTimestamp() : null,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+  }) async {
+    await _qa.changeStatus(documentPath: 'speaking_tests/$id', status: status);
   }
 
-  Future<void> updateFeatured({
-    required String id,
-    required bool featured,
-  }) {
+  Future<void> updateFeatured({required String id, required bool featured}) {
     return _firestore.collection('speaking_tests').doc(id).set({
       'isFeatured': featured,
       'updatedAt': FieldValue.serverTimestamp(),
@@ -106,8 +92,7 @@ class SpeakingAdminRepository {
   }
 
   Future<String> duplicateTest(String id) async {
-    final source =
-        await _firestore.collection('speaking_tests').doc(id).get();
+    final source = await _firestore.collection('speaking_tests').doc(id).get();
 
     if (!source.exists) {
       throw StateError('Speaking test not found.');

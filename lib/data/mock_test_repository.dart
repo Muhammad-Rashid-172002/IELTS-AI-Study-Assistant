@@ -294,6 +294,12 @@ class MockTestRepository {
                 .map((item) => Map<String, dynamic>.from(item))
                 .toList()
           : const [],
+      isComplete: result['isComplete'] == true,
+      serverAttested: result['serverAttested'] == true,
+      completedSkills: _strings(result['completedSkills']),
+      missingSkills: _strings(result['missingSkills']),
+      scoringVersion: (result['scoringVersion'] ?? 'legacy_unattested')
+          .toString(),
     );
   }
 

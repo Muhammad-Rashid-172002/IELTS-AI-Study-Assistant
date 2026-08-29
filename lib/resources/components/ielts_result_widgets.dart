@@ -602,7 +602,7 @@ class IeltsCorrectionTile extends StatelessWidget {
             'ORIGINAL',
             style: TextStyle(
               color: Color(0xFFFB7185),
-              fontSize: 10.5,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
               letterSpacing: 1,
             ),
@@ -624,7 +624,7 @@ class IeltsCorrectionTile extends StatelessWidget {
             'IMPROVED',
             style: TextStyle(
               color: accent,
-              fontSize: 10.5,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
               letterSpacing: 1,
             ),

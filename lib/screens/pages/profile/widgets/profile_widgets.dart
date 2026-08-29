@@ -109,7 +109,7 @@ class ProfileHeader extends StatelessWidget {
             children: [
               Expanded(
                 child: _Metric(
-                  label: 'Current Band',
+                  label: 'Current Estimated Band',
                   value: profile.estimatedBand.toStringAsFixed(1),
                   color: ProfileColors.cyan,
                 ),

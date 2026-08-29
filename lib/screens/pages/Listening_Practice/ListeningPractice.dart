@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fyproject/offline/offline_content_service.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:fyproject/services/ielts_scoring.dart';
 import 'package:fyproject/screens/pages/Subscription/Subscription_screen.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:fyproject/resources/components/learner_state_view.dart';
@@ -1487,6 +1488,13 @@ class _FullListeningPracticeScreenState
       'estimatedBand': result.estimatedBand,
       'rawScore': result.rawScore,
       'totalQuestions': result.totalQuestions,
+      'maximumScore': result.totalQuestions,
+      'normalizedRawScore': result.totalQuestions == 0
+          ? 0
+          : ((result.rawScore / result.totalQuestions) * 40).round(),
+      'ieltsTrack': 'academic',
+      'conversionTableVersion': IeltsScoring.objectiveConversionVersion,
+      'scoringVersion': IeltsScoring.scoringVersion,
       'accuracyPercent': result.accuracyPercent,
       'sectionAccuracy': result.sectionAccuracy,
       'questionTypeAccuracy': result.questionTypeAccuracy,
@@ -1523,6 +1531,13 @@ class _FullListeningPracticeScreenState
           'rawScore': result.rawScore,
           'totalQuestions': result.totalQuestions,
           'estimatedBand': result.estimatedBand,
+          'maximumScore': result.totalQuestions,
+          'normalizedRawScore': result.totalQuestions == 0
+              ? 0
+              : ((result.rawScore / result.totalQuestions) * 40).round(),
+          'ieltsTrack': 'academic',
+          'conversionTableVersion': IeltsScoring.objectiveConversionVersion,
+          'scoringVersion': IeltsScoring.scoringVersion,
           'accuracyPercent': result.accuracyPercent,
           'sectionAccuracy': result.sectionAccuracy,
           'questionTypeAccuracy': result.questionTypeAccuracy,
@@ -2074,6 +2089,13 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen> {
       'estimatedBand': result.estimatedBand,
       'rawScore': result.rawScore,
       'totalQuestions': result.totalQuestions,
+      'maximumScore': result.totalQuestions,
+      'normalizedRawScore': result.totalQuestions == 0
+          ? 0
+          : ((result.rawScore / result.totalQuestions) * 40).round(),
+      'ieltsTrack': 'academic',
+      'conversionTableVersion': IeltsScoring.objectiveConversionVersion,
+      'scoringVersion': IeltsScoring.scoringVersion,
       'accuracyPercent': result.accuracyPercent,
       'sectionAccuracy': result.sectionAccuracy,
       'questionTypeAccuracy': result.questionTypeAccuracy,
@@ -2110,6 +2132,13 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen> {
           'rawScore': result.rawScore,
           'totalQuestions': result.totalQuestions,
           'estimatedBand': result.estimatedBand,
+          'maximumScore': result.totalQuestions,
+          'normalizedRawScore': result.totalQuestions == 0
+              ? 0
+              : ((result.rawScore / result.totalQuestions) * 40).round(),
+          'ieltsTrack': 'academic',
+          'conversionTableVersion': IeltsScoring.objectiveConversionVersion,
+          'scoringVersion': IeltsScoring.scoringVersion,
           'accuracyPercent': result.accuracyPercent,
           'sectionAccuracy': result.sectionAccuracy,
           'questionTypeAccuracy': result.questionTypeAccuracy,
@@ -2633,7 +2662,7 @@ class _AnswerReviewItem extends StatelessWidget {
           'QUESTION $number',
           style: const TextStyle(
             color: LColors.cyan,
-            fontSize: 10.5,
+            fontSize: 12,
             fontWeight: FontWeight.w900,
             letterSpacing: 1,
           ),
@@ -2895,7 +2924,14 @@ class ListeningResultCalculator {
     return ListeningTestResult(
       rawScore: score,
       totalQuestions: total,
-      estimatedBand: _scoreToBand(score, total),
+      estimatedBand: total == 0
+          ? 0
+          : IeltsScoring.convertObjective(
+              skill: 'listening',
+              track: 'academic',
+              rawScore: score,
+              maximumScore: total,
+            ).estimatedBand,
       accuracyPercent: accuracy,
       sectionAccuracy: sectionAccuracy,
       questionTypeAccuracy: typeAccuracy,
@@ -2919,22 +2955,6 @@ class ListeningResultCalculator {
         x.isNotEmpty &&
         y.isNotEmpty &&
         x[0] == y[0];
-  }
-
-  static double _scoreToBand(int score, int total) {
-    if (total == 0) return 0;
-    final scaled = (score / total) * 40;
-    if (scaled >= 39) return 9;
-    if (scaled >= 37) return 8.5;
-    if (scaled >= 35) return 8;
-    if (scaled >= 32) return 7.5;
-    if (scaled >= 30) return 7;
-    if (scaled >= 26) return 6.5;
-    if (scaled >= 23) return 6;
-    if (scaled >= 18) return 5.5;
-    if (scaled >= 16) return 5;
-    if (scaled >= 13) return 4.5;
-    return 4;
   }
 }
 
@@ -3287,7 +3307,7 @@ class _WeakTypesCard extends StatelessWidget {
                     SizedBox(height: 2),
                     Text(
                       'Prioritize these question types next',
-                      style: TextStyle(color: LColors.muted, fontSize: 9.7),
+                      style: TextStyle(color: LColors.muted, fontSize: 12),
                     ),
                   ],
                 ),
@@ -3325,7 +3345,7 @@ class _WeakTypesCard extends StatelessWidget {
                           type,
                           style: const TextStyle(
                             color: Color(0xFFFFC28A),
-                            fontSize: 9.8,
+                            fontSize: 12,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -3482,7 +3502,7 @@ class _RecommendedLessonCard extends StatelessWidget {
                       'YOUR NEXT FOCUS',
                       style: TextStyle(
                         color: LColors.green,
-                        fontSize: 8.8,
+                        fontSize: 12,
                         letterSpacing: .8,
                         fontWeight: FontWeight.w900,
                       ),
@@ -3501,7 +3521,7 @@ class _RecommendedLessonCard extends StatelessWidget {
                       _description(recommendation),
                       style: const TextStyle(
                         color: LColors.secondary,
-                        fontSize: 9.8,
+                        fontSize: 12,
                         height: 1.35,
                       ),
                     ),
@@ -3572,7 +3592,7 @@ class _RecommendationMeta extends StatelessWidget {
             label,
             style: const TextStyle(
               color: LColors.secondary,
-              fontSize: 8.7,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -3642,7 +3662,7 @@ class _ListeningPlanCard extends StatelessWidget {
                           : 'FREE LISTENING PLAN',
                       style: TextStyle(
                         color: accent,
-                        fontSize: 8.8,
+                        fontSize: 12,
                         letterSpacing: .8,
                         fontWeight: FontWeight.w900,
                       ),
@@ -3665,7 +3685,7 @@ class _ListeningPlanCard extends StatelessWidget {
                           : 'Each Listening mode and each question type has its own 1 free attempt every day.',
                       style: const TextStyle(
                         color: LColors.secondary,
-                        fontSize: 9.8,
+                        fontSize: 12,
                         height: 1.35,
                       ),
                     ),
@@ -3777,7 +3797,7 @@ class _ModeCard extends StatelessWidget {
                       isPremium ? 'UNLIMITED' : 'FREE • 1/DAY',
                       style: TextStyle(
                         color: isPremium ? LColors.green : LColors.violet,
-                        fontSize: 6.5,
+                        fontSize: 12,
                         fontWeight: FontWeight.w900,
                         letterSpacing: .2,
                       ),
@@ -3803,7 +3823,7 @@ class _ModeCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: LColors.muted,
-                  fontSize: 9.1,
+                  fontSize: 12,
                   height: 1.25,
                 ),
               ),
@@ -3814,7 +3834,7 @@ class _ModeCard extends StatelessWidget {
                     'Start practice',
                     style: TextStyle(
                       color: LColors.cyan,
-                      fontSize: 8.9,
+                      fontSize: 12,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -3871,7 +3891,7 @@ class _QuestionTypeCard extends StatelessWidget {
               maxLines: 2,
               style: const TextStyle(
                 color: LColors.text,
-                fontSize: 10.3,
+                fontSize: 12,
                 height: 1.25,
                 fontWeight: FontWeight.w800,
               ),
@@ -3888,7 +3908,7 @@ class _QuestionTypeCard extends StatelessWidget {
                 'FOCUS',
                 style: TextStyle(
                   color: LColors.orange,
-                  fontSize: 7.5,
+                  fontSize: 12,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -3906,7 +3926,7 @@ class _QuestionTypeCard extends StatelessWidget {
                 isPremium ? '∞' : '1/DAY',
                 style: TextStyle(
                   color: isPremium ? LColors.green : LColors.violet,
-                  fontSize: 7.2,
+                  fontSize: 12,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -3980,7 +4000,7 @@ class _RecentResultCard extends StatelessWidget {
                       '${result.rawScore}/${result.totalQuestions} correct',
                       style: const TextStyle(
                         color: LColors.secondary,
-                        fontSize: 9.7,
+                        fontSize: 12,
                       ),
                     ),
                     const SizedBox(width: 9),
@@ -3997,7 +4017,7 @@ class _RecentResultCard extends StatelessWidget {
                       '${result.accuracyPercent}% accuracy',
                       style: const TextStyle(
                         color: LColors.cyan,
-                        fontSize: 9.7,
+                        fontSize: 12,
                         fontWeight: FontWeight.w800,
                       ),
                     ),

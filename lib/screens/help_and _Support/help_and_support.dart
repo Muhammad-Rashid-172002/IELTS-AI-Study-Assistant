@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:fyproject/config/platform_links.dart';
 
 class HelpAndSupportScreen extends StatefulWidget {
   const HelpAndSupportScreen({super.key});
@@ -11,9 +12,8 @@ class HelpAndSupportScreen extends StatefulWidget {
 
 class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
   static const String _supportEmail = 'muhammadrashid172002@gmail.com';
-  static const String _privacyPolicyUrl =
-      'https://your-domain.com/privacy-policy';
-  static const String _termsUrl = 'https://your-domain.com/terms';
+  static const String _privacyPolicyUrl = PlatformLinks.privacyPolicy;
+  static const String _termsUrl = PlatformLinks.termsOfService;
 
   final TextEditingController _searchController = TextEditingController();
   final GlobalKey _faqSectionKey = GlobalKey();

@@ -111,7 +111,7 @@ class Tag extends StatelessWidget {
         label,
         style: const TextStyle(
           color: MockColors.cyan,
-          fontSize: 8.8,
+          fontSize: 12,
           fontWeight: FontWeight.w800,
         ),
       ),

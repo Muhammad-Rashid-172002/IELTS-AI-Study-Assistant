@@ -1,13 +1,18 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:fyproject/config/platform_links.dart';
 import 'package:fyproject/data/mock_test_repository.dart';
 import 'package:fyproject/models/mock_test_models.dart';
 import 'package:fyproject/services/mock_timer_controller.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 
 import 'mock_shared_ui.dart';
 import 'mock_test_result_screen.dart';
@@ -216,6 +221,20 @@ class _MockTestRunnerScreenState extends State<MockTestRunnerScreen> {
   }
 
   Future<void> _nextQuestion() async {
+    final current = _currentQuestion;
+    final currentValue = current == null ? null : _answers[current.id]?.value;
+    if (_currentSkill == MockSkill.speaking &&
+        (currentValue is! Map ||
+            (currentValue['audioStoragePath'] ?? '').toString().isEmpty)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Record and save this speaking response first.'),
+          ),
+        );
+      }
+      return;
+    }
     await _saveCurrentAnswer();
 
     if (_questionIndex + 1 < _questions.length) {
@@ -666,20 +685,12 @@ class _MockTestRunnerScreenState extends State<MockTestRunnerScreen> {
         );
 
       case 'speaking_part':
-        return Container(
-          padding: const EdgeInsets.all(17),
-          decoration: panelDecoration(),
-          child: const Column(
-            children: [
-              Icon(Icons.mic_rounded, color: MockColors.cyan, size: 42),
-              SizedBox(height: 10),
-              Text(
-                'Connect this question with your existing recorder and speaking evaluation flow.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: MockColors.secondary, height: 1.45),
-              ),
-            ],
-          ),
+        return _MockSpeakingRecorder(
+          key: ValueKey('recorder_${widget.attemptId}_${question.id}'),
+          attemptId: widget.attemptId,
+          question: question,
+          existingValue: answer?.value,
+          onUploaded: _updateAnswer,
         );
 
       default:
@@ -753,6 +764,192 @@ class _MockTestRunnerScreenState extends State<MockTestRunnerScreen> {
               _questionIndex + 1 == _questions.length
                   ? 'Finish Section'
                   : 'Next',
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            PlatformLinks.audioProcessingNotice,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: MockColors.muted,
+              fontSize: 12,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MockSpeakingRecorder extends StatefulWidget {
+  const _MockSpeakingRecorder({
+    super.key,
+    required this.attemptId,
+    required this.question,
+    required this.existingValue,
+    required this.onUploaded,
+  });
+
+  final String attemptId;
+  final MockQuestion question;
+  final dynamic existingValue;
+  final ValueChanged<dynamic> onUploaded;
+
+  @override
+  State<_MockSpeakingRecorder> createState() => _MockSpeakingRecorderState();
+}
+
+class _MockSpeakingRecorderState extends State<_MockSpeakingRecorder> {
+  final AudioRecorder _recorder = AudioRecorder();
+  bool _recording = false;
+  bool _uploading = false;
+  String? _error;
+  int _durationSeconds = 0;
+  Timer? _timer;
+
+  bool get _hasRecording {
+    final value = widget.existingValue;
+    return value is Map &&
+        (value['audioStoragePath'] ?? '').toString().trim().isNotEmpty;
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    if (_recording) _recorder.cancel();
+    _recorder.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggle() async {
+    if (_uploading) return;
+    if (_recording) {
+      await _finishAndUpload();
+      return;
+    }
+
+    try {
+      if (!await _recorder.hasPermission()) {
+        setState(() => _error = 'Microphone permission is required.');
+        return;
+      }
+      final directory = await getTemporaryDirectory();
+      final path =
+          '${directory.path}/mock_${widget.attemptId}_${widget.question.id}.m4a';
+      await _recorder.start(
+        const RecordConfig(encoder: AudioEncoder.aacLc),
+        path: path,
+      );
+      if (!mounted) return;
+      setState(() {
+        _recording = true;
+        _durationSeconds = 0;
+        _error = null;
+      });
+      _timer?.cancel();
+      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() => _durationSeconds++);
+      });
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Recording could not start.');
+    }
+  }
+
+  Future<void> _finishAndUpload() async {
+    _timer?.cancel();
+    final path = await _recorder.stop();
+    if (!mounted) return;
+    setState(() {
+      _recording = false;
+      _uploading = true;
+      _error = null;
+    });
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null || path == null || !File(path).existsSync()) {
+        throw StateError('Recording is unavailable.');
+      }
+      if (_durationSeconds < 2) {
+        throw StateError('Record a complete response before continuing.');
+      }
+      final safeQuestionId = widget.question.id.replaceAll(
+        RegExp('[^a-zA-Z0-9_-]'),
+        '_',
+      );
+      final storagePath =
+          'speaking_recordings/${user.uid}/'
+          '${widget.attemptId}_${safeQuestionId}.m4a';
+      final ref = FirebaseStorage.instance.ref(storagePath);
+      await ref.putFile(File(path), SettableMetadata(contentType: 'audio/mp4'));
+      widget.onUploaded({
+        'audioStoragePath': storagePath,
+        'audioMimeType': 'audio/mp4',
+        'durationSeconds': _durationSeconds,
+        'questionText': widget.question.prompt,
+      });
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = error.toString().replaceFirst('Bad state: ', ''),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: panelDecoration(),
+      child: Column(
+        children: [
+          Icon(
+            _recording ? Icons.graphic_eq_rounded : Icons.mic_rounded,
+            color: _recording ? MockColors.warning : MockColors.cyan,
+            size: 44,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            _recording
+                ? 'Recording ${_durationSeconds}s'
+                : _uploading
+                ? 'Securing your recording…'
+                : _hasRecording
+                ? 'Response recorded and saved'
+                : 'Record your complete spoken response',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: MockColors.text,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _error!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: MockColors.warning),
+            ),
+          ],
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: _uploading ? null : _toggle,
+            icon: _uploading
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Icon(_recording ? Icons.stop_rounded : Icons.mic_rounded),
+            label: Text(
+              _recording
+                  ? 'Stop and save'
+                  : _hasRecording
+                  ? 'Record again'
+                  : 'Start recording',
             ),
           ),
         ],

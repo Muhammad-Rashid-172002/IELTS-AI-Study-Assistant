@@ -853,7 +853,7 @@ class _TrustFooter extends StatelessWidget {
               'Secure sign-in • Your data stays protected',
               style: TextStyle(
                 color: Color(0xFF64748B),
-                fontSize: 9.8,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
             ),

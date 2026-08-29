@@ -34,16 +34,14 @@ class WritingSubmissionsScreen extends StatelessWidget {
           return ListView.separated(
             padding: const EdgeInsets.all(20),
             itemCount: docs.length,
-            separatorBuilder: (_, __) =>
-                const SizedBox(height: 11),
+            separatorBuilder: (_, __) => const SizedBox(height: 11),
             itemBuilder: (context, index) {
               final data = docs[index].data();
               final report = data['report'] is Map
                   ? Map<String, dynamic>.from(data['report'])
                   : const <String, dynamic>{};
               final band = _asDouble(report['overallBand']);
-              final status =
-                  (data['status'] ?? 'queued').toString();
+              final status = (data['status'] ?? 'queued').toString();
 
               return Container(
                 padding: const EdgeInsets.all(17),
@@ -56,8 +54,7 @@ class WritingSubmissionsScreen extends StatelessWidget {
                   children: [
                     CircleAvatar(
                       radius: 24,
-                      backgroundColor:
-                          AdminColors.cyan.withOpacity(.12),
+                      backgroundColor: AdminColors.cyan.withOpacity(.12),
                       child: Text(
                         band > 0 ? band.toStringAsFixed(1) : '—',
                         style: const TextStyle(
@@ -69,13 +66,10 @@ class WritingSubmissionsScreen extends StatelessWidget {
                     const SizedBox(width: 13),
                     Expanded(
                       child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            (data['title'] ??
-                                    'Writing Submission')
-                                .toString(),
+                            (data['title'] ?? 'Writing Submission').toString(),
                             style: const TextStyle(
                               color: AdminColors.text,
                               fontWeight: FontWeight.w900,
@@ -94,12 +88,8 @@ class WritingSubmissionsScreen extends StatelessWidget {
                       ),
                     ),
                     OutlinedButton.icon(
-                      onPressed: () =>
-                          _showReport(context, data, report),
-                      icon: const Icon(
-                        Icons.visibility_outlined,
-                        size: 17,
-                      ),
+                      onPressed: () => _showReport(context, data, report),
+                      icon: const Icon(Icons.visibility_outlined, size: 17),
                       label: const Text('View Report'),
                     ),
                   ],
@@ -117,6 +107,12 @@ class WritingSubmissionsScreen extends StatelessWidget {
     Map<String, dynamic> data,
     Map<String, dynamic> report,
   ) {
+    final taskType = (data['taskType'] ?? '').toString().toLowerCase();
+    final taskCriterionName =
+        (report['taskCriterionName'] ??
+                (taskType.contains('1') ? 'Task Achievement' : 'Task Response'))
+            .toString();
+    final taskCriterion = report['taskAchievement'] ?? report['taskResponse'];
     final text = [
       'User ID: ${data['userId'] ?? '-'}',
       'Task Type: ${data['taskType'] ?? '-'}',
@@ -124,11 +120,11 @@ class WritingSubmissionsScreen extends StatelessWidget {
       'Word Count: ${data['wordCount'] ?? 0}',
       'Status: ${data['status'] ?? '-'}',
       '',
-      'Overall Band: ${report['overallBand'] ?? '-'}',
+      'Estimated Overall Band: ${report['estimatedOverallBand'] ?? report['overallBand'] ?? '-'}',
       'Summary: ${report['summary'] ?? '-'}',
       '',
-      'Task Achievement / Response:',
-      _criterion(report['taskAchievement']),
+      '$taskCriterionName:',
+      _criterion(taskCriterion),
       '',
       'Coherence and Cohesion:',
       _criterion(report['coherenceAndCohesion']),

@@ -11,7 +11,7 @@ class VerificationReportService {
     CertificateVerificationModel certificate,
   ) async {
     final document = pw.Document(
-      title: 'Certificate Verification Report',
+      title: 'Platform Credential Verification Report',
       author: 'IELTS AI Master',
       subject: certificate.verificationCode,
     );
@@ -40,7 +40,7 @@ class VerificationReportService {
                 ),
                 pw.SizedBox(height: 8),
                 pw.Text(
-                  'Certificate Verification Report',
+                  'Platform Credential Verification Report',
                   style: pw.TextStyle(
                     fontSize: 26,
                     fontWeight: pw.FontWeight.bold,
@@ -49,8 +49,8 @@ class VerificationReportService {
                 pw.SizedBox(height: 8),
                 pw.Text(
                   certificate.isValid
-                      ? 'VERIFIED — VALID RECORD'
-                      : 'NOT VALID',
+                      ? 'CREDENTIAL VERIFIED — VALID PLATFORM RECORD'
+                      : 'CREDENTIAL STATUS: ${certificate.status.toUpperCase()}',
                   style: pw.TextStyle(
                     fontWeight: pw.FontWeight.bold,
                     color: certificate.isValid
@@ -67,7 +67,7 @@ class VerificationReportService {
           _row('Certificate Type', certificate.certificateType),
           if (certificate.band > 0)
             _row(
-              'Estimated Band',
+              'Estimated Practice Band',
               certificate.band.toStringAsFixed(1),
             ),
           _row('Certificate ID', certificate.certificateId),
@@ -75,24 +75,25 @@ class VerificationReportService {
           _row('Status', certificate.status.toUpperCase()),
           _row('Issued By', certificate.issuer),
           _row('Issue Date', _formatDate(certificate.issuedAt)),
+          if (certificate.assessmentDate != null)
+            _row('Assessment Date', _formatDate(certificate.assessmentDate)),
+          if (certificate.scoringVersion != 'legacy_unversioned')
+            _row('Scoring Version', certificate.scoringVersion),
           pw.SizedBox(height: 22),
           pw.Divider(),
           pw.SizedBox(height: 12),
           pw.Text(
             certificate.disclaimer,
             style: const pw.TextStyle(
-              fontSize: 10,
+              fontSize: 12,
               color: PdfColors.grey700,
               lineSpacing: 4,
             ),
           ),
           pw.SizedBox(height: 16),
           pw.Text(
-            'Generated from the IELTS AI Master public verification registry.',
-            style: const pw.TextStyle(
-              fontSize: 9,
-              color: PdfColors.grey600,
-            ),
+            'Generated from the IELTS AI Master app-issued credential registry. Practice credential only — not an official IELTS result or Test Report Form (TRF).',
+            style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey600),
           ),
         ],
       ),
@@ -101,9 +102,7 @@ class VerificationReportService {
     return document.save();
   }
 
-  static Future<void> download(
-    CertificateVerificationModel certificate,
-  ) async {
+  static Future<void> download(CertificateVerificationModel certificate) async {
     final bytes = await build(certificate);
     final safeCode = certificate.verificationCode.replaceAll(
       RegExp(r'[^A-Za-z0-9_-]'),
@@ -120,7 +119,7 @@ class VerificationReportService {
     CertificateVerificationModel certificate,
   ) async {
     await Printing.layoutPdf(
-      name: 'Certificate Verification Report',
+      name: 'Platform Credential Verification Report',
       onLayout: (_) => build(certificate),
     );
   }
@@ -129,9 +128,7 @@ class VerificationReportService {
     return pw.Container(
       padding: const pw.EdgeInsets.symmetric(vertical: 9),
       decoration: const pw.BoxDecoration(
-        border: pw.Border(
-          bottom: pw.BorderSide(color: PdfColors.grey300),
-        ),
+        border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300)),
       ),
       child: pw.Row(
         crossAxisAlignment: pw.CrossAxisAlignment.start,

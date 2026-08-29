@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:ielts_ai_master_admin/features/content_qa/data/content_qa_service.dart';
 
 import '../models/diagnostic_admin_models.dart';
 import '../models/diagnostic_generation_job.dart';
@@ -12,14 +13,15 @@ class DiagnosticAdminRepository {
     FirebaseFirestore? firestore,
     FirebaseStorage? storage,
     FirebaseFunctions? functions,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _storage = storage ?? FirebaseStorage.instance,
-        _functions = functions ??
-            FirebaseFunctions.instanceFor(region: 'us-central1');
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _storage = storage ?? FirebaseStorage.instance,
+       _functions =
+           functions ?? FirebaseFunctions.instanceFor(region: 'us-central1');
 
   final FirebaseFirestore _firestore;
   final FirebaseStorage _storage;
   final FirebaseFunctions _functions;
+  final ContentQaService _qa = ContentQaService();
 
   CollectionReference<Map<String, dynamic>> get _tests =>
       _firestore.collection('diagnostic_tests');
@@ -27,25 +29,24 @@ class DiagnosticAdminRepository {
   CollectionReference<Map<String, dynamic>> get _generationJobs =>
       _firestore.collection('diagnostic_generation_jobs');
 
-  Stream<List<DiagnosticGenerationJob>> watchGenerationJobs({
-    int limit = 20,
-  }) {
+  Stream<List<DiagnosticGenerationJob>> watchGenerationJobs({int limit = 20}) {
     return _generationJobs
         .orderBy('createdAt', descending: true)
         .limit(limit)
         .snapshots()
         .map(
-          (snapshot) => snapshot.docs
-              .map(DiagnosticGenerationJob.fromDocument)
-              .toList(),
+          (snapshot) =>
+              snapshot.docs.map(DiagnosticGenerationJob.fromDocument).toList(),
         );
   }
 
   Stream<DiagnosticGenerationJob?> watchGenerationJob(String jobId) {
-    return _generationJobs.doc(jobId).snapshots().map(
-          (doc) => doc.exists
-              ? DiagnosticGenerationJob.fromDocument(doc)
-              : null,
+    return _generationJobs
+        .doc(jobId)
+        .snapshots()
+        .map(
+          (doc) =>
+              doc.exists ? DiagnosticGenerationJob.fromDocument(doc) : null,
         );
   }
 
@@ -60,8 +61,7 @@ class DiagnosticAdminRepository {
     required int speakingPromptCount,
     required int durationMinutes,
   }) async {
-    final callable =
-        _functions.httpsCallable('createDiagnosticGenerationJob');
+    final callable = _functions.httpsCallable('createDiagnosticGenerationJob');
 
     final response = await callable.call({
       'title': title.trim(),
@@ -87,26 +87,21 @@ class DiagnosticAdminRepository {
   }
 
   Future<void> retryAiGeneration(String jobId) async {
-    final callable =
-        _functions.httpsCallable('retryDiagnosticGenerationJob');
+    final callable = _functions.httpsCallable('retryDiagnosticGenerationJob');
     await callable.call({'jobId': jobId});
   }
-
 
   Stream<List<DiagnosticTestAdminModel>> watchTests() {
     return _tests
         .orderBy('updatedAt', descending: true)
         .snapshots()
         .map(
-          (snapshot) => snapshot.docs
-              .map(DiagnosticTestAdminModel.fromDocument)
-              .toList(),
+          (snapshot) =>
+              snapshot.docs.map(DiagnosticTestAdminModel.fromDocument).toList(),
         );
   }
 
-  Future<String> createDraft(
-    DiagnosticTestAdminModel model,
-  ) async {
+  Future<String> createDraft(DiagnosticTestAdminModel model) async {
     final ref = _tests.doc();
 
     await ref.set({
@@ -119,48 +114,52 @@ class DiagnosticAdminRepository {
     return ref.id;
   }
 
-  Future<void> updateTest(
-    DiagnosticTestAdminModel model,
-  ) async {
+  Future<void> updateTest(DiagnosticTestAdminModel model) async {
     if (model.id.isEmpty) {
       throw StateError('Diagnostic test ID is missing.');
     }
 
+    final editable = Map<String, dynamic>.from(model.toFirestoreMap())
+      ..remove('status')
+      ..remove('publishedAt')
+      ..remove('publishedBy');
     await _tests.doc(model.id).set({
-      ...model.toFirestoreMap(),
+      ...editable,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
 
-  Future<void> publishTest(
-    DiagnosticTestAdminModel model,
-  ) async {
+  Future<void> publishTest(DiagnosticTestAdminModel model) async {
     if (!model.isReadyToPublish) {
-      throw StateError(
-        model.validationIssues.join('\n'),
-      );
+      throw StateError(model.validationIssues.join('\n'));
     }
 
+    final editable = Map<String, dynamic>.from(model.toFirestoreMap())
+      ..remove('status')
+      ..remove('publishedAt')
+      ..remove('publishedBy');
     await _tests.doc(model.id).set({
-      ...model.toFirestoreMap(),
-      'status': 'published',
-      'publishedAt': FieldValue.serverTimestamp(),
+      ...editable,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+    await _qa.changeStatus(
+      documentPath: 'diagnostic_tests/${model.id}',
+      status: 'published',
+    );
   }
 
   Future<void> unpublishTest(String testId) async {
-    await _tests.doc(testId).set({
-      'status': 'draft',
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    await _qa.transition(
+      documentPath: 'diagnostic_tests/$testId',
+      targetState: 'approved',
+    );
   }
 
   Future<void> archiveTest(String testId) async {
-    await _tests.doc(testId).set({
-      'status': 'archived',
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    await _qa.changeStatus(
+      documentPath: 'diagnostic_tests/$testId',
+      status: 'archived',
+    );
   }
 
   Future<void> deleteTest(String testId) async {
@@ -173,19 +172,11 @@ class DiagnosticAdminRepository {
     required String fileName,
     String contentType = 'audio/mpeg',
   }) async {
-    final safeName = fileName.replaceAll(
-      RegExp(r'[^a-zA-Z0-9._-]'),
-      '_',
-    );
+    final safeName = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
 
-    final ref = _storage.ref(
-      'diagnostic_audio/$testId/$safeName',
-    );
+    final ref = _storage.ref('diagnostic_audio/$testId/$safeName');
 
-    await ref.putData(
-      bytes,
-      SettableMetadata(contentType: contentType),
-    );
+    await ref.putData(bytes, SettableMetadata(contentType: contentType));
 
     return ref.getDownloadURL();
   }

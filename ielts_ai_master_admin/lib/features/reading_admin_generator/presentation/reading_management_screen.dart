@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:ielts_ai_master_admin/features/reading_admin_generator/create_generation_job_sheet.dart';
+import 'package:ielts_ai_master_admin/features/content_qa/data/content_qa_service.dart';
 
 import '../../../core/theme/admin_theme.dart';
 import '../../../core/widgets/admin_scaffold.dart';
@@ -16,6 +17,7 @@ class ReadingManagementScreen extends StatefulWidget {
 
 class _ReadingManagementScreenState extends State<ReadingManagementScreen> {
   String _filter = 'all';
+  final _qa = ContentQaService();
 
   Query<Map<String, dynamic>> _query() {
     Query<Map<String, dynamic>> query = FirebaseFirestore.instance.collection(
@@ -30,14 +32,7 @@ class _ReadingManagementScreenState extends State<ReadingManagementScreen> {
   }
 
   Future<void> _updateStatus(String id, String status) async {
-    await FirebaseFirestore.instance.collection('reading_tests').doc(id).set({
-      'status': status,
-      'isPublished': status == 'published',
-      'publishedAt': status == 'published'
-          ? FieldValue.serverTimestamp()
-          : null,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    await _qa.changeStatus(documentPath: 'reading_tests/$id', status: status);
   }
 
   Future<void> _delete(String id) async {
@@ -166,19 +161,15 @@ class ReadingTestPreviewScreen extends StatefulWidget {
 
 class _ReadingTestPreviewScreenState extends State<ReadingTestPreviewScreen> {
   int _selectedPassageIndex = 0;
+  final _qa = ContentQaService();
 
   Future<void> _updateStatus(String status) {
-    return FirebaseFirestore.instance
-        .collection('reading_tests')
-        .doc(widget.testId)
-        .set({
-          'status': status,
-          'isPublished': status == 'published',
-          'publishedAt': status == 'published'
-              ? FieldValue.serverTimestamp()
-              : null,
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+    return _qa
+        .changeStatus(
+          documentPath: 'reading_tests/${widget.testId}',
+          status: status,
+        )
+        .then((_) {});
   }
 
   Future<void> _delete() async {

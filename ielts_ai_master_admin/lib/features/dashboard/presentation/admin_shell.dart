@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:ielts_ai_master_admin/core/theme/admin_theme.dart';
 import 'package:ielts_ai_master_admin/features/Subscription/subcription_screen.dart';
 import 'package:ielts_ai_master_admin/features/auth/data/admin_auth_service.dart';
+import 'package:ielts_ai_master_admin/features/content_qa/presentation/content_qa_dashboard_screen.dart';
 import 'package:ielts_ai_master_admin/features/diagnostic/presentation/diagnostic_management_screen.dart';
 import 'package:ielts_ai_master_admin/features/generation/presentation/generation_jobs_screen.dart';
 import 'package:ielts_ai_master_admin/features/listening/presentation/listening_management_screen.dart';
@@ -106,6 +107,13 @@ class _AdminShellState extends State<AdminShell> {
       group: _NavigationGroup.platform,
     ),
     _NavigationItem(
+      label: 'Content QA',
+      description: 'Review, provenance and credentials',
+      icon: Icons.rule_folder_outlined,
+      selectedIcon: Icons.rule_folder_rounded,
+      group: _NavigationGroup.platform,
+    ),
+    _NavigationItem(
       label: 'Settings',
       description: 'Admin configuration',
       icon: Icons.settings_outlined,
@@ -141,6 +149,7 @@ class _AdminShellState extends State<AdminShell> {
       const GenerationJobsScreen(),
       const UsersManagementScreen(),
       const AdminSubscriptionManagementScreen(),
+      const ContentQaDashboardScreen(),
       const AdminSettingsScreen(),
     ];
 
@@ -334,7 +343,7 @@ class _DesktopSidebar extends StatelessWidget {
                   _SidebarGroup(
                     title: 'PLATFORM',
                     items: items,
-                    indexes: const [8, 9, 10, 11],
+                    indexes: const [8, 9, 10, 11, 12],
                     selectedIndex: selectedIndex,
                     onSelected: onSelected,
                   ),
@@ -620,7 +629,7 @@ class _MobileAdminLayout extends StatelessWidget {
   }
 
   void _showMoreSheet(BuildContext context) {
-    const secondaryIndexes = [2, 3, 4, 5, 8, 9, 10, 11];
+    const secondaryIndexes = [2, 3, 4, 5, 8, 9, 10, 11, 12];
 
     showModalBottomSheet<void>(
       context: context,

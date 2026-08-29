@@ -593,7 +593,7 @@ class _PersonalizedVisual extends StatelessWidget {
             children: [
               Expanded(
                 child: _MetricCard(
-                  title: 'Current Band',
+                  title: 'Current Estimated Band',
                   value: '5.5',
                   subtitle: 'Improving',
                   icon: Icons.insights_rounded,
@@ -1465,7 +1465,7 @@ class _ScoreBar extends StatelessWidget {
             label,
             style: const TextStyle(
               color: Color(0xFF94A3B8),
-              fontSize: 8.8,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
           ),

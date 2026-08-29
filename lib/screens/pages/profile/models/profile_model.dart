@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:fyproject/models/shared_data_contract.dart';
 
 class ProfileModel {
   final String uid, name, email, photoUrl, ieltsType, educationLevel;
@@ -63,9 +64,11 @@ class ProfileModel {
 
     return ProfileModel(
       uid: uid,
-      name: (data['name'] ?? data['fullName'] ?? 'IELTS Learner').toString(),
+      name: SharedDataContract.learnerName(data).isEmpty
+          ? 'IELTS Learner'
+          : SharedDataContract.learnerName(data),
       email: (data['email'] ?? email).toString(),
-      photoUrl: (data['photoUrl'] ?? '').toString(),
+      photoUrl: SharedDataContract.photoUrl(data),
       ieltsType: (data['ieltsType'] ?? 'Academic').toString(),
       educationLevel: (data['educationLevel'] ?? 'University').toString(),
       subscription: (data['subscriptionPlan'] ?? data['plan'] ?? 'Free')
@@ -73,7 +76,7 @@ class ProfileModel {
       language: (data['language'] ?? 'English').toString(),
       appearance: (data['appearance'] ?? 'System').toString(),
       reminderTime: (data['reminderTime'] ?? '19:00').toString(),
-      targetBand: number(data['targetBand'], 7),
+      targetBand: SharedDataContract.targetBand(data, fallback: 7),
       estimatedBand: number(
         data['estimatedBand'] ?? data['overallBand'] ?? data['currentBand'],
         _averageBand(skillBands),

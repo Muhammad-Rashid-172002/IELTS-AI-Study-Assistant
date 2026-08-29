@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter_gemini/flutter_gemini.dart';
-import 'package:fyproject/config/keys.dart';
-import 'package:http/http.dart' as http;
+import 'package:cloud_functions/cloud_functions.dart';
 
 class AIService {
-  static final Gemini gemini = Gemini.instance;
+  static final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(
+    region: 'us-central1',
+  );
   static bool _isRequestRunning = false;
 
   String _clean(String text) {
@@ -34,9 +34,7 @@ class AIService {
   Map<String, dynamic> _safeJson(String raw) {
     try {
       return jsonDecode(_extractJson(raw)) as Map<String, dynamic>;
-    } catch (e) {
-      print("JSON PARSE ERROR: $e");
-      print("RAW RESPONSE: $raw");
+    } catch (_) {
       return {};
     }
   }
@@ -58,8 +56,6 @@ class AIService {
         } catch (e) {
           attempts++;
           final error = e.toString();
-
-          print("GEMINI ERROR: $error");
 
           if (error.contains("429")) {
             await Future.delayed(Duration(seconds: attempts * 12));
@@ -90,13 +86,31 @@ class AIService {
   }
 
   Future<String> _text(String prompt) async {
-    final res = await _safeCall(() => gemini.text(prompt));
-    return _clean(res?.output ?? "");
+    final output = await _callProxy(prompt: prompt, purpose: 'coach_text');
+    return _clean(output);
   }
 
   Future<Map<String, dynamic>> _json(String prompt) async {
-    final res = await _safeCall(() => gemini.text(prompt));
-    return _safeJson(res?.output ?? "{}");
+    final output = await _callProxy(prompt: prompt, purpose: 'coach_json');
+    return _safeJson(output);
+  }
+
+  Future<String> _callProxy({
+    required String prompt,
+    required String purpose,
+    String? imageBase64,
+    String? imageMimeType,
+  }) async {
+    return _safeCall(() async {
+      final response = await _functions.httpsCallable('legacyAiAssist').call({
+        'purpose': purpose,
+        'prompt': prompt,
+        if (imageBase64 != null) 'imageBase64': imageBase64,
+        if (imageMimeType != null) 'imageMimeType': imageMimeType,
+      });
+      final data = Map<String, dynamic>.from(response.data as Map);
+      return (data['text'] ?? '').toString();
+    });
   }
 
   // =========================================================
@@ -134,7 +148,7 @@ Return ONLY valid JSON:
 }
 
 Rules:
-- Real IELTS preparation style
+- Original IELTS-style preparation content
 - Practical and simple
 - No markdown
 """;
@@ -256,9 +270,9 @@ Rules:
 
   Future<Map<String, dynamic>> generateListeningTest() async {
     final prompt = """
-You are an IELTS Listening examiner.
+You are an independent IELTS listening practice-content writer.
 
-Create a REAL IELTS Listening test.
+Create an original IELTS-style Listening practice test.
 
 Return ONLY valid JSON:
 
@@ -315,7 +329,7 @@ Return ONLY valid JSON:
 }
 
 Rules:
-- Real IELTS Listening style
+- IELTS-style listening format without copying published test content
 - British English
 - Natural conversations
 - Include different IELTS question types
@@ -365,14 +379,14 @@ Return ONLY valid JSON:
 
   // =========================================================
   // IELTS WRITING
-  // =========================================================qwqfg
+  // =========================================================
 
   Future<String> generateWritingTopic(String taskType) async {
     final prompt =
         """
-You are an IELTS examiner.
+You are an independent IELTS practice-content writer.
 
-Generate ONE real IELTS Academic Writing Task $taskType question.
+Generate ONE original IELTS-style Academic Writing Task $taskType practice question.
 
 Rules:
 - If Task 1, generate ONE of these: line graph, bar chart, pie chart, table, process diagram, or map
@@ -394,28 +408,28 @@ Rules:
 
     final prompt =
         """
-You are an OFFICIAL IELTS Writing Examiner.
+You are an independent IELTS writing practice evaluator.
 
-Use the official IELTS Writing Band Descriptors (Updated May 2023).
+Use the publicly described IELTS Writing assessment criteria as a reference.
 
 Strictly evaluate this IELTS Writing Task $taskType response.
 
 ${isTask1 ? """
 TASK 1 CRITERIA:
 1. Task Achievement
-2. Coherence & Cohesion
+2. Coherence and Cohesion
 3. Lexical Resource
-4. Grammatical Range & Accuracy
+4. Grammatical Range and Accuracy
 """ : """
 TASK 2 CRITERIA:
 1. Task Response
-2. Coherence & Cohesion
+2. Coherence and Cohesion
 3. Lexical Resource
-4. Grammatical Range & Accuracy
+4. Grammatical Range and Accuracy
 """}
 
 IMPORTANT RULES:
-- Be a strict IELTS examiner
+- Be a strict practice evaluator
 - Give realistic IELTS band scores
 - Do NOT give high bands easily
 - Penalize grammar mistakes
@@ -568,26 +582,9 @@ $text
     final bytes = await imageFile.readAsBytes();
     final base64Image = base64Encode(bytes);
 
-    // Retrieve API key from environment to avoid referencing a non-existent getter on Gemini.
-    final apiKey = Platform.environment[AppKeys.geminiApiKey] ?? '';
-
-    if (apiKey.isEmpty) {
-      throw Exception(
-        'Missing GEMINI_API_KEY environment variable for Gemini API.',
-      );
-    }
-
-    final response = await http.post(
-      Uri.parse(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey",
-      ),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode({
-        "contents": [
-          {
-            "parts": [
-              {
-                "text": """
+    final response = await _callProxy(
+      purpose: 'writing_visual_analysis',
+      prompt: """
 You are an IELTS Writing Task 1 examiner.
 
 Analyze the uploaded chart/graph/table/map/process image.
@@ -602,21 +599,10 @@ Return ONLY valid JSON:
   "band9_sample":""
 }
 """,
-              },
-              {
-                "inline_data": {"mime_type": "image/jpeg", "data": base64Image},
-              },
-            ],
-          },
-        ],
-      }),
+      imageBase64: base64Image,
+      imageMimeType: 'image/jpeg',
     );
-
-    final data = jsonDecode(response.body);
-
-    final text = data["candidates"][0]["content"]["parts"][0]["text"];
-
-    return jsonDecode(text);
+    return _safeJson(response);
   }
 
   // =========================================================
@@ -624,7 +610,7 @@ Return ONLY valid JSON:
   // =========================================================
   Future<Map<String, dynamic>> generateSpeakingTest() async {
     final prompt = """
-You are an IELTS Speaking examiner.
+You are an independent IELTS speaking practice-content writer.
 
 Create a complete IELTS Speaking test.
 
@@ -646,7 +632,7 @@ Return ONLY valid JSON:
 }
 
 Rules:
-- Real IELTS Speaking test style
+- Original IELTS-style Speaking practice format
 - Part 1 must be simple personal questions
 - Part 2 must be a cue card with 4 bullet points
 - Part 3 must be deeper discussion questions related to Part 2
@@ -671,7 +657,7 @@ Return ONLY valid JSON:
 }
 
 Rules:
-- Real IELTS Part 2 cue card style
+- Original IELTS-style Part 2 practice cue card
 - Topic should be common IELTS topic
 - Points must start with: what, when/where, why, how
 - Follow-up questions should be IELTS Part 3 style
@@ -687,9 +673,9 @@ Rules:
   }) async {
     final prompt =
         """
-You are an official IELTS Speaking examiner.
+You are an independent IELTS speaking practice evaluator.
 
-Use the official IELTS Speaking Band Descriptors.
+Use the publicly described IELTS Speaking assessment criteria as a reference.
 
 Evaluate the candidate based on these 4 criteria:
 1. Fluency and Coherence
@@ -773,7 +759,7 @@ Return ONLY valid JSON:
 
 Rules:
 - Questions should be deeper and opinion-based
-- Use real IELTS Speaking Part 3 style
+- Use an original IELTS-style Part 3 discussion format
 - No markdown
 """;
 

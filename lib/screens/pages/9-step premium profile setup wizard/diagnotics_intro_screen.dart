@@ -7,6 +7,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:fyproject/config/platform_links.dart';
 import 'package:fyproject/resources/components/learner_state_view.dart';
 import 'package:fyproject/screens/pages/certificate/certificate_screen.dart';
 import 'package:just_audio/just_audio.dart';
@@ -47,7 +48,7 @@ class DiagnosticIntroScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 24),
                   const Text(
-                    'Your real IELTS starting point',
+                    'Your IELTS practice starting point',
                     style: TextStyle(
                       color: DiagnosticColors.mainText,
                       fontSize: 27,
@@ -454,7 +455,11 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
         durationUsedSeconds: test.totalDurationMinutes * 60 - _remainingSeconds,
       );
 
-      final resultId = await _repository.saveResult(result);
+      final resultId = await _repository.saveResult(
+        result,
+        listeningAnswers: _listeningAnswers,
+        readingAnswers: _readingAnswers,
+      );
       final certificateId = await _repository.issueCompletionCertificate(
         resultId: resultId,
       );
@@ -724,7 +729,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
     return _SectionScrollView(
       title: 'Writing Diagnostic',
       description:
-          'Your answer will be evaluated for IELTS criteria by the secure backend.',
+          'Your answer will be evaluated against IELTS-style criteria by the server evaluation service.',
       child: Column(
         children: [
           _WritingTaskCard(task: writing),
@@ -808,6 +813,16 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen>
             hasRecording: _recordingPath != null,
             controller: _waveController,
             onTap: _toggleRecording,
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            PlatformLinks.audioProcessingNotice,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: DiagnosticColors.mutedText,
+              fontSize: 12,
+              height: 1.4,
+            ),
           ),
         ],
       ),
@@ -1004,11 +1019,14 @@ class DiagnosticResultScreen extends StatelessWidget {
                 _FeedbackPanel(
                   title: 'Writing Evaluation',
                   rows: {
-                    'Task Response': result.writingEvaluation.taskResponse,
-                    'Coherence': result.writingEvaluation.coherenceCohesion,
+                    result.writingEvaluation.taskCriterionName:
+                        result.writingEvaluation.taskResponse,
+                    'Coherence and Cohesion':
+                        result.writingEvaluation.coherenceCohesion,
                     'Lexical Resource':
                         result.writingEvaluation.lexicalResource,
-                    'Grammar': result.writingEvaluation.grammarAccuracy,
+                    'Grammatical Range and Accuracy':
+                        result.writingEvaluation.grammarAccuracy,
                   },
                   summary: result.writingEvaluation.summary,
                 ),
@@ -1016,10 +1034,12 @@ class DiagnosticResultScreen extends StatelessWidget {
                 _FeedbackPanel(
                   title: 'Speaking Evaluation',
                   rows: {
-                    'Fluency': result.speakingEvaluation.fluencyCoherence,
+                    'Fluency and Coherence':
+                        result.speakingEvaluation.fluencyCoherence,
                     'Lexical Resource':
                         result.speakingEvaluation.lexicalResource,
-                    'Grammar': result.speakingEvaluation.grammarAccuracy,
+                    'Grammatical Range and Accuracy':
+                        result.speakingEvaluation.grammarAccuracy,
                     'Pronunciation': result.speakingEvaluation.pronunciation,
                   },
                   summary: result.speakingEvaluation.summary,
@@ -1236,8 +1256,7 @@ class DiagnosticRepository {
     );
 
     await ref.putFile(file, SettableMetadata(contentType: 'audio/mp4'));
-
-    return ref.getDownloadURL();
+    return ref.fullPath;
   }
 
   Future<DiagnosticWritingEvaluation> evaluateWriting({
@@ -1269,7 +1288,7 @@ class DiagnosticRepository {
 
     final response = await callable.call({
       'testId': testId,
-      'audioUrl': audioUrl,
+      'audioStoragePath': audioUrl,
       'prompts': prompts.map((e) => e.toMap()).toList(),
     });
 
@@ -1278,57 +1297,26 @@ class DiagnosticRepository {
     );
   }
 
-  Future<String> saveResult(DiagnosticResultData result) async {
-    final userRef = _firestore.collection('users').doc(_user.uid);
-    final resultRef = userRef.collection('diagnostic_results').doc();
-
-    final skillBands = {
-      'listening': result.listeningBand,
-      'reading': result.readingBand,
-      'writing': result.writingBand,
-      'speaking': result.speakingBand,
-    };
-
-    final batch = _firestore.batch();
-
-    batch.set(resultRef, {
-      'resultId': resultRef.id,
+  Future<String> saveResult(
+    DiagnosticResultData result, {
+    required Map<String, dynamic> listeningAnswers,
+    required Map<String, dynamic> readingAnswers,
+  }) async {
+    final callable = _functions.httpsCallable('finalizeDiagnosticResult');
+    final response = await callable.call({
       'testId': result.testId,
-      'ieltsType': result.ieltsType,
-      'targetBand': result.targetBand,
-      'overallBand': result.overallBand,
-      'skillBands': skillBands,
-      'objectiveScores': {
-        'listening': {
-          'correct': result.listeningCorrect,
-          'total': result.listeningTotal,
-        },
-        'reading': {
-          'correct': result.readingCorrect,
-          'total': result.readingTotal,
-        },
-      },
-      'writingEvaluation': result.writingEvaluation.toMap(),
-      'speakingEvaluation': result.speakingEvaluation.toMap(),
-      'speakingAudioUrl': result.speakingAudioUrl,
+      'writingEvaluationId': result.writingEvaluation.evaluationId,
+      'speakingEvaluationId': result.speakingEvaluation.evaluationId,
+      'listeningAnswers': listeningAnswers,
+      'readingAnswers': readingAnswers,
       'durationUsedSeconds': result.durationUsedSeconds,
-      'completedAt': FieldValue.serverTimestamp(),
     });
-
-    batch.set(userRef, {
-      'diagnosticCompleted': true,
-      'diagnosticCompletedAt': FieldValue.serverTimestamp(),
-      'currentBand': result.overallBand,
-      'estimatedBand': result.overallBand,
-      'overallBand': result.overallBand,
-      'skillBands': skillBands,
-      'ieltsType': result.ieltsType,
-      'targetBand': result.targetBand,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-
-    await batch.commit();
-    return resultRef.id;
+    final data = Map<String, dynamic>.from(response.data as Map);
+    final resultId = (data['resultId'] ?? '').toString().trim();
+    if (resultId.isEmpty) {
+      throw StateError('The server did not return a diagnostic result ID.');
+    }
+    return resultId;
   }
 
   Future<String?> issueCompletionCertificate({required String resultId}) async {
@@ -1812,8 +1800,10 @@ class SpeakingPrompt {
 }
 
 class DiagnosticWritingEvaluation {
+  final String evaluationId;
   final double overallBand;
   final double taskResponse;
+  final String taskCriterionName;
   final double coherenceCohesion;
   final double lexicalResource;
   final double grammarAccuracy;
@@ -1821,8 +1811,10 @@ class DiagnosticWritingEvaluation {
   final List<String> improvements;
 
   const DiagnosticWritingEvaluation({
+    required this.evaluationId,
     required this.overallBand,
     required this.taskResponse,
+    required this.taskCriterionName,
     required this.coherenceCohesion,
     required this.lexicalResource,
     required this.grammarAccuracy,
@@ -1832,8 +1824,15 @@ class DiagnosticWritingEvaluation {
 
   factory DiagnosticWritingEvaluation.fromMap(Map<String, dynamic> data) {
     return DiagnosticWritingEvaluation(
+      evaluationId: (data['evaluationId'] ?? '').toString(),
       overallBand: _double(data['overallBand']),
       taskResponse: _double(data['taskResponse'] ?? data['taskAchievement']),
+      taskCriterionName:
+          (data['taskCriterionName'] ??
+                  ((data['taskKind'] ?? '').toString() == 'task_1'
+                      ? 'Task Achievement'
+                      : 'Task Response'))
+              .toString(),
       coherenceCohesion: _double(data['coherenceCohesion']),
       lexicalResource: _double(data['lexicalResource']),
       grammarAccuracy: _double(
@@ -1849,6 +1848,7 @@ class DiagnosticWritingEvaluation {
   Map<String, dynamic> toMap() => {
     'overallBand': overallBand,
     'taskResponse': taskResponse,
+    'taskCriterionName': taskCriterionName,
     'coherenceCohesion': coherenceCohesion,
     'lexicalResource': lexicalResource,
     'grammarAccuracy': grammarAccuracy,
@@ -1858,6 +1858,7 @@ class DiagnosticWritingEvaluation {
 }
 
 class DiagnosticSpeakingEvaluation {
+  final String evaluationId;
   final double overallBand;
   final double fluencyCoherence;
   final double lexicalResource;
@@ -1868,6 +1869,7 @@ class DiagnosticSpeakingEvaluation {
   final List<String> improvements;
 
   const DiagnosticSpeakingEvaluation({
+    required this.evaluationId,
     required this.overallBand,
     required this.fluencyCoherence,
     required this.lexicalResource,
@@ -1880,6 +1882,7 @@ class DiagnosticSpeakingEvaluation {
 
   factory DiagnosticSpeakingEvaluation.fromMap(Map<String, dynamic> data) {
     return DiagnosticSpeakingEvaluation(
+      evaluationId: (data['evaluationId'] ?? '').toString(),
       overallBand: _double(data['overallBand']),
       fluencyCoherence: _double(data['fluencyCoherence']),
       lexicalResource: _double(data['lexicalResource']),
@@ -2450,7 +2453,7 @@ class _WritingCartesianPainter extends CustomPainter {
         Offset(centerX - categoryWidth * .46, plot.bottom + 8),
         width: categoryWidth * .92,
         align: TextAlign.center,
-        fontSize: 7.6,
+        fontSize: 12,
         color: DiagnosticColors.mutedText,
         maxLines: 2,
       );

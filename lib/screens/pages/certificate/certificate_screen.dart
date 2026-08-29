@@ -5,9 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:fyproject/resources/components/learner_state_view.dart';
-
-const String kCertificateVerificationBaseUrl =
-    'https://ielts-ai-study-assistant.web.app';
+import 'package:fyproject/config/platform_links.dart';
 
 class CertificatesScreen extends StatefulWidget {
   const CertificatesScreen({super.key});
@@ -568,8 +566,10 @@ class _CertificatePreview extends StatelessWidget {
                           status: certificate.status,
                         ),
                         SizedBox(height: compact ? 20 : 25),
-                        const Text(
-                          'CERTIFICATE OF COMPLETION',
+                        Text(
+                          certificate.isMockAssessmentReport
+                              ? 'MOCK ASSESSMENT REPORT'
+                              : 'PRACTICE COMPLETION CERTIFICATE',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: CertificateColors.gold,
@@ -595,7 +595,7 @@ class _CertificatePreview extends StatelessWidget {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: CertificateColors.secondary,
-                            fontSize: 8.2,
+                            fontSize: 12,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 1.35,
                           ),
@@ -716,12 +716,10 @@ class _CertificatePreview extends StatelessWidget {
                               SizedBox(width: 7),
                               Expanded(
                                 child: Text(
-                                  'IELTS AI Master learning credential. '
-                                  'This is not an official IELTS Test Report Form '
-                                  'or an official IELTS certificate.',
+                                  PlatformLinks.practiceCredentialDisclaimer,
                                   style: TextStyle(
                                     color: CertificateColors.muted,
-                                    fontSize: 7.8,
+                                    fontSize: 12,
                                     height: 1.4,
                                   ),
                                 ),
@@ -790,7 +788,7 @@ class _FormalCertificateHeader extends StatelessWidget {
                 'DIGITAL LEARNING CREDENTIAL',
                 style: TextStyle(
                   color: CertificateColors.gold,
-                  fontSize: 7.2,
+                  fontSize: 12,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 1.15,
                 ),
@@ -815,10 +813,10 @@ class _FormalCertificateHeader extends StatelessWidget {
               ),
               const SizedBox(width: 4),
               Text(
-                valid ? 'VERIFIED' : status.toUpperCase(),
+                valid ? 'APP VERIFIED' : status.toUpperCase(),
                 style: TextStyle(
                   color: statusColor,
-                  fontSize: 7,
+                  fontSize: 12,
                   fontWeight: FontWeight.w900,
                   letterSpacing: .55,
                 ),
@@ -855,7 +853,7 @@ class _FormalBandBadge extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           Text(
-            'Estimated Band ${band.toStringAsFixed(1)}',
+            'Estimated Practice Band: ${band.toStringAsFixed(1)}',
             style: const TextStyle(
               color: CertificateColors.cyan,
               fontSize: 12,
@@ -940,7 +938,7 @@ class _CredentialField extends StatelessWidget {
             label,
             style: const TextStyle(
               color: CertificateColors.gold,
-              fontSize: 6.8,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
               letterSpacing: .75,
             ),
@@ -1008,10 +1006,10 @@ class _CertificateVerificationSeal extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  valid ? 'VERIFIED' : 'CHECK STATUS',
+                  valid ? 'PLATFORM RECORD' : 'CHECK STATUS',
                   style: TextStyle(
                     color: sealColor,
-                    fontSize: 7.2,
+                    fontSize: 12,
                     fontWeight: FontWeight.w900,
                     letterSpacing: .7,
                   ),
@@ -1023,7 +1021,7 @@ class _CertificateVerificationSeal extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: CertificateColors.secondary,
-                    fontSize: 8.2,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -1034,7 +1032,7 @@ class _CertificateVerificationSeal extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: CertificateColors.muted,
-                    fontSize: 6.8,
+                    fontSize: 12,
                   ),
                 ),
               ],
@@ -1280,7 +1278,7 @@ class _CertificateInformation extends StatelessWidget {
           const _SectionHeading(
             icon: Icons.info_outline_rounded,
             title: 'Certificate Information',
-            subtitle: 'Official app record attached to this achievement.',
+            subtitle: 'IELTS AI Master app-issued platform record.',
           ),
           const SizedBox(height: 15),
           _InfoRow(
@@ -1291,8 +1289,30 @@ class _CertificateInformation extends StatelessWidget {
           _InfoRow(label: 'Achievement', value: certificate.title),
           if (certificate.band > 0)
             _InfoRow(
-              label: 'Estimated Band',
+              label: 'Estimated Practice Band',
               value: certificate.band.toStringAsFixed(1),
+            ),
+          if (certificate.isMockAssessmentReport)
+            ...certificate.skillEstimatedPracticeBands.entries.map(
+              (entry) => _InfoRow(
+                label:
+                    '${entry.key[0].toUpperCase()}${entry.key.substring(1)} Estimated Practice Band',
+                value: entry.value.toStringAsFixed(1),
+              ),
+            ),
+          if (certificate.assessmentDate != null)
+            _InfoRow(
+              label: 'Assessment Date',
+              value: certificate.assessmentDate!
+                  .toLocal()
+                  .toIso8601String()
+                  .split('T')
+                  .first,
+            ),
+          if (certificate.isMockAssessmentReport)
+            _InfoRow(
+              label: 'Scoring Version',
+              value: certificate.scoringVersion,
             ),
           _InfoRow(label: 'Status', value: certificate.status.toUpperCase()),
           _InfoRow(
@@ -1344,7 +1364,7 @@ class _Disclaimer extends StatelessWidget {
             style: const TextStyle(
               color: CertificateColors.secondary,
               height: 1.55,
-              fontSize: 11.5,
+              fontSize: 12,
             ),
           ),
         ],
@@ -1762,6 +1782,7 @@ class AppCertificate {
   final String certificateId;
   final String title;
   final String certificateType;
+  final String credentialType;
   final String userName;
   final double band;
   final String verificationCode;
@@ -1770,12 +1791,16 @@ class AppCertificate {
   final String status;
   final String disclaimer;
   final DateTime? issuedAt;
+  final DateTime? assessmentDate;
+  final String scoringVersion;
+  final Map<String, double> skillEstimatedPracticeBands;
 
   const AppCertificate({
     required this.id,
     required this.certificateId,
     required this.title,
     required this.certificateType,
+    required this.credentialType,
     required this.userName,
     required this.band,
     required this.verificationCode,
@@ -1784,13 +1809,14 @@ class AppCertificate {
     required this.status,
     required this.disclaimer,
     required this.issuedAt,
+    required this.assessmentDate,
+    required this.scoringVersion,
+    required this.skillEstimatedPracticeBands,
   });
 
-  static const defaultDisclaimer =
-      'Certificate of Course Completion\n\n'
-      'This certificate confirms completion of training and assessments '
-      'within IELTS AI Master.\n\n'
-      'This is NOT an official IELTS score or an official IELTS certificate.';
+  static const defaultDisclaimer = PlatformLinks.practiceCredentialDisclaimer;
+
+  bool get isMockAssessmentReport => credentialType == 'mock_assessment_report';
 
   factory AppCertificate.fromDocument(
     DocumentSnapshot<Map<String, dynamic>> doc,
@@ -1813,22 +1839,55 @@ class AppCertificate {
         data['certificateType'] ?? data['type'],
         fallback: 'Course Completion',
       ),
+      credentialType: _string(
+        data['credentialType'],
+        fallback: 'legacy_certificate',
+      ).toLowerCase(),
       userName: _string(
         data['userName'] ?? data['name'] ?? data['recipientName'],
         fallback: 'IELTS Learner',
       ),
       band: _double(
-        data['band'] ?? data['overallBand'] ?? data['estimatedBand'],
+        data['estimatedPracticeBand'] ??
+            data['band'] ??
+            data['overallBand'] ??
+            data['estimatedBand'],
       ),
       verificationCode: code,
-      verificationUrl: '$kCertificateVerificationBaseUrl/verify/$code',
+      verificationUrl: _verificationUrl(data, code),
       issuer: _string(data['issuer'], fallback: 'IELTS AI Master'),
-      status: _string(data['status'], fallback: 'valid').toLowerCase(),
+      status: _string(data['status'], fallback: 'unknown').toLowerCase(),
       disclaimer: _string(data['disclaimer'], fallback: defaultDisclaimer),
       issuedAt: _date(
         data['issuedAt'] ?? data['createdAt'] ?? data['completedAt'],
       ),
+      assessmentDate: _date(data['assessmentDate'] ?? data['completedAt']),
+      scoringVersion: _string(
+        data['scoringVersion'],
+        fallback: 'legacy_unversioned',
+      ),
+      skillEstimatedPracticeBands: _bandMap(
+        data['skillEstimatedPracticeBands'] ?? data['skillBands'],
+      ),
     );
+  }
+
+  static String _verificationUrl(Map<String, dynamic> data, String code) {
+    final stored = _string(
+      data['verificationUrl'] ?? data['verifyUrl'],
+      fallback: '',
+    );
+    if (Uri.tryParse(stored)?.hasScheme == true) return stored;
+    return '${PlatformLinks.legacyVerificationOrigin}/$code';
+  }
+
+  static Map<String, double> _bandMap(dynamic value) {
+    if (value is! Map) return const {};
+    final source = Map<String, dynamic>.from(value);
+    return {
+      for (final skill in const ['listening', 'reading', 'writing', 'speaking'])
+        if (_double(source[skill]) > 0) skill: _double(source[skill]),
+    };
   }
 
   static String _string(dynamic value, {required String fallback}) {
@@ -1837,6 +1896,15 @@ class AppCertificate {
   }
 
   static double _double(dynamic value) {
+    if (value is Map) {
+      final map = Map<String, dynamic>.from(value);
+      return _double(
+        map['estimatedPracticeBand'] ??
+            map['estimatedBand'] ??
+            map['band'] ??
+            map['overallBand'],
+      );
+    }
     if (value is num) return value.toDouble();
     return double.tryParse(value?.toString() ?? '') ?? 0;
   }

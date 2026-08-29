@@ -40,7 +40,7 @@ class SkillAnalyticsScreen extends StatelessWidget {
         children: [
           Expanded(
             child: _Metric(
-              label: 'Current Band',
+              label: 'Current Estimated Band',
               value: progress.band.toStringAsFixed(1),
             ),
           ),

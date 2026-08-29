@@ -579,7 +579,7 @@ class _WritingPlanCard extends StatelessWidget {
                               : 'FREE WRITING PLAN',
                           style: TextStyle(
                             color: accent,
-                            fontSize: 8.8,
+                            fontSize: 12,
                             letterSpacing: .8,
                             fontWeight: FontWeight.w900,
                           ),
@@ -602,7 +602,7 @@ class _WritingPlanCard extends StatelessWidget {
                               : 'Free plan: each Writing test once, 3 drafts, latest 10 results and first 3 lessons.',
                           style: const TextStyle(
                             color: WColors.secondary,
-                            fontSize: 9.8,
+                            fontSize: 12,
                             height: 1.35,
                           ),
                         ),
@@ -2027,9 +2027,9 @@ class WritingReportScreen extends StatelessWidget {
           : 'Task Response',
       report.taskAchievement,
     ),
-    ('Coherence & Cohesion', report.coherenceAndCohesion),
+    ('Coherence and Cohesion', report.coherenceAndCohesion),
     ('Lexical Resource', report.lexicalResource),
-    ('Grammatical Range & Accuracy', report.grammaticalRangeAndAccuracy),
+    ('Grammatical Range and Accuracy', report.grammaticalRangeAndAccuracy),
   ];
 
   List<String> get _strengths => _criteria
@@ -2951,7 +2951,7 @@ class WritingLessonsScreen extends StatelessWidget {
         Icons.translate_rounded,
       ),
       (
-        'Grammar Range and Accuracy',
+        'Grammatical Range and Accuracy',
         'Mix sentence structures while maintaining grammatical control.',
         Icons.spellcheck_rounded,
       ),
@@ -3030,7 +3030,7 @@ class WritingLessonsScreen extends StatelessWidget {
                                 'PREMIUM',
                                 style: TextStyle(
                                   color: WColors.violet,
-                                  fontSize: 7.5,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w900,
                                 ),
                               ),
@@ -3424,7 +3424,9 @@ class WritingReport {
       summary: (map['summary'] ?? '').toString(),
       wordCount: _asInt(map['wordCount']),
       minimumWordsMet: map['minimumWordsMet'] == true,
-      taskAchievement: WritingCriterion.fromMap(_map(map['taskAchievement'])),
+      taskAchievement: WritingCriterion.fromMap(
+        _map(map['taskAchievement'] ?? map['taskResponse']),
+      ),
       coherenceAndCohesion: WritingCriterion.fromMap(
         _map(map['coherenceAndCohesion']),
       ),
@@ -3973,7 +3975,7 @@ class _HomeOptionCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: WColors.muted,
-                        fontSize: 10.4,
+                        fontSize: 12,
                         height: 1.4,
                       ),
                     ),
@@ -4166,7 +4168,7 @@ class _TaskTypeTile extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: WColors.secondary,
-                    fontSize: 10.7,
+                    fontSize: 12,
                     height: 1.2,
                     fontWeight: FontWeight.w800,
                   ),
@@ -4291,7 +4293,7 @@ class _WritingCycleProgressCard extends StatelessWidget {
                 'Cycle $cycleNumber',
                 style: const TextStyle(
                   color: WColors.cyan,
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -4310,7 +4312,7 @@ class _WritingCycleProgressCard extends StatelessWidget {
           const SizedBox(height: 8),
           const Text(
             'Only your next unfinished test is shown. Completing the final test starts a fresh cycle from Test 1.',
-            style: TextStyle(color: WColors.muted, fontSize: 10, height: 1.35),
+            style: TextStyle(color: WColors.muted, fontSize: 12, height: 1.35),
           ),
         ],
       ),
@@ -4404,7 +4406,7 @@ class _WritingTaskCard extends StatelessWidget {
                                 : 'FREE',
                             style: TextStyle(
                               color: accent,
-                              fontSize: 8.5,
+                              fontSize: 12,
                               fontWeight: FontWeight.w900,
                               letterSpacing: .5,
                             ),
@@ -4518,7 +4520,7 @@ class _ModeTile extends StatelessWidget {
                               badge!,
                               style: const TextStyle(
                                 color: WColors.cyan,
-                                fontSize: 7.5,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
@@ -5238,7 +5240,7 @@ class _WritingProcessVisual extends StatelessWidget {
                       visual.stages[index],
                       style: const TextStyle(
                         color: WColors.secondary,
-                        fontSize: 9.8,
+                        fontSize: 12,
                         height: 1.4,
                       ),
                     ),
@@ -5379,7 +5381,7 @@ class _VisualHintBadge extends StatelessWidget {
         text,
         style: const TextStyle(
           color: WColors.cyan,
-          fontSize: 6.8,
+          fontSize: 12,
           fontWeight: FontWeight.w900,
           letterSpacing: .2,
         ),
@@ -5790,7 +5792,7 @@ class _CriteriaGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = [
-      ('Task Achievement / Response', report.taskAchievement),
+      ('Task criterion', report.taskAchievement),
       ('Coherence and Cohesion', report.coherenceAndCohesion),
       ('Lexical Resource', report.lexicalResource),
       ('Grammatical Range and Accuracy', report.grammaticalRangeAndAccuracy),
@@ -6305,7 +6307,7 @@ class _Badge extends StatelessWidget {
         text,
         style: const TextStyle(
           color: WColors.cyan,
-          fontSize: 9.3,
+          fontSize: 12,
           fontWeight: FontWeight.w800,
         ),
       ),

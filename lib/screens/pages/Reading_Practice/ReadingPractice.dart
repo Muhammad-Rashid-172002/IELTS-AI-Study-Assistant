@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fyproject/offline/offline_content_service.dart';
 import 'package:flutter/material.dart';
+import 'package:fyproject/services/ielts_scoring.dart';
 import 'package:fyproject/resources/components/learner_state_view.dart';
 import 'package:fyproject/resources/components/ielts_result_widgets.dart';
 import 'package:fyproject/screens/pages/Subscription/Subscription_screen.dart';
@@ -2177,6 +2178,13 @@ class _ReadingPracticeScreenState extends State<ReadingPracticeScreen> {
       'estimatedBand': result.estimatedBand,
       'rawScore': result.rawScore,
       'totalQuestions': result.totalQuestions,
+      'maximumScore': result.totalQuestions,
+      'normalizedRawScore': result.totalQuestions == 0
+          ? 0
+          : ((result.rawScore / result.totalQuestions) * 40).round(),
+      'ieltsTrack': IeltsScoring.normalizeTrack(widget.test.ieltsType),
+      'conversionTableVersion': IeltsScoring.objectiveConversionVersion,
+      'scoringVersion': IeltsScoring.scoringVersion,
       'accuracyPercent': result.accuracyPercent,
       'cyclePoolKey': widget.cyclePoolKey,
       'cycleNumber': widget.cycleNumber,
@@ -2208,6 +2216,13 @@ class _ReadingPracticeScreenState extends State<ReadingPracticeScreen> {
           'rawScore': result.rawScore,
           'totalQuestions': result.totalQuestions,
           'estimatedBand': result.estimatedBand,
+          'maximumScore': result.totalQuestions,
+          'normalizedRawScore': result.totalQuestions == 0
+              ? 0
+              : ((result.rawScore / result.totalQuestions) * 40).round(),
+          'ieltsTrack': IeltsScoring.normalizeTrack(widget.test.ieltsType),
+          'conversionTableVersion': IeltsScoring.objectiveConversionVersion,
+          'scoringVersion': IeltsScoring.scoringVersion,
           'accuracyPercent': result.accuracyPercent,
           'passageScores': result.passageScores,
           'questionTypeAccuracy': result.questionTypeAccuracy,
@@ -2804,7 +2819,7 @@ class _ReadingReviewItem extends StatelessWidget {
           'QUESTION $number',
           style: const TextStyle(
             color: RColors.cyan,
-            fontSize: 10.5,
+            fontSize: 12,
             fontWeight: FontWeight.w900,
             letterSpacing: 1,
           ),
@@ -3156,7 +3171,14 @@ class ReadingResultCalculator {
     return ReadingTestResult(
       rawScore: score,
       totalQuestions: total,
-      estimatedBand: _scoreToBand(score, total, test.ieltsType),
+      estimatedBand: total == 0
+          ? 0
+          : IeltsScoring.convertObjective(
+              skill: 'reading',
+              track: test.ieltsType,
+              rawScore: score,
+              maximumScore: total,
+            ).estimatedBand,
       accuracyPercent: accuracy,
       passageScores: passageScores,
       questionTypeAccuracy: typeAccuracy,
@@ -3170,38 +3192,6 @@ class ReadingResultCalculator {
 
   static String _normalize(String value) =>
       value.toLowerCase().trim().replaceAll(RegExp(r'[^a-z0-9]'), '');
-
-  static double _scoreToBand(int score, int total, String ieltsType) {
-    if (total == 0) return 0;
-
-    final scaled = (score / total) * 40;
-
-    if (ieltsType == 'General Training') {
-      if (scaled >= 40) return 9;
-      if (scaled >= 39) return 8.5;
-      if (scaled >= 37) return 8;
-      if (scaled >= 36) return 7.5;
-      if (scaled >= 34) return 7;
-      if (scaled >= 32) return 6.5;
-      if (scaled >= 30) return 6;
-      if (scaled >= 27) return 5.5;
-      if (scaled >= 23) return 5;
-      if (scaled >= 19) return 4.5;
-      return 4;
-    }
-
-    if (scaled >= 39) return 9;
-    if (scaled >= 37) return 8.5;
-    if (scaled >= 35) return 8;
-    if (scaled >= 33) return 7.5;
-    if (scaled >= 30) return 7;
-    if (scaled >= 27) return 6.5;
-    if (scaled >= 23) return 6;
-    if (scaled >= 19) return 5.5;
-    if (scaled >= 15) return 5;
-    if (scaled >= 13) return 4.5;
-    return 4;
-  }
 }
 
 class ReadingRecentResult {
@@ -4509,7 +4499,7 @@ class _WeaknessCard extends StatelessWidget {
                     SizedBox(height: 3),
                     Text(
                       'Practice these question types to improve faster',
-                      style: TextStyle(color: RColors.muted, fontSize: 9.8),
+                      style: TextStyle(color: RColors.muted, fontSize: 12),
                     ),
                   ],
                 ),
@@ -4624,7 +4614,7 @@ class _ReadingPlanCard extends StatelessWidget {
                           : 'FREE READING PLAN',
                       style: TextStyle(
                         color: accent,
-                        fontSize: 8.8,
+                        fontSize: 12,
                         letterSpacing: .8,
                         fontWeight: FontWeight.w900,
                       ),
@@ -4647,7 +4637,7 @@ class _ReadingPlanCard extends StatelessWidget {
                           : 'Passage 2/day • Question types 5/day • Timed 1/day • Full test 1/week.',
                       style: const TextStyle(
                         color: RColors.secondary,
-                        fontSize: 9.8,
+                        fontSize: 12,
                         height: 1.35,
                       ),
                     ),
@@ -4729,7 +4719,7 @@ class _ModeCard extends StatelessWidget {
                     mode.freeLimitLabel,
                     style: const TextStyle(
                       color: RColors.violet,
-                      fontSize: 7.2,
+                      fontSize: 12,
                       fontWeight: FontWeight.w900,
                       letterSpacing: .35,
                     ),
@@ -4802,7 +4792,7 @@ class _QuestionTypeCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: RColors.text,
-                fontSize: 10.3,
+                fontSize: 12,
                 height: 1.25,
                 fontWeight: FontWeight.w800,
               ),
@@ -4820,7 +4810,7 @@ class _QuestionTypeCard extends StatelessWidget {
                 '5/DAY',
                 style: TextStyle(
                   color: color,
-                  fontSize: 6.8,
+                  fontSize: 12,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -4968,7 +4958,7 @@ class _ResultMeta extends StatelessWidget {
         text,
         style: const TextStyle(
           color: RColors.secondary,
-          fontSize: 9.2,
+          fontSize: 12,
           fontWeight: FontWeight.w700,
         ),
       ),

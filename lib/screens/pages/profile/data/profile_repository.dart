@@ -2,16 +2,26 @@ import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:fyproject/models/shared_data_contract.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 import '../models/profile_model.dart';
 
 class ProfileRepository {
-  ProfileRepository({FirebaseFirestore? firestore, FirebaseAuth? auth})
+  ProfileRepository({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? auth,
+    FirebaseFunctions? functions,
+  })
     : _db = firestore ?? FirebaseFirestore.instance,
-      _auth = auth ?? FirebaseAuth.instance;
+      _auth = auth ?? FirebaseAuth.instance,
+      _functions =
+          functions ?? FirebaseFunctions.instanceFor(region: 'us-central1');
 
   final FirebaseFirestore _db;
   final FirebaseAuth _auth;
+  final FirebaseFunctions _functions;
 
   User get user {
     final currentUser = _auth.currentUser;
@@ -89,7 +99,6 @@ class ProfileRepository {
         userRef: userRef,
         existingData: rawUserData,
         targetBand: resolvedTargetBand,
-        provisionalBand: provisionalBand,
         completedSkillCount: completedSkillCount,
         missingSkills: missingSkills,
         hasCompleteOverallBand: hasCompleteOverallBand,
@@ -115,7 +124,6 @@ class ProfileRepository {
     required DocumentReference<Map<String, dynamic>> userRef,
     required Map<String, dynamic> existingData,
     required double targetBand,
-    required double provisionalBand,
     required int completedSkillCount,
     required List<String> missingSkills,
     required bool hasCompleteOverallBand,
@@ -135,9 +143,6 @@ class ProfileRepository {
     final needsSync =
         _asDouble(existingData['targetBand']) != targetBand ||
         _asDouble(existingTargetBands['overall']) != targetBand ||
-        _asDouble(existingData['estimatedBand']) != provisionalBand ||
-        _asDouble(existingData['currentBand']) != provisionalBand ||
-        _asDouble(existingData['overallBand']) != provisionalBand ||
         _asInt(existingData['completedSkillCount']) != completedSkillCount ||
         !_sameStringList(existingMissingSkills, missingSkills) ||
         existingData['bandStatus'] != bandStatus;
@@ -147,9 +152,6 @@ class ProfileRepository {
     await userRef.set({
       'targetBand': targetBand,
       'targetBands': {...existingTargetBands, 'overall': targetBand},
-      'estimatedBand': provisionalBand,
-      'currentBand': provisionalBand,
-      'overallBand': provisionalBand,
       'completedSkillCount': completedSkillCount,
       'missingSkills': missingSkills,
       'bandStatus': bandStatus,
@@ -166,7 +168,8 @@ class ProfileRepository {
     required String educationLevel,
   }) {
     return _db.collection('users').doc(user.uid).set({
-      'name': name.trim(),
+      'fullName': name.trim(),
+      'schemaVersion': SharedDataContract.schemaVersion,
       'ieltsType': ieltsType,
       'targetBand': targetBand,
       'targetBands': {'overall': targetBand},
@@ -202,6 +205,9 @@ class ProfileRepository {
       'reading_results',
       'writing_results',
       'speaking_results',
+      'speaking',
+      'diagnostic_results',
+      'diagnosticResults',
       'mock_attempts',
       'lesson_progress',
       'saved_tests',
@@ -243,54 +249,16 @@ class ProfileRepository {
   Future<void> signOut() => _auth.signOut();
 
   Future<void> deleteAccount() async {
-    final currentUser = user;
-    final userRef = _db.collection('users').doc(currentUser.uid);
-
-    const collectionNames = [
-      'listening_results',
-      'reading_results',
-      'writing_results',
-      'speaking_results',
-      'mock_attempts',
-      'lesson_progress',
-      'saved_tests',
-      'saved_words',
-      'certificates',
-      'ai_coach_messages',
-      'ai_coach',
-      'study_sessions',
-      'studyPlans',
-      'diagnosticResults',
-    ];
-
-    for (final collectionName in collectionNames) {
-      await _deleteCollectionInBatches(userRef.collection(collectionName));
+    final response = await _functions.httpsCallable('deleteLearnerAccount').call({
+      'confirmation': 'DELETE',
+    });
+    final data = Map<String, dynamic>.from(response.data as Map);
+    if (data['success'] != true) {
+      throw StateError('Server account deletion did not complete.');
     }
-
-    await userRef.delete();
-    await currentUser.delete();
-  }
-
-  Future<void> _deleteCollectionInBatches(
-    CollectionReference<Map<String, dynamic>> collection,
-  ) async {
-    const batchSize = 400;
-
-    while (true) {
-      final snapshot = await collection.limit(batchSize).get();
-
-      if (snapshot.docs.isEmpty) return;
-
-      final batch = _db.batch();
-
-      for (final document in snapshot.docs) {
-        batch.delete(document.reference);
-      }
-
-      await batch.commit();
-
-      if (snapshot.docs.length < batchSize) return;
-    }
+    await Hive.close();
+    await Hive.deleteFromDisk();
+    await _auth.signOut();
   }
 
   Future<int> _safeCount(String name) async {
@@ -342,26 +310,30 @@ class ProfileRepository {
 
   Future<Map<String, double>> _skillBands() async {
     const collections = {
-      'Listening': 'listening_results',
-      'Reading': 'reading_results',
-      'Writing': 'writing_results',
-      'Speaking': 'speaking_results',
+      'Listening': ['listening_results'],
+      'Reading': ['reading_results'],
+      'Writing': ['writing_results'],
+      'Speaking': SharedDataContract.speakingResultCollections,
     };
 
     final entries = await Future.wait(
       collections.entries.map((entry) async {
-        final snapshot = await _db
-            .collection('users')
-            .doc(user.uid)
-            .collection(entry.value)
-            .limit(100)
-            .get();
-
-        if (snapshot.docs.isEmpty) {
+        final snapshots = await Future.wait(
+          entry.value.map(
+            (collection) => _db
+                .collection('users')
+                .doc(user.uid)
+                .collection(collection)
+                .limit(100)
+                .get(),
+          ),
+        );
+        final allDocuments = snapshots.expand((snapshot) => snapshot.docs);
+        if (allDocuments.isEmpty) {
           return MapEntry(entry.key, 0.0);
         }
 
-        final documents = [...snapshot.docs]
+        final documents = [...allDocuments]
           ..sort(
             (first, second) =>
                 _resultDate(second.data()).compareTo(_resultDate(first.data())),

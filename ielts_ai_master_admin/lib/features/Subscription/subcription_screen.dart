@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -14,7 +14,9 @@ class AdminSubscriptionManagementScreen extends StatefulWidget {
 class _AdminSubscriptionManagementScreenState
     extends State<AdminSubscriptionManagementScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(
+    region: 'us-central1',
+  );
 
   String _statusFilter = 'pending';
   String _searchQuery = '';
@@ -56,92 +58,9 @@ class _AdminSubscriptionManagementScreenState
     setState(() => _processingIds.add(request.requestId));
 
     try {
-      final requestRef = _firestore
-          .collection('subscription_requests')
-          .doc(request.requestId);
-
-      final userRef = _firestore.collection('users').doc(request.userId);
-
-      await _firestore.runTransaction((transaction) async {
-        final requestSnapshot = await transaction.get(requestRef);
-
-        if (!requestSnapshot.exists) {
-          throw StateError('Subscription request no longer exists.');
-        }
-
-        final currentData = requestSnapshot.data() ?? {};
-        final currentStatus = (currentData['status'] ?? 'pending')
-            .toString()
-            .toLowerCase();
-
-        if (currentStatus == 'approved') {
-          throw StateError('This request has already been approved.');
-        }
-
-        final now = DateTime.now();
-        final existingUserSnapshot = await transaction.get(userRef);
-        final existingUser = existingUserSnapshot.data() ?? {};
-
-        final existingExpiry = _date(existingUser['subscriptionExpiresAt']);
-        final effectiveStart =
-            existingExpiry != null && existingExpiry.isAfter(now)
-            ? existingExpiry
-            : now;
-
-        final expiry = effectiveStart.add(Duration(days: request.durationDays));
-
-        transaction.set(requestRef, {
-          'status': 'approved',
-          'reviewedAt': FieldValue.serverTimestamp(),
-          'reviewedBy': _auth.currentUser?.uid ?? '',
-          'reviewedByEmail': _auth.currentUser?.email ?? '',
-          'approvedAt': FieldValue.serverTimestamp(),
-          'subscriptionStartsAt': Timestamp.fromDate(effectiveStart),
-          'subscriptionExpiresAt': Timestamp.fromDate(expiry),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-
-        transaction.set(userRef, {
-          'subscription': {
-            'status': 'active',
-            'planId': request.planId,
-            'planTitle': request.planTitle,
-            'amount': request.amount,
-            'currency': request.currency,
-            'startedAt': Timestamp.fromDate(effectiveStart),
-            'expiresAt': Timestamp.fromDate(expiry),
-            'requestId': request.requestId,
-            'approvedAt': FieldValue.serverTimestamp(),
-          },
-          'subscriptionStatus': 'active',
-          'subscriptionPlan': request.planId,
-          'subscriptionPlanTitle': request.planTitle,
-          'subscriptionStartAt': Timestamp.fromDate(effectiveStart),
-          'subscriptionExpiresAt': Timestamp.fromDate(expiry),
-          'subscriptionRequestStatus': 'approved',
-          'subscriptionRequestId': request.requestId,
-          'isPremium': true,
-          'premium': true,
-          'premiumPlan': request.planId,
-          'premiumStart': Timestamp.fromDate(effectiveStart),
-          'premiumExpiresAt': Timestamp.fromDate(expiry),
-          'subscriptionUpdatedAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-
-        final auditRef = _firestore.collection('subscription_audit_logs').doc();
-
-        transaction.set(auditRef, {
-          'auditId': auditRef.id,
-          'action': 'approved',
-          'requestId': request.requestId,
-          'userId': request.userId,
-          'planId': request.planId,
-          'amount': request.amount,
-          'performedBy': _auth.currentUser?.uid ?? '',
-          'performedByEmail': _auth.currentUser?.email ?? '',
-          'createdAt': FieldValue.serverTimestamp(),
-        });
+      await _functions.httpsCallable('reviewSubscriptionRequest').call({
+        'requestId': request.requestId,
+        'action': 'approve',
       });
 
       if (!mounted) return;
@@ -220,43 +139,11 @@ class _AdminSubscriptionManagementScreenState
     setState(() => _processingIds.add(request.requestId));
 
     try {
-      final requestRef = _firestore
-          .collection('subscription_requests')
-          .doc(request.requestId);
-
-      final userRef = _firestore.collection('users').doc(request.userId);
-
-      final batch = _firestore.batch();
-
-      batch.set(requestRef, {
-        'status': 'rejected',
-        'rejectionReason': reason,
-        'reviewedAt': FieldValue.serverTimestamp(),
-        'reviewedBy': _auth.currentUser?.uid ?? '',
-        'reviewedByEmail': _auth.currentUser?.email ?? '',
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      batch.set(userRef, {
-        'subscriptionRequestStatus': 'rejected',
-        'subscriptionRejectionReason': reason,
-        'subscriptionUpdatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      final auditRef = _firestore.collection('subscription_audit_logs').doc();
-
-      batch.set(auditRef, {
-        'auditId': auditRef.id,
-        'action': 'rejected',
+      await _functions.httpsCallable('reviewSubscriptionRequest').call({
         'requestId': request.requestId,
-        'userId': request.userId,
+        'action': 'reject',
         'reason': reason,
-        'performedBy': _auth.currentUser?.uid ?? '',
-        'performedByEmail': _auth.currentUser?.email ?? '',
-        'createdAt': FieldValue.serverTimestamp(),
       });
-
-      await batch.commit();
 
       if (!mounted) return;
 
@@ -547,8 +434,6 @@ class _AdminSubscriptionManagementScreenState
           ),
         );
 
-
-
         final statusButtons = Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -589,13 +474,6 @@ class _AdminSubscriptionManagementScreenState
         setState(() => _statusFilter = value);
       },
     );
-  }
-
-  static DateTime? _date(dynamic value) {
-    if (value is Timestamp) return value.toDate();
-    if (value is DateTime) return value;
-    if (value is String) return DateTime.tryParse(value);
-    return null;
   }
 
   static String _formatDate(DateTime value) {

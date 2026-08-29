@@ -1,12 +1,10 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_gemini/flutter_gemini.dart';
 import 'package:fyproject/controller/firebase_services/firebase_services.dart';
 import 'package:fyproject/resources/routes/routes.dart';
 import 'package:get/get_core/src/get_main.dart';
 import 'package:get/get_instance/src/extension_instance.dart';
 import 'package:get/get_navigation/src/root/get_material_app.dart';
-import 'config/keys.dart';
 import 'controller/feedback_controller/feedback_controller.dart';
 import 'firebase_options.dart';
 import 'offline/offline_content_service.dart';
@@ -17,7 +15,6 @@ void main() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await OfflineContentService.instance.initialize();
 
-  Gemini.init(apiKey: AppKeys.geminiApiKey);
   Get.put(IELTSController(), permanent: true);
   Get.put(FirebaseServices(), permanent: true);
 

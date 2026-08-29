@@ -764,7 +764,7 @@ class _LanguageListTile extends StatelessWidget {
                           color: selected
                               ? language.accent
                               : LanguageColors.subtleText,
-                          fontSize: 9.8,
+                          fontSize: 12,
                         ),
                       ),
                     ],

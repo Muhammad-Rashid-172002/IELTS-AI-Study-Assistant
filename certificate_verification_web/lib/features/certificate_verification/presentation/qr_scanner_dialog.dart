@@ -74,9 +74,7 @@ class _QrScannerDialogState extends State<QrScannerDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       insetPadding: const EdgeInsets.all(18),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(26),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520),
         child: ClipRRect(
@@ -101,7 +99,7 @@ class _QrScannerDialogState extends State<QrScannerDialog> {
                           ),
                           Text(
                             'Allow camera access when requested.',
-                            style: TextStyle(fontSize: 10),
+                            style: TextStyle(fontSize: 12),
                           ),
                         ],
                       ),
@@ -118,10 +116,7 @@ class _QrScannerDialogState extends State<QrScannerDialog> {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    MobileScanner(
-                      controller: _controller,
-                      onDetect: _onDetect,
-                    ),
+                    MobileScanner(controller: _controller, onDetect: _onDetect),
                     Center(
                       child: Container(
                         width: 230,

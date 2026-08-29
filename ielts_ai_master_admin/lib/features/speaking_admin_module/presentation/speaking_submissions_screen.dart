@@ -15,8 +15,7 @@ class SpeakingSubmissionsScreen extends StatefulWidget {
       _SpeakingSubmissionsScreenState();
 }
 
-class _SpeakingSubmissionsScreenState
-    extends State<SpeakingSubmissionsScreen> {
+class _SpeakingSubmissionsScreenState extends State<SpeakingSubmissionsScreen> {
   final _repository = SpeakingAdminRepository();
   final _player = AudioPlayer();
 
@@ -28,10 +27,7 @@ class _SpeakingSubmissionsScreenState
     super.dispose();
   }
 
-  Future<void> _toggleAudio(
-    String submissionId,
-    String url,
-  ) async {
+  Future<void> _toggleAudio(String submissionId, String url) async {
     if (url.isEmpty) return;
 
     if (_playingId == submissionId) {
@@ -73,8 +69,7 @@ class _SpeakingSubmissionsScreenState
           return ListView.separated(
             padding: const EdgeInsets.all(20),
             itemCount: docs.length,
-            separatorBuilder: (_, __) =>
-                const SizedBox(height: 11),
+            separatorBuilder: (_, __) => const SizedBox(height: 11),
             itemBuilder: (context, index) {
               final doc = docs[index];
               final data = doc.data();
@@ -98,8 +93,7 @@ class _SpeakingSubmissionsScreenState
                   children: [
                     CircleAvatar(
                       radius: 24,
-                      backgroundColor:
-                          AdminColors.cyan.withOpacity(.12),
+                      backgroundColor: AdminColors.cyan.withOpacity(.12),
                       child: Text(
                         band > 0 ? band.toStringAsFixed(1) : '—',
                         style: const TextStyle(
@@ -111,13 +105,10 @@ class _SpeakingSubmissionsScreenState
                     const SizedBox(width: 13),
                     Expanded(
                       child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            (data['title'] ??
-                                    'Speaking Submission')
-                                .toString(),
+                            (data['title'] ?? 'Speaking Submission').toString(),
                             style: const TextStyle(
                               color: AdminColors.text,
                               fontWeight: FontWeight.w900,
@@ -148,12 +139,8 @@ class _SpeakingSubmissionsScreenState
                     ),
                     const SizedBox(width: 6),
                     OutlinedButton.icon(
-                      onPressed: () =>
-                          _showReport(context, data, report),
-                      icon: const Icon(
-                        Icons.visibility_outlined,
-                        size: 17,
-                      ),
+                      onPressed: () => _showReport(context, data, report),
+                      icon: const Icon(Icons.visibility_outlined, size: 17),
                       label: const Text('View Report'),
                     ),
                   ],
@@ -179,7 +166,7 @@ class _SpeakingSubmissionsScreenState
       'Duration: ${data['durationSeconds'] ?? 0}s',
       'Status: ${data['status'] ?? '-'}',
       '',
-      'Overall Band: ${report['overallBand'] ?? '-'}',
+      'Estimated Overall Band: ${report['estimatedOverallBand'] ?? report['overallBand'] ?? '-'}',
       'Summary: ${report['summary'] ?? '-'}',
       '',
       'Fluency and Coherence:',
