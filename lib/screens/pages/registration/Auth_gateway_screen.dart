@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
@@ -8,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:fyproject/config/platform_links.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:fyproject/screens/pages/9-step%20premium%20profile%20setup%20wizard/initial_profile_setup.dart';
+import 'package:fyproject/screens/pages/registration/email_verification_screen.dart';
 import 'package:fyproject/screens/startup/canonical_startup_gate.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -610,6 +609,7 @@ class _SignInFormState extends State<SignInForm> {
           MaterialPageRoute(
             builder: (_) => EmailVerificationScreen(
               email: user.email ?? _emailController.text.trim(),
+              initialEmailSent: false,
             ),
           ),
         );
@@ -839,188 +839,6 @@ class _SignInFormState extends State<SignInForm> {
           content: Text(message),
         ),
       );
-  }
-}
-
-class EmailVerificationScreen extends StatefulWidget {
-  final String email;
-  final bool initialEmailSent;
-
-  const EmailVerificationScreen({
-    super.key,
-    required this.email,
-    this.initialEmailSent = true,
-  });
-
-  @override
-  State<EmailVerificationScreen> createState() =>
-      _EmailVerificationScreenState();
-}
-
-class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
-  bool _isChecking = false;
-  bool _isSending = false;
-  int _secondsUntilResend = 0;
-  Timer? _timer;
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  void _startResendTimer() {
-    _timer?.cancel();
-    setState(() => _secondsUntilResend = 30);
-
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) return;
-
-      if (_secondsUntilResend <= 1) {
-        timer.cancel();
-        setState(() => _secondsUntilResend = 0);
-      } else {
-        setState(() => _secondsUntilResend -= 1);
-      }
-    });
-  }
-
-  Future<void> _checkVerification() async {
-    setState(() => _isChecking = true);
-
-    try {
-      await FirebaseAuth.instance.currentUser?.reload();
-      final user = FirebaseAuth.instance.currentUser;
-
-      if (user?.emailVerified == true) {
-        await FirebaseFirestore.instance.collection('users').doc(user!.uid).set(
-          {'emailVerified': true, 'updatedAt': FieldValue.serverTimestamp()},
-          SetOptions(merge: true),
-        );
-
-        if (!mounted) return;
-
-        await _routeAuthenticatedUser(context, user);
-      } else {
-        _message('Email is not verified yet.');
-      }
-    } catch (_) {
-      _message('Could not check verification status.');
-    } finally {
-      if (mounted) setState(() => _isChecking = false);
-    }
-  }
-
-  Future<void> _resendVerification() async {
-    if (_secondsUntilResend > 0) return;
-
-    setState(() => _isSending = true);
-
-    try {
-      await _sendCustomVerificationEmail();
-      _startResendTimer();
-      _message('Verification email sent again.');
-    } on FirebaseFunctionsException catch (error) {
-      _message(
-        _functionsErrorMessage(
-          error,
-          fallback: 'Verification email could not be sent right now.',
-        ),
-      );
-    } catch (_) {
-      _message('Verification email could not be sent right now.');
-    } finally {
-      if (mounted) setState(() => _isSending = false);
-    }
-  }
-
-  Future<void> _signOut() async {
-    await FirebaseAuth.instance.signOut();
-
-    if (!mounted) return;
-
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(
-        builder: (_) =>
-            const AuthenticationGatewayScreen(initialMode: AuthMode.signIn),
-      ),
-      (_) => false,
-    );
-  }
-
-  void _message(String text) {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(behavior: SnackBarBehavior.floating, content: Text(text)),
-      );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return _AuthStatusScaffold(
-      eyebrow: 'ONE SECURE STEP',
-      title: 'Verify your email',
-      description: widget.initialEmailSent
-          ? 'Open the verification link we sent to finish setting up your account.'
-          : 'Your account is ready. Request a new verification email to continue.',
-      icon: Icons.mark_email_read_rounded,
-      child: Column(
-        children: [
-          _AuthNoticeCard(
-            icon: Icons.alternate_email_rounded,
-            title: 'Verification sent to',
-            message: widget.email,
-            accent: AuthColors.cyan,
-          ),
-          const SizedBox(height: 12),
-          const _AuthNoticeCard(
-            icon: Icons.inbox_rounded,
-            title: 'Can’t find the email?',
-            message:
-                'Check Spam or Junk, then add IELTS AI Master to your trusted senders.',
-            accent: AuthColors.violet,
-          ),
-          const SizedBox(height: 20),
-          _PrimaryAuthButton(
-            title: 'I’ve verified my email',
-            icon: Icons.verified_rounded,
-            isLoading: _isChecking,
-            onPressed: _checkVerification,
-          ),
-          const SizedBox(height: 11),
-          SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: OutlinedButton.icon(
-              onPressed: _isSending || _secondsUntilResend > 0
-                  ? null
-                  : _resendVerification,
-              icon: _isSending
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.refresh_rounded, size: 19),
-              label: Text(
-                _secondsUntilResend > 0
-                    ? 'Resend available in ${_secondsUntilResend}s'
-                    : 'Resend verification email',
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextButton.icon(
-            onPressed: _signOut,
-            icon: const Icon(Icons.swap_horiz_rounded, size: 18),
-            label: const Text('Use another account'),
-          ),
-        ],
-      ),
-    );
   }
 }
 

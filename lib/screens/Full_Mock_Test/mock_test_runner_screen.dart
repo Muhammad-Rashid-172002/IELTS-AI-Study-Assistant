@@ -12,6 +12,7 @@ import 'package:fyproject/data/mock_test_repository.dart';
 import 'package:fyproject/models/mock_test_models.dart';
 import 'package:fyproject/services/mock_timer_controller.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:record/record.dart';
 
 import 'mock_shared_ui.dart';
@@ -566,7 +567,11 @@ class _MockTestRunnerScreenState extends State<MockTestRunnerScreen> {
           children: [
             Row(
               children: [
-                Tag(question.type.replaceAll('_', ' ')),
+                Tag(
+                  _currentSkill == MockSkill.speaking
+                      ? 'spoken response'
+                      : question.type.replaceAll('_', ' '),
+                ),
                 const Spacer(),
                 TextButton.icon(
                   onPressed: _toggleFlag,
@@ -581,6 +586,10 @@ class _MockTestRunnerScreenState extends State<MockTestRunnerScreen> {
                 ),
               ],
             ),
+            if (_currentSkill == MockSkill.listening) ...[
+              const SizedBox(height: 12),
+              _MockListeningAudioPanel(question: question),
+            ],
             if (question.passage.isNotEmpty) ...[
               const SizedBox(height: 10),
               Container(
@@ -618,6 +627,20 @@ class _MockTestRunnerScreenState extends State<MockTestRunnerScreen> {
   }
 
   Widget _answerWidget(MockQuestion question, MockAnswer? answer) {
+    // Speaking must always be answered with a real audio recording.
+    // Do not trust question.type here because older/admin-authored mock data can
+    // contain generic values such as `mixed`, which previously fell through to
+    // the text-field fallback and made a speaking response typeable.
+    if (_currentSkill == MockSkill.speaking) {
+      return _MockSpeakingRecorder(
+        key: ValueKey('recorder_${widget.attemptId}_${question.id}'),
+        attemptId: widget.attemptId,
+        question: question,
+        existingValue: answer?.value,
+        onUploaded: _updateAnswer,
+      );
+    }
+
     switch (question.type) {
       case 'multiple_choice':
         return Column(
@@ -731,49 +754,318 @@ class _MockTestRunnerScreenState extends State<MockTestRunnerScreen> {
         color: MockColors.surface,
         border: Border(top: BorderSide(color: MockColors.border)),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          OutlinedButton.icon(
-            onPressed: _questionIndex > 0 ? _previousQuestion : null,
-            icon: const Icon(Icons.arrow_back_rounded),
-            label: const Text('Previous'),
+          Row(
+            children: [
+              OutlinedButton.icon(
+                onPressed: _questionIndex > 0 ? _previousQuestion : null,
+                icon: const Icon(Icons.arrow_back_rounded),
+                label: const Text('Previous'),
+              ),
+              const Spacer(),
+              if (MediaQuery.sizeOf(context).width < 980)
+                IconButton.filledTonal(
+                  tooltip: 'Question palette',
+                  onPressed: () {
+                    showModalBottomSheet<void>(
+                      context: context,
+                      backgroundColor: MockColors.surface,
+                      builder: (_) =>
+                          SizedBox(height: 420, child: _questionPalette()),
+                    );
+                  },
+                  icon: const Icon(Icons.grid_view_rounded),
+                ),
+              const SizedBox(width: 8),
+              FilledButton.icon(
+                onPressed: _submitting ? null : _nextQuestion,
+                icon: Icon(
+                  _questionIndex + 1 == _questions.length
+                      ? Icons.check_rounded
+                      : Icons.arrow_forward_rounded,
+                ),
+                label: Text(
+                  _questionIndex + 1 == _questions.length
+                      ? 'Finish Section'
+                      : 'Next',
+                ),
+              ),
+            ],
           ),
-          const Spacer(),
-          if (MediaQuery.sizeOf(context).width < 980)
-            IconButton.filledTonal(
-              tooltip: 'Question palette',
-              onPressed: () {
-                showModalBottomSheet<void>(
-                  context: context,
-                  backgroundColor: MockColors.surface,
-                  builder: (_) =>
-                      SizedBox(height: 420, child: _questionPalette()),
-                );
-              },
-              icon: const Icon(Icons.grid_view_rounded),
+          if (_currentSkill == MockSkill.speaking) ...[
+            const SizedBox(height: 8),
+            const SizedBox(
+              width: double.infinity,
+              child: Text(
+                PlatformLinks.audioProcessingNotice,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: MockColors.muted,
+                  fontSize: 11,
+                  height: 1.3,
+                ),
+              ),
             ),
-          const SizedBox(width: 8),
-          FilledButton.icon(
-            onPressed: _submitting ? null : _nextQuestion,
-            icon: Icon(
-              _questionIndex + 1 == _questions.length
-                  ? Icons.check_rounded
-                  : Icons.arrow_forward_rounded,
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MockListeningAudioPanel extends StatefulWidget {
+  const _MockListeningAudioPanel({super.key, required this.question});
+
+  final MockQuestion question;
+
+  @override
+  State<_MockListeningAudioPanel> createState() =>
+      _MockListeningAudioPanelState();
+}
+
+class _MockListeningAudioPanelState extends State<_MockListeningAudioPanel> {
+  final AudioPlayer _player = AudioPlayer();
+  bool _preparing = false;
+  String? _resolvedUrl;
+  String? _error;
+
+  StreamSubscription<PlayerState>? _playerStateSub;
+
+  String get _audioReference => widget.question.audioUrl.trim();
+
+  @override
+  void initState() {
+    super.initState();
+    _playerStateSub = _player.playerStateStream.listen((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _MockListeningAudioPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.question.id != widget.question.id ||
+        oldWidget.question.audioUrl != widget.question.audioUrl) {
+      _resetForQuestion();
+    }
+  }
+
+  Future<void> _resetForQuestion() async {
+    await _player.stop();
+    if (!mounted) return;
+    setState(() {
+      _resolvedUrl = null;
+      _error = null;
+      _preparing = false;
+    });
+  }
+
+  @override
+  void dispose() {
+    _playerStateSub?.cancel();
+    _player.dispose();
+    super.dispose();
+  }
+
+  Future<String> _resolveAudioUrl(String reference) async {
+    final value = reference.trim();
+    if (value.isEmpty) return '';
+
+    final uri = Uri.tryParse(value);
+    if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
+      return value;
+    }
+
+    if (value.startsWith('gs://')) {
+      return FirebaseStorage.instance.refFromURL(value).getDownloadURL();
+    }
+
+    // Treat non-URL values as Firebase Storage object paths.
+    return FirebaseStorage.instance.ref(value).getDownloadURL();
+  }
+
+  Future<void> _togglePlayback() async {
+    final reference = _audioReference;
+    if (reference.isEmpty || _preparing) return;
+
+    try {
+      final state = _player.playerState;
+      if (state.playing) {
+        await _player.pause();
+        return;
+      }
+
+      if (state.processingState == ProcessingState.completed) {
+        await _player.seek(Duration.zero);
+      }
+
+      if (_resolvedUrl == null) {
+        setState(() {
+          _preparing = true;
+          _error = null;
+        });
+        final url = await _resolveAudioUrl(reference);
+        if (url.isEmpty) {
+          throw StateError('Listening audio is unavailable.');
+        }
+        await _player.setUrl(url);
+        _resolvedUrl = url;
+      }
+
+      await _player.play();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Audio could not be played. Please try again.';
+      });
+    } finally {
+      if (mounted) setState(() => _preparing = false);
+    }
+  }
+
+  String _formatDuration(Duration value) {
+    final minutes = value.inMinutes;
+    final seconds = value.inSeconds.remainder(60);
+    return '${minutes.toString().padLeft(2, '0')}:'
+        '${seconds.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasAudio = _audioReference.isNotEmpty;
+    final playing = _player.playing;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: panelDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.headphones_rounded, color: MockColors.cyan),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Listening audio',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: MockColors.text,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      hasAudio
+                          ? 'Play the recording and answer the questions as you listen.'
+                          : 'Audio is not attached to this listening question.',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: MockColors.muted,
+                        fontSize: 12,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              _error!,
+              style: const TextStyle(
+                color: MockColors.warning,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-            label: Text(
-              _questionIndex + 1 == _questions.length
-                  ? 'Finish Section'
-                  : 'Next',
-            ),
+          ],
+          const SizedBox(height: 12),
+          StreamBuilder<Duration?>(
+            stream: _player.durationStream,
+            builder: (context, durationSnapshot) {
+              final duration = durationSnapshot.data ?? Duration.zero;
+              return StreamBuilder<Duration>(
+                stream: _player.positionStream,
+                builder: (context, positionSnapshot) {
+                  final position = positionSnapshot.data ?? Duration.zero;
+                  final maxMs = duration.inMilliseconds <= 0
+                      ? 1.0
+                      : duration.inMilliseconds.toDouble();
+                  final posMs = position.inMilliseconds
+                      .clamp(0, maxMs.toInt())
+                      .toDouble();
+
+                  return Column(
+                    children: [
+                      Slider(
+                        value: posMs,
+                        min: 0,
+                        max: maxMs,
+                        onChanged: hasAudio && duration > Duration.zero
+                            ? (value) => _player.seek(
+                                Duration(milliseconds: value.round()),
+                              )
+                            : null,
+                      ),
+                      Row(
+                        children: [
+                          Text(
+                            _formatDuration(position),
+                            style: const TextStyle(
+                              color: MockColors.muted,
+                              fontSize: 11,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            _formatDuration(duration),
+                            style: const TextStyle(
+                              color: MockColors.muted,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
           ),
           const SizedBox(height: 10),
-          const Text(
-            PlatformLinks.audioProcessingNotice,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: MockColors.muted,
-              fontSize: 12,
-              height: 1.4,
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: hasAudio && !_preparing ? _togglePlayback : null,
+              icon: _preparing
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(
+                      playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    ),
+              label: Text(
+                _preparing
+                    ? 'Loading audio…'
+                    : playing
+                    ? 'Pause audio'
+                    : 'Play audio',
+              ),
             ),
           ),
         ],

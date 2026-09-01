@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>600359875882-7m4al83uq8fhj3jmbisjdot09vn1db6v.apps.googleusercontent.com</string>
+	<string>600359875882-peg1sm0iillrqu1rfd5j1ugh85m6fq22.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.600359875882-7m4al83uq8fhj3jmbisjdot09vn1db6v</string>
+	<string>com.googleusercontent.apps.600359875882-peg1sm0iillrqu1rfd5j1ugh85m6fq22</string>
 	<key>ANDROID_CLIENT_ID</key>
-	<string>600359875882-r9ivn3tc6vmdmhckl6pi1kg5jorvjlgr.apps.googleusercontent.com</string>
+	<string>600359875882-jlaubmp5te2khk832vhtpdvra7gvu2nn.apps.googleusercontent.com</string>
 	<key>API_KEY</key>
 	<string>AIzaSyC1xw5Z9g528TqUVUrrqHVNkRF0EtvtzNo</string>
 	<key>GCM_SENDER_ID</key>
@@ -15,7 +15,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.example.fyproject</string>
+	<string>com.rashidapps.ieltsaimaster</string>
 	<key>PROJECT_ID</key>
 	<string>ielts-ai-study-assistant</string>
 	<key>STORAGE_BUCKET</key>
@@ -31,6 +31,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:600359875882:ios:da40b2c42d789b7a50da53</string>
+	<string>1:600359875882:ios:a06012cc4e2ab4fa50da53</string>
 </dict>
 </plist>

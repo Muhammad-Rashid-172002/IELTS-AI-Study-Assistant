@@ -1,4 +1,5 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:fyproject/controller/firebase_services/firebase_services.dart';
 import 'package:fyproject/resources/routes/routes.dart';
@@ -12,7 +13,16 @@ import 'resources/app_theme/theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  if (kIsWeb) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } else {
+    // Android and iOS must use their Firebase-generated native files. This
+    // prevents a stale Dart app ID from silently overriding a verified native
+    // registration. Release validation checks those native files separately.
+    await Firebase.initializeApp();
+  }
   await OfflineContentService.instance.initialize();
 
   Get.put(IELTSController(), permanent: true);

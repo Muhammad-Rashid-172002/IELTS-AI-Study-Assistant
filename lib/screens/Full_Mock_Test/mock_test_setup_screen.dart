@@ -798,7 +798,7 @@ class _ResponsiveOptionRow extends StatelessWidget {
         }
 
         return SizedBox(
-          height: 136,
+          height: 144,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -929,7 +929,7 @@ class _OptionCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(icon, color: selected ? MockColors.cyan : MockColors.muted),
-            const SizedBox(height: 24),
+            const SizedBox(height: 18),
             Text(
               title,
               maxLines: 1,

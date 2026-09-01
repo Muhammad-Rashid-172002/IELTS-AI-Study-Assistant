@@ -1,12 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../resources/bottom_navigation_bar/botton_navigation.dart';
 import '../../services/startup_access_policy.dart';
+import '../../services/mobile_release_policy.dart';
 import '../Onboarding_Screen/Onboarding_screen.dart';
 import '../pages/9-step premium profile setup wizard/diagnotics_intro_screen.dart';
 import '../pages/9-step premium profile setup wizard/initial_profile_setup.dart';
+import '../pages/registration/email_verification_screen.dart';
 import '../pages/personalized_study_plan/personalized_study_plan-screen.dart';
 
 class CanonicalStartupGate extends StatefulWidget {
@@ -19,10 +22,13 @@ class CanonicalStartupGate extends StatefulWidget {
 class _CanonicalStartupGateState extends State<CanonicalStartupGate> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final MobileReleasePolicyService _releasePolicyService =
+      MobileReleasePolicyService();
 
   bool _loading = true;
-  StartupDestination? _heldDestination;
   String _message = 'Refreshing your secure session…';
+  String _updateStoreUrl = '';
+  bool _updateRequired = false;
 
   @override
   void initState() {
@@ -34,9 +40,20 @@ class _CanonicalStartupGateState extends State<CanonicalStartupGate> {
     if (mounted) {
       setState(() {
         _loading = true;
-        _heldDestination = null;
+        _updateRequired = false;
+        _updateStoreUrl = '';
         _message = 'Refreshing your secure session…';
       });
+    }
+
+    try {
+      final releasePolicy = await _releasePolicyService.check();
+      if (releasePolicy.updateRequired) {
+        _holdUpdate(releasePolicy);
+        return;
+      }
+    } catch (error) {
+      debugPrint('Mobile release policy check unavailable: $error');
     }
 
     var user = _auth.currentUser;
@@ -110,19 +127,19 @@ class _CanonicalStartupGateState extends State<CanonicalStartupGate> {
       case StartupDestination.blocked:
         await _auth.signOut();
         _hold(
-          destination,
           'This account is suspended. Contact support if you believe this is a mistake.',
         );
         return;
       case StartupDestination.verifyEmail:
-        _hold(
-          destination,
-          'Verify your email address before continuing. Then return here and retry.',
+        _open(
+          EmailVerificationScreen(
+            email: user.email ?? '',
+            initialEmailSent: false,
+          ),
         );
         return;
       case StartupDestination.offlineUnavailable:
         _hold(
-          destination,
           'Connect to the internet so we can safely confirm your account and onboarding status.',
         );
         return;
@@ -137,27 +154,38 @@ class _CanonicalStartupGateState extends State<CanonicalStartupGate> {
     );
   }
 
-  void _hold(StartupDestination destination, String message) {
+  void _hold(String message) {
     if (!mounted) return;
     setState(() {
       _loading = false;
-      _heldDestination = destination;
       _message = message;
     });
   }
 
-  Future<void> _resendVerification() async {
-    try {
-      await _auth.currentUser?.sendEmailVerification();
+  void _holdUpdate(MobileReleasePolicy policy) {
+    if (!mounted) return;
+    final version = policy.minimumVersion.isEmpty
+        ? ''
+        : ' Version ${policy.minimumVersion} or later is required.';
+    setState(() {
+      _loading = false;
+      _updateRequired = true;
+      _updateStoreUrl = policy.storeUrl;
+      _message = policy.message.isEmpty
+          ? 'A newer app version is required to continue securely.$version'
+          : '${policy.message}$version';
+    });
+  }
+
+  Future<void> _openStore() async {
+    final uri = Uri.tryParse(_updateStoreUrl);
+    if (uri == null ||
+        !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Verification email sent.')),
-        );
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Email could not be sent right now.')),
+          const SnackBar(
+            content: Text('The store link is not configured. Contact support.'),
+          ),
         );
       }
     }
@@ -222,20 +250,22 @@ class _CanonicalStartupGateState extends State<CanonicalStartupGate> {
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
-                        onPressed: _evaluate,
-                        icon: const Icon(Icons.refresh_rounded),
-                        label: const Text('Retry secure check'),
+                        onPressed: _updateRequired ? _openStore : _evaluate,
+                        icon: Icon(
+                          _updateRequired
+                              ? Icons.system_update_alt_rounded
+                              : Icons.refresh_rounded,
+                        ),
+                        label: Text(
+                          _updateRequired ? 'Update app' : 'Retry secure check',
+                        ),
                       ),
                     ),
-                    if (_heldDestination == StartupDestination.verifyEmail)
+                    if (!_updateRequired)
                       TextButton(
-                        onPressed: _resendVerification,
-                        child: const Text('Resend verification email'),
+                        onPressed: _signOut,
+                        child: const Text('Sign out'),
                       ),
-                    TextButton(
-                      onPressed: _signOut,
-                      child: const Text('Sign out'),
-                    ),
                   ],
                 ],
               ),

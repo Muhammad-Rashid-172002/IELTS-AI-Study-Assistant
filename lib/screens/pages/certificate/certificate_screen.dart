@@ -1872,13 +1872,31 @@ class AppCertificate {
     );
   }
 
+  static const String _currentVerificationOrigin =
+      'https://ielts-certificate-verification.web.app/verify';
+
   static String _verificationUrl(Map<String, dynamic> data, String code) {
     final stored = _string(
       data['verificationUrl'] ?? data['verifyUrl'],
       fallback: '',
     );
-    if (Uri.tryParse(stored)?.hasScheme == true) return stored;
-    return '${PlatformLinks.legacyVerificationOrigin}/$code';
+
+    final storedUri = Uri.tryParse(stored);
+    if (storedUri != null && storedUri.hasScheme) {
+     // final host = storedUri.host.toLowerCase();
+
+      // The dedicated ieltsaimaster.com domain is not live yet. Older
+      // certificate records may already contain that temporary URL, so
+      // transparently route them to the currently deployed Firebase
+      // verification portal instead of showing/opening a broken link.
+      // if (host == 'ieltsaimaster.com' || host == 'www.ieltsaimaster.com') {
+      //   return '$_currentVerificationOrigin/$code';
+      // }
+
+      return stored;
+    }
+
+    return '$_currentVerificationOrigin/$code';
   }
 
   static Map<String, double> _bandMap(dynamic value) {

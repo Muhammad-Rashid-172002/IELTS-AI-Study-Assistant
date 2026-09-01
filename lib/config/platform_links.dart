@@ -2,7 +2,7 @@ class PlatformLinks {
   PlatformLinks._();
 
   static const privacyPolicy = 'https://ielts-ai-privacy.vercel.app/';
-  static const termsOfService = 'https://ielts-ai-privacy.vercel.app/#terms';
+  static const termsOfService = 'https://ielts-ai-master-terms.vercel.app/terms';
   static const privacyPolicyVersion = '2026-08-v2.4.0';
   static const termsVersion = '2026-08';
 

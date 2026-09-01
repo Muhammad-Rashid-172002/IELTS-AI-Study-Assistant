@@ -22,7 +22,7 @@ class SpeakingPremiumManager {
   static const int freeUsesPerModePerDay = 1;
   static const int freeHistoryItems = 5;
 
-  static const Set<String> premiumOnlyModes = {'ai_partner', 'full_test'};
+  static const Set<String> premiumOnlyModes = {'ai_partner'};
 
   static bool isPremiumFromData(Map<String, dynamic> data) {
     if (data['isPremium'] == true ||
@@ -416,7 +416,7 @@ Future<void> _showSpeakingPremiumSheet(
               ),
               const _SpeakingPremiumBenefit(
                 icon: Icons.smart_toy_outlined,
-                text: 'AI Speaking Partner and Full Speaking Test',
+                text: 'AI Speaking Partner + unlimited Full Speaking Tests',
               ),
               const _SpeakingPremiumBenefit(
                 icon: Icons.analytics_outlined,
@@ -2602,10 +2602,10 @@ class _SpeakingPlanCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       isPremium
-                          ? 'AI Partner, Full Test and complete advanced reports are unlocked.'
+                          ? 'AI Partner, unlimited Full Tests and complete advanced reports are unlocked.'
                           : access.offlineMode
                           ? 'AI evaluation will sync when you reconnect.'
-                          : 'AI Speaking Partner and Full Speaking Test require Premium.',
+                          : 'AI Speaking Partner requires Premium. Full Speaking Test is free once per day.',
                       style: const TextStyle(
                         color: SColors.secondary,
                         fontSize: 12,

@@ -1633,6 +1633,7 @@ class _ReadingPracticeScreenState extends State<ReadingPracticeScreen> {
 
   @override
   void dispose() {
+    ContextMenuController.removeAny();
     _timer?.cancel();
     _autoSaveDebounce?.cancel();
     for (final controller in _controllers.values) {
@@ -1791,6 +1792,7 @@ class _ReadingPracticeScreenState extends State<ReadingPracticeScreen> {
 
   void _goToPassage(int index, {bool showQuestions = false}) {
     if (index < 0 || index >= widget.test.passages.length) return;
+    ContextMenuController.removeAny();
 
     setState(() {
       _currentPassageIndex = index;
@@ -1803,6 +1805,7 @@ class _ReadingPracticeScreenState extends State<ReadingPracticeScreen> {
 
   void _goToGlobalQuestion(int globalIndex) {
     if (globalIndex < 0 || globalIndex >= widget.test.questions.length) return;
+    ContextMenuController.removeAny();
 
     final target = widget.test.questions[globalIndex];
     final passageIndex = widget.test.passages.indexWhere(
@@ -2386,10 +2389,14 @@ class _ReadingPracticeScreenState extends State<ReadingPracticeScreen> {
                         children: [
                           _MobileReadingViewSwitcher(
                             showQuestions: _mobileShowQuestions,
-                            onPassage: () =>
-                                setState(() => _mobileShowQuestions = false),
-                            onQuestions: () =>
-                                setState(() => _mobileShowQuestions = true),
+                            onPassage: () {
+                              ContextMenuController.removeAny();
+                              setState(() => _mobileShowQuestions = false);
+                            },
+                            onQuestions: () {
+                              ContextMenuController.removeAny();
+                              setState(() => _mobileShowQuestions = true);
+                            },
                           ),
                           Expanded(
                             child: AnimatedSwitcher(
@@ -3308,7 +3315,7 @@ enum ReadingQuestionType {
   const ReadingQuestionType(this.label, this.icon);
 }
 
-class _PassageView extends StatelessWidget {
+class _PassageView extends StatefulWidget {
   final ReadingPassage passage;
   final Set<String> highlightedParagraphs;
   final Map<int, String> notes;
@@ -3327,13 +3334,47 @@ class _PassageView extends StatelessWidget {
   });
 
   @override
+  State<_PassageView> createState() => _PassageViewState();
+}
+
+class _PassageViewState extends State<_PassageView> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    // Remove any open text-selection menu before this view disappears.
+    // This prevents a stale overlay from trying to read glyph geometry after
+    // the passage/list has already moved or been disposed.
+    ContextMenuController.removeAny();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification is ScrollStartNotification) {
+      // Flutter's SelectionArea can crash when its default adaptive toolbar
+      // tries to calculate anchors while a selected glyph is rapidly moving
+      // outside the viewport. We no longer use SelectionArea here, and we
+      // proactively close any SelectableText menu when scrolling starts.
+      ContextMenuController.removeAny();
+    }
+    return false;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SelectionArea(
+    final passage = widget.passage;
+
+    return NotificationListener<ScrollNotification>(
+      onNotification: _handleScrollNotification,
       child: ListView(
+        controller: _scrollController,
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.fromLTRB(18, 14, 18, 28),
         children: [
-          Text(
+          SelectableText(
             passage.title,
+            key: ValueKey('reading-passage-title-${passage.passageNumber}'),
             style: const TextStyle(
               color: RColors.text,
               fontSize: 22,
@@ -3353,8 +3394,8 @@ class _PassageView extends StatelessWidget {
           const SizedBox(height: 18),
           ...passage.paragraphs.asMap().entries.map((entry) {
             final key = _paragraphKey(passage.passageNumber, entry.key);
-            final highlighted = highlightedParagraphs.contains(key);
-            final note = notes[key.hashCode];
+            final highlighted = widget.highlightedParagraphs.contains(key);
+            final note = widget.notes[key.hashCode];
 
             return Container(
               margin: const EdgeInsets.only(bottom: 13),
@@ -3373,8 +3414,16 @@ class _PassageView extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  // IMPORTANT: use SelectableText per paragraph instead of
+                  // wrapping the scrolling ListView in SelectionArea.
+                  // Selection/copy is preserved, while the framework path
+                  // SelectionArea -> SelectableRegionState.contextMenuAnchors
+                  // that caused the null-check crash is removed.
+                  SelectableText(
                     entry.value,
+                    key: ValueKey(
+                      'reading-passage-${passage.passageNumber}-paragraph-${entry.key}',
+                    ),
                     style: const TextStyle(
                       color: RColors.secondary,
                       fontSize: 14,
@@ -3392,12 +3441,15 @@ class _PassageView extends StatelessWidget {
                       ),
                     ),
                   ],
-                  if (toolsEnabled) ...[
+                  if (widget.toolsEnabled) ...[
                     const SizedBox(height: 10),
                     Row(
                       children: [
                         TextButton.icon(
-                          onPressed: () => onHighlight(entry.key),
+                          onPressed: () {
+                            ContextMenuController.removeAny();
+                            widget.onHighlight(entry.key);
+                          },
                           icon: Icon(
                             highlighted
                                 ? Icons.highlight_off_rounded
@@ -3409,7 +3461,10 @@ class _PassageView extends StatelessWidget {
                           ),
                         ),
                         TextButton.icon(
-                          onPressed: () => onNote(entry.key),
+                          onPressed: () {
+                            ContextMenuController.removeAny();
+                            widget.onNote(entry.key);
+                          },
                           icon: const Icon(Icons.note_add_outlined, size: 17),
                           label: const Text('Add note'),
                         ),

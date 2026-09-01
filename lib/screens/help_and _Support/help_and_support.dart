@@ -11,7 +11,7 @@ class HelpAndSupportScreen extends StatefulWidget {
 }
 
 class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
-  static const String _supportEmail = 'muhammadrashid172002@gmail.com';
+  static const String _supportEmail = 'support@korvenzatech.com';
   static const String _privacyPolicyUrl = PlatformLinks.privacyPolicy;
   static const String _termsUrl = PlatformLinks.termsOfService;
 

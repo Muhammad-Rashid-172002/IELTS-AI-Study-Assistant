@@ -1778,12 +1778,20 @@ class _WritingEditorScreenState extends State<WritingEditorScreen> {
             onFullscreen: () => setState(() => _fullscreen = true),
           ),
         if (!_fullscreen)
-          _TaskPromptCard(
-            task: widget.task,
-            showChecklist: _showChecklist,
-            onToggleChecklist: () {
-              setState(() => _showChecklist = !_showChecklist);
-            },
+          Flexible(
+            flex: 4,
+            fit: FlexFit.loose,
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              child: _TaskPromptCard(
+                task: widget.task,
+                showChecklist: _showChecklist,
+                onToggleChecklist: () {
+                  setState(() => _showChecklist = !_showChecklist);
+                },
+              ),
+            ),
           ),
         _EditorToolbar(
           canUndo: _undoStack.length > 1,
@@ -1800,6 +1808,7 @@ class _WritingEditorScreenState extends State<WritingEditorScreen> {
           },
         ),
         Expanded(
+          flex: 5,
           child: LayoutBuilder(
             builder: (context, constraints) {
               final wide = constraints.maxWidth >= 820;

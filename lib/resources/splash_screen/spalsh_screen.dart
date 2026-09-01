@@ -1,10 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:fyproject/screens/Onboarding_Screen/Onboarding_screen.dart';
 import 'package:fyproject/screens/startup/canonical_startup_gate.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -94,9 +92,7 @@ class _SplashScreenState extends State<SplashScreen>
   void _openNextScreen() {
     if (!mounted) return;
 
-    final Widget nextScreen = FirebaseAuth.instance.currentUser != null
-        ? const CanonicalStartupGate()
-        : const PremiumOnboardingScreen();
+    const Widget nextScreen = CanonicalStartupGate();
 
     Navigator.of(context).pushReplacement(
       PageRouteBuilder<void>(

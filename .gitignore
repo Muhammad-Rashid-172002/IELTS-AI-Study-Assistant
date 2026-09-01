@@ -46,9 +46,8 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Firebase config (contains API keys)
-lib/firebase_options.dart
+# Firebase client configuration contains public app identifiers. Keep the
+# web-only options in source; mobile app IDs come from verified native files.
 
 # Ignore API key file
 lib/config/keys.dart
-
