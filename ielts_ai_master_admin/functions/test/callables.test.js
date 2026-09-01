@@ -1,5 +1,15 @@
 "use strict";
 
+// The Firebase CLI configures FIREBASE_STORAGE_EMULATOR_HOST. The underlying
+// Google Cloud Storage client used by firebase-admin reads STORAGE_EMULATOR_HOST.
+// Bridge the two before loading the deployed functions so deletion tests can
+// never reach a production bucket.
+if (!process.env.STORAGE_EMULATOR_HOST &&
+    process.env.FIREBASE_STORAGE_EMULATOR_HOST) {
+  process.env.STORAGE_EMULATOR_HOST =
+    `http://${process.env.FIREBASE_STORAGE_EMULATOR_HOST}`;
+}
+
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {getFirestore} = require("firebase-admin/firestore");
@@ -294,6 +304,10 @@ test("server account deletion removes nested, top-level, registry, Storage, and 
     }),
     db.doc("writing_submissions/delete_submission").set({userId: uid}),
     db.doc("subscription_requests/delete_request").set({userId: uid}),
+    db.doc("securityEvents/delete_security_event").set({
+      email: "delete@example.test",
+      type: "failed_login",
+    }),
     bucket.file(`profile_images/${uid}.jpg`).save(Buffer.from("image"), {
       contentType: "image/jpeg",
     }),
@@ -322,6 +336,7 @@ test("server account deletion removes nested, top-level, registry, Storage, and 
     nestedAnswer,
     writing,
     request,
+    securityEvent,
     registry,
     audits,
     profileImage,
@@ -331,6 +346,7 @@ test("server account deletion removes nested, top-level, registry, Storage, and 
     db.doc(`users/${uid}/mock_attempts/attempt/answers/q1`).get(),
     db.doc("writing_submissions/delete_submission").get(),
     db.doc("subscription_requests/delete_request").get(),
+    db.doc("securityEvents/delete_security_event").get(),
     db.doc(`certificate_verifications/${verificationCode}`).get(),
     db.collection("account_deletion_audit").where("status", "==", "completed").get(),
     bucket.file(`profile_images/${uid}.jpg`).exists(),
@@ -340,6 +356,7 @@ test("server account deletion removes nested, top-level, registry, Storage, and 
   assert.equal(nestedAnswer.exists, false);
   assert.equal(writing.exists, false);
   assert.equal(request.exists, false);
+  assert.equal(securityEvent.exists, false);
   assert.equal(registry.exists, false);
   assert.ok(audits.size >= 1);
   assert.equal(profileImage[0], false);

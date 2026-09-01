@@ -10,12 +10,19 @@ const {
   certificateTypeEligible,
   convertObjectiveScore,
   credentialIsValid,
+  nextMockQuestionNumber,
   readSharedAliases,
   resolveCredentialStatus,
   roundIeltsOverallBand,
   speakingScoring,
   writingScoring,
 } = require("../phase2_contracts");
+
+test("mock question numbering continues after existing generated batches", () => {
+  assert.equal(nextMockQuestionNumber([1, 1, 2, 9, "10"]), 11);
+  assert.equal(nextMockQuestionNumber([]), 1);
+  assert.equal(nextMockQuestionNumber([null, "invalid", 0]), 1);
+});
 
 test("Writing uses Task Achievement for Task 1 and Task Response for Task 2", () => {
   const task1 = writingScoring({

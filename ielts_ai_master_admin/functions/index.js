@@ -22,6 +22,7 @@ const {
   certificateTypeEligible,
   convertObjectiveScore,
   normalizeIeltsTrack,
+  nextMockQuestionNumber,
   resolveCredentialStatus,
   roundIeltsOverallBand,
   speakingScoring,
@@ -6652,6 +6653,18 @@ exports.processMockTestGenerationJob = onDocumentCreated(
       const errors = [];
 
       try {
+        let nextQuestionNumber = 1;
+        if (String(job.mockTestId || "").trim()) {
+          const existingQuestions = await db
+              .collection("mock_test_bank")
+              .doc(String(job.track))
+              .collection(String(job.skill))
+              .where("mockTestId", "==", String(job.mockTestId))
+              .get();
+          nextQuestionNumber = nextMockQuestionNumber(
+              existingQuestions.docs.map((doc) => doc.data().number),
+          );
+        }
         const {GoogleGenAI} = await import("@google/genai");
         const ai = new GoogleGenAI({apiKey: geminiApiKey.value()});
 
@@ -6703,6 +6716,7 @@ exports.processMockTestGenerationJob = onDocumentCreated(
                   transcript: generated.transcript,
                   sharedAudio,
                 });
+                normalized.number = nextQuestionNumber;
 
                 const questionValidation =
                   validateGeneratedMockQuestion(normalized, job);
@@ -6739,6 +6753,7 @@ exports.processMockTestGenerationJob = onDocumentCreated(
                 });
 
                 generatedCount++;
+                nextQuestionNumber++;
                 createdQuestionIds.push(questionRef.id);
               } catch (questionError) {
                 failedCount++;
@@ -11445,6 +11460,9 @@ const TOP_LEVEL_LEARNER_DATA = [
   {collection: "subscription_requests", fields: ["userId", "uid"]},
   {collection: "subscription_audit_logs", fields: ["userId", "uid"]},
 ];
+const TOP_LEVEL_LEARNER_EMAIL_DATA = [
+  {collection: "securityEvents", fields: ["email", "userEmail"]},
+];
 
 async function accountDeletionLockExists(uid) {
   const lock = await db.collection("account_deletion_locks").doc(uid).get();
@@ -11462,23 +11480,35 @@ async function assertAccountDeletionNotInProgress(uid) {
 
 async function deleteQueryRecursively(query) {
   let deleted = 0;
-  while (true) {
+  let hasMore = true;
+  while (hasMore) {
     const snapshot = await query.limit(ACCOUNT_DELETION_QUERY_BATCH_SIZE).get();
-    if (snapshot.empty) return deleted;
+    hasMore = !snapshot.empty;
+    if (!hasMore) break;
     for (const document of snapshot.docs) {
       await db.recursiveDelete(document.ref);
       deleted++;
     }
   }
+  return deleted;
 }
 
-async function deleteTopLevelLearnerData(uid) {
+async function deleteTopLevelLearnerData(uid, email) {
   let deleted = 0;
   for (const target of TOP_LEVEL_LEARNER_DATA) {
     for (const field of target.fields) {
       deleted += await deleteQueryRecursively(
           db.collection(target.collection).where(field, "==", uid),
       );
+    }
+  }
+  if (email) {
+    for (const target of TOP_LEVEL_LEARNER_EMAIL_DATA) {
+      for (const field of target.fields) {
+        deleted += await deleteQueryRecursively(
+            db.collection(target.collection).where(field, "==", email),
+        );
+      }
     }
   }
   return deleted;
@@ -11569,6 +11599,10 @@ exports.deleteLearnerAccount = onCall(
       }, {merge: true});
 
       try {
+        const authUser = await getAuth().getUser(uid);
+        const learnerEmail = String(
+            authUser.email || request.auth.token?.email || "",
+        ).trim().toLowerCase();
         await getAuth().updateUser(uid, {disabled: true});
         await getAuth().revokeRefreshTokens(uid);
 
@@ -11583,14 +11617,20 @@ exports.deleteLearnerAccount = onCall(
               .filter(Boolean),
         )];
 
-        let deletedDocuments = await deleteTopLevelLearnerData(uid);
+        let deletedDocuments = await deleteTopLevelLearnerData(
+            uid,
+            learnerEmail,
+        );
         deletedDocuments += await deleteCertificateRegistryData(
             verificationCodes,
         );
         await deleteLearnerRateLimits(uid);
         const deletedStorageObjects = await deleteLearnerStorage(uid);
         await db.recursiveDelete(userRef);
-        deletedDocuments += await deleteTopLevelLearnerData(uid);
+        deletedDocuments += await deleteTopLevelLearnerData(
+            uid,
+            learnerEmail,
+        );
 
         await getAuth().deleteUser(uid);
         const completedAt = FieldValue.serverTimestamp();

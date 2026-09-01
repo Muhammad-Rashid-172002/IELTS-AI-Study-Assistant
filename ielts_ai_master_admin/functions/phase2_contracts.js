@@ -202,6 +202,15 @@ function canTransitionQaState(from, to) {
     (current === "approved" && target === "published");
 }
 
+function nextMockQuestionNumber(existingNumbers = []) {
+  const maximum = existingNumbers.reduce((current, value) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 1) return current;
+    return Math.max(current, Math.round(parsed));
+  }, 0);
+  return maximum + 1;
+}
+
 function resolveCredentialStatus(value) {
   const status = String(value || "").trim().toLowerCase();
   return ["valid", "revoked"].includes(status) ? status : "unknown";
@@ -260,6 +269,7 @@ module.exports = {
   credentialIsValid,
   normalizeCriterionBand,
   normalizeIeltsTrack,
+  nextMockQuestionNumber,
   normalizedTaskKind,
   readSharedAliases,
   resolveCredentialStatus,

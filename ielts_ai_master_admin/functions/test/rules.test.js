@@ -9,7 +9,9 @@ const {
   initializeTestEnvironment,
 } = require("@firebase/rules-unit-testing");
 
-const projectId = "ielts-ai-master-phase1-test";
+// Keep Firestore and Storage in the same emulator namespace so cross-service
+// firestore.exists() checks in Storage Rules exercise the seeded documents.
+const projectId = "ielts-ai-study-assistant";
 let environment;
 
 test.before(async () => {
@@ -260,18 +262,27 @@ test("profile images are owner-scoped, image-only, and deletion-lock aware", asy
           .putString("image", "raw", {contentType: "image/png"}),
   );
 
+});
+
+test("account deletion lock blocks fresh Firestore and Storage writes", async () => {
+  await environment.clearFirestore();
+  await environment.clearStorage();
   await environment.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc("users/learner").set({
+      accountStatus: "active",
+    });
     await context.firestore().doc("account_deletion_locks/learner").set({
       status: "in_progress",
     });
   });
+
+  const learner = environment.authenticatedContext("learner");
   await assertFails(
-      learner.ref("speaking_recordings/learner/locked.m4a")
+      learner.storage().ref("speaking_recordings/learner/locked.m4a")
           .putString("audio", "raw", {contentType: "audio/mp4"}),
   );
   await assertFails(
-      environment.authenticatedContext("learner").firestore()
-          .doc("users/learner/saved_words/locked")
+      learner.firestore().doc("users/learner/saved_words/locked")
           .set({word: "blocked"}),
   );
 });

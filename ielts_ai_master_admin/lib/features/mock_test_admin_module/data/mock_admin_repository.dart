@@ -80,7 +80,7 @@ class MockAdminRepository {
 
     final totalRequired = requiredBySkill.values.fold<int>(
       0,
-      (total, count) => total + count,
+      (total, skillCount) => total + skillCount,
     );
 
     final ref = _firestore.collection('mock_tests').doc();
@@ -348,15 +348,45 @@ class MockAdminRepository {
   }
 
   Future<void> updateQuestion({required MockAdminQuestion question}) {
+    final editableFields = question.toFirestore()..remove('status');
     return _firestore
         .collection('mock_test_bank')
         .doc(question.track.value)
         .collection(question.skill.value)
         .doc(question.id)
         .set({
-          ...question.toFirestore(),
+          ...editableFields,
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
+  }
+
+  Future<MockAdminTest?> loadLinkedMockTest(MockAdminQuestion question) async {
+    if (question.mockTestId.trim().isEmpty) return null;
+    final snapshot = await _firestore
+        .collection('mock_tests')
+        .doc(question.mockTestId)
+        .get();
+    return snapshot.exists ? MockAdminTest.fromDocument(snapshot) : null;
+  }
+
+  Stream<List<MockQuestionQaEvent>> watchQuestionQaHistory(
+    MockAdminQuestion question,
+  ) {
+    return _firestore
+        .collection('content_qa_audit')
+        .where('documentPath', isEqualTo: question.documentPath)
+        .snapshots()
+        .map((snapshot) {
+          final events = snapshot.docs
+              .map(MockQuestionQaEvent.fromDocument)
+              .toList();
+          events.sort((a, b) {
+            final aDate = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final bDate = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            return bDate.compareTo(aDate);
+          });
+          return events;
+        });
   }
 
   Future<void> deleteQuestion({
@@ -411,6 +441,22 @@ class MockAdminRepository {
     await _qa.changeStatus(
       documentPath: 'mock_test_bank/${track.value}/${skill.value}/$id',
       status: status,
+    );
+  }
+
+  Future<ContentQaTransitionResult> transitionQuestionQa({
+    required MockAdminQuestion question,
+    required String targetState,
+    String? copyrightStatus,
+    String? sourceType,
+    String? sourceReference,
+  }) {
+    return _qa.transition(
+      documentPath: question.documentPath,
+      targetState: targetState,
+      copyrightStatus: copyrightStatus,
+      sourceType: sourceType,
+      sourceReference: sourceReference,
     );
   }
 

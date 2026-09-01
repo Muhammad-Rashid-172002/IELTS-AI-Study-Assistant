@@ -4,7 +4,7 @@
   "scripts": {
     "lint": "eslint .",
     "test": "node --test test/phase1_security.test.js test/phase2_contracts.test.js test/phase3_security.test.js",
-    "test:rules": "firebase --config ../firebase.json emulators:exec --only firestore,storage \"node --test --test-concurrency=1 test/rules.test.js test/callables.test.js\"",
+    "test:rules": "firebase --config ../firebase.json emulators:exec --only auth,firestore,storage \"node --test --test-concurrency=1 test/rules.test.js test/callables.test.js\"",
     "serve": "firebase emulators:start --only functions",
     "shell": "firebase functions:shell",
     "start": "npm run shell",
