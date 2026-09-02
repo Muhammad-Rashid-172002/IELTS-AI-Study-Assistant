@@ -473,7 +473,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ProfileTile(
                       icon: Icons.info_outline_rounded,
                       title: 'About App',
-                      subtitle: 'IELTS AI Master • Version 1.1.2+7',
+                      subtitle: 'IELTS AI Master • Version 2.3.4+15',
                       color: ProfileColors.violet,
                       onTap: () => Navigator.push(
                         context,

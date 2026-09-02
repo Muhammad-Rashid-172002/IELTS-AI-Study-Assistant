@@ -197,12 +197,22 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
         return;
       }
 
-      if (user.emailVerified) {
-        await _completeVerifiedUser(user);
+      await user.reload();
+      final refreshedUser = FirebaseAuth.instance.currentUser;
+      if (refreshedUser == null) {
+        _showMessage(
+          'Your session has expired. Sign in again to request another email.',
+          isError: true,
+        );
         return;
       }
 
-      await user.sendEmailVerification();
+      if (refreshedUser.emailVerified) {
+        await _completeVerifiedUser(refreshedUser);
+        return;
+      }
+
+      await refreshedUser.sendEmailVerification();
       if (!mounted) return;
       _startCooldown();
       _showMessage(

@@ -166,7 +166,7 @@ class AboutAppScreen extends StatelessWidget {
             children: const [
               _HeroBadge(
                 icon: Icons.verified_rounded,
-                label: 'Version 1.1.2+7',
+                label: 'Version 2.3.4+15',
               ),
               _HeroBadge(icon: Icons.school_rounded, label: 'Built for IELTS'),
               _HeroBadge(
