@@ -5047,213 +5047,213 @@ class _ResultHeader extends StatelessWidget {
   }
 }
 
-class _ResultHero extends StatelessWidget {
-  final ReadingTestResult result;
+// class _ResultHero extends StatelessWidget {
+//   final ReadingTestResult result;
 
-  const _ResultHero({required this.result});
+//   const _ResultHero({required this.result});
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(22),
-      decoration: _heroDecoration(),
-      child: Column(
-        children: [
-          const Text(
-            'Estimated Band',
-            style: TextStyle(color: RColors.secondary),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            result.estimatedBand.toStringAsFixed(1),
-            style: const TextStyle(
-              color: RColors.cyan,
-              fontSize: 48,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${result.rawScore}/${result.totalQuestions} correct • ${result.accuracyPercent}% accuracy',
-            style: const TextStyle(
-              color: RColors.text,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+//   @override
+//   Widget build(BuildContext context) {
+//     return Container(
+//       padding: const EdgeInsets.all(22),
+//       decoration: _heroDecoration(),
+//       child: Column(
+//         children: [
+//           const Text(
+//             'Estimated Band',
+//             style: TextStyle(color: RColors.secondary),
+//           ),
+//           const SizedBox(height: 8),
+//           Text(
+//             result.estimatedBand.toStringAsFixed(1),
+//             style: const TextStyle(
+//               color: RColors.cyan,
+//               fontSize: 48,
+//               fontWeight: FontWeight.w900,
+//             ),
+//           ),
+//           const SizedBox(height: 8),
+//           Text(
+//             '${result.rawScore}/${result.totalQuestions} correct • ${result.accuracyPercent}% accuracy',
+//             style: const TextStyle(
+//               color: RColors.text,
+//               fontWeight: FontWeight.w800,
+//             ),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+// }
 
-class _MetricGrid extends StatelessWidget {
-  final ReadingTestResult result;
+// class _MetricGrid extends StatelessWidget {
+//   final ReadingTestResult result;
 
-  const _MetricGrid({required this.result});
+//   const _MetricGrid({required this.result});
 
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _MetricCard(
-            icon: Icons.speed_rounded,
-            value: '${result.readingSpeedWpm}',
-            label: 'Words/min',
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _MetricCard(
-            icon: Icons.help_outline_rounded,
-            value: '${result.unansweredQuestions}',
-            label: 'Unanswered',
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _MetricCard(
-            icon: Icons.timer_outlined,
-            value: _formatClock(result.durationUsedSeconds),
-            label: 'Time used',
-          ),
-        ),
-      ],
-    );
-  }
-}
+//   @override
+//   Widget build(BuildContext context) {
+//     return Row(
+//       children: [
+//         Expanded(
+//           child: _MetricCard(
+//             icon: Icons.speed_rounded,
+//             value: '${result.readingSpeedWpm}',
+//             label: 'Words/min',
+//           ),
+//         ),
+//         const SizedBox(width: 10),
+//         Expanded(
+//           child: _MetricCard(
+//             icon: Icons.help_outline_rounded,
+//             value: '${result.unansweredQuestions}',
+//             label: 'Unanswered',
+//           ),
+//         ),
+//         const SizedBox(width: 10),
+//         Expanded(
+//           child: _MetricCard(
+//             icon: Icons.timer_outlined,
+//             value: _formatClock(result.durationUsedSeconds),
+//             label: 'Time used',
+//           ),
+//         ),
+//       ],
+//     );
+//   }
+// }
 
-class _MetricCard extends StatelessWidget {
-  final IconData icon;
-  final String value;
-  final String label;
+// class _MetricCard extends StatelessWidget {
+//   final IconData icon;
+//   final String value;
+//   final String label;
 
-  const _MetricCard({
-    required this.icon,
-    required this.value,
-    required this.label,
-  });
+//   const _MetricCard({
+//     required this.icon,
+//     required this.value,
+//     required this.label,
+//   });
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
-      decoration: _cardDecoration(),
-      child: Column(
-        children: [
-          Icon(icon, color: RColors.cyan, size: 20),
-          const SizedBox(height: 7),
-          Text(
-            value,
-            style: const TextStyle(
-              color: RColors.text,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: RColors.muted, fontSize: 12),
-          ),
-        ],
-      ),
-    );
-  }
-}
+//   @override
+//   Widget build(BuildContext context) {
+//     return Container(
+//       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+//       decoration: _cardDecoration(),
+//       child: Column(
+//         children: [
+//           Icon(icon, color: RColors.cyan, size: 20),
+//           const SizedBox(height: 7),
+//           Text(
+//             value,
+//             style: const TextStyle(
+//               color: RColors.text,
+//               fontWeight: FontWeight.w900,
+//             ),
+//           ),
+//           const SizedBox(height: 3),
+//           Text(
+//             label,
+//             textAlign: TextAlign.center,
+//             style: const TextStyle(color: RColors.muted, fontSize: 12),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+// }
 
-class _PerformanceCard extends StatelessWidget {
-  final String title;
-  final int value;
-  final String? subtitle;
-  final Color color;
+// class _PerformanceCard extends StatelessWidget {
+//   final String title;
+//   final int value;
+//   final String? subtitle;
+//   final Color color;
 
-  const _PerformanceCard({
-    required this.title,
-    required this.value,
-    this.subtitle,
-    this.color = RColors.cyan,
-  });
+//   const _PerformanceCard({
+//     required this.title,
+//     required this.value,
+//     this.subtitle,
+//     this.color = RColors.cyan,
+//   });
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: _cardDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    color: RColors.text,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              Text(
-                '$value%',
-                style: TextStyle(color: color, fontWeight: FontWeight.w900),
-              ),
-            ],
-          ),
-          if (subtitle != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              subtitle!,
-              style: const TextStyle(color: RColors.muted, fontSize: 12),
-            ),
-          ],
-          const SizedBox(height: 10),
-          LinearProgressIndicator(
-            value: value / 100,
-            color: color,
-            backgroundColor: RColors.border,
-            borderRadius: BorderRadius.circular(20),
-          ),
-        ],
-      ),
-    );
-  }
-}
+//   @override
+//   Widget build(BuildContext context) {
+//     return Container(
+//       padding: const EdgeInsets.all(14),
+//       decoration: _cardDecoration(),
+//       child: Column(
+//         crossAxisAlignment: CrossAxisAlignment.start,
+//         children: [
+//           Row(
+//             children: [
+//               Expanded(
+//                 child: Text(
+//                   title,
+//                   style: const TextStyle(
+//                     color: RColors.text,
+//                     fontWeight: FontWeight.w800,
+//                   ),
+//                 ),
+//               ),
+//               Text(
+//                 '$value%',
+//                 style: TextStyle(color: color, fontWeight: FontWeight.w900),
+//               ),
+//             ],
+//           ),
+//           if (subtitle != null) ...[
+//             const SizedBox(height: 4),
+//             Text(
+//               subtitle!,
+//               style: const TextStyle(color: RColors.muted, fontSize: 12),
+//             ),
+//           ],
+//           const SizedBox(height: 10),
+//           LinearProgressIndicator(
+//             value: value / 100,
+//             color: color,
+//             backgroundColor: RColors.border,
+//             borderRadius: BorderRadius.circular(20),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+// }
 
-class _RecommendationCard extends StatelessWidget {
-  final ReadingTestResult result;
+// class _RecommendationCard extends StatelessWidget {
+//   final ReadingTestResult result;
 
-  const _RecommendationCard({required this.result});
+//   const _RecommendationCard({required this.result});
 
-  @override
-  Widget build(BuildContext context) {
-    final recommendation = result.weakQuestionTypes.isEmpty
-        ? 'Strong performance. Continue with timed full tests to maintain speed and accuracy.'
-        : 'Focus next on ${result.weakQuestionTypes.take(3).join(', ')}. Review evidence-location and paraphrasing strategies.';
+//   @override
+//   Widget build(BuildContext context) {
+//     final recommendation = result.weakQuestionTypes.isEmpty
+//         ? 'Strong performance. Continue with timed full tests to maintain speed and accuracy.'
+//         : 'Focus next on ${result.weakQuestionTypes.take(3).join(', ')}. Review evidence-location and paraphrasing strategies.';
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: RColors.green.withOpacity(.08),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: RColors.green.withOpacity(.22)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.lightbulb_outline_rounded, color: RColors.green),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Text(
-              recommendation,
-              style: const TextStyle(color: RColors.secondary, height: 1.5),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+//     return Container(
+//       padding: const EdgeInsets.all(16),
+//       decoration: BoxDecoration(
+//         color: RColors.green.withOpacity(.08),
+//         borderRadius: BorderRadius.circular(18),
+//         border: Border.all(color: RColors.green.withOpacity(.22)),
+//       ),
+//       child: Row(
+//         crossAxisAlignment: CrossAxisAlignment.start,
+//         children: [
+//           const Icon(Icons.lightbulb_outline_rounded, color: RColors.green),
+//           const SizedBox(width: 11),
+//           Expanded(
+//             child: Text(
+//               recommendation,
+//               style: const TextStyle(color: RColors.secondary, height: 1.5),
+//             ),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+// }
 
 class _ToolButton extends StatelessWidget {
   final IconData icon;

@@ -17,9 +17,12 @@ class StartupAccessPolicy {
     required bool emailVerified,
     required Map<String, dynamic> profile,
     required bool offline,
+    bool requireEmailVerification = true,
   }) {
     if (!signedIn) return StartupDestination.onboarding;
-    if (!emailVerified) return StartupDestination.verifyEmail;
+    if (requireEmailVerification && !emailVerified) {
+      return StartupDestination.verifyEmail;
+    }
 
     final status = (profile['accountStatus'] ?? 'active')
         .toString()

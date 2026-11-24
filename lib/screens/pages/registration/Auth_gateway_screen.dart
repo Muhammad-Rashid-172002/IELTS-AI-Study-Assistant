@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:fyproject/config/auth_config.dart';
 import 'package:fyproject/config/platform_links.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:fyproject/screens/pages/9-step%20premium%20profile%20setup%20wizard/initial_profile_setup.dart';
@@ -279,6 +280,14 @@ class _CreateAccountFormState extends State<CreateAccountForm> {
       }, SetOptions(merge: true));
 
       await _recordLoginEvent(user: user, method: 'password_registration');
+
+      if (!AuthConfig.requireEmailVerification) {
+        // Email verification temporarily disabled (see AuthConfig):
+        // skip the verification email and continue straight into the app.
+        if (!mounted) return;
+        await _routeAuthenticatedUser(context, user);
+        return;
+      }
 
       var verificationEmailSent = true;
 
@@ -604,7 +613,7 @@ class _SignInFormState extends State<SignInForm> {
 
       if (!mounted) return;
 
-      if (!user.emailVerified) {
+      if (AuthConfig.requireEmailVerification && !user.emailVerified) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (_) => EmailVerificationScreen(

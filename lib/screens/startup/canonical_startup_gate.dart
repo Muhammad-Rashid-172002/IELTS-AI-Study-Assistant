@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../config/auth_config.dart';
 import '../../resources/bottom_navigation_bar/botton_navigation.dart';
 import '../../services/startup_access_policy.dart';
 import '../../services/mobile_release_policy.dart';
@@ -101,6 +102,7 @@ class _CanonicalStartupGateState extends State<CanonicalStartupGate> {
       emailVerified: user.emailVerified,
       profile: profile,
       offline: offline,
+      requireEmailVerification: AuthConfig.requireEmailVerification,
     );
 
     switch (destination) {
